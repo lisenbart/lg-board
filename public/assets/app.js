@@ -23,7 +23,14 @@ const STATUS_BY_ROLE = {
   finance: ["new", "wip", "revision", "done", "approve"],
 };
 
-const state = { db: null, roleId: "finance", view: "board", selected: new Set(), openId: null };
+const state = {
+  db: null,
+  roleId: "finance",
+  view: "board",
+  selected: new Set(),
+  openId: null,
+  designerFilter: null,
+};
 const $ = (id) => document.getElementById(id);
 
 function escapeHtml(s) {
@@ -77,6 +84,11 @@ function visibleTasks() {
   return state.db.tasks.filter((t) => {
     if (q && !`${t.name} ${t.brief}`.toLowerCase().includes(q)) return false;
     if (isDesigner() && t.assigneeId !== me().id) return false;
+    if (!isDesigner() && state.designerFilter) {
+      if (state.designerFilter === "unassigned") {
+        if (t.assigneeId) return false;
+      } else if (t.assigneeId !== state.designerFilter) return false;
+    }
     return true;
   });
 }
@@ -204,6 +216,75 @@ function sortedTasks(list) {
   });
 }
 
+function loadTone(hours, fair) {
+  if (!hours) return "empty";
+  if (!fair) return "even";
+  if (hours < fair * 0.7) return "light";
+  if (hours > fair * 1.3) return "heavy";
+  return "even";
+}
+
+function renderLoad() {
+  const box = $("load");
+  if (!box) return;
+  if (isDesigner() || state.view === "close") {
+    box.hidden = true;
+    box.innerHTML = "";
+    return;
+  }
+  box.hidden = false;
+  const people = designers();
+  const tasks = state.db.tasks;
+  const rows = people.map((p) => {
+    const mine = tasks.filter((t) => t.assigneeId === p.id);
+    const hours = mine.reduce((s, t) => s + (Number(t.hours) || 0), 0);
+    return { person: p, mine, count: mine.length, hours };
+  });
+  const unassigned = tasks.filter((t) => !t.assigneeId);
+  const unHours = unassigned.reduce((s, t) => s + (Number(t.hours) || 0), 0);
+  const assignedHours = rows.reduce((s, r) => s + r.hours, 0);
+  const fair = people.length ? assignedHours / people.length : 0;
+  const maxH = Math.max(fair, ...rows.map((r) => r.hours), 0.1);
+  const cards = rows
+    .map((r) => {
+      const tone = loadTone(r.hours, fair);
+      const on = state.designerFilter === r.person.id ? " on" : "";
+      const ticks = r.mine.length
+        ? r.mine.map((t) => `<i class="tick line-${t.line}" title="${escapeHtml(t.name)}"></i>`).join("")
+        : `<i class="tick none"></i>`;
+      const pct = Math.round((r.hours / maxH) * 100);
+      const fairPct = Math.round((fair / maxH) * 100);
+      return `<button type="button" class="load-card ${tone}${on}" data-filter="${r.person.id}">
+        <div class="load-top">${personCell(r.person.id)}<span class="load-tag">${tone}</span></div>
+        <div class="load-nums"><b>${r.count}</b> projects · <b>${r.hours.toFixed(1)} h</b></div>
+        <div class="ticks">${ticks}</div>
+        <div class="load-bar"><span class="load-fill" style="width:${pct}%"></span><span class="load-fair" style="left:${fairPct}%"></span></div>
+      </button>`;
+    })
+    .join("");
+  const unOn = state.designerFilter === "unassigned" ? " on" : "";
+  box.innerHTML = `
+    <div class="load-head">
+      <strong>Designer load</strong>
+      <span>Cells = projects (like Excel). Bar vs even split ${fair.toFixed(1)} h. Click to filter.</span>
+    </div>
+    <div class="load-row">
+      ${cards}
+      <button type="button" class="load-card unassigned${unOn}" data-filter="unassigned">
+        <div class="load-top"><span class="person"><span class="avatar" style="background:#c5c7d0">?</span>Unassigned</span><span class="load-tag">open</span></div>
+        <div class="load-nums"><b>${unassigned.length}</b> projects · <b>${unHours.toFixed(1)} h</b></div>
+        <div class="ticks">${unassigned.map((t) => `<i class="tick line-${t.line}" title="${escapeHtml(t.name)}"></i>`).join("") || `<i class="tick none"></i>`}</div>
+      </button>
+    </div>`;
+  box.querySelectorAll(".load-card").forEach((el) => {
+    el.addEventListener("click", () => {
+      const id = el.dataset.filter;
+      state.designerFilter = state.designerFilter === id ? null : id;
+      render();
+    });
+  });
+}
+
 function renderBoard() {
   if (state.view === "close") {
     renderClose();
@@ -221,8 +302,8 @@ function renderBoard() {
   const head = `<div class="cols ${mode}">
       ${frozenHead}
       <div class="meta">
-        <div class="cell">Assignee</div><div class="cell">Status</div>
-        <div class="cell">Brief</div><div class="cell">Result</div>
+        <div class="cell">Status</div><div class="cell">Brief</div>
+        <div class="cell">Result</div><div class="cell">Assignee</div>
       </div>
     </div>`;
 
@@ -292,10 +373,10 @@ function rowHtml(t, mode, gap) {
     <div class="row ${mode}${gapCls} ${checked ? "selected" : ""}" data-id="${t.id}">
       ${frozen}
       <div class="meta">
-        <div class="cell">${personCell(t.assigneeId)}</div>
         <div class="cell"><span class="pill ${st.cls}">${st.label}</span></div>
         <div class="cell">${brief}</div>
         <div class="cell">${result}</div>
+        <div class="cell">${personCell(t.assigneeId)}</div>
       </div>
     </div>`;
 }
@@ -498,12 +579,14 @@ function render() {
   renderChrome();
   renderToolbar();
   renderKpis();
+  renderLoad();
   renderBoard();
 }
 
 $("who").addEventListener("change", (e) => {
   state.roleId = e.target.value;
   state.selected.clear();
+  state.designerFilter = null;
   state.view = "board";
   render();
 });
