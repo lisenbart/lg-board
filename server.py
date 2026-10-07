@@ -499,7 +499,6 @@ class Handler(SimpleHTTPRequestHandler):
                     finance_io.issue_invoice(r["line"], r["hours"], r["bill"], month)
                     for r in rows
                 ]
-                pack = packs[0]
                 names = []
                 files = []
                 for item in packs:
@@ -507,12 +506,21 @@ class Handler(SimpleHTTPRequestHandler):
                     if item.get("pdfName"):
                         names.append(item["pdfName"])
                     files.extend(item.get("files") or [])
-                pack["files"] = files
-                pack["invoices"] = packs
-                pack["message"] = (
-                    f"Wrote {pack['folder']} ({', '.join(names)}). Sign the PDFs and send."
+                first = packs[0]
+                self._json(
+                    200,
+                    {
+                        "ok": True,
+                        "folder": first["folder"],
+                        "folderPath": first.get("folderPath"),
+                        "files": files,
+                        "docxName": first["docxName"],
+                        "pdfName": first.get("pdfName") or "",
+                        "message": (
+                            f"Wrote {first['folder']} ({', '.join(names)}). Sign the PDFs and send."
+                        ),
+                    },
                 )
-                self._json(200, pack)
                 return
             if path == "/api/finance/save":
                 if (data.get("role") or "") != "finance":
