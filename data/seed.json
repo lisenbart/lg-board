@@ -13,14 +13,16 @@
   "people": [
     {
       "id": "finance",
-      "name": "Finance",
+      "name": "Dmytro",
       "role": "finance",
+      "email": "dmytro@lisenbart.games",
       "color": "#0073ea"
     },
     {
       "id": "manager",
-      "name": "Manager",
+      "name": "Anastasiia",
       "role": "manager",
+      "email": "anastasiia@lisenbart.games",
       "color": "#9d50dd"
     },
     {

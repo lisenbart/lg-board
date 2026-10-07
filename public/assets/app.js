@@ -30,7 +30,28 @@ const STATUS_BY_ROLE = {
 };
 
 const MONTH_KEY = "lg-month";
-const STUDIO_KEY = "lg-studio";
+const SESSION_KEY = "lg-session";
+
+const ACCOUNTS = [
+  {
+    email: "dmytro@lisenbart.games",
+    name: "Dmytro",
+    blurb: "You see everything, including Finance.",
+    lockRole: "finance",
+  },
+  {
+    email: "anastasiia@lisenbart.games",
+    name: "Anastasiia",
+    blurb: "Manager desk. Everything except Finance.",
+    lockRole: "manager",
+  },
+  {
+    email: "lisenbart.games@gmail.com",
+    name: "Designers · Drive",
+    blurb: "Shared studio mailbox. Pick team lead or a designer.",
+    lockRole: null,
+  },
+];
 
 const state = {
   db: null,
@@ -41,21 +62,108 @@ const state = {
   designerFilter: null,
   month: "2026-10",
   teamDrafts: {},
+  session: null,
 };
 const $ = (id) => document.getElementById(id);
 
 function isLocalHost() {
   return location.hostname === "localhost" || location.hostname === "127.0.0.1";
 }
-function studioUnlock() {
-  if (!isLocalHost()) return false;
-  const q = new URLSearchParams(location.search);
-  if (q.get("studio") === "1") localStorage.setItem(STUDIO_KEY, "1");
-  if (q.get("client") === "1") localStorage.removeItem(STUDIO_KEY);
-  return localStorage.getItem(STUDIO_KEY) === "1";
+function isStudioHost() {
+  return isLocalHost();
 }
 function isClientPreview() {
-  return !studioUnlock();
+  return !isStudioHost();
+}
+function readSession() {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+function writeSession(session) {
+  state.session = session;
+  if (session) localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  else localStorage.removeItem(SESSION_KEY);
+}
+function accountByEmail(email) {
+  return ACCOUNTS.find((a) => a.email === email);
+}
+function seatPeople(account) {
+  const people = state.db?.people || [];
+  if (!account) return [];
+  if (account.lockRole) return people.filter((p) => p.role === account.lockRole);
+  return people.filter((p) => p.role === "teamlead" || p.role === "designer");
+}
+function applySession(session) {
+  const account = accountByEmail(session?.email);
+  const seats = seatPeople(account);
+  if (!account || !seats.length) {
+    writeSession(null);
+    return false;
+  }
+  const seat = seats.find((p) => p.id === session.seatId) || seats[0];
+  state.session = { email: account.email, seatId: seat.id };
+  state.roleId = seat.id;
+  writeSession(state.session);
+  return true;
+}
+function enterStudio() {
+  document.documentElement.classList.add("in-app");
+  $("loginGate").hidden = true;
+}
+function showLogin(accountEmail) {
+  document.documentElement.classList.remove("in-app");
+  const gate = $("loginGate");
+  gate.hidden = false;
+  const box = $("loginAccounts");
+  const picked = accountByEmail(accountEmail);
+  if (picked && !picked.lockRole) {
+    box.innerHTML =
+      `<button type="button" class="btn ghost login-back" id="loginBack">Back</button>` +
+      seatPeople(picked)
+        .map(
+          (p) =>
+            `<button type="button" class="login-seat" data-seat="${p.id}">
+              <strong>${escapeHtml(p.name)}</strong>
+              <span>${escapeHtml(ROLE_LABEL[p.role] || p.role)}</span>
+            </button>`
+        )
+        .join("");
+    $("loginBack")?.addEventListener("click", () => showLogin());
+    box.querySelectorAll(".login-seat").forEach((el) => {
+      el.addEventListener("click", () => {
+        if (!applySession({ email: picked.email, seatId: el.dataset.seat })) return;
+        enterStudio();
+        render();
+      });
+    });
+    return;
+  }
+  box.innerHTML = ACCOUNTS.map(
+    (a) =>
+      `<button type="button" class="login-acc" data-email="${escapeHtml(a.email)}">
+        <strong>${escapeHtml(a.name)}</strong>
+        <span>${escapeHtml(a.email)}</span>
+        <small>${escapeHtml(a.blurb)}</small>
+      </button>`
+  ).join("");
+  box.querySelectorAll(".login-acc").forEach((el) => {
+    el.addEventListener("click", () => {
+      const account = accountByEmail(el.dataset.email);
+      if (!account) return;
+      if (!account.lockRole) {
+        showLogin(account.email);
+        return;
+      }
+      const seat = seatPeople(account)[0];
+      if (!applySession({ email: account.email, seatId: seat?.id })) return;
+      enterStudio();
+      render();
+    });
+  });
 }
 function visiblePeople() {
   const people = state.db?.people || [];
@@ -159,6 +267,9 @@ function isFinance() {
 function isDesigner() {
   return me().role === "designer";
 }
+function isTeamLead() {
+  return me().role === "teamlead";
+}
 function canOps() {
   return me().role === "manager" || me().role === "finance";
 }
@@ -177,7 +288,10 @@ function parseShifts(raw) {
   return Math.round(n * 1000) / 1000;
 }
 function canAssign() {
-  return me().role === "teamlead";
+  return me().role === "teamlead" || me().role === "manager" || me().role === "finance";
+}
+function isExecView() {
+  return isDesigner() || isTeamLead();
 }
 function designers() {
   return state.db.people.filter((p) => p.role === "designer");
@@ -249,7 +363,36 @@ function visibleTasks() {
 }
 
 function renderWho() {
-  $("who").innerHTML = visiblePeople()
+  const mail = $("whoMail");
+  const sel = $("who");
+  const out = $("signOut");
+  if (isClientPreview()) {
+    mail.hidden = true;
+    mail.textContent = "";
+    out.hidden = true;
+    sel.hidden = false;
+    sel.innerHTML = visiblePeople()
+      .map(
+        (p) =>
+          `<option value="${p.id}" ${p.id === state.roleId ? "selected" : ""}>${escapeHtml(p.name)} · ${
+            ROLE_LABEL[p.role] || p.role
+          }</option>`
+      )
+      .join("");
+    return;
+  }
+  const account = accountByEmail(state.session?.email);
+  mail.hidden = false;
+  mail.textContent = account?.email || "";
+  out.hidden = false;
+  const seats = seatPeople(account);
+  if (seats.length <= 1) {
+    sel.hidden = true;
+    sel.innerHTML = "";
+    return;
+  }
+  sel.hidden = false;
+  sel.innerHTML = seats
     .map(
       (p) =>
         `<option value="${p.id}" ${p.id === state.roleId ? "selected" : ""}>${escapeHtml(p.name)} · ${
@@ -282,23 +425,26 @@ function renderChrome() {
   $("financeNav").hidden = !isFinance();
   renderMonth();
   $("roleHint").textContent = isDesigner()
-    ? "Your queue only. Set WIP or Done and paste the result. You cannot send to Monday."
-    : canAssign()
-      ? "Assign designers. You can use Ready to Start, WIP, Need Fixing, Done — not Senior Approval."
+    ? "Your queue. Set WIP or Done and paste the result. Excel is the overall picture — read only."
+    : isTeamLead()
+      ? "Your work plus every designer. Assign people. Ready to Start, WIP, Need Fixing, Done — not Senior Approval."
       : canOps() && !isFinance()
-        ? "Pull from Monday and send Done work as Senior Approval. Team lead assigns people."
-        : "Pipeline plus finance. Invoice draft is only on this role.";
+        ? "Full pipeline except Finance. Pull from Monday, assign, send Done work as Senior Approval."
+        : "Everything, including Finance. Invoice draft is only on this seat.";
   $("sideFoot").innerHTML = isFinance()
     ? "Drive sandbox: _PORTAL_TEST<br>Live October Projects stay untouched."
     : isDesigner()
-      ? "You only see your queue. Other designers’ projects stay hidden."
-      : canAssign()
-        ? "Open a project and pick a designer."
-        : "Monday import / export are manager actions. Team lead assigns.";
+      ? "Your queue is private. Excel shows the whole month, without money."
+      : isTeamLead()
+        ? "Open a project and pick a designer. Monday send stays with the manager."
+        : "Monday import / export are manager actions. Finance stays with Dmytro.";
 
   const tabs = [];
-  tabs.push({ id: "board", label: isDesigner() ? "My projects" : canAssign() ? "All projects" : "Pipeline" });
-  if (!isDesigner()) tabs.push({ id: "excel", label: "Excel" });
+  tabs.push({
+    id: "board",
+    label: isDesigner() ? "My projects" : isTeamLead() ? "All projects" : "Pipeline",
+  });
+  tabs.push({ id: "excel", label: "Excel" });
   if (canOps()) tabs.push({ id: "ready", label: "Ready to send" });
   if (isFinance()) {
     tabs.push({ id: "close", label: "Finance" });
@@ -325,7 +471,9 @@ function renderToolbar() {
     return;
   }
   if (state.view === "excel") {
-    $("toolbar").innerHTML = `
+    $("toolbar").innerHTML = isDesigner()
+      ? `<input class="search" placeholder="Search project" />`
+      : `
       <button class="btn primary" id="btnExcelPull">Pull from Excel</button>
       <button class="btn" id="btnExcelOpen">Open xlsx</button>
       <button class="btn green" id="btnExcelSave">Save Excel</button>
@@ -338,7 +486,7 @@ function renderToolbar() {
     return;
   }
   const n = state.selected.size;
-  if (isDesigner() || canAssign()) {
+  if (isExecView()) {
     $("toolbar").innerHTML = `<input class="search" placeholder="Search project" />`;
   } else {
     $("toolbar").innerHTML = `
@@ -533,7 +681,7 @@ function renderExcelSheet() {
   const allShifts = tasks.reduce((s, t) => s + (Number(t.shifts) || 0), 0);
   const nameHeads = people.map((p) => `<th class="xl-person">${escapeHtml(p.name)}</th>`).join("");
   const emplHeads = people.map((_, i) => `<th>EMPL ${i + 1}</th>`).join("");
-  const canMove = canAssign() || canOps();
+  const canMove = !isDesigner() && (canAssign() || canOps());
 
   const rowHtml = (t) => {
     const cells = people
@@ -572,7 +720,11 @@ function renderExcelSheet() {
     <section class="xl-wrap">
       <div class="xl-caption">
         <strong>${monthLabel(state.month)} · SP_MGX_check</strong>
-        <span>Mirror of the Excel load sheet. Pull reads the file, Save writes it. Click an empty hours cell to assign.</span>
+        <span>${
+          isDesigner()
+            ? "Overall picture this month. Hours only — you cannot assign or save the file."
+            : "Mirror of the Excel load sheet. Pull reads the file, Save writes it. Click an empty hours cell to assign."
+        }</span>
       </div>
       <div class="xl-scroll">
         <table class="xl-table">
@@ -617,6 +769,10 @@ function renderExcelSheet() {
           role: me().role,
           note: `${me().name} set Excel column ${person(assigneeId)?.name || "empty"}`,
         });
+        return;
+      }
+      if (isDesigner() && t.assigneeId !== me().id) {
+        toast("Overall picture only — open your own projects from My projects");
         return;
       }
       openTask(t.id);
@@ -680,7 +836,7 @@ function renderBoard() {
     renderExcelSheet();
     return;
   }
-  const exec = isDesigner() || canAssign();
+  const exec = isExecView();
   let tasks = visibleTasks();
   if (state.view === "ready") tasks = tasks.filter((t) => t.studioStatus === "done");
   tasks = sortedTasks(tasks);
@@ -1094,9 +1250,9 @@ function openTask(id) {
     .join("");
   const statusHint = isDesigner()
     ? "Designer: WIP or Done. Manager sends Senior Approval to Monday."
-    : canAssign()
+    : isTeamLead()
       ? "Team lead: Ready to Start, WIP, Need Fixing, Done. No Monday send."
-      : "Manager: send Done work to Senior Approval on Monday.";
+      : "Manager / Finance: send Done work to Senior Approval on Monday.";
   $("drawer").innerHTML = `
     <button class="btn ghost" id="closeDrawer">Close</button>
     <h2>${escapeHtml(t.name)}</h2>
@@ -1273,7 +1429,18 @@ $("who").addEventListener("change", (e) => {
   state.selected.clear();
   state.designerFilter = null;
   state.view = "board";
+  if (state.session) writeSession({ ...state.session, seatId: e.target.value });
   render();
+});
+$("signOut").addEventListener("click", () => {
+  writeSession(null);
+  state.roleId = "manager";
+  state.view = "board";
+  state.selected.clear();
+  state.designerFilter = null;
+  state.openId = null;
+  $("drawerBg").classList.remove("show");
+  showLogin();
 });
 $("navClose").addEventListener("click", () => {
   if (!isFinance()) return;
@@ -1317,14 +1484,25 @@ $("drawerBg").addEventListener("click", (e) => {
   if (e.target === $("drawerBg")) $("drawerBg").classList.remove("show");
 });
 
-api("/api/state").then((db) => {
-  state.db = db;
-  if (isClientPreview()) {
-    const people = visiblePeople();
-    if (!people.some((p) => p.id === state.roleId)) {
-      state.roleId = people.find((p) => p.role === "manager")?.id || people[0]?.id;
+api("/api/state")
+  .then((db) => {
+    state.db = db;
+    state.month = localStorage.getItem(MONTH_KEY) || calendarMonth() || db.meta?.month || "2026-10";
+    if (isStudioHost()) {
+      const session = readSession();
+      if (!session || !applySession(session)) {
+        showLogin();
+        return;
+      }
+      enterStudio();
+    } else {
+      const people = visiblePeople();
+      if (!people.some((p) => p.id === state.roleId)) {
+        state.roleId = people.find((p) => p.role === "manager")?.id || people[0]?.id;
+      }
     }
-  }
-  state.month = localStorage.getItem(MONTH_KEY) || calendarMonth() || db.meta?.month || "2026-10";
-  render();
-});
+    render();
+  })
+  .catch(() => {
+    if (isStudioHost()) showLogin();
+  });
