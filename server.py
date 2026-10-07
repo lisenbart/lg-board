@@ -267,6 +267,22 @@ class Handler(SimpleHTTPRequestHandler):
                 if not task:
                     self._json(404, {"error": "not found"})
                     return
+                nxt = data.get("studioStatus")
+                role = data.get("role") or ""
+                allowed = {
+                    "designer": {"wip", "done"},
+                    "teamlead": {"new", "wip", "revision", "done"},
+                    "manager": {"new", "wip", "revision", "done", "approve"},
+                    "finance": {"new", "wip", "revision", "done", "approve"},
+                }
+                if (
+                    nxt
+                    and nxt != task.get("studioStatus")
+                    and role in allowed
+                    and nxt not in allowed[role]
+                ):
+                    self._json(403, {"error": f"{role} cannot set {nxt}"})
+                    return
                 for key in ("studioStatus", "assigneeId", "resultUrl", "brief", "folderUrl", "docUrl"):
                     if key in data:
                         task[key] = data[key]

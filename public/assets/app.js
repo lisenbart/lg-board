@@ -14,7 +14,14 @@ const ROLE_LABEL = {
 };
 
 const NAME_WIDTH_KEY = "lg-name-width";
-const NAME_WIDTH_DEFAULT = 380;
+const NAME_WIDTH_DEFAULT = 520;
+
+const STATUS_BY_ROLE = {
+  designer: ["wip", "done"],
+  teamlead: ["new", "wip", "revision", "done"],
+  manager: ["new", "wip", "revision", "done", "approve"],
+  finance: ["new", "wip", "revision", "done", "approve"],
+};
 
 const state = { db: null, roleId: "finance", view: "board", selected: new Set(), openId: null };
 const $ = (id) => document.getElementById(id);
@@ -88,11 +95,11 @@ function renderWho() {
 function renderChrome() {
   $("financeNav").hidden = !isFinance();
   $("roleHint").textContent = isDesigner()
-    ? "Only the projects assigned to you. Paste the result link. No money here."
+    ? "Your queue only. Set WIP or Done and paste the result. You cannot send to Monday."
     : canAssign()
-      ? "You assign designers. Monday and invoices are not your screen."
+      ? "Assign designers. You can use Ready to Start, WIP, Need Fixing, Done — not Senior Approval."
       : canOps() && !isFinance()
-        ? "Pull from Monday and send finished work to the client. Team lead assigns people."
+        ? "Pull from Monday and send Done work as Senior Approval. Team lead assigns people."
         : "Pipeline plus finance. Invoice draft is only on this role.";
   $("sideFoot").innerHTML = isFinance()
     ? "Drive sandbox: _PORTAL_TEST<br>Live October Projects stay untouched."
@@ -207,21 +214,17 @@ function renderBoard() {
   if (state.view === "ready") tasks = tasks.filter((t) => t.studioStatus === "done");
   tasks = sortedTasks(tasks);
   const mode = exec ? "exec" : "ops";
-  const head = exec
-    ? `<div class="cols exec">
-        <div class="frozen"><div class="cell">Project</div></div>
-        <div class="meta">
-          <div class="cell">Assignee</div><div class="cell">Time</div><div class="cell">Brief</div>
-          <div class="cell">Result</div><div class="cell">Status</div>
-        </div>
-      </div>`
-    : `<div class="cols ops">
-        <div class="frozen"><div class="cell"></div><div class="cell">Project</div></div>
-        <div class="meta">
-          <div class="cell">Line</div><div class="cell">Time</div><div class="cell">Assignee</div>
-          <div class="cell">Status</div><div class="cell">Brief</div><div class="cell">Result</div>
-        </div>
-      </div>`;
+  const frozenHead =
+    mode === "ops"
+      ? `<div class="frozen"><div class="cell">Line</div><div class="cell"></div><div class="cell">Project</div><div class="cell">Time</div></div>`
+      : `<div class="frozen"><div class="cell">Line</div><div class="cell">Project</div><div class="cell">Time</div></div>`;
+  const head = `<div class="cols ${mode}">
+      ${frozenHead}
+      <div class="meta">
+        <div class="cell">Assignee</div><div class="cell">Status</div>
+        <div class="cell">Brief</div><div class="cell">Result</div>
+      </div>
+    </div>`;
 
   $("board").innerHTML = `
     <section class="group sheet" style="--name-width:${savedNameWidth()}px">
@@ -272,28 +275,23 @@ function rowHtml(t, mode, gap) {
   const result = t.resultUrl
     ? `<a class="linkish" href="${escapeHtml(t.resultUrl)}" target="_blank" rel="noreferrer">Link</a>`
     : `<span class="empty">paste</span>`;
-  if (mode === "exec") {
-    return `
-      <div class="row exec${gapCls}" data-id="${t.id}">
-        <div class="frozen"><div class="cell name" title="${escapeHtml(t.name)}">${escapeHtml(t.name)}</div></div>
-        <div class="meta">
-          <div class="cell">${personCell(t.assigneeId)}</div>
+  const frozen =
+    mode === "ops"
+      ? `<div class="frozen">
+          <div class="cell"><span class="pill line-${t.line}">${t.line}</span></div>
+          <div class="cell"><input class="chk" data-id="${t.id}" type="checkbox" ${checked} /></div>
+          <div class="cell name" title="${escapeHtml(t.name)}">${escapeHtml(t.name)}</div>
           <div class="cell">${timeCell(t)}</div>
-          <div class="cell">${brief}</div>
-          <div class="cell">${result}</div>
-          <div class="cell"><span class="pill ${st.cls}">${st.label}</span></div>
-        </div>
-      </div>`;
-  }
+        </div>`
+      : `<div class="frozen">
+          <div class="cell"><span class="pill line-${t.line}">${t.line}</span></div>
+          <div class="cell name" title="${escapeHtml(t.name)}">${escapeHtml(t.name)}</div>
+          <div class="cell">${timeCell(t)}</div>
+        </div>`;
   return `
-    <div class="row ops${gapCls} ${checked ? "selected" : ""}" data-id="${t.id}">
-      <div class="frozen">
-        <div class="cell"><input class="chk" data-id="${t.id}" type="checkbox" ${checked} /></div>
-        <div class="cell name" title="${escapeHtml(t.name)}">${escapeHtml(t.name)}</div>
-      </div>
+    <div class="row ${mode}${gapCls} ${checked ? "selected" : ""}" data-id="${t.id}">
+      ${frozen}
       <div class="meta">
-        <div class="cell"><span class="pill line-${t.line}">${t.line}</span></div>
-        <div class="cell">${timeCell(t)}</div>
         <div class="cell">${personCell(t.assigneeId)}</div>
         <div class="cell"><span class="pill ${st.cls}">${st.label}</span></div>
         <div class="cell">${brief}</div>
@@ -302,9 +300,19 @@ function rowHtml(t, mode, gap) {
     </div>`;
 }
 
+function statusChoices(task) {
+  const keys = [...(STATUS_BY_ROLE[me().role] || STATUS_BY_ROLE.manager)];
+  if (task?.studioStatus && !keys.includes(task.studioStatus)) keys.unshift(task.studioStatus);
+  return keys;
+}
+
+function canSetStatus(next) {
+  return (STATUS_BY_ROLE[me().role] || []).includes(next);
+}
+
 function savedNameWidth() {
   const n = Number(localStorage.getItem(NAME_WIDTH_KEY));
-  return Number.isFinite(n) && n >= 200 ? n : NAME_WIDTH_DEFAULT;
+  return Number.isFinite(n) && n >= 400 ? n : NAME_WIDTH_DEFAULT;
 }
 
 function applyNameWidth(group, px) {
@@ -371,19 +379,25 @@ function renderClose() {
     </section>`;
 }
 
-function executorStatuses() {
-  return ["new", "wip", "done", "revision"];
-}
-
 function openTask(id) {
   const t = state.db.tasks.find((x) => x.id === id);
   if (!t) return;
   state.openId = id;
   const mine = t.assigneeId === me().id;
   const canEdit = canOps() || canAssign() || mine;
-  const statusOpts = (isDesigner() ? executorStatuses() : Object.keys(STATUS))
-    .map((k) => `<option value="${k}" ${t.studioStatus === k ? "selected" : ""}>${STATUS[k].label}</option>`)
+  const lockedStatus = t.studioStatus === "approve" && !canOps();
+  const statusOpts = statusChoices(t)
+    .map((k) => {
+      const selected = t.studioStatus === k ? "selected" : "";
+      const disabled = k !== t.studioStatus && !canSetStatus(k) ? "disabled" : "";
+      return `<option value="${k}" ${selected} ${disabled}>${STATUS[k].label}</option>`;
+    })
     .join("");
+  const statusHint = isDesigner()
+    ? "Designer: WIP or Done. Manager sends Senior Approval to Monday."
+    : canAssign()
+      ? "Team lead: Ready to Start, WIP, Need Fixing, Done. No Monday send."
+      : "Manager: send Done work to Senior Approval on Monday.";
   $("drawer").innerHTML = `
     <button class="btn ghost" id="closeDrawer">Close</button>
     <h2>${escapeHtml(t.name)}</h2>
@@ -407,7 +421,8 @@ function openTask(id) {
       <input id="stResult" value="${escapeHtml(t.resultUrl || "")}" placeholder="https://drive.google.com/..." ${isDesigner() && mine || canOps() ? "" : "disabled"} />
     </div>
     <div class="field"><label>Status</label>
-      <select id="stStatus" ${canEdit ? "" : "disabled"}>${statusOpts}</select>
+      <select id="stStatus" ${canEdit && !lockedStatus ? "" : "disabled"}>${statusOpts}</select>
+      <p class="status-hint">${statusHint}</p>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn primary" id="saveTask">Save</button>
@@ -419,9 +434,13 @@ function openTask(id) {
   $("saveTask").onclick = () => {
     const resultUrl = $("stResult").value.trim();
     const studioStatus = $("stStatus").value;
+    if (studioStatus !== t.studioStatus && !canSetStatus(studioStatus)) {
+      toast("This role cannot set " + (STATUS[studioStatus]?.label || studioStatus));
+      return;
+    }
     const assigneeId = $("stPerson") ? $("stPerson").value : t.assigneeId;
     const note = resultUrl && resultUrl !== t.resultUrl ? `${me().name} pasted the result` : `${me().name} updated status`;
-    updateTask(t.id, { resultUrl, studioStatus, assigneeId, note });
+    updateTask(t.id, { resultUrl, studioStatus, assigneeId, note, role: me().role });
   };
   $("exportOne")?.addEventListener("click", async () => {
     const out = await api("/api/export-monday", { ids: [t.id] });
@@ -433,6 +452,10 @@ function openTask(id) {
 
 async function updateTask(id, patch) {
   const out = await api("/api/tasks/update", { id, ...patch });
+  if (out.error || !out.state) {
+    toast(out.error || "Could not save");
+    return;
+  }
   applyState(out.state);
   toast("Saved");
   if (state.openId) openTask(id);

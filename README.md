@@ -6,7 +6,11 @@ One list, not Monday groups. Projects stay in a single table and are sorted by s
 
 **Ready to Start → WIP → Need Fixing → Done → Senior Approval**
 
-Same names and colors as Superplay’s Monday `External Weekly`. Studio-only step: designer marks **Done** here; manager send turns it into **Senior Approval** on Monday.
+Same names and colors as Superplay’s Monday `External Weekly`. Each role has its own set:
+
+- **Designer** — WIP, Done. Cannot send Senior Approval to Monday.
+- **Team lead** — Ready to Start, WIP, Need Fixing, Done. Assigns people. No Monday send.
+- **Manager / Finance** — full set, including Senior Approval via **Send to client**.
 
 ## What v1 does (sandbox)
 
