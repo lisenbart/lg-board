@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LG Board — клієнтський прев’ю</title>
+  <meta name="description" content="Клієнтський прев’ю жовтневих проєктів Lisenbart Games." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23111418'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-family='Georgia' font-size='14' fill='%23f4efe6'%3ELG%3C/text%3E%3C/svg%3E" />
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #12141a;
+      --ink: #f3efe6;
+      --muted: #a39b90;
+      --line: rgba(243, 239, 230, 0.14);
+      --card: #1b1e27;
+      --accent: #e7c27a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Iowan Old Style", Palatino, Georgia, serif;
+      background:
+        radial-gradient(1200px 500px at 10% -10%, rgba(231, 194, 122, 0.12), transparent 55%),
+        var(--bg);
+      color: var(--ink);
+    }
+    main {
+      width: min(920px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 56px 0 72px;
+    }
+    header { margin-bottom: 36px; }
+    .eyebrow {
+      margin: 0 0 10px;
+      font-family: ui-sans-serif, system-ui, sans-serif;
+      font-size: 12px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+    h1 {
+      margin: 0;
+      font-weight: 500;
+      font-size: clamp(40px, 6vw, 64px);
+      letter-spacing: -0.03em;
+      line-height: 0.95;
+    }
+    .lead {
+      max-width: 38rem;
+      margin: 16px 0 0;
+      color: var(--muted);
+      font-size: 18px;
+      line-height: 1.5;
+    }
+    .client {
+      margin-top: 28px;
+      border-top: 1px solid var(--line);
+      padding-top: 22px;
+    }
+    .client h2 {
+      margin: 0 0 14px;
+      font-family: ui-sans-serif, system-ui, sans-serif;
+      font-size: 13px;
+      font-weight: 650;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+    .grid {
+      display: grid;
+      gap: 14px;
+    }
+    article {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 20px 20px 18px;
+    }
+    article h3 {
+      margin: 0 0 6px;
+      font-size: 28px;
+      font-weight: 500;
+      letter-spacing: -0.02em;
+    }
+    .code {
+      margin: 0 0 14px;
+      font-family: ui-sans-serif, system-ui, sans-serif;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    dl {
+      display: grid;
+      grid-template-columns: 140px 1fr;
+      gap: 8px 12px;
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, sans-serif;
+      font-size: 14px;
+    }
+    dt { color: var(--muted); }
+    dd { margin: 0; }
+    footer {
+      margin-top: 36px;
+      font-family: ui-sans-serif, system-ui, sans-serif;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    @media (max-width: 640px) {
+      dl { grid-template-columns: 1fr; gap: 2px 0; }
+      dd { margin-bottom: 10px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <p class="eyebrow">Lisenbart Games · October 2026</p>
+      <h1>Клієнтський прев’ю</h1>
+      <p class="lead">Дошка проєктів із тестового порталу. Показано лише клієнтські брифи, які є в цій теці.</p>
+    </header>
+
+    <section class="client" aria-labelledby="client-dd">
+      <h2 id="client-dd">DD</h2>
+      <div class="grid">
+        <article>
+          <h3>Halloween Fire Trial</h3>
+          <p class="code">DD-AIV-202-004 · SettAI · DD-VEO-059-001</p>
+          <dl>
+            <dt>Тривалість</dt>
+            <dd>30 секунд</dd>
+            <dt>Завдання</dt>
+            <dd>Поєднати геймплей Halloween Fire Trial з хуком DD-VEO-059-001. Енергія в перші 3 секунди.</dd>
+            <dt>Розміри</dt>
+            <dd>1080×1080, 1080×1350, 1080×1920, 1920×1080</dd>
+          </dl>
+        </article>
+        <article>
+          <h3>Halloween Diamond Blast</h3>
+          <p class="code">DD-AIV-239-002 · SettAI · DD-VEO-059-001</p>
+          <dl>
+            <dt>Тривалість</dt>
+            <dd>30 секунд</dd>
+            <dt>Завдання</dt>
+            <dd>Хук GravePumpkin плюс Halloween Diamond Blast. Обрізати останні ±8 секунд і додати motion-перехід між хуком і відео.</dd>
+            <dt>Розміри</dt>
+            <dd>1080×1080, 1080×1350, 1080×1920, 1920×1080</dd>
+          </dl>
+        </article>
+      </div>
+    </section>
+
+    <footer>Прев’ю для клієнта. Жовтень 2026.</footer>
+  </main>
+</body>
+</html>
