@@ -312,6 +312,45 @@ class Handler(SimpleHTTPRequestHandler):
                 save_db(db)
                 self._json(200, {"task": task, "state": db})
                 return
+            if path == "/api/people/update":
+                if (data.get("role") or "") != "finance":
+                    self._json(403, {"error": "only finance can rename people"})
+                    return
+                person = next((p for p in db["people"] if p["id"] == data.get("id")), None)
+                if not person:
+                    self._json(404, {"error": "not found"})
+                    return
+                name = str(data.get("name") or "").strip()
+                if not name:
+                    self._json(400, {"error": "name cannot be empty"})
+                    return
+                person["name"] = name
+                save_db(db)
+                self._json(200, {"person": person, "state": db})
+                return
+            if path == "/api/people/add":
+                if (data.get("role") or "") != "finance":
+                    self._json(403, {"error": "only finance can add people"})
+                    return
+                existing = {p["id"] for p in db["people"]}
+                n = 1
+                while True:
+                    pid = "designer" if n == 1 else f"designer{n}"
+                    if pid not in existing:
+                        break
+                    n += 1
+                palette = ["#00c875", "#579bfc", "#ff5ac4", "#fdab3d", "#9d50dd", "#00c2e0", "#bb3354"]
+                designers = [p for p in db["people"] if p.get("role") == "designer"]
+                person = {
+                    "id": pid,
+                    "name": f"Designer {n}",
+                    "role": "designer",
+                    "color": palette[len(designers) % len(palette)],
+                }
+                db["people"].append(person)
+                save_db(db)
+                self._json(200, {"person": person, "state": db})
+                return
         self._json(404, {"error": "unknown endpoint"})
 
 

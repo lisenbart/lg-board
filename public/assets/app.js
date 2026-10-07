@@ -185,7 +185,10 @@ function renderChrome() {
   const tabs = [];
   tabs.push({ id: "board", label: isDesigner() ? "My projects" : canAssign() ? "All projects" : "Pipeline" });
   if (canOps()) tabs.push({ id: "ready", label: "Ready to send" });
-  if (isFinance()) tabs.push({ id: "close", label: "Finance" });
+  if (isFinance()) {
+    tabs.push({ id: "close", label: "Finance" });
+    tabs.push({ id: "team", label: "Team" });
+  }
   if (!tabs.some((t) => t.id === state.view)) state.view = "board";
   $("views").innerHTML = tabs
     .map(
@@ -202,6 +205,10 @@ function renderChrome() {
 }
 
 function renderToolbar() {
+  if (state.view === "close" || state.view === "team") {
+    $("toolbar").innerHTML = "";
+    return;
+  }
   const n = state.selected.size;
   if (isDesigner() || canAssign()) {
     $("toolbar").innerHTML = `<input class="search" placeholder="Search project" />`;
@@ -224,7 +231,7 @@ function renderToolbar() {
 }
 
 function renderKpis() {
-  if (state.view === "close") {
+  if (state.view === "close" || state.view === "team") {
     $("kpis").innerHTML = "";
     return;
   }
@@ -296,7 +303,7 @@ function loadTone(hours, fair) {
 function renderLoad() {
   const box = $("load");
   if (!box) return;
-  if (isDesigner() || state.view === "close") {
+  if (isDesigner() || state.view === "close" || state.view === "team") {
     box.hidden = true;
     box.innerHTML = "";
     return;
@@ -357,6 +364,10 @@ function renderLoad() {
 function renderBoard() {
   if (state.view === "close") {
     renderClose();
+    return;
+  }
+  if (state.view === "team") {
+    renderTeam();
     return;
   }
   const exec = isDesigner() || canAssign();
@@ -565,6 +576,60 @@ function renderClose() {
     </section>`;
 }
 
+function renderTeam() {
+  if (!isFinance()) {
+    state.view = "board";
+    render();
+    return;
+  }
+  const rows = state.db.people
+    .map(
+      (p) => `
+      <div class="team-row" data-id="${p.id}">
+        ${personCell(p.id)}
+        <span class="role-tag">${escapeHtml(ROLE_LABEL[p.role] || p.role)}</span>
+        <input class="team-name" value="${escapeHtml(p.name)}" placeholder="Real name" />
+        <button class="btn primary team-save" type="button">Save name</button>
+      </div>`
+    )
+    .join("");
+  $("board").innerHTML = `
+    <section class="group" style="padding:18px">
+      <h2 style="margin:0 0 8px">Team names</h2>
+      <p style="color:#676879">Finance only. Change Designer → a real name. The login role stays the same, so permissions do not change. Add a designer if someone new joins — like another EMPL column in Excel.</p>
+      ${rows}
+      <div style="margin-top:16px">
+        <button class="btn" type="button" id="addDesigner">Add designer</button>
+      </div>
+    </section>`;
+  $("board").querySelectorAll(".team-save").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const row = btn.closest(".team-row");
+      const name = row.querySelector(".team-name").value.trim();
+      if (!name) {
+        toast("Name cannot be empty");
+        return;
+      }
+      const out = await api("/api/people/update", { id: row.dataset.id, name, role: me().role });
+      if (out.error || !out.state) {
+        toast(out.error || "Could not save");
+        return;
+      }
+      applyState(out.state);
+      toast("Name saved");
+    });
+  });
+  $("addDesigner").onclick = async () => {
+    const out = await api("/api/people/add", { role: me().role });
+    if (out.error || !out.state) {
+      toast(out.error || "Could not add");
+      return;
+    }
+    applyState(out.state);
+    toast("Designer added — rename them");
+  };
+}
+
 function openTask(id) {
   const t = state.db.tasks.find((x) => x.id === id);
   if (!t) return;
@@ -735,6 +800,11 @@ $("who").addEventListener("change", (e) => {
 $("navClose").addEventListener("click", () => {
   if (!isFinance()) return;
   state.view = "close";
+  render();
+});
+$("navTeam").addEventListener("click", () => {
+  if (!isFinance()) return;
+  state.view = "team";
   render();
 });
 $("emailCancel").onclick = () => $("emailModal").classList.remove("show");
