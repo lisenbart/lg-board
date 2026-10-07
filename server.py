@@ -13,6 +13,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 import excel_io
+import finance_io
 
 ROOT = Path(__file__).resolve().parent
 PUBLIC = ROOT / "public"
@@ -117,6 +118,15 @@ class Handler(SimpleHTTPRequestHandler):
         raw = self.rfile.read(length).decode("utf-8")
         return json.loads(raw) if raw else {}
 
+    def _bytes(self, data: bytes, content_type: str, filename: str) -> None:
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
     def do_GET(self) -> None:
         path = urlparse(self.path).path
         if path == "/api/state":
@@ -125,6 +135,22 @@ class Handler(SimpleHTTPRequestHandler):
             return
         if path == "/health":
             self._json(200, {"ok": True})
+            return
+        if path == "/api/nbu":
+            qs = parse_qs(urlparse(self.path).query)
+            force = (qs.get("refresh") or [""])[0] in {"1", "true", "yes"}
+            self._json(200, finance_io.fetch_nbu(force=force))
+            return
+        if path == "/api/finance/calculator":
+            xlsx = finance_io.CALC_PATH
+            if not xlsx.exists():
+                self.send_error(404, "Calculator workbook missing")
+                return
+            self._bytes(
+                xlsx.read_bytes(),
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "SUPERPLAY_MGX_Calculator.xlsx",
+            )
             return
         if path == "/api/excel/file":
             xlsx = excel_io.XLSX_PATH
@@ -396,11 +422,75 @@ class Handler(SimpleHTTPRequestHandler):
                             self._json(400, {"error": "pay rate must be 0 or more"})
                             return
                         meta["designerRateUsd"] = rate
+                    if "taxPct" in data:
+                        rate = parse_money(data.get("taxPct"))
+                        if rate is None:
+                            self._json(400, {"error": "tax must be 0 or more"})
+                            return
+                        meta["taxPct"] = rate
+                    if "nbuRate" in data:
+                        rate = parse_money(data.get("nbuRate"))
+                        if rate is None or rate <= 0:
+                            self._json(400, {"error": "NBU rate must be more than 0"})
+                            return
+                        meta["nbuRate"] = rate
                 except (TypeError, ValueError):
                     self._json(400, {"error": "rates must be numbers, 0 or more"})
                     return
                 save_db(db)
                 self._json(200, {"meta": meta, "state": db})
+                return
+            if path == "/api/finance/invoice":
+                if (data.get("role") or "") != "finance":
+                    self._json(403, {"error": "only finance can make invoices"})
+                    return
+                line = str(data.get("line") or "").upper()
+                if line not in {"DD", "DX", "DS"}:
+                    self._json(400, {"error": "invoice line must be DD, DX or DS"})
+                    return
+                month = data.get("month") or db.get("meta", {}).get("month") or "2026-10"
+                nbu = None
+                if data.get("nbuRate"):
+                    try:
+                        nbu = {"rate": float(data["nbuRate"]), "date": "", "source": "manual"}
+                    except (TypeError, ValueError):
+                        nbu = None
+                snap = finance_io.snapshot(db, month, nbu)
+                row = next((r for r in snap["byLine"] if r["line"] == line), None)
+                if not row or not row["hours"]:
+                    self._json(400, {"error": f"no {line} hours this month"})
+                    return
+                blob = finance_io.build_invoice(line, row["hours"], row["bill"])
+                name = finance_io.invoice_filename(line)
+                self._bytes(
+                    blob,
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    name,
+                )
+                return
+            if path == "/api/finance/save":
+                if (data.get("role") or "") != "finance":
+                    self._json(403, {"error": "only finance can write the calculator"})
+                    return
+                month = data.get("month") or db.get("meta", {}).get("month") or "2026-10"
+                nbu = data.get("nbuRate")
+                try:
+                    fx = float(nbu) if nbu not in (None, "") else None
+                except (TypeError, ValueError):
+                    self._json(400, {"error": "NBU rate must be a number"})
+                    return
+                path_out = finance_io.write_month(db, month, nbu_rate=fx)
+                drive = db.get("meta", {}).get("driveCalculator") or ""
+                self._json(
+                    200,
+                    {
+                        "ok": True,
+                        "file": str(path_out),
+                        "drive": drive,
+                        "message": "Wrote this month into SUPERPLAY_MGX_Calculator.xlsx. Hours = shifts × 9, client $35, tax 5%, then EMPL vs studio.",
+                        "state": db,
+                    },
+                )
                 return
             if path == "/api/people/update":
                 if (data.get("role") or "") != "finance":
@@ -435,6 +525,9 @@ class Handler(SimpleHTTPRequestHandler):
                             person.pop("rateUsd", None)
                         else:
                             person["rateUsd"] = rate
+                    for key in ("legalName", "bank", "bankCard", "iban", "phone"):
+                        if key in item and item.get(key) is not None:
+                            person[key] = str(item.get(key) or "").strip()
                     updated.append(person)
                 if not updated and data.get("id"):
                     self._json(404, {"error": "not found"})

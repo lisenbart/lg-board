@@ -4,7 +4,7 @@ Sandbox demo. Superplay stays on Monday `External Weekly`. Designers work here a
 
 This pack is **test data**, not the live October board. MGX is the current board; Playables is next.
 
-Open `index.html` (or the GitHub Pages URL). Use **I am** to try Manager, Team lead, and Designer. Finance (invoices and pay) is only on the studio login as Dmytro — not on this client link.
+Open `index.html` (or the GitHub Pages URL). Use **I am** to try Manager, Team lead, and Designer. Finance (client invoices and employee cards) is only on the studio login as Dmytro — not on this client link.
 
 Until Monday is connected: paste briefs and Drive links in a project. **Send to client** copies `check it please` + the result link for External Weekly. Assignment lives on this board — there is no Telegram step.
 

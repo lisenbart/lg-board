@@ -394,6 +394,7 @@ body.col-resizing * { cursor: col-resize !important; }
 .person { display: inline-flex; align-items: center; font-weight: 400; font-size: 13px; }
 .linkish { color: var(--blue); font-size: 13px; font-weight: 400; }
 .empty { color: #c5c7d0; font-weight: 400; }
+.muted { color: var(--muted); }
 
 .drawer-bg {
   position: fixed; inset: 0; background: rgba(23, 23, 36, 0.32);
@@ -564,9 +565,21 @@ body.col-resizing * { cursor: col-resize !important; }
 .xl-table tfoot td { background: #eee; font-weight: 500; }
 
 .fin { display: flex; flex-direction: column; gap: 12px; }
+.fin-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); }
+.fin-tab {
+  border: 0; background: transparent; padding: 8px 12px; cursor: pointer;
+  color: var(--muted); border-bottom: 2px solid transparent;
+  font-size: 13px; font-weight: 400;
+}
+.fin-tab.active { color: var(--blue); border-bottom-color: var(--blue); font-weight: 500; }
 .fin-head {
   display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px 20px;
   background: #fff; border: 1px solid #eceef5; border-radius: 8px; padding: 16px 18px;
+}
+.fin-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.fin-pay { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.fin-pan {
+  font-variant-numeric: tabular-nums; letter-spacing: 0.04em; font-size: 13px;
 }
 .fin-head h2 { margin: 0 0 6px; font-size: 16px; }
 .fin-head p { margin: 0; color: var(--muted); max-width: 52ch; }

@@ -10,7 +10,9 @@
     "driveOctoberDX": "https://drive.google.com/drive/folders/13yLju8CXxsvhOnQ5H_X1Pg7udB6Ah7CH",
     "shiftHours": 9,
     "clientRateUsd": 35,
-    "designerRateUsd": 15
+    "designerRateUsd": 15,
+    "taxPct": 0.05,
+    "driveCalculator": "https://drive.google.com/file/d/1KNL8xAHUmTuZx3xe01XtlwxjYw_FThhA/view"
   },
   "people": [
     {
@@ -37,19 +39,36 @@
       "id": "designer",
       "name": "Настя",
       "role": "designer",
-      "color": "#59BBFF"
+      "color": "#59BBFF",
+      "rateUsd": 15,
+      "legalName": "Анастасія Сиченко",
+      "phone": "+380 99 550 5455",
+      "bank": "Monobank",
+      "bankCard": "4441114424460887",
+      "iban": "UA173220010000026202314266322"
     },
     {
       "id": "designer2",
       "name": "Маша",
       "role": "designer",
-      "color": "#92D050"
+      "color": "#92D050",
+      "rateUsd": 12,
+      "legalName": "Терлецька Марія Максимівна",
+      "bank": "Monobank",
+      "bankCard": "",
+      "iban": "UA683220010000026202353816766"
     },
     {
       "id": "designer3",
       "name": "Сергій",
       "role": "designer",
-      "color": "#FFD966"
+      "color": "#FFD966",
+      "rateUsd": 15,
+      "legalName": "Лащенко Сергій Олексійович",
+      "phone": "+380 93 763 1347",
+      "bank": "Monobank",
+      "bankCard": "4441111039612886",
+      "iban": "UA433220010000026202353175173"
     },
     {
       "id": "designer4",
@@ -67,7 +86,13 @@
       "id": "designer6",
       "name": "Андрій",
       "role": "designer",
-      "color": "#76D7C4"
+      "color": "#76D7C4",
+      "rateUsd": 12,
+      "legalName": "Андрій Миглін",
+      "phone": "+380 99 608 9025",
+      "bank": "Monobank",
+      "bankCard": "5168752085544776",
+      "iban": "UA643052990000026201875784751"
     }
   ],
   "tasks": [
