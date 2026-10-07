@@ -157,8 +157,56 @@ a { color: var(--blue); }
   padding: 6px 10px; min-width: 200px; background: #fff;
   font-size: 13px;
 }
-.who { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 400; }
+.who { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 400; margin-left: auto; }
 .who select { border: 1px solid var(--line); border-radius: 16px; padding: 4px 8px; background: #fff; font-size: 12px; }
+#whoMail {
+  color: var(--muted);
+  font-size: 11px;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+html.studio-host:not(.in-app) .app { display: none; }
+.login-gate {
+  display: none;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  background:
+    radial-gradient(1200px 400px at 50% -10%, rgba(0, 115, 234, 0.12), transparent 60%),
+    var(--bg);
+}
+.login-gate:not([hidden]) { display: flex; }
+html.studio-host.in-app .login-gate { display: none !important; }
+.login-card {
+  width: min(440px, 100%);
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 28px 24px 22px;
+  box-shadow: var(--shadow);
+}
+.login-card .logo { width: 36px; height: 36px; font-size: 13px; margin-bottom: 12px; }
+.login-card h1 { margin: 0 0 6px; font-size: 20px; letter-spacing: -0.03em; }
+.login-card > p { margin: 0 0 18px; color: var(--muted); font-size: 13px; }
+.login-acc, .login-seat {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin: 0 0 8px;
+  cursor: pointer;
+}
+.login-acc:hover, .login-seat:hover { border-color: var(--blue); background: #f4f8ff; }
+.login-acc strong, .login-seat strong { display: block; font-size: 14px; font-weight: 500; }
+.login-acc span, .login-seat span { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+.login-acc small { display: block; color: var(--blue); font-size: 11px; margin-top: 4px; }
+.login-back { margin-bottom: 12px; }
 
 .kpis { display: flex; gap: 8px; padding: 10px 20px 0; flex-wrap: wrap; }
 .kpi {
