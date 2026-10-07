@@ -13,6 +13,9 @@ const ROLE_LABEL = {
   designer: "Designer",
 };
 
+const NAME_WIDTH_KEY = "lg-name-width";
+const NAME_WIDTH_DEFAULT = 380;
+
 const state = { db: null, roleId: "finance", view: "board", selected: new Set(), openId: null };
 const $ = (id) => document.getElementById(id);
 
@@ -205,11 +208,24 @@ function renderBoard() {
   tasks = sortedTasks(tasks);
   const mode = exec ? "exec" : "ops";
   const head = exec
-    ? `<div class="cols exec"><div>Project</div><div>Assignee</div><div>Time</div><div>Brief</div><div>Result</div><div>Status</div></div>`
-    : `<div class="cols ops"><div></div><div>Project</div><div>Line</div><div>Time</div><div>Assignee</div><div>Status</div><div>Brief</div><div>Result</div></div>`;
+    ? `<div class="cols exec">
+        <div class="frozen"><div class="cell">Project</div></div>
+        <div class="meta">
+          <div class="cell">Assignee</div><div class="cell">Time</div><div class="cell">Brief</div>
+          <div class="cell">Result</div><div class="cell">Status</div>
+        </div>
+      </div>`
+    : `<div class="cols ops">
+        <div class="frozen"><div class="cell"></div><div class="cell">Project</div></div>
+        <div class="meta">
+          <div class="cell">Line</div><div class="cell">Time</div><div class="cell">Assignee</div>
+          <div class="cell">Status</div><div class="cell">Brief</div><div class="cell">Result</div>
+        </div>
+      </div>`;
 
   $("board").innerHTML = `
-    <section class="group">
+    <section class="group sheet" style="--name-width:${savedNameWidth()}px">
+      <div class="col-splitter" title="Drag to move columns" role="separator" aria-orientation="vertical"></div>
       ${head}
       ${
         tasks.length
@@ -228,7 +244,7 @@ function renderBoard() {
 
   $("board").querySelectorAll(".row").forEach((el) => {
     el.addEventListener("click", (e) => {
-      if (e.target.closest("input,select,a,button")) return;
+      if (e.target.closest("input,select,a,button,.col-splitter")) return;
       openTask(el.dataset.id);
     });
   });
@@ -241,6 +257,7 @@ function renderBoard() {
       renderToolbar();
     });
   });
+  bindSplitter($("board").querySelector(".group"));
 }
 
 function rowHtml(t, mode, gap) {
@@ -258,25 +275,69 @@ function rowHtml(t, mode, gap) {
   if (mode === "exec") {
     return `
       <div class="row exec${gapCls}" data-id="${t.id}">
-        <div class="cell name" title="${escapeHtml(t.name)}">${escapeHtml(t.name)}</div>
-        <div class="cell">${personCell(t.assigneeId)}</div>
-        <div class="cell">${timeCell(t)}</div>
-        <div class="cell">${brief}</div>
-        <div class="cell">${result}</div>
-        <div class="cell"><span class="pill ${st.cls}">${st.label}</span></div>
+        <div class="frozen"><div class="cell name" title="${escapeHtml(t.name)}">${escapeHtml(t.name)}</div></div>
+        <div class="meta">
+          <div class="cell">${personCell(t.assigneeId)}</div>
+          <div class="cell">${timeCell(t)}</div>
+          <div class="cell">${brief}</div>
+          <div class="cell">${result}</div>
+          <div class="cell"><span class="pill ${st.cls}">${st.label}</span></div>
+        </div>
       </div>`;
   }
   return `
     <div class="row ops${gapCls} ${checked ? "selected" : ""}" data-id="${t.id}">
-      <div class="cell"><input class="chk" data-id="${t.id}" type="checkbox" ${checked} /></div>
-      <div class="cell name" title="${escapeHtml(t.name)}">${escapeHtml(t.name)}</div>
-      <div class="cell"><span class="pill line-${t.line}">${t.line}</span></div>
-      <div class="cell">${timeCell(t)}</div>
-      <div class="cell">${personCell(t.assigneeId)}</div>
-      <div class="cell"><span class="pill ${st.cls}">${st.label}</span></div>
-      <div class="cell">${brief}</div>
-      <div class="cell">${result}</div>
+      <div class="frozen">
+        <div class="cell"><input class="chk" data-id="${t.id}" type="checkbox" ${checked} /></div>
+        <div class="cell name" title="${escapeHtml(t.name)}">${escapeHtml(t.name)}</div>
+      </div>
+      <div class="meta">
+        <div class="cell"><span class="pill line-${t.line}">${t.line}</span></div>
+        <div class="cell">${timeCell(t)}</div>
+        <div class="cell">${personCell(t.assigneeId)}</div>
+        <div class="cell"><span class="pill ${st.cls}">${st.label}</span></div>
+        <div class="cell">${brief}</div>
+        <div class="cell">${result}</div>
+      </div>
     </div>`;
+}
+
+function savedNameWidth() {
+  const n = Number(localStorage.getItem(NAME_WIDTH_KEY));
+  return Number.isFinite(n) && n >= 200 ? n : NAME_WIDTH_DEFAULT;
+}
+
+function applyNameWidth(group, px) {
+  if (!group) return;
+  const max = Math.max(280, group.clientWidth - 300);
+  const w = Math.round(Math.min(Math.max(200, px), max));
+  group.style.setProperty("--name-width", `${w}px`);
+  localStorage.setItem(NAME_WIDTH_KEY, String(w));
+}
+
+function bindSplitter(group) {
+  const handle = group?.querySelector(":scope > .col-splitter");
+  if (!handle) return;
+  handle.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    handle.setPointerCapture(e.pointerId);
+    const startX = e.clientX;
+    const startW = parseFloat(getComputedStyle(group).getPropertyValue("--name-width")) || NAME_WIDTH_DEFAULT;
+    group.classList.add("is-resizing");
+    document.body.classList.add("col-resizing");
+    const onMove = (ev) => applyNameWidth(group, startW + (ev.clientX - startX));
+    const onUp = () => {
+      group.classList.remove("is-resizing");
+      document.body.classList.remove("col-resizing");
+      handle.removeEventListener("pointermove", onMove);
+      handle.removeEventListener("pointerup", onUp);
+    };
+    handle.addEventListener("pointermove", onMove);
+    handle.addEventListener("pointerup", onUp);
+  });
+  handle.addEventListener("dblclick", () => applyNameWidth(group, NAME_WIDTH_DEFAULT));
 }
 
 function renderClose() {
