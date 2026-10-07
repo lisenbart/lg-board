@@ -23,9 +23,14 @@ const GROUPS_EXEC = [
   { id: "fix", title: "Правки", color: "#e2445c", statuses: ["fix"] },
 ];
 
-const ROLE_LABEL = { finance: "фінанси", manager: "менеджер", executor: "виконавець" };
+const ROLE_LABEL = {
+  finance: "фінанси",
+  manager: "менеджер",
+  teamlead: "тім лід",
+  designer: "дизайнер",
+};
 
-const state = { db: null, roleId: "dmytro", view: "board", selected: new Set(), openId: null };
+const state = { db: null, roleId: "finance", view: "board", selected: new Set(), openId: null };
 const $ = (id) => document.getElementById(id);
 
 function escapeHtml(s) {
@@ -45,11 +50,17 @@ function me() {
 function isFinance() {
   return me().role === "finance";
 }
-function isExecutor() {
-  return me().role === "executor";
+function isDesigner() {
+  return me().role === "designer";
 }
 function canOps() {
   return me().role === "manager" || me().role === "finance";
+}
+function canAssign() {
+  return me().role === "teamlead";
+}
+function designers() {
+  return state.db.people.filter((p) => p.role === "designer");
 }
 
 function toast(msg) {
@@ -91,20 +102,24 @@ function renderWho() {
 
 function renderChrome() {
   $("financeNav").hidden = !isFinance();
-  $("roleHint").textContent = isExecutor()
+  $("roleHint").textContent = isDesigner()
     ? "Вам: хто що робить, скільки часу, бриф і куди здати результат. Грошей тут немає."
-    : canOps() && !isFinance()
-      ? "Постановка: забрати з Monday, назнати людей, віддати здані таски клієнту."
-      : "Ви бачите постановку і окремо фінанси. Інвойси — лише тут, виконавцям їх не видно.";
+    : canAssign()
+      ? "Ви назначаєте дизайнерів на проекти. Monday і інвойси — не ваша зона."
+      : canOps() && !isFinance()
+        ? "Постановка: забрати з Monday і віддати здані клієнту. Назначає тім лід."
+        : "Постановка плюс фінанси. Інвойси бачите лише ви.";
   $("sideFoot").innerHTML = isFinance()
     ? "Пісочниця Drive: _PORTAL_TEST<br>Бойовий October не чіпаємо."
-    : isExecutor()
+    : isDesigner()
       ? "Здаєте лінк у картці проекту. Monday вам не потрібен."
-      : "Імпорт / експорт Monday — ваші кнопки. Фінанси бачить лише Дмитро.";
+      : canAssign()
+        ? "Відкрийте проект і оберіть дизайнера."
+        : "Імпорт / експорт Monday — кнопки менеджера. Назначає тім лід.";
 
   const tabs = [];
-  tabs.push({ id: "board", label: isExecutor() ? "Усі проекти" : "Постановка" });
-  if (isExecutor()) tabs.push({ id: "mine", label: "Мої" });
+  tabs.push({ id: "board", label: isDesigner() || canAssign() ? "Усі проекти" : "Постановка" });
+  if (isDesigner()) tabs.push({ id: "mine", label: "Мої" });
   if (canOps()) tabs.push({ id: "ready", label: "Готові здати клієнту" });
   if (isFinance()) tabs.push({ id: "close", label: "Фінанси" });
   if (!tabs.some((t) => t.id === state.view)) state.view = "board";
@@ -124,7 +139,7 @@ function renderChrome() {
 
 function renderToolbar() {
   const n = state.selected.size;
-  if (isExecutor()) {
+  if (isDesigner() || canAssign()) {
     $("toolbar").innerHTML = `<input class="search" placeholder="Знайти проект" />`;
   } else {
     $("toolbar").innerHTML = `
@@ -150,7 +165,7 @@ function renderKpis() {
     return;
   }
   const tasks = visibleTasks();
-  if (isExecutor()) {
+  if (isDesigner()) {
     const mine = state.db.tasks.filter((t) => t.assigneeId === me().id);
     const hours = mine.reduce((s, t) => s + (Number(t.hours) || 0), 0);
     $("kpis").innerHTML = `
@@ -191,7 +206,7 @@ function renderBoard() {
     renderClose();
     return;
   }
-  const exec = isExecutor();
+  const exec = isDesigner() || canAssign();
   const groups = exec ? GROUPS_EXEC : GROUPS_OPS;
   let tasks = visibleTasks();
   if (state.view === "ready") tasks = tasks.filter((t) => t.studioStatus === "done");
@@ -285,7 +300,7 @@ function renderClose() {
   for (const t of state.db.tasks) {
     if (!t.assigneeId) continue;
     const p = person(t.assigneeId);
-    if (!p || p.role !== "executor") continue;
+    if (!p || p.role !== "designer") continue;
     people[t.assigneeId] = (people[t.assigneeId] || 0) + (Number(t.hours) || 0);
   }
   $("board").innerHTML = `
@@ -313,8 +328,8 @@ function openTask(id) {
   if (!t) return;
   state.openId = id;
   const mine = t.assigneeId === me().id;
-  const canEdit = canOps() || mine || (!t.assigneeId && isExecutor());
-  const statusOpts = (isExecutor() ? executorStatuses() : Object.keys(STATUS))
+  const canEdit = canOps() || canAssign() || mine;
+  const statusOpts = (isDesigner() ? executorStatuses() : Object.keys(STATUS))
     .map((k) => `<option value="${k}" ${t.studioStatus === k ? "selected" : ""}>${STATUS[k].label}</option>`)
     .join("");
   $("drawer").innerHTML = `
@@ -322,24 +337,22 @@ function openTask(id) {
     <h2>${escapeHtml(t.name)}</h2>
     <div class="meta">${t.line} · час ${t.shifts || 0} shift / ${t.hours || 0} h · ${person(t.assigneeId)?.name || "ще вільний"}</div>
     ${
-      canOps()
-        ? `<div class="field"><label>Назначити</label>
+      canAssign()
+        ? `<div class="field"><label>Назначити дизайнера</label>
       <select id="stPerson">
         <option value="">— вільний</option>
-        ${state.db.people
-          .filter((p) => p.role === "executor")
+        ${designers()
           .map((p) => `<option value="${p.id}" ${t.assigneeId === p.id ? "selected" : ""}>${p.name}</option>`)
           .join("")}
       </select></div>`
         : `<div class="field"><label>Хто робить</label><div>${personCell(t.assigneeId)}</div></div>`
     }
-    ${!t.assigneeId && isExecutor() ? `<button class="btn primary" id="claim">Взяти собі</button>` : ""}
     <div class="field"><label>Бриф</label><div class="brief">${escapeHtml(t.brief || "Ще немає тексту брифу")}</div>
       ${t.docUrl ? `<p><a href="${escapeHtml(t.docUrl)}" target="_blank" rel="noreferrer">Відкрити Google Doc</a></p>` : ""}
       ${t.folderUrl ? `<p><a href="${escapeHtml(t.folderUrl)}" target="_blank" rel="noreferrer">Тека на Drive</a></p>` : ""}
     </div>
-    <div class="field"><label>${isExecutor() ? "Сюди вставити результат" : "Лінк на результат"}</label>
-      <input id="stResult" value="${escapeHtml(t.resultUrl || "")}" placeholder="https://drive.google.com/..." ${canEdit ? "" : "disabled"} />
+    <div class="field"><label>${isDesigner() ? "Сюди вставити результат" : "Лінк на результат"}</label>
+      <input id="stResult" value="${escapeHtml(t.resultUrl || "")}" placeholder="https://drive.google.com/..." ${isDesigner() && mine || canOps() ? "" : "disabled"} />
     </div>
     <div class="field"><label>Статус</label>
       <select id="stStatus" ${canEdit ? "" : "disabled"}>${statusOpts}</select>
@@ -351,9 +364,6 @@ function openTask(id) {
   `;
   $("drawerBg").classList.add("show");
   $("closeDrawer").onclick = () => $("drawerBg").classList.remove("show");
-  $("claim")?.addEventListener("click", () =>
-    updateTask(t.id, { assigneeId: me().id, studioStatus: "doing", note: `${me().name} взяв(ла) проект` })
-  );
   $("saveTask").onclick = () => {
     const resultUrl = $("stResult").value.trim();
     const studioStatus = $("stStatus").value;
