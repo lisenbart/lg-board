@@ -46,7 +46,7 @@ Studio money never unlocks on the hosted link. Localhost is the studio sandbox.
 - Designer sets WIP or Done and pastes the result link.
 - **Send to client** copies `check it please` + the result link for External Weekly. Status becomes Senior Approval.
 - **Copy Telegram** — designer name + project, for the studio chat.
-- **Excel** tab mirrors `SP_MGX_check.xlsx` for the open month (DX/DD rows, people columns, hours in the coloured cell). Pull / Save write the same file on this machine. Designers see the grid read-only.
+- **Excel** tab is the `SP_MGX_check.xlsx` **calculator**, not a CSV dump. Hours stay `= shifts × 9`. **Update calculator** writes the open month in place and leaves other months alone. Sandbox copy lives in Drive `_PORTAL_TEST`. The live studio workbook is not touched. Designers see the grid read-only.
 - Test folders only in Drive [`_PORTAL_TEST`](https://drive.google.com/drive/folders/1HY7vcxR5Tmot5RNJyQ2ZeImD9J4BOuX8). Live `Projects / 10_October` is untouched.
 
 Not in this slice: live Monday API, real Drive folder create, invoice PDFs, Playables board, client OAuth.

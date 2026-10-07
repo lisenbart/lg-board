@@ -110,11 +110,10 @@ class Handler(SimpleHTTPRequestHandler):
             self._json(200, {"ok": True})
             return
         if path == "/api/excel/file":
-            qs = parse_qs(urlparse(self.path).query)
-            month = (qs.get("month") or ["2026-10"])[0]
-            with LOCK:
-                db = load_db()
-                xlsx = excel_io.write_month(db, month)
+            xlsx = excel_io.XLSX_PATH
+            if not xlsx.exists():
+                self.send_error(404, "Excel workbook missing")
+                return
             data = xlsx.read_bytes()
             self.send_response(200)
             self.send_header(
@@ -268,21 +267,21 @@ class Handler(SimpleHTTPRequestHandler):
                 return
             if path == "/api/provision":
                 ids = set(data.get("ids") or [])
-                dd = db.get("meta", {}).get("driveOctoberDD", "")
-                dx = db.get("meta", {}).get("driveOctoberDX", "")
+                parent = (
+                    db.get("meta", {}).get("driveSandboxOctober")
+                    or db.get("meta", {}).get("driveSandbox")
+                    or ""
+                )
                 n = 0
                 for task in db["tasks"]:
                     if task["id"] not in ids:
                         continue
-                    parent = dd if task["line"] == "DD" else dx
                     if not task.get("folderUrl"):
                         task["folderUrl"] = parent
-                    if not task.get("docUrl"):
-                        task["docUrl"] = parent
                     task.setdefault("activity", []).append(
                         {
                             "at": utc_now(),
-                            "text": "Folder/brief marked in _PORTAL_TEST (sandbox, not live October)",
+                            "text": "Folder marked in Drive _PORTAL_TEST / 10_October (sandbox)",
                         }
                     )
                     n += 1
@@ -369,16 +368,22 @@ class Handler(SimpleHTTPRequestHandler):
                     0, {"at": utc_now(), "text": f"Excel import {month}: {stats['updated']} updated, {stats['added']} new"}
                 )
                 save_db(db)
-                try:
-                    excel_io.write_month(db, month)
-                except FileNotFoundError:
-                    pass
                 self._json(200, {**stats, "state": db})
                 return
             if path == "/api/excel/save":
                 month = data.get("month") or db.get("meta", {}).get("month") or "2026-10"
                 excel_io.write_month(db, month)
-                self._json(200, {"ok": True, "file": str(excel_io.XLSX_PATH), "state": db})
+                drive = db.get("meta", {}).get("driveSandboxExcel") or ""
+                self._json(
+                    200,
+                    {
+                        "ok": True,
+                        "file": str(excel_io.XLSX_PATH),
+                        "drive": drive,
+                        "message": "Updated the calculator in place. Hours stay = shifts × 9. Other months untouched.",
+                        "state": db,
+                    },
+                )
                 return
             if path == "/api/people/update":
                 if (data.get("role") or "") != "finance":

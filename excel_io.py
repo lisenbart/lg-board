@@ -1,6 +1,7 @@
-"""Read/write SP_MGX_check.xlsx as a mirror of the portal month grid."""
+"""Read/write SP_MGX_check.xlsx as a calculator: hours stay = shifts × 9."""
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -10,6 +11,7 @@ from openpyxl.utils import get_column_letter
 
 ROOT = Path(__file__).resolve().parent
 XLSX_PATH = ROOT / "data" / "SP_MGX_check.xlsx"
+NAME_ID = re.compile(r"^([A-Z]{2}-[A-Z0-9]+-\d+(?:-\d+)?)", re.I)
 
 HEADER_FILL = PatternFill("solid", fgColor="D8D8D8")
 DX_FILL = PatternFill("solid", fgColor="9DC3E6")
@@ -79,8 +81,39 @@ def ensure_people(db: dict, names: list[str]) -> None:
         )
 
 
+def _as_shift(value) -> float:
+    if value in (None, ""):
+        return 0.0
+    if isinstance(value, str) and value.strip().startswith("="):
+        return 0.0
+    try:
+        return float(str(value).replace(",", "."))
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _hours_value(value, shifts: float) -> float:
+    if isinstance(value, str) and value.strip().startswith("="):
+        return round(shifts * 9, 1)
+    try:
+        if value not in (None, ""):
+            return float(str(value).replace(",", "."))
+    except (TypeError, ValueError):
+        pass
+    return round(shifts * 9, 1) if shifts else 0.0
+
+
+def _norm_name(name: str) -> str:
+    return " ".join(str(name or "").strip().split()).lower()
+
+
+def _id_key(name: str) -> str:
+    m = NAME_ID.match(str(name or "").strip())
+    return m.group(1).upper() if m else ""
+
+
 def parse_workbook(path: Path, ym: str) -> dict:
-    wb = load_workbook(path, data_only=True)
+    wb = load_workbook(path, data_only=False)
     ws = find_sheet(wb, ym)
     if ws is None:
         return {"people": [], "rows": [], "sheet": None}
@@ -105,43 +138,31 @@ def parse_workbook(path: Path, ym: str) -> dict:
         name = str(b or "").strip()
         if not name:
             continue
-        shifts = ws.cell(r, 3).value
-        hours = ws.cell(r, 4).value
+        shifts_n = _as_shift(ws.cell(r, 3).value)
+        hours_n = _hours_value(ws.cell(r, 4).value, shifts_n)
         deadline = ws.cell(r, 5).value
         assignee = ""
         for i, _ in enumerate(people):
             val = ws.cell(r, 6 + i).value
             if val not in (None, ""):
                 assignee = people[i]
-                try:
-                    hours = float(str(val).replace(",", "."))
-                except (TypeError, ValueError):
-                    pass
+                hours_n = _hours_value(val, shifts_n)
                 break
-        try:
-            shifts_n = float(str(shifts).replace(",", ".")) if shifts not in (None, "") else 0
-        except (TypeError, ValueError):
-            shifts_n = 0
-        try:
-            hours_n = float(str(hours).replace(",", ".")) if hours not in (None, "") else round(shifts_n * 9, 1)
-        except (TypeError, ValueError):
-            hours_n = round(shifts_n * 9, 1)
         if isinstance(deadline, datetime):
             deadline_s = deadline.strftime("%Y-%m-%d")
         else:
             deadline_s = str(deadline or "").strip()
+        prefix = name.split("-", 1)[0].upper()
         rows.append(
             {
                 "name": name,
-                "line": line if name.upper()[:2] not in {"DD", "DX", "DS"} else name.split("-", 1)[0].upper(),
+                "line": prefix if prefix in {"DD", "DX", "DS"} else line,
                 "shifts": shifts_n,
                 "hours": hours_n,
                 "deadline": deadline_s,
                 "assigneeName": assignee,
             }
         )
-        if rows[-1]["line"] not in {"DD", "DX", "DS"}:
-            rows[-1]["line"] = line
     return {"people": people, "rows": rows, "sheet": ws.title}
 
 
@@ -203,93 +224,167 @@ def _style_range(ws, row: int, cols: int) -> None:
         cell.alignment = CENTER if c != 2 else Alignment(vertical="center")
 
 
+def _write_task_row(ws, row: int, task: dict, people: list[dict]) -> None:
+    shifts = task.get("shifts")
+    ws.cell(row, 2, task.get("name") or "")
+    ws.cell(row, 3, shifts if shifts not in (None, "") else None)
+    ws.cell(row, 4, f"=C{row}*9")
+    deadline = task.get("deadline") or ""
+    if isinstance(deadline, datetime):
+        ws.cell(row, 5, deadline)
+        ws.cell(row, 5).number_format = "DD.MM"
+    elif deadline:
+        try:
+            ws.cell(row, 5, datetime.strptime(str(deadline)[:10], "%Y-%m-%d"))
+            ws.cell(row, 5).number_format = "DD.MM"
+        except ValueError:
+            ws.cell(row, 5, deadline)
+    who = task.get("assigneeId") or ""
+    for i, person in enumerate(people):
+        cell = ws.cell(row, 6 + i)
+        if person["id"] == who:
+            cell.value = f"=C{row}*9"
+            cell.fill = _hex_fill(person.get("color") or "92D050")
+        else:
+            cell.value = None
+            cell.fill = PatternFill(fill_type=None)
+    _style_range(ws, row, 5 + max(len(people), 1))
+    ws.cell(row, 2).alignment = Alignment(vertical="center")
+    ws.cell(row, 4).alignment = CENTER
+
+
+def _scan_sheet(ws) -> dict:
+    headers = {}
+    rows = {}
+    total_row = None
+    line = "DX"
+    last_used = 1
+    for r in range(2, (ws.max_row or 1) + 1):
+        a = ws.cell(r, 1).value
+        b = ws.cell(r, 2).value
+        if a and str(a).strip().lower() == "total":
+            total_row = r
+            last_used = r
+            break
+        if a and str(a).strip().upper() in {"DX", "DD", "DS"}:
+            line = str(a).strip().upper()
+            headers[line] = r
+            last_used = r
+            continue
+        if b:
+            rows[_norm_name(b)] = {"row": r, "line": line, "name": str(b).strip()}
+            last_used = r
+    return {"headers": headers, "rows": rows, "total_row": total_row, "last_used": last_used}
+
+
+def _insert_in_section(ws, scan: dict, line: str) -> int:
+    headers = scan["headers"]
+    total_row = scan["total_row"]
+    start = headers.get(line)
+    later = [r for key, r in headers.items() if start and r > start]
+    if later:
+        bound = min(later)
+    elif total_row:
+        bound = total_row
+    else:
+        bound = (scan["last_used"] or 1) + 1
+    last_data = start or 1
+    for r in range((start or 1) + 1, bound):
+        if ws.cell(r, 2).value:
+            last_data = r
+    insert_at = last_data + 1
+    ws.insert_rows(insert_at)
+    if total_row and total_row >= insert_at:
+        scan["total_row"] = total_row + 1
+    for key, r in list(headers.items()):
+        if r >= insert_at:
+            headers[key] = r + 1
+    for item in scan["rows"].values():
+        if item["row"] >= insert_at:
+            item["row"] += 1
+    scan["last_used"] = max(scan.get("last_used") or 1, insert_at)
+    return insert_at
+
+
+def _refresh_total(ws, scan: dict, people: list[dict]) -> None:
+    total_row = scan.get("total_row")
+    if not total_row:
+        return
+    end = total_row - 1
+    ws.cell(total_row, 1, "total")
+    ws.cell(total_row, 3, f"=SUM(C3:C{end})")
+    ws.cell(total_row, 4, f"=SUM(D3:D{end})")
+    for i, _ in enumerate(people):
+        col = get_column_letter(6 + i)
+        ws.cell(total_row, 6 + i, f"=SUM({col}3:{col}{end})")
+    max_col = 5 + max(len(people), 1)
+    _style_range(ws, total_row, max_col)
+    for c in range(1, max_col + 1):
+        ws.cell(total_row, c).fill = HEADER_FILL
+        ws.cell(total_row, c).font = CALIBRI_BOLD
+
+
 def write_month(db: dict, ym: str, path: Path | None = None) -> Path:
+    """Update the month tab in place. Keep formulas (=C*9) and other sheets."""
     path = Path(path or XLSX_PATH)
     if not path.exists():
         raise FileNotFoundError(f"Excel workbook missing: {path}")
     wb = load_workbook(path)
     ws = find_sheet(wb, ym)
-    if ws is None:
-        ws = wb.create_sheet(sheet_name_for(ym), 0)
     people = designers(db)
     y = ym.split("-")[0]
-    tasks = [t for t in db.get("tasks") or [] if (t.get("month") or ym) == ym]
-    grouped = {line: [t for t in tasks if t.get("line") == line] for line in ("DX", "DD", "DS")}
-    for line in grouped:
-        grouped[line].sort(key=lambda t: str(t.get("name") or ""))
-
-    max_col = 5 + max(len(people), 1)
-    if ws.max_row:
-        ws.delete_rows(1, ws.max_row)
-
-    ws.cell(1, 2, f"{y} PROJECT NAME")
-    for i, p in enumerate(people):
-        cell = ws.cell(1, 6 + i, p.get("name") or f"EMPL {i + 1}")
-        cell.font = CALIBRI_BOLD
-        cell.alignment = CENTER
-    _style_range(ws, 1, max_col)
-
-    def write_section_header(row: int, line: str) -> int:
-        labels = [line, "MGX", "SHIFTS", "HOURS", "DEADLINE"] + [f"EMPL {i + 1}" for i in range(len(people))]
+    if ws is None:
+        ws = wb.create_sheet(sheet_name_for(ym), 0)
+        ws.cell(1, 2, f"{y} PROJECT NAME")
+        for i, person in enumerate(people):
+            cell = ws.cell(1, 6 + i, person.get("name") or f"EMPL {i + 1}")
+            cell.font = CALIBRI_BOLD
+            cell.alignment = CENTER
+        labels = ["DX", "MGX", "SHIFTS", "HOURS", "DEADLINE"] + [f"EMPL {i + 1}" for i in range(len(people))]
         for c, label in enumerate(labels, 1):
-            cell = ws.cell(row, c, label)
+            cell = ws.cell(2, c, label)
             cell.fill = HEADER_FILL
             cell.font = CALIBRI_BOLD
             cell.border = THIN
             cell.alignment = CENTER
-        return row + 1
+        dd_row = 6
+        labels[0] = "DD"
+        for c, label in enumerate(labels, 1):
+            cell = ws.cell(dd_row, c, label)
+            cell.fill = HEADER_FILL
+            cell.font = CALIBRI_BOLD
+            cell.border = THIN
+            cell.alignment = CENTER
+        ws.cell(10, 1, "total")
+        ws.column_dimensions["A"].width = 11
+        ws.column_dimensions["B"].width = 63
+        for col in range(3, 6 + max(len(people), 1)):
+            ws.column_dimensions[get_column_letter(col)].width = 13
 
-    r = write_section_header(2, "DX")
-    totals = {p["id"]: 0.0 for p in people}
-    shift_total = 0.0
-    hour_total = 0.0
-
-    def write_task_rows(row: int, line: str) -> int:
-        nonlocal shift_total, hour_total
-        fill_a = LINE_FILL.get(line, DX_FILL)
-        for t in grouped.get(line) or []:
-            ws.cell(row, 1).fill = fill_a
-            ws.cell(row, 2, t.get("name") or "")
-            ws.cell(row, 3, t.get("shifts") if t.get("shifts") not in (None, "") else None)
-            ws.cell(row, 4, t.get("hours") if t.get("hours") not in (None, "") else None)
-            deadline = t.get("deadline") or ""
-            ws.cell(row, 5, deadline)
-            who = t.get("assigneeId") or ""
-            for i, p in enumerate(people):
-                cell = ws.cell(row, 6 + i)
-                if p["id"] == who and t.get("hours") not in (None, ""):
-                    cell.value = t.get("hours")
-                    cell.fill = _hex_fill(p.get("color") or "92D050")
-                    totals[p["id"]] = totals.get(p["id"], 0) + float(t.get("hours") or 0)
-            shift_total += float(t.get("shifts") or 0)
-            hour_total += float(t.get("hours") or 0)
-            _style_range(ws, row, max_col)
-            ws.cell(row, 2).alignment = Alignment(vertical="center")
-            row += 1
-        return row
-
-    r = write_task_rows(r, "DX")
-    r += 3
-    r = write_section_header(r, "DD")
-    r = write_task_rows(r, "DD")
-    if grouped.get("DS"):
-        r += 2
-        r = write_section_header(r, "DS")
-        r = write_task_rows(r, "DS")
-    r += 2
-    ws.cell(r, 1, "total")
-    ws.cell(r, 3, round(shift_total, 1))
-    ws.cell(r, 4, round(hour_total, 1))
-    for i, p in enumerate(people):
-        ws.cell(r, 6 + i, round(totals.get(p["id"], 0), 1))
-    _style_range(ws, r, max_col)
-    for c in range(1, max_col + 1):
-        ws.cell(r, c).fill = HEADER_FILL
-        ws.cell(r, c).font = CALIBRI_BOLD
-
-    ws.column_dimensions["A"].width = 11
-    ws.column_dimensions["B"].width = 63
-    for col in range(3, max_col + 1):
-        ws.column_dimensions[get_column_letter(col)].width = 13
+    scan = _scan_sheet(ws)
+    if "DX" not in scan["headers"]:
+        scan["headers"]["DX"] = 2
+    id_index = {
+        _id_key(item["name"]): item for item in scan["rows"].values() if _id_key(item["name"])
+    }
+    tasks = [t for t in db.get("tasks") or [] if (t.get("month") or ym) == ym]
+    for task in tasks:
+        key = _norm_name(task.get("name"))
+        found = scan["rows"].get(key)
+        if not found:
+            kid = _id_key(task.get("name") or "")
+            found = id_index.get(kid) if kid else None
+        if found:
+            _write_task_row(ws, found["row"], task, people)
+            continue
+        line = (task.get("line") or "DD").upper()
+        if line not in {"DX", "DD", "DS"}:
+            line = "DD"
+        if line not in scan["headers"]:
+            line = "DD" if "DD" in scan["headers"] else next(iter(scan["headers"]), "DX")
+        row = _insert_in_section(ws, scan, line)
+        _write_task_row(ws, row, task, people)
+        scan["rows"][key] = {"row": row, "line": line, "name": task.get("name")}
+    _refresh_total(ws, scan, people)
     wb.save(path)
     return path

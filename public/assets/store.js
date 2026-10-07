@@ -333,8 +333,11 @@
       return { deleted: data.id, reassigned: held.length, state: clone(db) };
     }
 
-    if (path === "/api/excel/pull" || path === "/api/excel/save") {
+    if (path === "/api/excel/pull") {
       return { added: 0, updated: 0, state: clone(db) };
+    }
+    if (path === "/api/excel/save") {
+      return { error: "The SP_MGX_check calculator is updated in the studio sandbox, not on GitHub Pages." };
     }
     if (path === "/api/excel/import") {
       return { error: "Open the studio app to import SP_MGX_check.xlsx" };
