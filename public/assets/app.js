@@ -1150,12 +1150,6 @@ function renderClient(fin) {
   }
   const canCreate = fin.byLine.some((row) => row.hours);
   return `
-    <div class="fin-head">
-      <div>
-        <h2>Client · SuperPlay Ltd · ${escapeHtml(fin.month)}</h2>
-        <p>CLIENT IN by direction. Create DD / DX writes folder <code>${escapeHtml(monthFolderName(state.month))}</code> — live Word form plus PDF to sign.</p>
-      </div>
-    </div>
     <div class="fin-kpis">
       <div class="kpi"><b>${fin.tasks.length}</b><span>projects this month</span></div>
       <div class="kpi"><b>${hoursLabel(fin.totalHours)}</b><span>hours × ${usd(fin.clientRate)}/h</span></div>
