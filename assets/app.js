@@ -514,7 +514,7 @@ function renderKpis() {
     return;
   }
   const tasks = visibleTasks();
-  if (isDesigner()) {
+  if (isDesigner() && state.view !== "excel") {
     const hours = tasks.reduce((s, t) => s + (Number(t.hours) || 0), 0);
     const active = tasks.filter((t) => t.studioStatus === "wip" || t.studioStatus === "revision").length;
     $("kpis").innerHTML = `
