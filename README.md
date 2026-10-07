@@ -10,7 +10,7 @@ One list, not Monday groups. Projects stay in a single table and are sorted by s
 
 Roles in the demo are job titles, not names:
 
-- **Designer** — who is on what, hours, brief, where to paste the result. No money.
+- **Designer** — only their assigned projects. Hours, brief, paste the result. No money. Other designers’ queues stay hidden.
 - **Team lead** — assigns designers. No Monday buttons, no invoices.
 - **Manager** — pull from Monday and send finished work to the client. Does not assign people.
 - **Finance** — manager pipeline plus the money tab.
@@ -42,6 +42,6 @@ Data: `data/db.json` (copied from `data/seed.json` on first start). **Reset demo
 
 1. **Finance** or **Manager** — full pipeline, import/export.
 2. **Team lead** — open a project, assign a designer.
-3. **Designer** — Mine, paste a result link, set **Done**.
+3. **Designer / Designer 2 / Designer 3** — each sees only their own queue. Paste a result link, set **Done**.
 4. Back to Manager: pick two Done rows → **Send to client**.
 5. Paste a test Orit email to see the shift parser.

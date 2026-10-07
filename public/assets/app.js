@@ -64,10 +64,9 @@ async function api(path, payload) {
 
 function visibleTasks() {
   const q = (document.querySelector(".search")?.value || "").toLowerCase();
-  const mine = state.view === "mine";
   return state.db.tasks.filter((t) => {
     if (q && !`${t.name} ${t.brief}`.toLowerCase().includes(q)) return false;
-    if (mine && t.assigneeId !== state.roleId) return false;
+    if (isDesigner() && t.assigneeId !== me().id) return false;
     return true;
   });
 }
@@ -86,7 +85,7 @@ function renderWho() {
 function renderChrome() {
   $("financeNav").hidden = !isFinance();
   $("roleHint").textContent = isDesigner()
-    ? "Who is on what, hours, brief, and where to paste the result. No money here."
+    ? "Only the projects assigned to you. Paste the result link. No money here."
     : canAssign()
       ? "You assign designers. Monday and invoices are not your screen."
       : canOps() && !isFinance()
@@ -95,14 +94,13 @@ function renderChrome() {
   $("sideFoot").innerHTML = isFinance()
     ? "Drive sandbox: _PORTAL_TEST<br>Live October Projects stay untouched."
     : isDesigner()
-      ? "Paste the result link in the project card. You do not need Monday."
+      ? "You only see your queue. Other designers’ projects stay hidden."
       : canAssign()
         ? "Open a project and pick a designer."
         : "Monday import / export are manager actions. Team lead assigns.";
 
   const tabs = [];
-  tabs.push({ id: "board", label: isDesigner() || canAssign() ? "All projects" : "Pipeline" });
-  if (isDesigner()) tabs.push({ id: "mine", label: "Mine" });
+  tabs.push({ id: "board", label: isDesigner() ? "My projects" : canAssign() ? "All projects" : "Pipeline" });
   if (canOps()) tabs.push({ id: "ready", label: "Ready to send" });
   if (isFinance()) tabs.push({ id: "close", label: "Finance" });
   if (!tabs.some((t) => t.id === state.view)) state.view = "board";
@@ -149,11 +147,11 @@ function renderKpis() {
   }
   const tasks = visibleTasks();
   if (isDesigner()) {
-    const mine = state.db.tasks.filter((t) => t.assigneeId === me().id);
-    const hours = mine.reduce((s, t) => s + (Number(t.hours) || 0), 0);
+    const hours = tasks.reduce((s, t) => s + (Number(t.hours) || 0), 0);
+    const active = tasks.filter((t) => t.studioStatus === "wip" || t.studioStatus === "revision").length;
     $("kpis").innerHTML = `
-      <div class="kpi"><b>${tasks.length}</b><span>projects on board</span></div>
-      <div class="kpi"><b>${mine.length}</b><span>assigned to me</span></div>
+      <div class="kpi"><b>${tasks.length}</b><span>assigned to me</span></div>
+      <div class="kpi"><b>${active}</b><span>in progress / revision</span></div>
       <div class="kpi"><b>${hours.toFixed(1)} h</b><span>my hours this month</span></div>
     `;
     return;
@@ -222,7 +220,9 @@ function renderBoard() {
                 return rowHtml(t, mode, gap);
               })
               .join("")
-          : `<div class="cell empty" style="padding:12px 16px">Nothing here</div>`
+          : `<div class="cell empty" style="padding:12px 16px">${
+              isDesigner() ? "Nothing assigned to you yet" : "Nothing here"
+            }</div>`
       }
     </section>`;
 
