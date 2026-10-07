@@ -126,7 +126,7 @@ class Handler(SimpleHTTPRequestHandler):
                         existing["line"] = row["line"]
                         existing["source"] = "monday+email" if existing.get("brief") else "email"
                         existing.setdefault("activity", []).append(
-                            {"at": utc_now(), "text": f"З листа: {row['shifts']} shifts → {row['hours']} h"}
+                            {"at": utc_now(), "text": f"From email: {row['shifts']} shifts → {row['hours']} h"}
                         )
                         updated += 1
                     else:
@@ -140,7 +140,7 @@ class Handler(SimpleHTTPRequestHandler):
                                 "shifts": row["shifts"],
                                 "hours": row["hours"],
                                 "deadline": "",
-                                "studioStatus": "imported",
+                                "studioStatus": "new",
                                 "mondayStatus": "Ready to Start",
                                 "assigneeId": "",
                                 "brief": "",
@@ -151,7 +151,7 @@ class Handler(SimpleHTTPRequestHandler):
                                 "activity": [
                                     {
                                         "at": utc_now(),
-                                        "text": f"З листа Orit: {row['shifts']} shifts",
+                                        "text": f"From Orit email: {row['shifts']} shifts",
                                     }
                                 ],
                             }
@@ -161,7 +161,7 @@ class Handler(SimpleHTTPRequestHandler):
                     0,
                     {
                         "at": utc_now(),
-                        "text": f"Розпізнано лист: {added} нових, {updated} оновлено shift",
+                        "text": f"Parsed email: {added} new, {updated} shifts updated",
                     },
                 )
                 save_db(db)
@@ -187,7 +187,7 @@ class Handler(SimpleHTTPRequestHandler):
                             "shifts": item.get("shifts") or 0,
                             "hours": item.get("hours") or 0,
                             "deadline": "",
-                            "studioStatus": "imported",
+                            "studioStatus": "new",
                             "mondayStatus": item.get("mondayStatus") or "Ready to Start",
                             "assigneeId": "",
                             "brief": item.get("brief") or "",
@@ -195,12 +195,12 @@ class Handler(SimpleHTTPRequestHandler):
                             "docUrl": "",
                             "resultUrl": "",
                             "source": "monday",
-                            "activity": [{"at": utc_now(), "text": "Завантажено з Monday External Weekly"}],
+                            "activity": [{"at": utc_now(), "text": "Pulled from Monday External Weekly"}],
                         }
                     )
                     added += 1
                 db.setdefault("events", []).insert(
-                    0, {"at": utc_now(), "text": f"Імпорт з Monday: {added} нових тасків"}
+                    0, {"at": utc_now(), "text": f"Monday import: {added} new tasks"}
                 )
                 save_db(db)
                 self._json(200, {"added": added, "state": db})
@@ -213,12 +213,12 @@ class Handler(SimpleHTTPRequestHandler):
                         continue
                     if not task.get("resultUrl"):
                         continue
-                    task["studioStatus"] = "sent"
+                    task["studioStatus"] = "approve"
                     task["mondayStatus"] = "Senior Approval"
                     task.setdefault("activity", []).append(
                         {
                             "at": utc_now(),
-                            "text": "Вивантажено в Monday: check it please + лінк → Senior Approval",
+                            "text": "Sent to Monday: check it please + link → Senior Approval",
                         }
                     )
                     exported.append(
@@ -232,7 +232,7 @@ class Handler(SimpleHTTPRequestHandler):
                     0,
                     {
                         "at": utc_now(),
-                        "text": f"На Monday Senior Approval пішло {len(exported)} тасків (поштучно, решту не чекали)",
+                        "text": f"Sent {len(exported)} tasks to Monday Senior Approval",
                     },
                 )
                 save_db(db)
@@ -251,12 +251,10 @@ class Handler(SimpleHTTPRequestHandler):
                         task["folderUrl"] = parent
                     if not task.get("docUrl"):
                         task["docUrl"] = parent
-                    if task["studioStatus"] == "imported":
-                        task["studioStatus"] = "todo"
                     task.setdefault("activity", []).append(
                         {
                             "at": utc_now(),
-                            "text": "Тека/бриф позначені в _PORTAL_TEST (пісочниця, не бойовий October)",
+                            "text": "Folder/brief marked in _PORTAL_TEST (sandbox, not live October)",
                         }
                     )
                     n += 1

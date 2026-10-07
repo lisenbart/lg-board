@@ -1,42 +1,47 @@
-# LG Board — стіл студії Lisenbart
+# LG Board — Lisenbart studio desk
 
-Онлайн-портал для **SUPERPLAY MGX**. Клієнт лишається в Monday (`External Weekly`). Виконавці працюють тут і в Monday не заходять.
+Online portal for **SUPERPLAY MGX**. The client stays on Monday (`External Weekly`). Designers work here and are never added to Monday.
 
-## Що вже вміє (v1, пісочниця)
+One list, not Monday groups. Projects stay in a single table and are sorted by studio status so the same mark sits together:
 
-- Дошка в логіці Monday: групи, кольорові статуси, лінії DD / DX.
-Три доступи, різні екрани:
+**New → In progress → Revision → Done → Sent**
 
-Тестові ролі — посади, не імена:
+## What v1 does (sandbox)
 
-- **Дизайнер** — хто що робить, час, бриф, куди здати результат.
-- **Тім лід** — назначає дизайнерів. Без Monday і без інвойсів.
-- **Менеджер** — забрати з Monday і віддати здані клієнту. Не назначає людей.
-- **Фінанси** — постановка як у менеджера + вкладка грошей.
-- **Завантажити з Monday** — підтягнути нові таски (зараз демо-імпорт, без токена Monday).
-- **Вставити лист зі shift** — формат Orit: `НАЗВА | 0.3 shifts`, години = shift × 9.
-- Виконавець сам ставить статус і лінк на результат.
-- **Вивантажити в Monday** по вибраних тасках (2 з 10 можна відправити, не чекаючи решти) → `check it please` + Senior Approval.
-- Чорновик закриття місяця: години DD/DX × $35 і години людей.
-- Тестові теки лише в Drive [`_PORTAL_TEST`](https://drive.google.com/drive/folders/1HY7vcxR5Tmot5RNJyQ2ZeImD9J4BOuX8). Бойовий `Projects / 10_October` не чіпаємо.
+Roles in the demo are job titles, not names:
 
-Ще не в v1: бойовий API Monday, авто-інвойси PDF, Telegram, Playables, Slotomania, перепис calc.
+- **Designer** — who is on what, hours, brief, where to paste the result. No money.
+- **Team lead** — assigns designers. No Monday buttons, no invoices.
+- **Manager** — pull from Monday and send finished work to the client. Does not assign people.
+- **Finance** — manager pipeline plus the money tab.
 
-## Як запустити
+Also:
 
-Потрібен лише Python 3, без npm.
+- **Pull from Monday** — demo import (no Monday token yet).
+- **Shift email** — Orit format: `NAME | 0.3 shifts`. Hours = shift × 9.
+- Designer sets status and pastes the result link.
+- **Send to client** on selected projects (2 of 10 is fine) → `check it please` + Senior Approval. Studio mark becomes **Sent**.
+- Month-close draft (finance only): DD/DX hours × $35 and people hours @ $15.
+- Test folders only in Drive [`_PORTAL_TEST`](https://drive.google.com/drive/folders/1HY7vcxR5Tmot5RNJyQ2ZeImD9J4BOuX8). Live `Projects / 10_October` is untouched.
+
+Not in v1: live Monday API, invoice PDFs, Telegram, Playables, Slotomania, calculator rewrite.
+
+## Run
+
+Python 3 only. No npm.
 
 ```bash
 python3 server.py
 ```
 
-Відкрити [http://127.0.0.1:43141](http://127.0.0.1:43141).
+Open [http://127.0.0.1:43141](http://127.0.0.1:43141).
 
-Дані: `data/db.json` (копія `data/seed.json` при першому старті). Кнопка «Скинути демо» повертає жовтневу пачку.
+Data: `data/db.json` (copied from `data/seed.json` on first start). **Reset demo** restores the October pack.
 
-## Як пробувати
+## Try it
 
-1. Зайти як **Дмитро (студія)** — вся дошка, кнопки імпорту/експорту.
-2. Перемкнутись на **Настя** — «Мої задачі», здати лінк.
-3. Знову Дмитро: відмітити 2 здані → **Вивантажити в Monday**.
-4. Вставити тестовий лист Orit, якщо хочете побачити парсер shift.
+1. **Finance** or **Manager** — full pipeline, import/export.
+2. **Team lead** — open a project, assign a designer.
+3. **Designer** — Mine, paste a result link, set **Done**.
+4. Back to Manager: pick two Done rows → **Send to client**.
+5. Paste a test Orit email to see the shift parser.

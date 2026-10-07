@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="uk">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/assets/board.css" />
+  <link rel="stylesheet" href="/assets/board.css?v=2" />
 </head>
 <body>
   <div class="app">
@@ -17,16 +17,16 @@
         <div class="logo">LG</div>
         <div>
           <strong>Lisenbart Board</strong>
-          <small>СТУДІЯ, НЕ MONDAY</small>
+          <small>STUDIO · NOT MONDAY</small>
         </div>
       </div>
-      <div class="nav-label">Дошки</div>
+      <div class="nav-label">Boards</div>
       <button class="nav-item active">SUPERPLAY MGX</button>
-      <button class="nav-item" disabled>SUPERPLAY Playables <span class="soon">скоро</span></button>
-      <button class="nav-item" disabled>SLOTOMANIA <span class="soon">скоро</span></button>
+      <button class="nav-item" disabled>SUPERPLAY Playables <span class="soon">soon</span></button>
+      <button class="nav-item" disabled>SLOTOMANIA <span class="soon">soon</span></button>
       <div id="financeNav" hidden>
-        <div class="nav-label">Фінанси</div>
-        <button class="nav-item" id="navClose">Жовтень 2026</button>
+        <div class="nav-label">Finance</div>
+        <button class="nav-item" id="navClose">October 2026</button>
       </div>
       <div class="side-foot" id="sideFoot"></div>
     </aside>
@@ -37,7 +37,7 @@
           <h1 class="board-title">SUPERPLAY MGX</h1>
           <span class="pill dep-MGX">MGX</span>
           <div class="who" style="margin-left:auto">
-            <span style="font-size:12px;color:#676879">Я:</span>
+            <span style="font-size:12px;color:#676879">I am</span>
             <select id="who"></select>
           </div>
         </div>
@@ -57,17 +57,17 @@
 
   <div class="modal-bg" id="emailModal">
     <div class="modal">
-      <h3>Вставити лист зі shift</h3>
-      <p style="color:#676879;font-size:13px">Формат Orit: <code>НАЗВА | 0.3 shifts</code>. Години порахуються як shift × 9.</p>
+      <h3>Paste shift email</h3>
+      <p style="color:#676879;font-size:13px">Orit format: <code>NAME | 0.3 shifts</code>. Hours = shift × 9.</p>
       <textarea id="emailText" placeholder="Assign you these HC on Monday:&#10;DD-AIV-202-004_SettAI_HalloweenFireTrial_DD-VEO-059-001_EN_30s | 0.3 shifts"></textarea>
       <div class="modal-actions">
-        <button class="btn ghost" id="emailCancel">Скасувати</button>
-        <button class="btn primary" id="emailApply">Розпізнати і підтягнути</button>
+        <button class="btn ghost" id="emailCancel">Cancel</button>
+        <button class="btn primary" id="emailApply">Parse and apply</button>
       </div>
     </div>
   </div>
 
   <div class="toast" id="toast"></div>
-  <script src="/assets/app.js"></script>
+  <script src="/assets/app.js?v=2"></script>
 </body>
 </html>

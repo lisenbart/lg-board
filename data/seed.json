@@ -10,12 +10,12 @@
     "clientRateUsd": 35
   },
   "people": [
-    { "id": "finance", "name": "Фінанси", "role": "finance", "color": "#0073ea" },
-    { "id": "manager", "name": "Менеджер", "role": "manager", "color": "#9d50dd" },
-    { "id": "teamlead", "name": "Тім лід", "role": "teamlead", "color": "#fdab3d" },
-    { "id": "designer", "name": "Дизайнер", "role": "designer", "color": "#00c875" },
-    { "id": "designer2", "name": "Дизайнер 2", "role": "designer", "color": "#579bfc" },
-    { "id": "designer3", "name": "Дизайнер 3", "role": "designer", "color": "#ff5ac4" }
+    { "id": "finance", "name": "Finance", "role": "finance", "color": "#0073ea" },
+    { "id": "manager", "name": "Manager", "role": "manager", "color": "#9d50dd" },
+    { "id": "teamlead", "name": "Team lead", "role": "teamlead", "color": "#fdab3d" },
+    { "id": "designer", "name": "Designer", "role": "designer", "color": "#00c875" },
+    { "id": "designer2", "name": "Designer 2", "role": "designer", "color": "#579bfc" },
+    { "id": "designer3", "name": "Designer 3", "role": "designer", "color": "#ff5ac4" }
   ],
   "tasks": [
     {
@@ -36,9 +36,9 @@
       "resultUrl": "https://drive.google.com/drive/folders/1FoSMDTF2vBhyUUtHHQBttNULo1bs-CYU",
       "source": "monday+email",
       "activity": [
-        { "at": "2026-10-06T13:36:00Z", "text": "Лист Orit: 0.3 shifts" },
-        { "at": "2026-10-06T14:10:00Z", "text": "Завантажено з Monday, бриф у Doc" },
-        { "at": "2026-10-07T09:20:00Z", "text": "Дизайнер здав результат" }
+        { "at": "2026-10-06T13:36:00Z", "text": "Orit email: 0.3 shifts" },
+        { "at": "2026-10-06T14:10:00Z", "text": "Pulled from Monday, brief in Doc" },
+        { "at": "2026-10-07T09:20:00Z", "text": "Designer pasted the result" }
       ]
     },
     {
@@ -59,9 +59,9 @@
       "resultUrl": "https://drive.google.com/drive/folders/1aJX-A7np2alJOHLkTmav6gG9Gj8t5NsW",
       "source": "monday+email",
       "activity": [
-        { "at": "2026-10-06T13:36:00Z", "text": "Лист Orit: 0.3 shifts" },
-        { "at": "2026-10-06T14:12:00Z", "text": "Тека і бриф створені в _PORTAL_TEST" },
-        { "at": "2026-10-07T10:05:00Z", "text": "Дизайнер здав результат — можна віддати клієнту" }
+        { "at": "2026-10-06T13:36:00Z", "text": "Orit email: 0.3 shifts" },
+        { "at": "2026-10-06T14:12:00Z", "text": "Folder and brief created in _PORTAL_TEST" },
+        { "at": "2026-10-07T10:05:00Z", "text": "Designer pasted the result — ready to send" }
       ]
     },
     {
@@ -73,7 +73,7 @@
       "shifts": 0.3,
       "hours": 2.7,
       "deadline": "2026-10-07",
-      "studioStatus": "doing",
+      "studioStatus": "wip",
       "mondayStatus": "WIP",
       "assigneeId": "designer2",
       "brief": "Combine Halloween Mario gameplay with DD-VEO-059-001. Length 30s. Four sizes.",
@@ -82,8 +82,8 @@
       "resultUrl": "",
       "source": "monday+email",
       "activity": [
-        { "at": "2026-10-06T13:36:00Z", "text": "Лист Orit: 0.3 shifts" },
-        { "at": "2026-10-07T08:40:00Z", "text": "Тім лід назначив Дизайнера 2" }
+        { "at": "2026-10-06T13:36:00Z", "text": "Orit email: 0.3 shifts" },
+        { "at": "2026-10-07T08:40:00Z", "text": "Team lead assigned Designer 2" }
       ]
     },
     {
@@ -95,7 +95,7 @@
       "shifts": 0.3,
       "hours": 2.7,
       "deadline": "2026-10-07",
-      "studioStatus": "doing",
+      "studioStatus": "wip",
       "mondayStatus": "Ready to Start",
       "assigneeId": "designer3",
       "brief": "Spooky Jackpot + DD-VEO-059-001 hook. 30s. Motion transition after hook.",
@@ -103,7 +103,7 @@
       "docUrl": "",
       "resultUrl": "",
       "source": "monday+email",
-      "activity": [{ "at": "2026-10-06T13:36:00Z", "text": "Лист Orit: 0.3 shifts" }]
+      "activity": [{ "at": "2026-10-06T13:36:00Z", "text": "Orit email: 0.3 shifts" }]
     },
     {
       "id": "t-dd-228-002",
@@ -114,7 +114,7 @@
       "shifts": 0.3,
       "hours": 2.7,
       "deadline": "2026-10-07",
-      "studioStatus": "todo",
+      "studioStatus": "new",
       "mondayStatus": "Ready to Start",
       "assigneeId": "",
       "brief": "Halloween Blast Treasure 30s + DD-VEO-059-001. Four sizes.",
@@ -122,7 +122,7 @@
       "docUrl": "",
       "resultUrl": "",
       "source": "monday+email",
-      "activity": [{ "at": "2026-10-06T13:36:00Z", "text": "Лист Orit: 0.3 shifts" }]
+      "activity": [{ "at": "2026-10-06T13:36:00Z", "text": "Orit email: 0.3 shifts" }]
     },
     {
       "id": "t-dd-225-002",
@@ -133,7 +133,7 @@
       "shifts": 0.3,
       "hours": 2.7,
       "deadline": "2026-10-07",
-      "studioStatus": "todo",
+      "studioStatus": "new",
       "mondayStatus": "Ready to Start",
       "assigneeId": "",
       "brief": "Halloween Trap 30s. Hook DD-VEO-059-001. Trim if needed.",
@@ -141,7 +141,7 @@
       "docUrl": "",
       "resultUrl": "",
       "source": "monday+email",
-      "activity": [{ "at": "2026-10-06T13:36:00Z", "text": "Лист Orit: 0.3 shifts" }]
+      "activity": [{ "at": "2026-10-06T13:36:00Z", "text": "Orit email: 0.3 shifts" }]
     },
     {
       "id": "t-dd-229-002",
@@ -152,7 +152,7 @@
       "shifts": 0.3,
       "hours": 2.7,
       "deadline": "2026-10-07",
-      "studioStatus": "imported",
+      "studioStatus": "new",
       "mondayStatus": "Ready to Start",
       "assigneeId": "",
       "brief": "Halloween Monopoly 30s + GravePumpkin hook.",
@@ -160,7 +160,7 @@
       "docUrl": "",
       "resultUrl": "",
       "source": "monday",
-      "activity": [{ "at": "2026-10-06T12:00:00Z", "text": "З'явилось у Monday External Weekly" }]
+      "activity": [{ "at": "2026-10-06T12:00:00Z", "text": "Appeared on Monday External Weekly" }]
     },
     {
       "id": "t-dd-227-002",
@@ -171,7 +171,7 @@
       "shifts": 0.3,
       "hours": 2.7,
       "deadline": "2026-10-07",
-      "studioStatus": "imported",
+      "studioStatus": "new",
       "mondayStatus": "Ready to Start",
       "assigneeId": "",
       "brief": "Blast Treasure short cut. Length 24s.",
@@ -179,7 +179,7 @@
       "docUrl": "",
       "resultUrl": "",
       "source": "monday+email",
-      "activity": [{ "at": "2026-10-06T13:36:00Z", "text": "Лист Orit: 0.3 shifts" }]
+      "activity": [{ "at": "2026-10-06T13:36:00Z", "text": "Orit email: 0.3 shifts" }]
     },
     {
       "id": "t-dd-233-002",
@@ -190,7 +190,7 @@
       "shifts": 0.3,
       "hours": 2.7,
       "deadline": "2026-10-07",
-      "studioStatus": "imported",
+      "studioStatus": "new",
       "mondayStatus": "Ready to Start",
       "assigneeId": "",
       "brief": "Kingdom Build 60s. Keep logo placement per MGX tech specs.",
@@ -198,7 +198,7 @@
       "docUrl": "",
       "resultUrl": "",
       "source": "monday+email",
-      "activity": [{ "at": "2026-10-06T13:36:00Z", "text": "Лист Orit: 0.3 shifts" }]
+      "activity": [{ "at": "2026-10-06T13:36:00Z", "text": "Orit email: 0.3 shifts" }]
     },
     {
       "id": "t-dd-235-002",
@@ -209,7 +209,7 @@
       "shifts": 0.3,
       "hours": 2.7,
       "deadline": "2026-10-07",
-      "studioStatus": "imported",
+      "studioStatus": "new",
       "mondayStatus": "Ready to Start",
       "assigneeId": "",
       "brief": "Witch's Potion 30s + DD-VEO-059-001.",
@@ -217,7 +217,7 @@
       "docUrl": "",
       "resultUrl": "",
       "source": "monday+email",
-      "activity": [{ "at": "2026-10-06T13:36:00Z", "text": "Лист Orit: 0.3 shifts" }]
+      "activity": [{ "at": "2026-10-06T13:36:00Z", "text": "Orit email: 0.3 shifts" }]
     },
     {
       "id": "t-dx-0225-002",
@@ -228,7 +228,7 @@
       "shifts": 0.3,
       "hours": 2.7,
       "deadline": "",
-      "studioStatus": "doing",
+      "studioStatus": "wip",
       "mondayStatus": "WIP",
       "assigneeId": "designer",
       "brief": "Halloween Save 60s, hook DX-VEO-055-001. Four sizes.",
@@ -236,7 +236,7 @@
       "docUrl": "",
       "resultUrl": "",
       "source": "monday",
-      "activity": [{ "at": "2026-10-05T11:00:00Z", "text": "Тім лід назначив Дизайнера" }]
+      "activity": [{ "at": "2026-10-05T11:00:00Z", "text": "Team lead assigned Designer" }]
     },
     {
       "id": "t-dx-0215-002",
@@ -256,7 +256,7 @@
       "resultUrl": "https://drive.google.com/drive/folders/1ulNcDzMwA73xa4Nx9OPY2xtnwNUkUhZr",
       "source": "monday+email",
       "activity": [
-        { "at": "2026-10-06T19:40:00Z", "text": "Дизайнер 3 здав результат" }
+        { "at": "2026-10-06T19:40:00Z", "text": "Designer 3 pasted the result" }
       ]
     },
     {
@@ -268,7 +268,7 @@
       "shifts": 0.3,
       "hours": 2.7,
       "deadline": "",
-      "studioStatus": "todo",
+      "studioStatus": "revision",
       "mondayStatus": "WIP",
       "assigneeId": "",
       "brief": "Halloween Relax 30s. Visible in External Weekly WIP.",
@@ -276,7 +276,7 @@
       "docUrl": "",
       "resultUrl": "",
       "source": "monday",
-      "activity": [{ "at": "2026-10-06T18:00:00Z", "text": "У Monday: WIP" }]
+      "activity": [{ "at": "2026-10-06T18:00:00Z", "text": "On Monday: WIP" }]
     },
     {
       "id": "t-dx-231-002",
@@ -287,7 +287,7 @@
       "shifts": 0.3,
       "hours": 2.7,
       "deadline": "",
-      "studioStatus": "sent",
+      "studioStatus": "approve",
       "mondayStatus": "Senior Approval",
       "assigneeId": "designer2",
       "brief": "Spirals 60s. Already sent to client for check.",
@@ -296,13 +296,13 @@
       "resultUrl": "https://drive.google.com/drive/folders/1ebZZm5szIjdEimc8ojtNxIfBMYfhAYn8",
       "source": "monday+email",
       "activity": [
-        { "at": "2026-10-05T17:16:00Z", "text": "Дизайнер 2 здав результат" },
-        { "at": "2026-10-06T11:00:00Z", "text": "Вивантажено в Monday: check it please + Senior Approval" }
+        { "at": "2026-10-05T17:16:00Z", "text": "Designer 2 pasted the result" },
+        { "at": "2026-10-06T11:00:00Z", "text": "Sent to Monday: check it please + Senior Approval" }
       ]
     }
   ],
   "events": [
-    { "at": "2026-10-06T13:36:00Z", "text": "Orit надіслала пачку October HC — 10 DD тасків по 0.3 shift" },
-    { "at": "2026-10-07T10:05:00Z", "text": "3 таски готові до вивантаження в Monday по одному, не чекаючи решту" }
+    { "at": "2026-10-06T13:36:00Z", "text": "Orit sent the October HC pack — 10 DD tasks at 0.3 shift" },
+    { "at": "2026-10-07T10:05:00Z", "text": "3 tasks ready to send to Monday one by one, without waiting for the rest" }
   ]
 }

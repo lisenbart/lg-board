@@ -1,33 +1,16 @@
 const STATUS = {
-  imported: { label: "Новий", cls: "status-imported" },
-  todo: { label: "До роботи", cls: "status-todo" },
-  doing: { label: "В роботі", cls: "status-doing" },
-  done: { label: "Здано", cls: "status-done" },
-  sent: { label: "У клієнта", cls: "status-sent" },
-  fix: { label: "Правки", cls: "status-fix" },
+  new: { label: "New", cls: "status-new", order: 1 },
+  wip: { label: "In progress", cls: "status-wip", order: 2 },
+  revision: { label: "Revision", cls: "status-revision", order: 3 },
+  done: { label: "Done", cls: "status-done", order: 4 },
+  approve: { label: "Sent", cls: "status-approve", order: 5 },
 };
 
-const GROUPS_OPS = [
-  { id: "new", title: "Щойно з клієнта", color: "#c4c4c4", statuses: ["imported"] },
-  { id: "ready", title: "До роботи", color: "#fdab3d", statuses: ["todo"] },
-  { id: "wip", title: "В роботі", color: "#579bfc", statuses: ["doing"] },
-  { id: "done", title: "Здано — на апрув", color: "#00c875", statuses: ["done"] },
-  { id: "sent", title: "Вже у клієнта", color: "#66ccff", statuses: ["sent"] },
-  { id: "fix", title: "Правки", color: "#e2445c", statuses: ["fix"] },
-];
-
-const GROUPS_EXEC = [
-  { id: "free", title: "Ще вільні", color: "#c4c4c4", statuses: ["imported", "todo"] },
-  { id: "wip", title: "В роботі", color: "#579bfc", statuses: ["doing"] },
-  { id: "done", title: "Здано", color: "#00c875", statuses: ["done", "sent"] },
-  { id: "fix", title: "Правки", color: "#e2445c", statuses: ["fix"] },
-];
-
 const ROLE_LABEL = {
-  finance: "фінанси",
-  manager: "менеджер",
-  teamlead: "тім лід",
-  designer: "дизайнер",
+  finance: "Finance",
+  manager: "Manager",
+  teamlead: "Team lead",
+  designer: "Designer",
 };
 
 const state = { db: null, roleId: "finance", view: "board", selected: new Set(), openId: null };
@@ -103,25 +86,25 @@ function renderWho() {
 function renderChrome() {
   $("financeNav").hidden = !isFinance();
   $("roleHint").textContent = isDesigner()
-    ? "Вам: хто що робить, скільки часу, бриф і куди здати результат. Грошей тут немає."
+    ? "Who is on what, hours, brief, and where to paste the result. No money here."
     : canAssign()
-      ? "Ви назначаєте дизайнерів на проекти. Monday і інвойси — не ваша зона."
+      ? "You assign designers. Monday and invoices are not your screen."
       : canOps() && !isFinance()
-        ? "Постановка: забрати з Monday і віддати здані клієнту. Назначає тім лід."
-        : "Постановка плюс фінанси. Інвойси бачите лише ви.";
+        ? "Pull from Monday and send finished work to the client. Team lead assigns people."
+        : "Pipeline plus finance. Invoice draft is only on this role.";
   $("sideFoot").innerHTML = isFinance()
-    ? "Пісочниця Drive: _PORTAL_TEST<br>Бойовий October не чіпаємо."
+    ? "Drive sandbox: _PORTAL_TEST<br>Live October Projects stay untouched."
     : isDesigner()
-      ? "Здаєте лінк у картці проекту. Monday вам не потрібен."
+      ? "Paste the result link in the project card. You do not need Monday."
       : canAssign()
-        ? "Відкрийте проект і оберіть дизайнера."
-        : "Імпорт / експорт Monday — кнопки менеджера. Назначає тім лід.";
+        ? "Open a project and pick a designer."
+        : "Monday import / export are manager actions. Team lead assigns.";
 
   const tabs = [];
-  tabs.push({ id: "board", label: isDesigner() || canAssign() ? "Усі проекти" : "Постановка" });
-  if (isDesigner()) tabs.push({ id: "mine", label: "Мої" });
-  if (canOps()) tabs.push({ id: "ready", label: "Готові здати клієнту" });
-  if (isFinance()) tabs.push({ id: "close", label: "Фінанси" });
+  tabs.push({ id: "board", label: isDesigner() || canAssign() ? "All projects" : "Pipeline" });
+  if (isDesigner()) tabs.push({ id: "mine", label: "Mine" });
+  if (canOps()) tabs.push({ id: "ready", label: "Ready to send" });
+  if (isFinance()) tabs.push({ id: "close", label: "Finance" });
   if (!tabs.some((t) => t.id === state.view)) state.view = "board";
   $("views").innerHTML = tabs
     .map(
@@ -140,15 +123,15 @@ function renderChrome() {
 function renderToolbar() {
   const n = state.selected.size;
   if (isDesigner() || canAssign()) {
-    $("toolbar").innerHTML = `<input class="search" placeholder="Знайти проект" />`;
+    $("toolbar").innerHTML = `<input class="search" placeholder="Search project" />`;
   } else {
     $("toolbar").innerHTML = `
-      <button class="btn primary" id="btnImport">Забрати з Monday</button>
-      <button class="btn orange" id="btnEmail">Лист зі shift</button>
-      <button class="btn" id="btnFolders" ${n ? "" : "disabled"}>Теки (${n})</button>
-      <button class="btn green" id="btnExport" ${n ? "" : "disabled"}>Віддати клієнту (${n})</button>
-      <input class="search" placeholder="Пошук проекту" />
-      <button class="btn ghost" id="btnReset">Скинути демо</button>
+      <button class="btn primary" id="btnImport">Pull from Monday</button>
+      <button class="btn orange" id="btnEmail">Shift email</button>
+      <button class="btn" id="btnFolders" ${n ? "" : "disabled"}>Folders (${n})</button>
+      <button class="btn green" id="btnExport" ${n ? "" : "disabled"}>Send to client (${n})</button>
+      <input class="search" placeholder="Search project" />
+      <button class="btn ghost" id="btnReset">Reset demo</button>
     `;
   }
   $("toolbar").querySelector(".search")?.addEventListener("input", render);
@@ -169,21 +152,21 @@ function renderKpis() {
     const mine = state.db.tasks.filter((t) => t.assigneeId === me().id);
     const hours = mine.reduce((s, t) => s + (Number(t.hours) || 0), 0);
     $("kpis").innerHTML = `
-      <div class="kpi"><b>${tasks.length}</b><span>проектів на дошці</span></div>
-      <div class="kpi"><b>${mine.length}</b><span>назначено мені</span></div>
-      <div class="kpi"><b>${hours.toFixed(1)} h</b><span>мій час у цьому місяці</span></div>
+      <div class="kpi"><b>${tasks.length}</b><span>projects on board</span></div>
+      <div class="kpi"><b>${mine.length}</b><span>assigned to me</span></div>
+      <div class="kpi"><b>${hours.toFixed(1)} h</b><span>my hours this month</span></div>
     `;
     return;
   }
   const hours = state.db.tasks.reduce((s, t) => s + (Number(t.hours) || 0), 0);
   const ready = state.db.tasks.filter((t) => t.studioStatus === "done").length;
   const money = isFinance()
-    ? `<div class="kpi"><b>$${(hours * 35).toFixed(0)}</b><span>чорновик інвойсу × $35</span></div>`
+    ? `<div class="kpi"><b>$${(hours * 35).toFixed(0)}</b><span>invoice draft × $35</span></div>`
     : "";
   $("kpis").innerHTML = `
-    <div class="kpi"><b>${state.db.tasks.length}</b><span>проектів</span></div>
-    <div class="kpi"><b>${hours.toFixed(1)} h</b><span>годин у постановці</span></div>
-    <div class="kpi"><b>${ready}</b><span>чекають відправки клієнту</span></div>
+    <div class="kpi"><b>${state.db.tasks.length}</b><span>projects</span></div>
+    <div class="kpi"><b>${hours.toFixed(1)} h</b><span>hours in pipeline</span></div>
+    <div class="kpi"><b>${ready}</b><span>Done, waiting to send</span></div>
     ${money}
   `;
 }
@@ -193,12 +176,24 @@ function initials(name) {
 }
 function personCell(id) {
   const p = person(id);
-  if (!p) return `<span class="empty">вільний</span>`;
+  if (!p) return `<span class="empty">unassigned</span>`;
   return `<span class="person"><span class="avatar" style="background:${p.color}">${initials(p.name)}</span>${escapeHtml(p.name)}</span>`;
 }
 function timeCell(t) {
   if (!t.shifts && !t.hours) return `<span class="empty">—</span>`;
   return `${t.shifts || "—"} / ${t.hours || "—"}h`;
+}
+
+function statusRank(t) {
+  return STATUS[t.studioStatus]?.order || 99;
+}
+
+function sortedTasks(list) {
+  return list.slice().sort((a, b) => {
+    const d = statusRank(a) - statusRank(b);
+    if (d) return d;
+    return String(a.name).localeCompare(String(b.name));
+  });
 }
 
 function renderBoard() {
@@ -207,34 +202,29 @@ function renderBoard() {
     return;
   }
   const exec = isDesigner() || canAssign();
-  const groups = exec ? GROUPS_EXEC : GROUPS_OPS;
   let tasks = visibleTasks();
   if (state.view === "ready") tasks = tasks.filter((t) => t.studioStatus === "done");
+  tasks = sortedTasks(tasks);
   const mode = exec ? "exec" : "ops";
   const head = exec
-    ? `<div class="cols exec"><div>Проект</div><div>Хто робить</div><div>Час</div><div>Бриф</div><div>Результат</div><div>Статус</div></div>`
-    : `<div class="cols ops"><div></div><div>Проект</div><div>Лінія</div><div>Час</div><div>Хто</div><div>Статус</div><div>Бриф</div><div>Результат</div></div>`;
+    ? `<div class="cols exec"><div>Project</div><div>Assignee</div><div>Time</div><div>Brief</div><div>Result</div><div>Status</div></div>`
+    : `<div class="cols ops"><div></div><div>Project</div><div>Line</div><div>Time</div><div>Assignee</div><div>Status</div><div>Brief</div><div>Result</div></div>`;
 
-  $("board").innerHTML = groups
-    .map((g) => {
-      const rows = tasks.filter((t) => g.statuses.includes(t.studioStatus));
-      if (state.view === "ready" && g.id !== "done") return "";
-      return `
-      <section class="group">
-        <div class="group-head">
-          <span class="gdot" style="background:${g.color}"></span>
-          <h3 style="color:${g.color}">${g.title}</h3>
-          <span class="count">${rows.length}</span>
-        </div>
-        ${head}
-        ${
-          rows.length
-            ? rows.map((t) => rowHtml(t, mode)).join("")
-            : `<div class="cell empty" style="padding:12px 16px">Порожньо</div>`
-        }
-      </section>`;
-    })
-    .join("");
+  $("board").innerHTML = `
+    <section class="group">
+      ${head}
+      ${
+        tasks.length
+          ? tasks
+              .map((t, i) => {
+                const prev = tasks[i - 1];
+                const gap = prev && prev.studioStatus !== t.studioStatus;
+                return rowHtml(t, mode, gap);
+              })
+              .join("")
+          : `<div class="cell empty" style="padding:12px 16px">Nothing here</div>`
+      }
+    </section>`;
 
   $("board").querySelectorAll(".row").forEach((el) => {
     el.addEventListener("click", (e) => {
@@ -253,20 +243,21 @@ function renderBoard() {
   });
 }
 
-function rowHtml(t, mode) {
-  const st = STATUS[t.studioStatus] || STATUS.todo;
+function rowHtml(t, mode, gap) {
+  const st = STATUS[t.studioStatus] || STATUS.new;
   const checked = state.selected.has(t.id) ? "checked" : "";
+  const gapCls = gap ? " status-gap" : "";
   const brief = t.docUrl
-    ? `<a class="linkish" href="${escapeHtml(t.docUrl)}" target="_blank" rel="noreferrer">Бриф</a>`
+    ? `<a class="linkish" href="${escapeHtml(t.docUrl)}" target="_blank" rel="noreferrer">Brief</a>`
     : t.brief
-      ? `<span class="linkish">є текст</span>`
-      : `<span class="empty">немає</span>`;
+      ? `<span class="linkish">text</span>`
+      : `<span class="empty">none</span>`;
   const result = t.resultUrl
-    ? `<a class="linkish" href="${escapeHtml(t.resultUrl)}" target="_blank" rel="noreferrer">Лінк</a>`
-    : `<span class="empty">вставити</span>`;
+    ? `<a class="linkish" href="${escapeHtml(t.resultUrl)}" target="_blank" rel="noreferrer">Link</a>`
+    : `<span class="empty">paste</span>`;
   if (mode === "exec") {
     return `
-      <div class="row exec" data-id="${t.id}">
+      <div class="row exec${gapCls}" data-id="${t.id}">
         <div class="cell name" title="${escapeHtml(t.name)}">${escapeHtml(t.name)}</div>
         <div class="cell">${personCell(t.assigneeId)}</div>
         <div class="cell">${timeCell(t)}</div>
@@ -276,7 +267,7 @@ function rowHtml(t, mode) {
       </div>`;
   }
   return `
-    <div class="row ops ${checked ? "selected" : ""}" data-id="${t.id}">
+    <div class="row ops${gapCls} ${checked ? "selected" : ""}" data-id="${t.id}">
       <div class="cell"><input class="chk" data-id="${t.id}" type="checkbox" ${checked} /></div>
       <div class="cell name" title="${escapeHtml(t.name)}">${escapeHtml(t.name)}</div>
       <div class="cell"><span class="pill line-${t.line}">${t.line}</span></div>
@@ -305,14 +296,14 @@ function renderClose() {
   }
   $("board").innerHTML = `
     <section class="group" style="padding:18px">
-      <h2 style="margin:0 0 8px">Фінанси · жовтень</h2>
-      <p style="color:#676879">Цього екрана немає у виконавця і в менеджера. Тут лише ви: інвойс клієнту і години людей після 15-го.</p>
+      <h2 style="margin:0 0 8px">Finance · October</h2>
+      <p style="color:#676879">Designers and the manager do not see this. Client invoice and people hours after the 15th.</p>
       <div class="kpis" style="padding:0 0 16px">
         <div class="kpi"><b>${byLine.DD.toFixed(1)} h</b><span>DD × $35 = $${(byLine.DD * 35).toFixed(0)}</span></div>
         <div class="kpi"><b>${byLine.DX.toFixed(1)} h</b><span>DX × $35 = $${(byLine.DX * 35).toFixed(0)}</span></div>
         <div class="kpi"><b>${byLine.DS.toFixed(1)} h</b><span>DS</span></div>
       </div>
-      <h3>Гонорари людей @ $15/год</h3>
+      <h3>Designer payout @ $15/h</h3>
       ${Object.entries(people)
         .map(([id, h]) => `<div style="padding:8px 0;border-bottom:1px solid #f0f1f5">${personCell(id)} — <b>${h.toFixed(1)} h</b> · $${(h * 15).toFixed(0)}</div>`)
         .join("")}
@@ -320,7 +311,7 @@ function renderClose() {
 }
 
 function executorStatuses() {
-  return ["todo", "doing", "done", "fix"];
+  return ["new", "wip", "done", "revision"];
 }
 
 function openTask(id) {
@@ -333,33 +324,33 @@ function openTask(id) {
     .map((k) => `<option value="${k}" ${t.studioStatus === k ? "selected" : ""}>${STATUS[k].label}</option>`)
     .join("");
   $("drawer").innerHTML = `
-    <button class="btn ghost" id="closeDrawer">Закрити</button>
+    <button class="btn ghost" id="closeDrawer">Close</button>
     <h2>${escapeHtml(t.name)}</h2>
-    <div class="meta">${t.line} · час ${t.shifts || 0} shift / ${t.hours || 0} h · ${person(t.assigneeId)?.name || "ще вільний"}</div>
+    <div class="meta">${t.line} · ${t.shifts || 0} shift / ${t.hours || 0} h · ${person(t.assigneeId)?.name || "unassigned"}</div>
     ${
       canAssign()
-        ? `<div class="field"><label>Назначити дизайнера</label>
+        ? `<div class="field"><label>Assign designer</label>
       <select id="stPerson">
-        <option value="">— вільний</option>
+        <option value="">— unassigned</option>
         ${designers()
           .map((p) => `<option value="${p.id}" ${t.assigneeId === p.id ? "selected" : ""}>${p.name}</option>`)
           .join("")}
       </select></div>`
-        : `<div class="field"><label>Хто робить</label><div>${personCell(t.assigneeId)}</div></div>`
+        : `<div class="field"><label>Assignee</label><div>${personCell(t.assigneeId)}</div></div>`
     }
-    <div class="field"><label>Бриф</label><div class="brief">${escapeHtml(t.brief || "Ще немає тексту брифу")}</div>
-      ${t.docUrl ? `<p><a href="${escapeHtml(t.docUrl)}" target="_blank" rel="noreferrer">Відкрити Google Doc</a></p>` : ""}
-      ${t.folderUrl ? `<p><a href="${escapeHtml(t.folderUrl)}" target="_blank" rel="noreferrer">Тека на Drive</a></p>` : ""}
+    <div class="field"><label>Brief</label><div class="brief">${escapeHtml(t.brief || "No brief yet")}</div>
+      ${t.docUrl ? `<p><a href="${escapeHtml(t.docUrl)}" target="_blank" rel="noreferrer">Open Google Doc</a></p>` : ""}
+      ${t.folderUrl ? `<p><a href="${escapeHtml(t.folderUrl)}" target="_blank" rel="noreferrer">Drive folder</a></p>` : ""}
     </div>
-    <div class="field"><label>${isDesigner() ? "Сюди вставити результат" : "Лінк на результат"}</label>
+    <div class="field"><label>${isDesigner() ? "Paste result link here" : "Result link"}</label>
       <input id="stResult" value="${escapeHtml(t.resultUrl || "")}" placeholder="https://drive.google.com/..." ${isDesigner() && mine || canOps() ? "" : "disabled"} />
     </div>
-    <div class="field"><label>Статус</label>
+    <div class="field"><label>Status</label>
       <select id="stStatus" ${canEdit ? "" : "disabled"}>${statusOpts}</select>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn primary" id="saveTask">Зберегти</button>
-      ${canOps() && t.resultUrl ? `<button class="btn green" id="exportOne">Віддати цей клієнту</button>` : ""}
+      <button class="btn primary" id="saveTask">Save</button>
+      ${canOps() && t.resultUrl ? `<button class="btn green" id="exportOne">Send this to client</button>` : ""}
     </div>
   `;
   $("drawerBg").classList.add("show");
@@ -368,13 +359,13 @@ function openTask(id) {
     const resultUrl = $("stResult").value.trim();
     const studioStatus = $("stStatus").value;
     const assigneeId = $("stPerson") ? $("stPerson").value : t.assigneeId;
-    const note = resultUrl && resultUrl !== t.resultUrl ? `${me().name} вставив(ла) результат` : `${me().name} оновив(ла) статус`;
+    const note = resultUrl && resultUrl !== t.resultUrl ? `${me().name} pasted the result` : `${me().name} updated status`;
     updateTask(t.id, { resultUrl, studioStatus, assigneeId, note });
   };
   $("exportOne")?.addEventListener("click", async () => {
     const out = await api("/api/export-monday", { ids: [t.id] });
     applyState(out.state);
-    toast("Цей проект віддано клієнту: check it please + Senior Approval");
+    toast("Sent to Monday: check it please + Senior Approval");
     openTask(t.id);
   });
 }
@@ -382,34 +373,34 @@ function openTask(id) {
 async function updateTask(id, patch) {
   const out = await api("/api/tasks/update", { id, ...patch });
   applyState(out.state);
-  toast("Збережено");
+  toast("Saved");
   if (state.openId) openTask(id);
 }
 async function importMonday() {
   const out = await api("/api/import-monday", {});
   applyState(out.state);
-  toast(out.added ? `З Monday ${out.added} нових` : "Нових немає");
+  toast(out.added ? `Pulled ${out.added} new from Monday` : "Nothing new");
 }
 async function provision() {
   const out = await api("/api/provision", { ids: [...state.selected] });
   applyState(out.state);
-  toast("Теки в _PORTAL_TEST");
+  toast("Folders marked in _PORTAL_TEST");
 }
 async function exportMonday() {
   const ids = [...state.selected];
   const ready = state.db.tasks.filter((t) => ids.includes(t.id) && t.resultUrl);
   if (!ready.length) {
-    toast("Спочатку лінк на результат. Можна віддати 2 з 10, не чекаючи решту.");
+    toast("Need a result link first. You can send 2 of 10 without waiting.");
     return;
   }
   const out = await api("/api/export-monday", { ids: ready.map((t) => t.id) });
   applyState(out.state);
-  toast(`Віддано клієнту: ${out.exported.length}`);
+  toast(`Sent to client: ${out.exported.length}`);
 }
 async function resetDemo() {
   const out = await api("/api/reset", {});
   applyState(out);
-  toast("Демо скинуто");
+  toast("Demo reset");
 }
 function applyState(db) {
   state.db = db;
@@ -442,7 +433,7 @@ $("emailApply").onclick = async () => {
   const out = await api("/api/parse-email", { text: $("emailText").value });
   applyState(out.state);
   $("emailModal").classList.remove("show");
-  toast(`Лист: ${out.added} нових, ${out.updated} з оновленим shift`);
+  toast(`Email: ${out.added} new, ${out.updated} shifts updated`);
 };
 $("drawerBg").addEventListener("click", (e) => {
   if (e.target === $("drawerBg")) $("drawerBg").classList.remove("show");
