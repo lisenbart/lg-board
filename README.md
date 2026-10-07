@@ -45,10 +45,11 @@ Studio money never unlocks on the hosted link. Localhost is the studio sandbox.
 - Manager / team lead can paste the brief and Drive / Doc links. **Open Drive** opens the sandbox month folder — the board does not create Drive folders.
 - Designer sets WIP or Done and pastes the result link. Assignment lives on the board; there is no Telegram copy step.
 - **Send to client** copies `check it please` + the result link for External Weekly. Status becomes Senior Approval. Superplay is not on this board, so this step stays until Monday API is connected.
+- **Finance** (Dmytro only) — month volume of every project, totals by DD / DX / DS, Superplay invoice, and pay per person. Rates default to $35/h billed and $15/h paid; a person can have their own rate. **Invoice Superplay** and **Pay sheet** open a print view (save as PDF). Unassigned hours stay on the client invoice until someone is attached.
 - Files on Drive are the source. The portal is a monitor: a new task or an assign writes into `SP_MGX_check.xlsx`; **Refresh from file** reads the sheet back. Sandbox copy is in `_PORTAL_TEST`. The live studio workbook is not overwritten. No CSV export.
 - Test folders only in Drive [`_PORTAL_TEST`](https://drive.google.com/drive/folders/1HY7vcxR5Tmot5RNJyQ2ZeImD9J4BOuX8). Live `Projects / 10_October` is untouched.
 
-Not in this slice: live Monday API, real Drive folder create, invoice PDFs, Playables board, client OAuth.
+Not in this slice: live Monday API, real Drive folder create, Playables board, client OAuth. Invoices print to PDF from the browser — not a tax e-invoicing feed.
 
 ## Run locally
 
@@ -64,7 +65,7 @@ Data: `data/db.json` (copied from `data/seed.json` on first start). **Reset demo
 
 ## Try it
 
-1. **Dmytro** — Finance + pipeline.
+1. **Dmytro** — Finance: month totals, Invoice Superplay, pay sheet.
 2. **Anastasiia** — full pipeline, no Finance tab.
 3. **lisenbart.games@gmail.com** → Team lead — assign a designer.
 4. Same mailbox → a designer — own queue, Excel is the month picture.

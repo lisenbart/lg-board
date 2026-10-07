@@ -28,6 +28,7 @@ const STATUS_BY_ROLE = {
   manager: ["new", "wip", "revision", "done", "approve"],
   finance: ["new", "wip", "revision", "done", "approve"],
 };
+const LINES = ["DD", "DX", "DS"];
 
 const MONTH_KEY = "lg-month";
 const SESSION_KEY = "lg-session";
@@ -246,6 +247,99 @@ function parseShifts(raw) {
   if (!Number.isFinite(n) || n < 0) return null;
   return Math.round(n * 1000) / 1000;
 }
+function hoursOf(t) {
+  return Number(t.hours) || hoursFromShifts(t.shifts || 0) || 0;
+}
+function usd(n) {
+  return `$${(Number(n) || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+function hoursLabel(n) {
+  return `${(Number(n) || 0).toFixed(1)} h`;
+}
+function clientRate() {
+  const n = Number(state.db?.meta?.clientRateUsd);
+  return Number.isFinite(n) && n >= 0 ? n : 0;
+}
+function defaultPayRate() {
+  const n = Number(state.db?.meta?.designerRateUsd);
+  return Number.isFinite(n) && n >= 0 ? n : 0;
+}
+function personPayRate(p) {
+  if (p && p.rateUsd !== undefined && p.rateUsd !== null && p.rateUsd !== "") {
+    const n = Number(p.rateUsd);
+    if (Number.isFinite(n) && n >= 0) return n;
+  }
+  return defaultPayRate();
+}
+function parseRate(raw) {
+  const s = String(raw ?? "").trim();
+  if (!s) return null;
+  const n = Number(s.replace(",", "."));
+  if (!Number.isFinite(n) || n < 0) return false;
+  return n;
+}
+function financeSnapshot() {
+  const tasks = monthTasks();
+  const totalHours = tasks.reduce((s, t) => s + hoursOf(t), 0);
+  const totalShifts = tasks.reduce((s, t) => s + (Number(t.shifts) || 0), 0);
+  const byLineMap = {};
+  for (const key of LINES) byLineMap[key] = { line: key, projects: 0, shifts: 0, hours: 0 };
+  for (const t of tasks) {
+    const line = LINES.includes(t.line) ? t.line : t.line || "—";
+    if (!byLineMap[line]) byLineMap[line] = { line, projects: 0, shifts: 0, hours: 0 };
+    byLineMap[line].projects += 1;
+    byLineMap[line].shifts += Number(t.shifts) || 0;
+    byLineMap[line].hours += hoursOf(t);
+  }
+  const byLine = Object.values(byLineMap).filter(
+    (row) => LINES.includes(row.line) || row.projects
+  );
+  const payMap = {};
+  let unassignedHours = 0;
+  let unassignedShifts = 0;
+  let unassignedProjects = 0;
+  for (const t of tasks) {
+    const p = t.assigneeId ? person(t.assigneeId) : null;
+    if (!p) {
+      unassignedHours += hoursOf(t);
+      unassignedShifts += Number(t.shifts) || 0;
+      unassignedProjects += 1;
+      continue;
+    }
+    if (!payMap[p.id]) payMap[p.id] = { person: p, projects: 0, shifts: 0, hours: 0, tasks: [] };
+    payMap[p.id].projects += 1;
+    payMap[p.id].shifts += Number(t.shifts) || 0;
+    payMap[p.id].hours += hoursOf(t);
+    payMap[p.id].tasks.push(t);
+  }
+  const payroll = Object.values(payMap)
+    .map((row) => {
+      const rate = personPayRate(row.person);
+      return { ...row, rate, pay: row.hours * rate, customRate: row.person.rateUsd != null && row.person.rateUsd !== "" };
+    })
+    .sort((a, b) => b.hours - a.hours || String(a.person.name).localeCompare(String(b.person.name)));
+  const bill = totalHours * clientRate();
+  const payTotal = payroll.reduce((s, r) => s + r.pay, 0);
+  return {
+    month: monthLabel(state.month),
+    ym: state.month,
+    board: state.db?.meta?.board || "SUPERPLAY MGX",
+    client: state.db?.meta?.client || "Superplay",
+    tasks,
+    totalHours,
+    totalShifts,
+    byLine,
+    payroll,
+    unassignedHours,
+    unassignedShifts,
+    unassignedProjects,
+    bill,
+    payTotal,
+    margin: bill - payTotal,
+    clientRate: clientRate(),
+    defaultPayRate: defaultPayRate(),
+  };
+}
 function canAssign() {
   return me().role === "teamlead" || me().role === "manager" || me().role === "finance";
 }
@@ -394,7 +488,7 @@ function renderChrome() {
       ? "Your work plus every designer. Assign people. Ready to Start, WIP, Need Fixing, Done — not Senior Approval."
       : canOps() && !isFinance()
         ? "Full pipeline except Finance. Pull from Monday, assign, send Done work as Senior Approval."
-        : "Everything, including Finance. Invoice draft is only on this seat.";
+        : "Month volume, Superplay invoice, and what to pay each person.";
   $("sideFoot").innerHTML = isFinance()
     ? "Drive sandbox: _PORTAL_TEST<br>Live October Projects stay untouched."
     : isDesigner()
@@ -430,8 +524,17 @@ function renderChrome() {
 }
 
 function renderToolbar() {
-  if (state.view === "close" || state.view === "team") {
+  if (state.view === "team") {
     $("toolbar").innerHTML = "";
+    return;
+  }
+  if (state.view === "close") {
+    $("toolbar").innerHTML = `
+      <button class="btn primary" id="btnInvoiceClient">Invoice Superplay</button>
+      <button class="btn" id="btnPaySheet">Pay sheet</button>
+    `;
+    $("btnInvoiceClient")?.addEventListener("click", () => openSuperplayInvoice());
+    $("btnPaySheet")?.addEventListener("click", () => openPaySheet());
     return;
   }
   if (state.view === "excel") {
@@ -928,40 +1031,342 @@ function renderClose() {
     render();
     return;
   }
-  const month = monthTasks();
-  const byLine = { DD: 0, DX: 0, DS: 0 };
-  for (const t of month) byLine[t.line] = (byLine[t.line] || 0) + (Number(t.hours) || 0);
-  const people = {};
-  for (const t of month) {
-    if (!t.assigneeId) continue;
-    const p = person(t.assigneeId);
-    if (!p || p.role !== "designer") continue;
-    people[t.assigneeId] = (people[t.assigneeId] || 0) + (Number(t.hours) || 0);
-  }
-  const clientRate = Number(state.db?.meta?.clientRateUsd);
-  const designerRate = Number(state.db?.meta?.designerRateUsd);
-  const moneyLine = (line, hours) =>
-    clientRate
-      ? `${line} × $${clientRate} = $${(hours * clientRate).toFixed(0)}`
-      : line;
+  const fin = financeSnapshot();
+  const empty = !fin.tasks.length;
+  const lineRows = fin.byLine
+    .map((row) => {
+      const amount = row.hours * fin.clientRate;
+      const share = fin.totalHours ? Math.round((row.hours / fin.totalHours) * 100) : 0;
+      return `<tr>
+        <td><span class="pill line-${escapeHtml(row.line)}">${escapeHtml(row.line)}</span></td>
+        <td class="num">${row.projects}</td>
+        <td class="num">${row.shifts.toFixed(1)}</td>
+        <td class="num">${hoursLabel(row.hours)}</td>
+        <td class="num">${usd(amount)}</td>
+        <td class="num muted">${share}%</td>
+      </tr>`;
+    })
+    .join("");
+  const payRows = fin.payroll
+    .map((row) => {
+      const shown = row.customRate ? row.rate : "";
+      return `<tr>
+        <td>${personCell(row.person.id)}</td>
+        <td class="num">${row.projects}</td>
+        <td class="num">${hoursLabel(row.hours)}</td>
+        <td class="num"><input class="fin-person-rate" data-id="${row.person.id}" type="number" min="0" step="0.5" value="${shown}" placeholder="${fin.defaultPayRate}" /></td>
+        <td class="num"><b>${usd(row.pay)}</b></td>
+        <td><button type="button" class="btn ghost fin-slip" data-id="${row.person.id}">Pay slip</button></td>
+      </tr>`;
+    })
+    .join("");
+  const unRow = fin.unassignedProjects
+    ? `<tr class="fin-warn-row">
+        <td>Unassigned</td>
+        <td class="num">${fin.unassignedProjects}</td>
+        <td class="num">${hoursLabel(fin.unassignedHours)}</td>
+        <td class="muted" colspan="2">On the Superplay invoice, nobody is owed yet</td>
+        <td></td>
+      </tr>`
+    : "";
+  const projectRows = [...fin.tasks]
+    .sort((a, b) => String(a.line).localeCompare(String(b.line)) || String(a.name).localeCompare(String(b.name)))
+    .map((t) => {
+      const h = hoursOf(t);
+      const who = t.assigneeId ? personCell(t.assigneeId) : `<span class="empty">unassigned</span>`;
+      return `<tr class="fin-proj" data-id="${t.id}">
+        <td><span class="pill line-${escapeHtml(t.line || "")}">${escapeHtml(t.line || "—")}</span></td>
+        <td class="fin-name" title="${escapeHtml(t.name)}">${escapeHtml(t.name)}</td>
+        <td>${who}</td>
+        <td class="num">${Number(t.shifts || 0).toFixed(1)}</td>
+        <td class="num">${hoursLabel(h)}</td>
+        <td class="num">${usd(h * fin.clientRate)}</td>
+      </tr>`;
+    })
+    .join("");
   $("board").innerHTML = `
-    <section class="group" style="padding:18px">
-      <h2 style="margin:0 0 8px">Finance · ${monthLabel(state.month)}</h2>
-      <p style="color:#676879">Designers and the manager do not see this. Hours by line for the selected month.</p>
-      <div class="kpis" style="padding:0 0 16px">
-        <div class="kpi"><b>${byLine.DD.toFixed(1)} h</b><span>${moneyLine("DD", byLine.DD)}</span></div>
-        <div class="kpi"><b>${byLine.DX.toFixed(1)} h</b><span>${moneyLine("DX", byLine.DX)}</span></div>
-        <div class="kpi"><b>${byLine.DS.toFixed(1)} h</b><span>DS</span></div>
+    <section class="fin">
+      <div class="fin-head">
+        <div>
+          <h2>Finance · ${escapeHtml(fin.month)}</h2>
+          <p>Same hours as <code>SP_MGX_check</code> (shifts × ${shiftHours()}). Superplay does not see this. Print an invoice or pay sheet, then save as PDF.</p>
+        </div>
+        <div class="fin-rates">
+          <label>Superplay $/h <input id="finClientRate" type="number" min="0" step="0.5" value="${fin.clientRate}" /></label>
+          <label>Pay default $/h <input id="finPayRate" type="number" min="0" step="0.5" value="${fin.defaultPayRate}" /></label>
+          <button type="button" class="btn primary" id="finSaveRates">Save rates</button>
+        </div>
       </div>
-      <h3>Designer hours</h3>
-      ${Object.entries(people)
-        .map(([id, h]) => {
-          const pay =
-            designerRate ? ` · $${(h * designerRate).toFixed(0)}` : "";
-          return `<div style="padding:8px 0;border-bottom:1px solid #f0f1f5">${personCell(id)} — <b>${h.toFixed(1)} h</b>${pay}</div>`;
-        })
-        .join("")}
+      ${
+        empty
+          ? `<div class="fin-empty">No hours in ${escapeHtml(fin.month)}. Pull from Monday or paste the shift email first.</div>`
+          : `<div class="fin-kpis">
+        <div class="kpi"><b>${fin.tasks.length}</b><span>projects</span></div>
+        <div class="kpi"><b>${fin.totalShifts.toFixed(1)}</b><span>shifts</span></div>
+        <div class="kpi"><b>${hoursLabel(fin.totalHours)}</b><span>all projects</span></div>
+        <div class="kpi"><b>${usd(fin.bill)}</b><span>invoice Superplay × ${usd(fin.clientRate)}/h</span></div>
+        <div class="kpi"><b>${usd(fin.payTotal)}</b><span>to pay the team</span></div>
+        <div class="kpi"><b>${usd(fin.margin)}</b><span>studio margin</span></div>
+        ${
+          fin.unassignedHours
+            ? `<div class="kpi warn"><b>${hoursLabel(fin.unassignedHours)}</b><span>unassigned — billed, not paid</span></div>`
+            : ""
+        }
+      </div>
+      <div class="fin-grid">
+        <section class="group fin-card">
+          <h3>By direction</h3>
+          <div class="fin-scroll">
+            <table class="fin-table">
+              <thead><tr><th>Line</th><th class="num">Projects</th><th class="num">Shifts</th><th class="num">Hours</th><th class="num">Superplay</th><th class="num">Share</th></tr></thead>
+              <tbody>${lineRows}</tbody>
+            </table>
+          </div>
+        </section>
+        <section class="group fin-card">
+          <h3>Pay each person</h3>
+          <p class="status-hint">Blank rate uses the default. Save rates before you print slips.</p>
+          <div class="fin-scroll">
+            <table class="fin-table">
+              <thead><tr><th>Person</th><th class="num">Projects</th><th class="num">Hours</th><th class="num">$/h</th><th class="num">Pay</th><th></th></tr></thead>
+              <tbody>${payRows}${unRow}</tbody>
+              <tfoot><tr><td>Team</td><td></td><td class="num">${hoursLabel(fin.totalHours - fin.unassignedHours)}</td><td></td><td class="num">${usd(fin.payTotal)}</td><td></td></tr></tfoot>
+            </table>
+          </div>
+        </section>
+      </div>
+      <section class="group fin-card">
+        <h3>All projects</h3>
+        <div class="fin-scroll">
+          <table class="fin-table">
+            <thead><tr><th>Line</th><th>Project</th><th>Person</th><th class="num">Shifts</th><th class="num">Hours</th><th class="num">Bill</th></tr></thead>
+            <tbody>${projectRows}</tbody>
+            <tfoot><tr><td></td><td>${fin.tasks.length} projects</td><td></td><td class="num">${fin.totalShifts.toFixed(1)}</td><td class="num">${hoursLabel(fin.totalHours)}</td><td class="num">${usd(fin.bill)}</td></tr></tfoot>
+          </table>
+        </div>
+      </section>`
+      }
     </section>`;
+  $("finSaveRates")?.addEventListener("click", saveFinanceRates);
+  $("board").querySelectorAll(".fin-slip").forEach((btn) => {
+    btn.addEventListener("click", () => openPersonSlip(btn.dataset.id));
+  });
+  $("board").querySelectorAll(".fin-proj").forEach((row) => {
+    row.addEventListener("click", () => openTask(row.dataset.id));
+  });
+}
+
+function invoiceChrome(title, inner) {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>${escapeHtml(title)}</title>
+  <style>
+    body { font-family: Figtree, "Segoe UI", Helvetica, sans-serif; color: #323338; margin: 36px auto; max-width: 860px; }
+    h1 { font-size: 22px; font-weight: 500; margin: 0; }
+    h2 { font-size: 16px; font-weight: 500; margin: 24px 0 8px; }
+    p, td, th { font-size: 13px; }
+    .muted { color: #676879; }
+    .top { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
+    .brand { font-weight: 500; }
+    table { width: 100%; border-collapse: collapse; margin: 8px 0 16px; }
+    th, td { border-bottom: 1px solid #eceef5; padding: 8px 6px; text-align: left; vertical-align: top; }
+    th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    tfoot td { font-weight: 500; }
+    .total { font-size: 18px; margin: 8px 0 0; }
+    .note { color: #676879; font-size: 12px; }
+    .no-print { margin-bottom: 16px; }
+    button { font: inherit; padding: 8px 12px; border: 1px solid #d0d4e4; background: #0073ea; color: #fff; border-radius: 6px; cursor: pointer; }
+    @media print { .no-print { display: none; } body { margin: 12mm; } }
+  </style>
+</head>
+<body>
+  <p class="no-print"><button type="button" onclick="window.print()">Print / Save as PDF</button></p>
+  ${inner}
+</body>
+</html>`;
+}
+
+function openDoc(filename, html) {
+  const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const tab = window.open(url, "_blank");
+  if (!tab) {
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    toast("Popup blocked — downloaded the file instead");
+    return;
+  }
+  toast("Print or save as PDF from the new tab");
+}
+
+function openSuperplayInvoice() {
+  const fin = financeSnapshot();
+  if (!fin.tasks.length) {
+    toast("Nothing to invoice this month");
+    return;
+  }
+  const lineRows = fin.byLine
+    .filter((row) => row.projects)
+    .map(
+      (row) =>
+        `<tr><td>${escapeHtml(row.line)}</td><td class="num">${row.projects}</td><td class="num">${row.shifts.toFixed(1)}</td><td class="num">${hoursLabel(row.hours)}</td><td class="num">${usd(fin.clientRate)}</td><td class="num">${usd(row.hours * fin.clientRate)}</td></tr>`
+    )
+    .join("");
+  const projectRows = [...fin.tasks]
+    .sort((a, b) => String(a.line).localeCompare(String(b.line)) || String(a.name).localeCompare(String(b.name)))
+    .map(
+      (t) =>
+        `<tr><td>${escapeHtml(t.line || "—")}</td><td>${escapeHtml(t.name)}</td><td class="num">${Number(t.shifts || 0).toFixed(1)}</td><td class="num">${hoursLabel(hoursOf(t))}</td><td class="num">${usd(hoursOf(t) * fin.clientRate)}</td></tr>`
+    )
+    .join("");
+  const no = `MGX-${fin.ym}`;
+  const html = invoiceChrome(
+    `Invoice ${no}`,
+    `<div class="top">
+      <div>
+        <div class="brand">Lisenbart Games</div>
+        <p class="muted">dmytro@lisenbart.games</p>
+      </div>
+      <div>
+        <h1>Invoice ${escapeHtml(no)}</h1>
+        <p class="muted">${escapeHtml(fin.board)} · ${escapeHtml(fin.month)}</p>
+      </div>
+    </div>
+    <p><strong>Bill to</strong><br>${escapeHtml(fin.client)}</p>
+    <p>MGX production for ${escapeHtml(fin.month)}. Hours = shifts × ${shiftHours()}, same as SP_MGX_check.</p>
+    <h2>By direction</h2>
+    <table>
+      <thead><tr><th>Line</th><th class="num">Projects</th><th class="num">Shifts</th><th class="num">Hours</th><th class="num">Rate</th><th class="num">Amount</th></tr></thead>
+      <tbody>${lineRows}</tbody>
+    </table>
+    <p class="total">Total ${hoursLabel(fin.totalHours)} · ${usd(fin.bill)}</p>
+    <h2>Projects</h2>
+    <table>
+      <thead><tr><th>Line</th><th>Project</th><th class="num">Shifts</th><th class="num">Hours</th><th class="num">Amount</th></tr></thead>
+      <tbody>${projectRows}</tbody>
+      <tfoot><tr><td></td><td>${fin.tasks.length} projects</td><td class="num">${fin.totalShifts.toFixed(1)}</td><td class="num">${hoursLabel(fin.totalHours)}</td><td class="num">${usd(fin.bill)}</td></tr></tfoot>
+    </table>
+    <p class="note">Draft from LG Board. Print and save as PDF to send.</p>`
+  );
+  openDoc(`Lisenbart-Superplay-${no}.html`, html);
+}
+
+function openPaySheet() {
+  const fin = financeSnapshot();
+  if (!fin.payroll.length && !fin.unassignedProjects) {
+    toast("Nobody has hours this month");
+    return;
+  }
+  const rows = fin.payroll
+    .map(
+      (row) =>
+        `<tr><td>${escapeHtml(row.person.name)}</td><td class="num">${row.projects}</td><td class="num">${hoursLabel(row.hours)}</td><td class="num">${usd(row.rate)}</td><td class="num">${usd(row.pay)}</td></tr>`
+    )
+    .join("");
+  const un = fin.unassignedProjects
+    ? `<tr><td>Unassigned</td><td class="num">${fin.unassignedProjects}</td><td class="num">${hoursLabel(fin.unassignedHours)}</td><td colspan="2">Assign before paying</td></tr>`
+    : "";
+  const html = invoiceChrome(
+    `Payroll ${fin.ym}`,
+    `<div class="top">
+      <div>
+        <div class="brand">Lisenbart Games</div>
+        <p class="muted">Internal — not for Superplay</p>
+      </div>
+      <div>
+        <h1>Pay sheet</h1>
+        <p class="muted">${escapeHtml(fin.board)} · ${escapeHtml(fin.month)}</p>
+      </div>
+    </div>
+    <table>
+      <thead><tr><th>Person</th><th class="num">Projects</th><th class="num">Hours</th><th class="num">Rate</th><th class="num">Pay</th></tr></thead>
+      <tbody>${rows}${un}</tbody>
+      <tfoot><tr><td>Team</td><td></td><td class="num">${hoursLabel(fin.totalHours - fin.unassignedHours)}</td><td></td><td class="num">${usd(fin.payTotal)}</td></tr></tfoot>
+    </table>
+    <p>Superplay invoice ${usd(fin.bill)} · payroll ${usd(fin.payTotal)} · margin ${usd(fin.margin)}</p>
+    <p class="note">Hours from the board / SP_MGX_check. Print and save as PDF.</p>`
+  );
+  openDoc(`Lisenbart-payroll-${fin.ym}.html`, html);
+}
+
+function openPersonSlip(id) {
+  const fin = financeSnapshot();
+  const row = fin.payroll.find((r) => r.person.id === id);
+  if (!row) {
+    toast("This person has no hours this month");
+    return;
+  }
+  const tasks = row.tasks
+    .map(
+      (t) =>
+        `<tr><td>${escapeHtml(t.line || "—")}</td><td>${escapeHtml(t.name)}</td><td class="num">${Number(t.shifts || 0).toFixed(1)}</td><td class="num">${hoursLabel(hoursOf(t))}</td><td class="num">${usd(hoursOf(t) * row.rate)}</td></tr>`
+    )
+    .join("");
+  const file = `Lisenbart-pay-${String(row.person.name).replace(/[^\wа-яіїєґ-]+/gi, "-")}-${fin.ym}.html`;
+  const html = invoiceChrome(
+    `Pay slip ${row.person.name}`,
+    `<div class="top">
+      <div>
+        <div class="brand">Lisenbart Games</div>
+        <p class="muted">Internal pay slip</p>
+      </div>
+      <div>
+        <h1>${escapeHtml(row.person.name)}</h1>
+        <p class="muted">${escapeHtml(fin.board)} · ${escapeHtml(fin.month)}</p>
+      </div>
+    </div>
+    <table>
+      <thead><tr><th>Line</th><th>Project</th><th class="num">Shifts</th><th class="num">Hours</th><th class="num">Amount</th></tr></thead>
+      <tbody>${tasks}</tbody>
+      <tfoot><tr><td></td><td>${row.projects} projects</td><td></td><td class="num">${hoursLabel(row.hours)}</td><td class="num">${usd(row.pay)}</td></tr></tfoot>
+    </table>
+    <p class="total">${hoursLabel(row.hours)} × ${usd(row.rate)}/h = ${usd(row.pay)}</p>
+    <p class="note">Internal. Print and save as PDF.</p>`
+  );
+  openDoc(file, html);
+}
+
+async function saveFinanceRates() {
+  const client = parseRate($("finClientRate")?.value);
+  const pay = parseRate($("finPayRate")?.value);
+  if (client === null || client === false || pay === null || pay === false) {
+    toast("Rates must be 0 or more");
+    return;
+  }
+  const people = [];
+  for (const el of $("board").querySelectorAll(".fin-person-rate")) {
+    const p = person(el.dataset.id);
+    if (!p) continue;
+    const rate = parseRate(el.value);
+    if (rate === false) {
+      toast(`Pay rate for ${p.name} must be 0 or more`);
+      return;
+    }
+    people.push({ id: p.id, name: p.name, rateUsd: rate });
+  }
+  const metaOut = await api("/api/meta/update", {
+    role: me().role,
+    clientRateUsd: client,
+    designerRateUsd: pay,
+  });
+  if (metaOut.error || !metaOut.state) {
+    toast(metaOut.error || "Could not save rates");
+    return;
+  }
+  applyState(metaOut.state);
+  if (people.length) {
+    const out = await api("/api/people/update", { role: me().role, people });
+    if (out.error || !out.state) {
+      toast(out.error || "Could not save pay rates");
+      return;
+    }
+    applyState(out.state);
+  }
+  toast("Rates saved");
 }
 
 function captureTeamDrafts() {

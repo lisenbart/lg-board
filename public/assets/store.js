@@ -232,16 +232,59 @@
       return { task: clone(task), state: clone(db) };
     }
 
+    if (path === "/api/meta/update") {
+      if (data.role !== "finance") return { error: "only finance can edit rates" };
+      db.meta = db.meta || {};
+      const money = (val) => {
+        if (val === null || val === undefined || val === "") return null;
+        const n = Number(String(val).replace(",", "."));
+        if (!Number.isFinite(n) || n < 0) throw new Error("rate");
+        return n;
+      };
+      try {
+        if ("clientRateUsd" in data) {
+          const rate = money(data.clientRateUsd);
+          if (rate === null) return { error: "Superplay rate must be 0 or more" };
+          db.meta.clientRateUsd = rate;
+        }
+        if ("designerRateUsd" in data) {
+          const rate = money(data.designerRateUsd);
+          if (rate === null) return { error: "pay rate must be 0 or more" };
+          db.meta.designerRateUsd = rate;
+        }
+      } catch {
+        return { error: "rates must be numbers, 0 or more" };
+      }
+      writeDb(db);
+      return { meta: clone(db.meta), state: clone(db) };
+    }
+
     if (path === "/api/people/update") {
-      if (data.role !== "finance") return { error: "only finance can rename people" };
-      const items = data.people || [{ id: data.id, name: data.name }];
+      if (data.role !== "finance") return { error: "only finance can edit the team" };
+      const items = data.people || (() => {
+        const item = { id: data.id };
+        if ("name" in data) item.name = data.name;
+        if ("rateUsd" in data) item.rateUsd = data.rateUsd;
+        return [item];
+      })();
       const updated = [];
       for (const item of items) {
         const person = db.people.find((p) => p.id === item.id);
         if (!person) continue;
-        const name = String(item.name || "").trim();
-        if (!name) return { error: "name cannot be empty" };
-        person.name = name;
+        if ("name" in item && item.name !== undefined) {
+          const name = String(item.name || "").trim();
+          if (!name) return { error: "name cannot be empty" };
+          person.name = name;
+        }
+        if ("rateUsd" in item) {
+          if (item.rateUsd === null || item.rateUsd === undefined || item.rateUsd === "") {
+            delete person.rateUsd;
+          } else {
+            const n = Number(String(item.rateUsd).replace(",", "."));
+            if (!Number.isFinite(n) || n < 0) return { error: "pay rate must be a number, 0 or more" };
+            person.rateUsd = n;
+          }
+        }
         updated.push(clone(person));
       }
       if (!updated.length && data.id) return { error: "not found" };

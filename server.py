@@ -49,6 +49,15 @@ def hours_from_shift(shift: float) -> float:
     return round(shift * 9, 1)
 
 
+def parse_money(val):
+    if val is None or val == "":
+        return None
+    n = float(str(val).replace(",", "."))
+    if n < 0:
+        raise ValueError("rate must be 0 or more")
+    return n
+
+
 def sync_excel(db: dict, month: str | None = None) -> None:
     ym = month or db.get("meta", {}).get("month") or "2026-10"
     try:
@@ -369,23 +378,63 @@ class Handler(SimpleHTTPRequestHandler):
                     },
                 )
                 return
+            if path == "/api/meta/update":
+                if (data.get("role") or "") != "finance":
+                    self._json(403, {"error": "only finance can edit rates"})
+                    return
+                meta = db.setdefault("meta", {})
+                try:
+                    if "clientRateUsd" in data:
+                        rate = parse_money(data.get("clientRateUsd"))
+                        if rate is None:
+                            self._json(400, {"error": "Superplay rate must be 0 or more"})
+                            return
+                        meta["clientRateUsd"] = rate
+                    if "designerRateUsd" in data:
+                        rate = parse_money(data.get("designerRateUsd"))
+                        if rate is None:
+                            self._json(400, {"error": "pay rate must be 0 or more"})
+                            return
+                        meta["designerRateUsd"] = rate
+                except (TypeError, ValueError):
+                    self._json(400, {"error": "rates must be numbers, 0 or more"})
+                    return
+                save_db(db)
+                self._json(200, {"meta": meta, "state": db})
+                return
             if path == "/api/people/update":
                 if (data.get("role") or "") != "finance":
-                    self._json(403, {"error": "only finance can rename people"})
+                    self._json(403, {"error": "only finance can edit the team"})
                     return
                 items = data.get("people")
                 if not items:
-                    items = [{"id": data.get("id"), "name": data.get("name")}]
+                    item = {"id": data.get("id")}
+                    if "name" in data:
+                        item["name"] = data.get("name")
+                    if "rateUsd" in data:
+                        item["rateUsd"] = data.get("rateUsd")
+                    items = [item]
                 updated = []
                 for item in items:
                     person = next((p for p in db["people"] if p["id"] == item.get("id")), None)
                     if not person:
                         continue
-                    name = str(item.get("name") or "").strip()
-                    if not name:
-                        self._json(400, {"error": "name cannot be empty"})
-                        return
-                    person["name"] = name
+                    if "name" in item and item.get("name") is not None:
+                        name = str(item.get("name") or "").strip()
+                        if not name:
+                            self._json(400, {"error": "name cannot be empty"})
+                            return
+                        person["name"] = name
+                    if "rateUsd" in item:
+                        try:
+                            rate = parse_money(item.get("rateUsd"))
+                        except (TypeError, ValueError):
+                            self._json(400, {"error": "pay rate must be a number, 0 or more"})
+                            return
+                        if rate is None:
+                            person.pop("rateUsd", None)
+                        else:
+                            person["rateUsd"] = rate
                     updated.append(person)
                 if not updated and data.get("id"):
                     self._json(404, {"error": "not found"})
