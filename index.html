@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LG Board — SUPERPLAY MGX</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/board.css?v=14" />
+</head>
+<body>
+  <div class="sandbox-ribbon">Sandbox demo · Lisenbart studio desk · Superplay stays on Monday External Weekly</div>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="logo">LG</div>
+        <div>
+          <strong>Lisenbart Board</strong>
+          <small>STUDIO · NOT MONDAY</small>
+        </div>
+      </div>
+      <div class="nav-label">Boards</div>
+      <button class="nav-item active">SUPERPLAY MGX</button>
+      <button class="nav-item" disabled>SUPERPLAY Playables <span class="soon">soon</span></button>
+      <div id="financeNav" hidden>
+        <div class="nav-label">Finance</div>
+        <button class="nav-item" id="navClose">October 2026</button>
+        <button class="nav-item" id="navTeam">Team names</button>
+      </div>
+      <div class="side-foot" id="sideFoot"></div>
+    </aside>
+
+    <section class="main">
+      <header class="topbar">
+        <div class="top-row">
+          <h1 class="board-title">SUPERPLAY MGX</h1>
+          <span class="pill dep-MGX">MGX</span>
+          <div class="month-switch" id="monthSwitch">
+            <button type="button" class="month-btn" id="monthPrev" title="Previous month">‹</button>
+            <div class="month-now">
+              <strong id="monthLabel">October 2026</strong>
+              <small id="monthMeta"></small>
+            </div>
+            <button type="button" class="month-btn" id="monthNext" title="Next month">›</button>
+          </div>
+          <div class="who" style="margin-left:auto">
+            <span style="font-size:12px;color:#676879">I am</span>
+            <select id="who"></select>
+          </div>
+        </div>
+        <p class="role-hint" id="roleHint"></p>
+        <div class="views" id="views"></div>
+      </header>
+
+      <div class="toolbar" id="toolbar"></div>
+      <div class="kpis" id="kpis"></div>
+      <div class="load" id="load"></div>
+      <div class="board" id="board"></div>
+    </section>
+  </div>
+
+  <div class="drawer-bg" id="drawerBg">
+    <aside class="drawer" id="drawer"></aside>
+  </div>
+
+  <div class="modal-bg" id="emailModal">
+    <div class="modal">
+      <h3>Paste shift email</h3>
+      <p style="color:#676879;font-size:13px">Orit format: <code>NAME | 0.3 shifts</code>. Hours = shift × 9.</p>
+      <textarea id="emailText" placeholder="Assign you these HC on Monday:&#10;DD-AIV-202-004_SettAI_HalloweenFireTrial_DD-VEO-059-001_EN_30s | 0.3 shifts"></textarea>
+      <div class="modal-actions">
+        <button class="btn ghost" id="emailCancel">Cancel</button>
+        <button class="btn primary" id="emailApply">Parse and apply</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-bg" id="delModal">
+    <div class="modal">
+      <h3 id="delTitle">Delete person</h3>
+      <p id="delIntro" style="color:#676879;font-size:13px"></p>
+      <ul class="del-projects" id="delProjects"></ul>
+      <div class="field" id="delMoveWrap">
+        <label>Move their projects to</label>
+        <select id="delMove"></select>
+      </div>
+      <div class="modal-actions">
+        <button class="btn ghost" id="delCancel">Cancel</button>
+        <button class="btn primary" id="delConfirm">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <script src="assets/store.js?v=14"></script>
+  <script src="assets/app.js?v=14"></script>
+</body>
+</html>
