@@ -1296,12 +1296,12 @@ async function openInvoiceFolder() {
     toast("Could not open the folder");
     return;
   }
-  if (out.opened) {
+  if (out.opened && out.folderPath && !String(out.folderPath).startsWith("/workspace")) {
     toast(`Opened ${out.folderPath}`);
     return;
   }
   downloadInvoiceZip();
-  toast(`This Preview is the sandbox. Downloaded ${monthFolderName(state.month)}.zip — that folder is not on your Mac.`);
+  toast(`Downloaded ${monthFolderName(state.month)}.zip — /workspace is this sandbox, not your Mac Finder.`);
 }
 
 async function createMonthInvoices() {
@@ -1331,12 +1331,13 @@ async function createMonthInvoices() {
     })
       .then((r) => r.json())
       .catch(() => ({}));
-    if (opened.opened) {
-      toast(`Wrote and opened ${out.folderPath || opened.folderPath}`);
+    const path = out.folderPath || opened.folderPath || "/workspace/data/invoices/10_October";
+    if (opened.opened && path && !String(path).startsWith("/workspace")) {
+      toast(`Wrote and opened ${path}`);
       return;
     }
     downloadInvoiceZip();
-    toast(`Wrote ${out.folderPath || "/workspace/data/invoices/10_October"}. Downloaded zip — Preview is not your Mac.`);
+    toast(`Wrote ${path}. Downloaded zip — /workspace is this sandbox, not your Mac Finder.`);
   } finally {
     if (btn) btn.disabled = false;
   }
