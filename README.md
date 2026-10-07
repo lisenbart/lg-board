@@ -14,7 +14,7 @@ Same names and colors as Superplay’s Monday `External Weekly`. Each role has i
 - **Team lead** — Ready to Start, WIP, Need Fixing, Done. Assigns people. No Monday send.
 - **Manager** — full set, including Senior Approval via **Send to client**. Edits **shifts**; hours always = shifts × 9.
 
-Manager and team lead see a **designer load** strip: one cell per project (Excel-style), hours vs an even split, Light / Even / Heavy. Click a card to filter the list.
+Manager and team lead see a **designer load** strip on Pipeline, and an **Excel** tab with the same month grid as `SP_MGX_check.xlsx`: rows are projects (DX then DD), columns are people, the cell is hours. Click a project to open it. Team lead can assign by clicking an empty cell.
 
 ## Client preview (what Matan should see)
 

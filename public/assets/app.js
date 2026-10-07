@@ -298,6 +298,7 @@ function renderChrome() {
 
   const tabs = [];
   tabs.push({ id: "board", label: isDesigner() ? "My projects" : canAssign() ? "All projects" : "Pipeline" });
+  if (!isDesigner()) tabs.push({ id: "excel", label: "Excel" });
   if (canOps()) tabs.push({ id: "ready", label: "Ready to send" });
   if (isFinance()) {
     tabs.push({ id: "close", label: "Finance" });
@@ -321,6 +322,15 @@ function renderChrome() {
 function renderToolbar() {
   if (state.view === "close" || state.view === "team") {
     $("toolbar").innerHTML = "";
+    return;
+  }
+  if (state.view === "excel") {
+    $("toolbar").innerHTML = `
+      <input class="search" placeholder="Search project" />
+      <button class="btn ghost" id="btnCsv">Excel CSV</button>
+    `;
+    $("toolbar").querySelector(".search")?.addEventListener("input", render);
+    $("btnCsv")?.addEventListener("click", downloadMonthCsv);
     return;
   }
   const n = state.selected.size;
@@ -421,7 +431,7 @@ function loadTone(hours, fair) {
 function renderLoad() {
   const box = $("load");
   if (!box) return;
-  if (isDesigner() || state.view === "close" || state.view === "team") {
+  if (isDesigner() || state.view === "close" || state.view === "team" || state.view === "excel") {
     box.hidden = true;
     box.innerHTML = "";
     return;
@@ -479,6 +489,143 @@ function renderLoad() {
   });
 }
 
+function projectShort(name) {
+  const parts = String(name || "")
+    .split(/[_|]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const skip = (p) =>
+    /^(DD|DX|DS)[-]/i.test(p) ||
+    /^(EN|JA|IT|DE|FR|UA|LOC|HC|MGX|Comp|Resize)$/i.test(p) ||
+    /^\d+s$/i.test(p) ||
+    /SettAI/i.test(p);
+  const nice = parts.filter((p) => !skip(p) && /[A-Za-z]{3,}/.test(p));
+  return nice[0] || parts[1] || String(name).slice(0, 28);
+}
+
+function excelDate(value) {
+  const m = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return `${m[3]}/${m[2]}`;
+  return value || "";
+}
+
+function renderExcelSheet() {
+  const people = designers();
+  const q = (document.querySelector(".search")?.value || "").toLowerCase();
+  const tasks = monthTasks()
+    .filter((t) => !q || `${t.name} ${t.brief}`.toLowerCase().includes(q))
+    .slice()
+    .sort((a, b) => String(a.line).localeCompare(String(b.line)) || String(a.name).localeCompare(String(b.name)));
+  const lines = ["DX", "DD", "DS"].filter((line) => tasks.some((t) => t.line === line));
+  const hoursOf = (list, personId) =>
+    list
+      .filter((t) => (personId === "" ? !t.assigneeId : t.assigneeId === personId))
+      .reduce((s, t) => s + (Number(t.hours) || 0), 0);
+  const allHours = tasks.reduce((s, t) => s + (Number(t.hours) || 0), 0);
+  const allShifts = tasks.reduce((s, t) => s + (Number(t.shifts) || 0), 0);
+  const colHeads = people
+    .map(
+      (p) => `<th class="xl-person">
+        <span class="xl-photo" style="background:${p.color}">${initials(p.name)}</span>
+        <span>${escapeHtml(p.name)}</span>
+      </th>`
+    )
+    .join("");
+
+  const rowHtml = (t) => {
+    const cells = people
+      .map((p) => {
+        const mine = t.assigneeId === p.id;
+        const h = mine ? (Number(t.hours) || 0).toFixed(1) : "";
+        const cls = mine ? "xl-fill" : canAssign() ? "xl-hit" : "";
+        const style = mine ? `style="--who:${p.color}"` : "";
+        return `<td class="${cls}" data-assign="${p.id}" ${style}>${h}</td>`;
+      })
+      .join("");
+    return `<tr class="xl-row" data-id="${t.id}">
+      <td class="xl-proj">
+        <span class="xl-thumb line-${t.line}" title="${escapeHtml(t.line)}">${escapeHtml(t.line)}</span>
+        <span class="xl-names">
+          <strong title="${escapeHtml(t.name)}">${escapeHtml(projectShort(t.name))}</strong>
+          <small title="${escapeHtml(t.name)}">${escapeHtml(t.name)}</small>
+        </span>
+      </td>
+      <td class="xl-num">${t.shifts || ""}</td>
+      <td class="xl-num">${t.hours ? Number(t.hours).toFixed(1) : ""}</td>
+      <td class="xl-num">${escapeHtml(excelDate(t.deadline))}</td>
+      ${cells}
+    </tr>`;
+  };
+
+  const groups = lines
+    .map((line) => {
+      const rows = tasks.filter((t) => t.line === line);
+      const tot = rows.reduce((s, t) => s + (Number(t.hours) || 0), 0);
+      return `<tbody>
+        <tr class="xl-line"><td colspan="${4 + people.length}">${line} · MGX · ${rows.length} projects · ${tot.toFixed(1)} h</td></tr>
+        ${rows.map(rowHtml).join("")}
+      </tbody>`;
+    })
+    .join("");
+
+  const totals = people.map((p) => `<td class="xl-num"><b>${hoursOf(tasks, p.id).toFixed(1)}</b></td>`).join("");
+  const empty = tasks.length
+    ? ""
+    : `<tbody><tr><td class="xl-empty" colspan="${4 + people.length}">No projects in ${monthLabel(state.month)} yet.</td></tr></tbody>`;
+
+  $("board").innerHTML = `
+    <section class="xl-wrap">
+      <div class="xl-caption">
+        <strong>${monthLabel(state.month)} · load sheet</strong>
+        <span>Same grid as SP_MGX_check — a row is a project, a column is a person, the cell is hours. Click a name to open. ${
+          canAssign() ? "Team lead: click an empty cell to assign." : ""
+        }</span>
+      </div>
+      <div class="xl-scroll">
+        <table class="xl-table">
+          <thead>
+            <tr>
+              <th class="xl-proj-h">Project</th>
+              <th>Shifts</th>
+              <th>Hours</th>
+              <th>Deadline</th>
+              ${colHeads}
+            </tr>
+          </thead>
+          ${groups || empty}
+          <tfoot>
+            <tr>
+              <td>total</td>
+              <td class="xl-num"><b>${allShifts.toFixed(1)}</b></td>
+              <td class="xl-num"><b>${allHours.toFixed(1)}</b></td>
+              <td></td>
+              ${totals}
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </section>`;
+
+  $("board").querySelectorAll(".xl-row").forEach((row) => {
+    row.addEventListener("click", (e) => {
+      const cell = e.target.closest("td[data-assign]");
+      const t = state.db.tasks.find((x) => x.id === row.dataset.id);
+      if (!t) return;
+      if (cell && canAssign() && cell.classList.contains("xl-hit")) {
+        e.preventDefault();
+        const assigneeId = cell.dataset.assign;
+        updateTask(t.id, {
+          assigneeId,
+          role: me().role,
+          note: `${me().name} assigned ${person(assigneeId)?.name || assigneeId} (Excel sheet)`,
+        });
+        return;
+      }
+      openTask(t.id);
+    });
+  });
+}
+
 function renderBoard() {
   if (state.view === "close") {
     renderClose();
@@ -486,6 +633,10 @@ function renderBoard() {
   }
   if (state.view === "team") {
     renderTeam();
+    return;
+  }
+  if (state.view === "excel") {
+    renderExcelSheet();
     return;
   }
   const exec = isDesigner() || canAssign();
