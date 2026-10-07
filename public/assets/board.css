@@ -579,9 +579,10 @@ body.col-resizing * { cursor: col-resize !important; }
 .fin-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .fin-create { text-align: right; white-space: nowrap; }
 .fin-folder {
-  display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  display: flex; flex-direction: column; gap: 6px;
   margin-top: 12px; color: var(--muted); font-size: 13px;
 }
+.fin-folder .btn { align-self: flex-start; }
 .fin-pay { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .fin-pan {
   font-variant-numeric: tabular-nums; letter-spacing: 0.04em; font-size: 13px;

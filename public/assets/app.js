@@ -594,7 +594,19 @@ function renderToolbar() {
       return;
     }
     const folder = monthFolderName(state.month);
-    $("toolbar").innerHTML = `<span class="muted">Create on the DD / DX row. Writes <code>${escapeHtml(folder)}</code> — Word + PDF to sign.</span>`;
+    const buttons = fin.byLine
+      .filter((row) => row.line !== "DS" || row.hours)
+      .map((row) => {
+        const disabled = row.hours ? "" : "disabled";
+        return `<button class="btn ${row.hours ? "primary" : ""}" data-line="${row.line}" ${disabled}>Create invoice ${row.line}</button>`;
+      })
+      .join("");
+    $("toolbar").innerHTML =
+      (buttons || `<span class="muted">No hours this month</span>`) +
+      `<span class="muted">Writes <code>${escapeHtml(folder)}</code> — Word + PDF to sign.</span>`;
+    $("toolbar").querySelectorAll("[data-line]").forEach((btn) => {
+      btn.addEventListener("click", () => downloadInvoice(btn.dataset.line));
+    });
     return;
   }
   if (state.view === "excel") {
@@ -1114,9 +1126,6 @@ function renderClose() {
   });
   $("finSaveNbu")?.addEventListener("click", saveNbuRate);
   $("finSavePay")?.addEventListener("click", saveEmployeeRates);
-  $("board").querySelectorAll("[data-inv]").forEach((btn) => {
-    btn.addEventListener("click", () => downloadInvoice(btn.dataset.inv));
-  });
   loadInvoiceFolder();
   $("board").querySelectorAll(".fin-copy").forEach((btn) => {
     btn.addEventListener("click", async (e) => {
@@ -1132,9 +1141,6 @@ function renderClient(fin) {
   const lineRows = fin.byLine
     .map((row) => {
       const share = fin.totalHours ? Math.round((row.hours / fin.totalHours) * 100) : 0;
-      const create = row.hours
-        ? `<button type="button" class="btn primary" data-inv="${row.line}">Create</button>`
-        : `<span class="muted">—</span>`;
       return `<tr>
         <td><span class="pill line-${escapeHtml(row.line)}">${escapeHtml(row.line)}</span></td>
         <td class="num">${row.projects}</td>
@@ -1143,7 +1149,6 @@ function renderClient(fin) {
         <td class="num">${usd(fin.clientRate)}</td>
         <td class="num"><b>${usd(row.bill)}</b></td>
         <td class="num muted">${share}%</td>
-        <td class="fin-create">${create}</td>
       </tr>`;
     })
     .join("");
@@ -1157,20 +1162,26 @@ function renderClient(fin) {
     <div class="fin-empty">No hours in ${escapeHtml(fin.month)}. Pull from Monday or paste the shift email first.</div>`;
   }
   const pack = state.invoiceFolder || {};
+  const folder = pack.folder || monthFolderName(fin.month);
   const folderFiles = (pack.files || [])
     .map(
       (f) =>
         `<a class="btn ghost" href="${escapeHtml(f.url)}" download="${escapeHtml(f.name)}">${escapeHtml(f.name)}</a>`
     )
     .join("");
-  const folderNote = pack.folder
-    ? `<div class="fin-folder"><span>On disk: <code>${escapeHtml(pack.folder)}</code>${pack.folderPath ? ` · ${escapeHtml(pack.folderPath)}` : ""}</span>${folderFiles}</div>`
-    : "";
+  const macPath =
+    pack.icloud ||
+    `~/Library/Mobile Documents/com~apple~CloudDocs/Lisenbart/ACCOUNTING/LISENBART GAMES/LLC/docs/_clients/SUPERPLAY/invoice/MGX/${folder}`;
+  const folderNote = `<div class="fin-folder">
+      <div>This month: <code>${escapeHtml(folder)}</code>${pack.folderPath ? ` · sandbox <code>${escapeHtml(pack.folderPath)}</code>` : ""}</div>
+      <div>On your Mac: <code>${escapeHtml(macPath)}</code></div>
+      ${folderFiles || `<span class="muted">No invoice files yet — Create in the toolbar.</span>`}
+    </div>`;
   return `
     <div class="fin-head">
       <div>
         <h2>Client · SuperPlay Ltd · ${escapeHtml(fin.month)}</h2>
-        <p>One Superplay invoice per direction. Create sits on the DD / DX row — same CLIENT IN total. Writes <code>${escapeHtml(monthFolderName(fin.month))}</code> with the live Word form plus a PDF to sign.</p>
+        <p>One Superplay invoice per direction — Create is in the toolbar. Clones the live Superplay Word form into <code>${escapeHtml(monthFolderName(fin.month))}</code> with Word + PDF to sign.</p>
       </div>
     </div>
     <div class="fin-kpis">
@@ -1183,9 +1194,9 @@ function renderClient(fin) {
       <h3>By direction</h3>
       <div class="fin-scroll">
         <table class="fin-table">
-          <thead><tr><th>Line</th><th class="num">Projects</th><th class="num">Shifts</th><th class="num">Hours</th><th class="num">Rate</th><th class="num">CLIENT IN</th><th class="num">Share</th><th></th></tr></thead>
+          <thead><tr><th>Line</th><th class="num">Projects</th><th class="num">Shifts</th><th class="num">Hours</th><th class="num">Rate</th><th class="num">CLIENT IN</th><th class="num">Share</th></tr></thead>
           <tbody>${lineRows}</tbody>
-          <tfoot><tr><td>MGX</td><td class="num">${fin.tasks.length}</td><td class="num">${fin.totalShifts.toFixed(1)}</td><td class="num">${hoursLabel(fin.totalHours)}</td><td></td><td class="num">${usd(fin.clientIn)}</td><td></td><td></td></tr></tfoot>
+          <tfoot><tr><td>MGX</td><td class="num">${fin.tasks.length}</td><td class="num">${fin.totalShifts.toFixed(1)}</td><td class="num">${hoursLabel(fin.totalHours)}</td><td></td><td class="num">${usd(fin.clientIn)}</td><td></td></tr></tfoot>
         </table>
       </div>
       ${folderNote}

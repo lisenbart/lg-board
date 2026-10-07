@@ -391,12 +391,16 @@ def template_path(line: str) -> Path:
     line = (line or "DD").upper()
     key = "DD" if line == "DS" else line
     if ICLOUD_MGX.exists():
-        found = sorted(
-            ICLOUD_MGX.glob(f"*/invoice{key}_*.docx"),
-            key=lambda p: p.stat().st_mtime,
-        )
+        found = []
+        for path in ICLOUD_MGX.rglob(f"invoice{key}_*.docx"):
+            if path.name.startswith("~$"):
+                continue
+            m = re.search(r"_(\d{4}\.\d{2}\.\d{2})\.docx$", path.name)
+            stamp = m.group(1) if m else "0000.00.00"
+            found.append((stamp, path.stat().st_mtime, path))
         if found:
-            return found[-1]
+            found.sort()
+            return found[-1][2]
     bundled = TEMPLATE_DIR / f"invoice{key}.docx"
     if bundled.exists():
         return bundled
@@ -550,7 +554,7 @@ def docx_to_pdf(docx_bytes: bytes, pdf_path: Path) -> bytes:
                     html_path.as_uri(),
                 ],
                 check=True,
-                timeout=20,
+                timeout=45,
                 capture_output=True,
             )
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
@@ -605,14 +609,22 @@ def issue_invoice(
                 "kind": "pdf",
             }
         )
+    urls = {
+        "docx": f"/api/finance/invoice/file?month={month}&name={docx_name}",
+    }
+    if pdf_bytes:
+        urls["pdf"] = f"/api/finance/invoice/file?month={month}&name={pdf_name}"
     return {
         "ok": True,
         "folder": month_folder_name(month),
         "folderPath": str(primary),
+        "icloud": str(ICLOUD_MGX / month_folder_name(month)),
         "docxName": docx_name,
         "pdfName": pdf_name if pdf_bytes else "",
         "files": files,
+        "paths": [str(p) for p in written],
         "written": [str(p) for p in written],
+        "urls": urls,
         "hours": hours,
         "amount": round(float(amount), 2),
         "date": when.strftime("%d.%m.%Y"),
@@ -637,6 +649,7 @@ def list_invoices(month: str) -> dict:
     return {
         "folder": folder,
         "folderPath": str(dest),
+        "icloud": str(ICLOUD_MGX / folder),
         "exists": dest.exists(),
         "files": files,
     }
