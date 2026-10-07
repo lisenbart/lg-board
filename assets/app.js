@@ -639,16 +639,14 @@ function renderExcelSheet() {
   const allShifts = tasks.reduce((s, t) => s + (Number(t.shifts) || 0), 0);
   const nameHeads = people.map((p) => `<th class="xl-person">${escapeHtml(p.name)}</th>`).join("");
   const emplHeads = people.map((_, i) => `<th>EMPL ${i + 1}</th>`).join("");
-  const canMove = !isDesigner() && (canAssign() || canOps());
 
   const rowHtml = (t) => {
     const cells = people
       .map((p) => {
         const mine = t.assigneeId === p.id;
         const h = mine ? fmtHours(t.hours) : "";
-        const cls = mine ? "xl-fill" : canMove ? "xl-hit" : "";
         const style = mine ? `style="background:${p.color}"` : "";
-        return `<td class="${cls}" data-assign="${p.id}" ${style}>${h}</td>`;
+        return `<td class="${mine ? "xl-fill" : ""}" ${style}>${h}</td>`;
       })
       .join("");
     return `<tr class="xl-row" data-id="${t.id}">
@@ -681,7 +679,7 @@ function renderExcelSheet() {
         <span>${
           isDesigner()
             ? "Overall picture this month. Hours = shifts × 9. Read only."
-            : "This is SP_MGX_check — the same sheet on Drive. A new task or an assign here writes into that file. Refresh from file if you edited the sheet."
+            : "This is SP_MGX_check — the same sheet on Drive. Open a row to assign. Edits in the card write back into the file."
         }</span>
       </div>
       <div class="xl-scroll">
@@ -712,20 +710,9 @@ function renderExcelSheet() {
     </section>`;
 
   $("board").querySelectorAll(".xl-row").forEach((row) => {
-    row.addEventListener("click", (e) => {
-      const cell = e.target.closest("td[data-assign]");
+    row.addEventListener("click", () => {
       const t = state.db.tasks.find((x) => x.id === row.dataset.id);
       if (!t) return;
-      if (cell && canMove) {
-        e.preventDefault();
-        const assigneeId = cell.dataset.assign === t.assigneeId ? "" : cell.dataset.assign;
-        updateTask(t.id, {
-          assigneeId,
-          role: me().role,
-          note: `${me().name} set Excel column ${person(assigneeId)?.name || "empty"}`,
-        });
-        return;
-      }
       if (isDesigner() && t.assigneeId !== me().id) {
         toast("Overall picture only — open your own projects from My projects");
         return;
@@ -1174,9 +1161,12 @@ function openTask(id) {
       ? "Team lead: Ready to Start, WIP, Need Fixing, Done. No Monday send."
       : "Manager / Finance: send Done work to Senior Approval on Monday.";
   $("drawer").innerHTML = `
-    <button class="btn ghost" id="closeDrawer">Close</button>
-    <h2>${escapeHtml(t.name)}</h2>
+    <div class="drawer-head">
+      <h2>${escapeHtml(t.name)}</h2>
+      <button type="button" class="drawer-x" id="closeDrawer" aria-label="Close">×</button>
+    </div>
     <div class="meta">${t.line} · ${t.shifts || 0} shift / ${t.hours || 0} h · ${person(t.assigneeId)?.name || "unassigned"}</div>
+    <div class="drawer-body">
     ${
       canAssign()
         ? `<div class="field"><label>Assign designer</label>
@@ -1215,14 +1205,15 @@ function openTask(id) {
       <select id="stStatus" ${canEdit && !lockedStatus ? "" : "disabled"}>${statusOpts}</select>
       <p class="status-hint">${statusHint}</p>
     </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn primary" id="saveTask">Save</button>
+    </div>
+    <div class="drawer-actions">
       ${canAssign() || canOps() ? `<button class="btn ghost" id="copyTelegram">Copy Telegram</button>` : ""}
       ${canOps() && t.resultUrl ? `<button class="btn green" id="exportOne">Send this to client</button>` : ""}
+      <button class="btn primary" id="saveTask">Save</button>
     </div>
   `;
   $("drawerBg").classList.add("show");
-  $("closeDrawer").onclick = () => $("drawerBg").classList.remove("show");
+  $("closeDrawer").onclick = closeDrawer;
   $("stShifts")?.addEventListener("input", () => {
     const shifts = parseShifts($("stShifts").value);
     const hint = $("stHoursHint");
@@ -1259,7 +1250,7 @@ function openTask(id) {
         : resultUrl && resultUrl !== t.resultUrl
           ? `${me().name} pasted the result`
           : `${me().name} updated status`;
-    updateTask(t.id, { ...patch, note });
+    updateTask(t.id, { ...patch, note }, { close: true });
   };
   $("copyTelegram")?.addEventListener("click", async () => {
     const line = telegramLine({ ...t, assigneeId: $("stPerson") ? $("stPerson").value : t.assigneeId });
@@ -1277,7 +1268,12 @@ function openTask(id) {
   });
 }
 
-async function updateTask(id, patch) {
+function closeDrawer() {
+  $("drawerBg").classList.remove("show");
+  state.openId = null;
+}
+
+async function updateTask(id, patch, opts = {}) {
   const out = await api("/api/tasks/update", { id, ...patch });
   if (out.error || !out.state) {
     toast(out.error || "Could not save");
@@ -1285,6 +1281,10 @@ async function updateTask(id, patch) {
   }
   applyState(out.state);
   toast("Saved");
+  if (opts.close) {
+    closeDrawer();
+    return;
+  }
   if (state.openId && $("drawerBg").classList.contains("show")) openTask(id);
 }
 async function importMonday() {
@@ -1396,7 +1396,7 @@ $("emailApply").onclick = async () => {
   toast(`Email: ${out.added} new, ${out.updated} shifts updated`);
 };
 $("drawerBg").addEventListener("click", (e) => {
-  if (e.target === $("drawerBg")) $("drawerBg").classList.remove("show");
+  if (e.target === $("drawerBg")) closeDrawer();
 });
 
 api("/api/state")
