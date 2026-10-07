@@ -428,7 +428,8 @@ body.col-resizing * { cursor: col-resize !important; }
   box-shadow: var(--shadow);
 }
 .modal h3 { margin: 0 0 8px; font-size: 15px; font-weight: 500; }
-.modal textarea { width: 100%; min-height: 220px; border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
+.modal textarea { width: 100%; min-height: 220px; border: 1px solid var(--line); border-radius: 8px; padding: 10px; font-size: 13px; font-weight: 400; }
+.brief-edit { width: 100%; min-height: 120px; border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; font: inherit; line-height: 1.45; resize: vertical; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 
 .toast {
