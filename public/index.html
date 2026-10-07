@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LG Board — SUPERPLAY MGX</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/assets/board.css" />
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="logo">LG</div>
+        <div>
+          <strong>Lisenbart Board</strong>
+          <small>СТУДІЯ, НЕ MONDAY</small>
+        </div>
+      </div>
+      <div class="nav-label">Дошки</div>
+      <button class="nav-item active">SUPERPLAY MGX</button>
+      <button class="nav-item" disabled>SUPERPLAY Playables <span class="soon">скоро</span></button>
+      <button class="nav-item" disabled>SLOTOMANIA <span class="soon">скоро</span></button>
+      <div class="nav-label">Закриття</div>
+      <button class="nav-item" id="navClose">Жовтень 2026</button>
+      <div class="side-foot">
+        Пісочниця Drive: _PORTAL_TEST<br />
+        Бойовий Projects / 10_October не чіпаємо.
+      </div>
+    </aside>
+
+    <section class="main">
+      <header class="topbar">
+        <div class="top-row">
+          <h1 class="board-title">SUPERPLAY MGX</h1>
+          <span class="pill dep-MGX">MGX</span>
+          <div class="who" style="margin-left:auto">
+            <span style="font-size:12px;color:#676879">Я:</span>
+            <select id="who"></select>
+          </div>
+        </div>
+        <div class="views">
+          <button class="view-tab active" data-view="board">Головна дошка</button>
+          <button class="view-tab" data-view="mine">Мої задачі</button>
+          <button class="view-tab" data-view="close">Закриття місяця</button>
+        </div>
+      </header>
+
+      <div class="toolbar" id="toolbar"></div>
+      <div class="kpis" id="kpis"></div>
+      <div class="board" id="board"></div>
+    </section>
+  </div>
+
+  <div class="drawer-bg" id="drawerBg">
+    <aside class="drawer" id="drawer"></aside>
+  </div>
+
+  <div class="modal-bg" id="emailModal">
+    <div class="modal">
+      <h3>Вставити лист зі shift</h3>
+      <p style="color:#676879;font-size:13px">Формат Orit: <code>НАЗВА | 0.3 shifts</code>. Години порахуються як shift × 9.</p>
+      <textarea id="emailText" placeholder="Assign you these HC on Monday:&#10;DD-AIV-202-004_SettAI_HalloweenFireTrial_DD-VEO-059-001_EN_30s | 0.3 shifts"></textarea>
+      <div class="modal-actions">
+        <button class="btn ghost" id="emailCancel">Скасувати</button>
+        <button class="btn primary" id="emailApply">Розпізнати і підтягнути</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <script src="/assets/app.js"></script>
+</body>
+</html>
