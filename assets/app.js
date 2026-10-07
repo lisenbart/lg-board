@@ -251,7 +251,7 @@ function downloadMonthCsv() {
   a.download = `SP_MGX_${state.month}.csv`;
   a.click();
   URL.revokeObjectURL(a.href);
-  toast("CSV downloaded — open in Excel like SP_MGX_check");
+  toast("CSV downloaded — this is a dump, not the SP_MGX_check calculator");
 }
 
 function person(id) {
@@ -475,14 +475,16 @@ function renderToolbar() {
       ? `<input class="search" placeholder="Search project" />`
       : `
       <button class="btn primary" id="btnExcelPull">Pull from Excel</button>
+      <button class="btn green" id="btnExcelSave">Update calculator</button>
       <button class="btn" id="btnExcelOpen">Open xlsx</button>
-      <button class="btn green" id="btnExcelSave">Save Excel</button>
+      <button class="btn ghost" id="btnExcelReplace">Replace workbook</button>
       <input class="search" placeholder="Search project" />
     `;
     $("toolbar").querySelector(".search")?.addEventListener("input", render);
     $("btnExcelPull")?.addEventListener("click", pullExcel);
-    $("btnExcelOpen")?.addEventListener("click", () => $("excelFile")?.click());
+    $("btnExcelOpen")?.addEventListener("click", openExcelFile);
     $("btnExcelSave")?.addEventListener("click", saveExcel);
+    $("btnExcelReplace")?.addEventListener("click", () => $("excelFile")?.click());
     return;
   }
   const n = state.selected.size;
@@ -494,7 +496,7 @@ function renderToolbar() {
       <button class="btn orange" id="btnEmail">Shift email</button>
       <button class="btn" id="btnFolders" ${n ? "" : "disabled"}>Folders (${n})</button>
       <button class="btn green" id="btnExport" ${n ? "" : "disabled"}>Send to client (${n})</button>
-      <button class="btn ghost" id="btnCsv">Excel CSV</button>
+      <button class="btn ghost" id="btnCsv" title="Plain table dump — not the SP_MGX_check calculator">Export CSV</button>
       <input class="search" placeholder="Search project" />
       <button class="btn ghost" id="btnReset">Reset demo</button>
     `;
@@ -722,8 +724,8 @@ function renderExcelSheet() {
         <strong>${monthLabel(state.month)} · SP_MGX_check</strong>
         <span>${
           isDesigner()
-            ? "Overall picture this month. Hours only — you cannot assign or save the file."
-            : "Mirror of the Excel load sheet. Pull reads the file, Save writes it. Click an empty hours cell to assign."
+            ? "Overall picture this month. Hours = shifts × 9. Read only."
+            : "Same calculator as Drive. Hours stay = shifts × 9. Update calculator writes this month in place — other months stay. Live studio file is not touched."
         }</span>
       </div>
       <div class="xl-scroll">
@@ -734,9 +736,6 @@ function renderExcelSheet() {
               <th class="xl-proj-h">${state.month.slice(0, 4)} PROJECT NAME</th>
               <th></th><th></th><th></th>
               ${nameHeads}
-            </tr>
-            <tr class="xl-sec">
-              <th></th><th>MGX</th><th>SHIFTS</th><th>HOURS</th><th>DEADLINE</th>${emplHeads}
             </tr>
           </thead>
           ${section("DX")}
@@ -805,10 +804,9 @@ async function importExcelFile(file) {
   toast(`Excel: ${out.updated || 0} updated, ${out.added || 0} new`);
 }
 
-async function saveExcel() {
-  await api("/api/excel/save", { month: state.month });
+async function openExcelFile() {
   try {
-    const res = await fetch(`/api/excel/file?month=${encodeURIComponent(state.month)}`);
+    const res = await fetch("/api/excel/file");
     if (!res.ok) throw new Error("no file");
     const blob = await res.blob();
     const a = document.createElement("a");
@@ -816,11 +814,24 @@ async function saveExcel() {
     a.download = "SP_MGX_check.xlsx";
     a.click();
     URL.revokeObjectURL(a.href);
-    toast("Saved SP_MGX_check.xlsx — same file the studio keeps");
+    toast("This is the calculator workbook — hours are formulas, not a CSV");
   } catch {
-    downloadMonthCsv();
-    toast("Downloaded CSV. Full xlsx mirror runs in the studio app.");
+    toast("Workbook not available here");
   }
+}
+
+async function saveExcel() {
+  const out = await api("/api/excel/save", { month: state.month });
+  if (out.error) {
+    toast(out.error);
+    return;
+  }
+  if (out.ok) {
+    if (out.state) applyState(out.state);
+    toast(out.message || "Calculator updated in place. Hours = shifts × 9.");
+    return;
+  }
+  toast("The Excel calculator lives in the studio sandbox, not this client preview.");
 }
 
 function renderBoard() {
