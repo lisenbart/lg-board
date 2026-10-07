@@ -30,10 +30,11 @@ const STATUS_BY_ROLE = {
 };
 
 const MONTH_KEY = "lg-month";
+const STUDIO_KEY = "lg-studio";
 
 const state = {
   db: null,
-  roleId: "finance",
+  roleId: "manager",
   view: "board",
   selected: new Set(),
   openId: null,
@@ -42,6 +43,25 @@ const state = {
   teamDrafts: {},
 };
 const $ = (id) => document.getElementById(id);
+
+function isLocalHost() {
+  return location.hostname === "localhost" || location.hostname === "127.0.0.1";
+}
+function studioUnlock() {
+  if (!isLocalHost()) return false;
+  const q = new URLSearchParams(location.search);
+  if (q.get("studio") === "1") localStorage.setItem(STUDIO_KEY, "1");
+  if (q.get("client") === "1") localStorage.removeItem(STUDIO_KEY);
+  return localStorage.getItem(STUDIO_KEY) === "1";
+}
+function isClientPreview() {
+  return !studioUnlock();
+}
+function visiblePeople() {
+  const people = state.db?.people || [];
+  if (isClientPreview()) return people.filter((p) => p.role !== "finance");
+  return people;
+}
 
 function escapeHtml(s) {
   return String(s ?? "")
@@ -55,9 +75,10 @@ function person(id) {
   return (state.db.people || []).find((p) => p.id === id);
 }
 function me() {
-  return person(state.roleId) || state.db.people[0];
+  return person(state.roleId) || visiblePeople()[0] || state.db.people[0];
 }
 function isFinance() {
+  if (isClientPreview()) return false;
   return me().role === "finance";
 }
 function isDesigner() {
@@ -95,12 +116,23 @@ function toast(msg) {
 }
 
 async function api(path, payload) {
-  const res = await fetch(path, {
-    method: payload ? "POST" : "GET",
-    headers: { "Content-Type": "application/json" },
-    body: payload ? JSON.stringify(payload) : undefined,
-  });
-  return res.json();
+  if (window.__lgUseLocal && typeof window.LGLocalApi === "function") {
+    return window.LGLocalApi(path, payload);
+  }
+  try {
+    const res = await fetch(path, {
+      method: payload ? "POST" : "GET",
+      headers: { "Content-Type": "application/json" },
+      body: payload ? JSON.stringify(payload) : undefined,
+    });
+    const type = res.headers.get("content-type") || "";
+    if (!res.ok || !type.includes("json")) throw new Error("no api");
+    return res.json();
+  } catch (err) {
+    if (typeof window.LGLocalApi !== "function") throw err;
+    window.__lgUseLocal = true;
+    return window.LGLocalApi(path, payload);
+  }
 }
 
 function calendarMonth() {
@@ -142,7 +174,7 @@ function visibleTasks() {
 }
 
 function renderWho() {
-  $("who").innerHTML = state.db.people
+  $("who").innerHTML = visiblePeople()
     .map(
       (p) =>
         `<option value="${p.id}" ${p.id === state.roleId ? "selected" : ""}>${escapeHtml(p.name)} · ${
@@ -256,9 +288,11 @@ function renderKpis() {
   const month = monthTasks();
   const hours = month.reduce((s, t) => s + (Number(t.hours) || 0), 0);
   const ready = month.filter((t) => t.studioStatus === "done").length;
-  const money = isFinance()
-    ? `<div class="kpi"><b>$${(hours * 35).toFixed(0)}</b><span>invoice draft × $35</span></div>`
-    : "";
+  const clientRate = Number(state.db?.meta?.clientRateUsd);
+  const money =
+    isFinance() && clientRate
+      ? `<div class="kpi"><b>$${(hours * clientRate).toFixed(0)}</b><span>invoice draft × $${clientRate}</span></div>`
+      : "";
   $("kpis").innerHTML = `
     <div class="kpi"><b>${month.length}</b><span>projects · ${monthLabel(state.month)}</span></div>
     <div class="kpi"><b>${hours.toFixed(1)} h</b><span>hours in ${monthLabel(state.month)}</span></div>
@@ -567,18 +601,28 @@ function renderClose() {
     if (!p || p.role !== "designer") continue;
     people[t.assigneeId] = (people[t.assigneeId] || 0) + (Number(t.hours) || 0);
   }
+  const clientRate = Number(state.db?.meta?.clientRateUsd);
+  const designerRate = Number(state.db?.meta?.designerRateUsd);
+  const moneyLine = (line, hours) =>
+    clientRate
+      ? `${line} × $${clientRate} = $${(hours * clientRate).toFixed(0)}`
+      : line;
   $("board").innerHTML = `
     <section class="group" style="padding:18px">
       <h2 style="margin:0 0 8px">Finance · ${monthLabel(state.month)}</h2>
-      <p style="color:#676879">Designers and the manager do not see this. Client invoice and people hours after the 15th.</p>
+      <p style="color:#676879">Designers and the manager do not see this. Hours by line for the selected month.</p>
       <div class="kpis" style="padding:0 0 16px">
-        <div class="kpi"><b>${byLine.DD.toFixed(1)} h</b><span>DD × $35 = $${(byLine.DD * 35).toFixed(0)}</span></div>
-        <div class="kpi"><b>${byLine.DX.toFixed(1)} h</b><span>DX × $35 = $${(byLine.DX * 35).toFixed(0)}</span></div>
+        <div class="kpi"><b>${byLine.DD.toFixed(1)} h</b><span>${moneyLine("DD", byLine.DD)}</span></div>
+        <div class="kpi"><b>${byLine.DX.toFixed(1)} h</b><span>${moneyLine("DX", byLine.DX)}</span></div>
         <div class="kpi"><b>${byLine.DS.toFixed(1)} h</b><span>DS</span></div>
       </div>
-      <h3>Designer payout @ $15/h</h3>
+      <h3>Designer hours</h3>
       ${Object.entries(people)
-        .map(([id, h]) => `<div style="padding:8px 0;border-bottom:1px solid #f0f1f5">${personCell(id)} — <b>${h.toFixed(1)} h</b> · $${(h * 15).toFixed(0)}</div>`)
+        .map(([id, h]) => {
+          const pay =
+            designerRate ? ` · $${(h * designerRate).toFixed(0)}` : "";
+          return `<div style="padding:8px 0;border-bottom:1px solid #f0f1f5">${personCell(id)} — <b>${h.toFixed(1)} h</b>${pay}</div>`;
+        })
         .join("")}
     </section>`;
 }
@@ -961,6 +1005,12 @@ $("drawerBg").addEventListener("click", (e) => {
 
 api("/api/state").then((db) => {
   state.db = db;
+  if (isClientPreview()) {
+    const people = visiblePeople();
+    if (!people.some((p) => p.id === state.roleId)) {
+      state.roleId = people.find((p) => p.role === "manager")?.id || people[0]?.id;
+    }
+  }
   state.month = localStorage.getItem(MONTH_KEY) || calendarMonth() || db.meta?.month || "2026-10";
   render();
 });

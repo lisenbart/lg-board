@@ -1,0 +1,435 @@
+{
+  "meta": {
+    "client": "SUPERPLAY",
+    "board": "SUPERPLAY MGX",
+    "month": "2026-10",
+    "driveSandbox": "https://drive.google.com/drive/folders/1HY7vcxR5Tmot5RNJyQ2ZeImD9J4BOuX8",
+    "driveOctoberDD": "https://drive.google.com/drive/folders/1kPlSyHeetn6wF-yYYaHr7BxzmAQPfgel",
+    "driveOctoberDX": "https://drive.google.com/drive/folders/13yLju8CXxsvhOnQ5H_X1Pg7udB6Ah7CH",
+    "shiftHours": 9
+  },
+  "people": [
+    {
+      "id": "finance",
+      "name": "Finance",
+      "role": "finance",
+      "color": "#0073ea"
+    },
+    {
+      "id": "manager",
+      "name": "Manager",
+      "role": "manager",
+      "color": "#9d50dd"
+    },
+    {
+      "id": "teamlead",
+      "name": "Team lead",
+      "role": "teamlead",
+      "color": "#fdab3d"
+    },
+    {
+      "id": "designer",
+      "name": "Designer",
+      "role": "designer",
+      "color": "#00c875"
+    },
+    {
+      "id": "designer2",
+      "name": "Designer 2",
+      "role": "designer",
+      "color": "#579bfc"
+    },
+    {
+      "id": "designer3",
+      "name": "Designer 3",
+      "role": "designer",
+      "color": "#ff5ac4"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "t-dd-202-004",
+      "name": "DD-AIV-202-004_SettAI_HalloweenFireTrial_DD-VEO-059-001_EN_30s",
+      "line": "DD",
+      "department": "MGX",
+      "game": "SettAI",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "2026-10-07",
+      "studioStatus": "done",
+      "mondayStatus": "WIP",
+      "assigneeId": "designer",
+      "brief": "Please combine Halloween Fire Trial gameplay with DD-VEO-059-001 hook.\nLength = 30s.\nKeep energy high in the first 3 seconds.\nDeliver 4 sizes: 1080x1080, 1080x1350, 1080x1920, 1920x1080.",
+      "folderUrl": "https://drive.google.com/drive/folders/1FoSMDTF2vBhyUUtHHQBttNULo1bs-CYU",
+      "docUrl": "https://docs.google.com/document/d/1dqLPaUmZ0CJjtx7JOvN7DfKRN79R9bV1zlVN2-z6tPI/edit",
+      "resultUrl": "https://drive.google.com/drive/folders/1FoSMDTF2vBhyUUtHHQBttNULo1bs-CYU",
+      "source": "monday+email",
+      "activity": [
+        {
+          "at": "2026-10-06T13:36:00Z",
+          "text": "Orit email: 0.3 shifts"
+        },
+        {
+          "at": "2026-10-06T14:10:00Z",
+          "text": "Pulled from Monday, brief in Doc"
+        },
+        {
+          "at": "2026-10-07T09:20:00Z",
+          "text": "Designer pasted the result"
+        }
+      ],
+      "month": "2026-10"
+    },
+    {
+      "id": "t-dd-239-002",
+      "name": "DD-AIV-239-002_SettAI_HalloweenDiamondBlast_DD-VEO-059-001_EN_30s",
+      "line": "DD",
+      "department": "MGX",
+      "game": "SettAI",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "2026-10-07",
+      "studioStatus": "done",
+      "mondayStatus": "WIP",
+      "assigneeId": "designer",
+      "brief": "Hi,\n\nPlease combine\n\n1. DD-VEO-059-001_GravePumpkin + DD-AIV-HalloweenDiamondBlast\n2. Length = 30s\n3. Trim last ±8 seconds of video\n4. Add a motion transition between the hook and the video\n\nThanks\n\nNaming:\n1080x1080 / 1080x1350 / 1080x1920 / 1920x1080",
+      "folderUrl": "https://drive.google.com/drive/folders/1aJX-A7np2alJOHLkTmav6gG9Gj8t5NsW",
+      "docUrl": "https://docs.google.com/document/d/1rs2waEdxsf2xKKWwn643oAnOLty72o9kElL7vRwRPNs/edit",
+      "resultUrl": "https://drive.google.com/drive/folders/1aJX-A7np2alJOHLkTmav6gG9Gj8t5NsW",
+      "source": "monday+email",
+      "activity": [
+        {
+          "at": "2026-10-06T13:36:00Z",
+          "text": "Orit email: 0.3 shifts"
+        },
+        {
+          "at": "2026-10-06T14:12:00Z",
+          "text": "Folder and brief created in _PORTAL_TEST"
+        },
+        {
+          "at": "2026-10-07T10:05:00Z",
+          "text": "Designer pasted the result — ready to send"
+        }
+      ],
+      "month": "2026-10"
+    },
+    {
+      "id": "t-dd-224-002",
+      "name": "DD-AIV-224-002_SettAI_HalloweenMario_DD-VEO-059-001_EN_30s",
+      "line": "DD",
+      "department": "MGX",
+      "game": "SettAI",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "2026-10-07",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "designer2",
+      "brief": "Combine Halloween Mario gameplay with DD-VEO-059-001. Length 30s. Four sizes.",
+      "folderUrl": "",
+      "docUrl": "",
+      "resultUrl": "",
+      "source": "monday+email",
+      "activity": [
+        {
+          "at": "2026-10-06T13:36:00Z",
+          "text": "Orit email: 0.3 shifts"
+        },
+        {
+          "at": "2026-10-07T08:40:00Z",
+          "text": "Team lead assigned Designer 2"
+        }
+      ],
+      "month": "2026-10"
+    },
+    {
+      "id": "t-dd-231-002",
+      "name": "DD-AIV-231-002_SettAI_SpookyJackpot_DD-VEO-059-001_EN_30s",
+      "line": "DD",
+      "department": "MGX",
+      "game": "SettAI",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "2026-10-07",
+      "studioStatus": "wip",
+      "mondayStatus": "Ready to Start",
+      "assigneeId": "designer3",
+      "brief": "Spooky Jackpot + DD-VEO-059-001 hook. 30s. Motion transition after hook.",
+      "folderUrl": "",
+      "docUrl": "",
+      "resultUrl": "",
+      "source": "monday+email",
+      "activity": [
+        {
+          "at": "2026-10-06T13:36:00Z",
+          "text": "Orit email: 0.3 shifts"
+        }
+      ],
+      "month": "2026-10"
+    },
+    {
+      "id": "t-dd-228-002",
+      "name": "DD-AIV-228-002_SettAI_HalloweenBlastTreasure_DD-VEO-059-001_EN_30s",
+      "line": "DD",
+      "department": "MGX",
+      "game": "SettAI",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "2026-10-07",
+      "studioStatus": "new",
+      "mondayStatus": "Ready to Start",
+      "assigneeId": "",
+      "brief": "Halloween Blast Treasure 30s + DD-VEO-059-001. Four sizes.",
+      "folderUrl": "",
+      "docUrl": "",
+      "resultUrl": "",
+      "source": "monday+email",
+      "activity": [
+        {
+          "at": "2026-10-06T13:36:00Z",
+          "text": "Orit email: 0.3 shifts"
+        }
+      ],
+      "month": "2026-10"
+    },
+    {
+      "id": "t-dd-225-002",
+      "name": "DD-AIV-225-002_SettAI_HalloweenTrap_DD-VEO-059-001_EN_30s",
+      "line": "DD",
+      "department": "MGX",
+      "game": "SettAI",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "2026-10-07",
+      "studioStatus": "new",
+      "mondayStatus": "Ready to Start",
+      "assigneeId": "",
+      "brief": "Halloween Trap 30s. Hook DD-VEO-059-001. Trim if needed.",
+      "folderUrl": "",
+      "docUrl": "",
+      "resultUrl": "",
+      "source": "monday+email",
+      "activity": [
+        {
+          "at": "2026-10-06T13:36:00Z",
+          "text": "Orit email: 0.3 shifts"
+        }
+      ],
+      "month": "2026-10"
+    },
+    {
+      "id": "t-dd-229-002",
+      "name": "DD-AIV-229-002_SettAI_HalloweenMonopoly_DD-VEO-059-001_EN_30s",
+      "line": "DD",
+      "department": "MGX",
+      "game": "SettAI",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "2026-10-07",
+      "studioStatus": "new",
+      "mondayStatus": "Ready to Start",
+      "assigneeId": "",
+      "brief": "Halloween Monopoly 30s + GravePumpkin hook.",
+      "folderUrl": "",
+      "docUrl": "",
+      "resultUrl": "",
+      "source": "monday",
+      "activity": [
+        {
+          "at": "2026-10-06T12:00:00Z",
+          "text": "Appeared on Monday External Weekly"
+        }
+      ],
+      "month": "2026-10"
+    },
+    {
+      "id": "t-dd-227-002",
+      "name": "DD-AIV-227-002_SettAI_HalloweenBlastTreasure_DD-VEO-059-001_EN_24s",
+      "line": "DD",
+      "department": "MGX",
+      "game": "SettAI",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "2026-10-07",
+      "studioStatus": "new",
+      "mondayStatus": "Ready to Start",
+      "assigneeId": "",
+      "brief": "Blast Treasure short cut. Length 24s.",
+      "folderUrl": "",
+      "docUrl": "",
+      "resultUrl": "",
+      "source": "monday+email",
+      "activity": [
+        {
+          "at": "2026-10-06T13:36:00Z",
+          "text": "Orit email: 0.3 shifts"
+        }
+      ],
+      "month": "2026-10"
+    },
+    {
+      "id": "t-dd-233-002",
+      "name": "DD-AIV-233-002_SettAI_HalloweenKindomBuild_DD-VEO-059-001_EN_60s",
+      "line": "DD",
+      "department": "MGX",
+      "game": "SettAI",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "2026-10-07",
+      "studioStatus": "new",
+      "mondayStatus": "Ready to Start",
+      "assigneeId": "",
+      "brief": "Kingdom Build 60s. Keep logo placement per MGX tech specs.",
+      "folderUrl": "",
+      "docUrl": "",
+      "resultUrl": "",
+      "source": "monday+email",
+      "activity": [
+        {
+          "at": "2026-10-06T13:36:00Z",
+          "text": "Orit email: 0.3 shifts"
+        }
+      ],
+      "month": "2026-10"
+    },
+    {
+      "id": "t-dd-235-002",
+      "name": "DD-AIV-235-002_SettAI_WitchsPotion_DD-VEO-059-001_EN_30s",
+      "line": "DD",
+      "department": "MGX",
+      "game": "SettAI",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "2026-10-07",
+      "studioStatus": "new",
+      "mondayStatus": "Ready to Start",
+      "assigneeId": "",
+      "brief": "Witch's Potion 30s + DD-VEO-059-001.",
+      "folderUrl": "",
+      "docUrl": "",
+      "resultUrl": "",
+      "source": "monday+email",
+      "activity": [
+        {
+          "at": "2026-10-06T13:36:00Z",
+          "text": "Orit email: 0.3 shifts"
+        }
+      ],
+      "month": "2026-10"
+    },
+    {
+      "id": "t-dx-0225-002",
+      "name": "DX-AIV-0225-002_SettAI_HalloweenSave_DX-VEO-055-001_EN_60s",
+      "line": "DX",
+      "department": "MGX",
+      "game": "SettAI",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "designer",
+      "brief": "Halloween Save 60s, hook DX-VEO-055-001. Four sizes.",
+      "folderUrl": "",
+      "docUrl": "",
+      "resultUrl": "",
+      "source": "monday",
+      "activity": [
+        {
+          "at": "2026-10-05T11:00:00Z",
+          "text": "Team lead assigned Designer"
+        }
+      ],
+      "month": "2026-10"
+    },
+    {
+      "id": "t-dx-0215-002",
+      "name": "DX-AIV-0215-002_SettAI_HalloweenSkull_DX-VEO-055-001_EN_30s",
+      "line": "DX",
+      "department": "MGX",
+      "game": "SettAI",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "",
+      "studioStatus": "done",
+      "mondayStatus": "WIP",
+      "assigneeId": "designer3",
+      "brief": "Halloween Skull 30s. Deliver link to Render folder.",
+      "folderUrl": "",
+      "docUrl": "",
+      "resultUrl": "https://drive.google.com/drive/folders/1ulNcDzMwA73xa4Nx9OPY2xtnwNUkUhZr",
+      "source": "monday+email",
+      "activity": [
+        {
+          "at": "2026-10-06T19:40:00Z",
+          "text": "Designer 3 pasted the result"
+        }
+      ],
+      "month": "2026-10"
+    },
+    {
+      "id": "t-dx-0222-003",
+      "name": "DX-AIV-0222-003_SettAI_HalloweenRelax_DX-VEO-055-001_EN_30s",
+      "line": "DX",
+      "department": "MGX",
+      "game": "SettAI",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "",
+      "studioStatus": "revision",
+      "mondayStatus": "WIP",
+      "assigneeId": "",
+      "brief": "Halloween Relax 30s. Visible in External Weekly WIP.",
+      "folderUrl": "",
+      "docUrl": "",
+      "resultUrl": "",
+      "source": "monday",
+      "activity": [
+        {
+          "at": "2026-10-06T18:00:00Z",
+          "text": "On Monday: WIP"
+        }
+      ],
+      "month": "2026-10"
+    },
+    {
+      "id": "t-dx-231-002",
+      "name": "DX-AIV-231-002_SettAI_Halloween_Spirals_DX-VEO-055-001_EN_60s",
+      "line": "DX",
+      "department": "MGX",
+      "game": "SettAI",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "",
+      "studioStatus": "approve",
+      "mondayStatus": "Senior Approval",
+      "assigneeId": "designer2",
+      "brief": "Spirals 60s. Already sent to client for check.",
+      "folderUrl": "",
+      "docUrl": "",
+      "resultUrl": "https://drive.google.com/drive/folders/1ebZZm5szIjdEimc8ojtNxIfBMYfhAYn8",
+      "source": "monday+email",
+      "activity": [
+        {
+          "at": "2026-10-05T17:16:00Z",
+          "text": "Designer 2 pasted the result"
+        },
+        {
+          "at": "2026-10-06T11:00:00Z",
+          "text": "Sent to Monday: check it please + Senior Approval"
+        }
+      ],
+      "month": "2026-10"
+    }
+  ],
+  "events": [
+    {
+      "at": "2026-10-06T13:36:00Z",
+      "text": "Orit sent the October HC pack — 10 DD tasks at 0.3 shift"
+    },
+    {
+      "at": "2026-10-07T10:05:00Z",
+      "text": "3 tasks ready to send to Monday one by one, without waiting for the rest"
+    }
+  ]
+}
