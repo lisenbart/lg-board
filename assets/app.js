@@ -326,11 +326,15 @@ function renderToolbar() {
   }
   if (state.view === "excel") {
     $("toolbar").innerHTML = `
+      <button class="btn primary" id="btnExcelPull">Pull from Excel</button>
+      <button class="btn" id="btnExcelOpen">Open xlsx</button>
+      <button class="btn green" id="btnExcelSave">Save Excel</button>
       <input class="search" placeholder="Search project" />
-      <button class="btn ghost" id="btnCsv">Excel CSV</button>
     `;
     $("toolbar").querySelector(".search")?.addEventListener("input", render);
-    $("btnCsv")?.addEventListener("click", downloadMonthCsv);
+    $("btnExcelPull")?.addEventListener("click", pullExcel);
+    $("btnExcelOpen")?.addEventListener("click", () => $("excelFile")?.click());
+    $("btnExcelSave")?.addEventListener("click", saveExcel);
     return;
   }
   const n = state.selected.size;
@@ -509,6 +513,11 @@ function excelDate(value) {
   return value || "";
 }
 
+function fmtHours(n) {
+  if (n === "" || n == null || Number.isNaN(Number(n))) return "";
+  return Number(n).toFixed(1).replace(".", ",");
+}
+
 function renderExcelSheet() {
   const people = designers();
   const q = (document.querySelector(".search")?.value || "").toLowerCase();
@@ -516,88 +525,77 @@ function renderExcelSheet() {
     .filter((t) => !q || `${t.name} ${t.brief}`.toLowerCase().includes(q))
     .slice()
     .sort((a, b) => String(a.line).localeCompare(String(b.line)) || String(a.name).localeCompare(String(b.name)));
-  const lines = ["DX", "DD", "DS"].filter((line) => tasks.some((t) => t.line === line));
-  const hoursOf = (list, personId) =>
-    list
-      .filter((t) => (personId === "" ? !t.assigneeId : t.assigneeId === personId))
+  const hoursOf = (personId) =>
+    tasks
+      .filter((t) => t.assigneeId === personId)
       .reduce((s, t) => s + (Number(t.hours) || 0), 0);
   const allHours = tasks.reduce((s, t) => s + (Number(t.hours) || 0), 0);
   const allShifts = tasks.reduce((s, t) => s + (Number(t.shifts) || 0), 0);
-  const colHeads = people
-    .map(
-      (p) => `<th class="xl-person">
-        <span class="xl-photo" style="background:${p.color}">${initials(p.name)}</span>
-        <span>${escapeHtml(p.name)}</span>
-      </th>`
-    )
-    .join("");
+  const nameHeads = people.map((p) => `<th class="xl-person">${escapeHtml(p.name)}</th>`).join("");
+  const emplHeads = people.map((_, i) => `<th>EMPL ${i + 1}</th>`).join("");
+  const canMove = canAssign() || canOps();
 
   const rowHtml = (t) => {
     const cells = people
       .map((p) => {
         const mine = t.assigneeId === p.id;
-        const h = mine ? (Number(t.hours) || 0).toFixed(1) : "";
-        const cls = mine ? "xl-fill" : canAssign() ? "xl-hit" : "";
-        const style = mine ? `style="--who:${p.color}"` : "";
+        const h = mine ? fmtHours(t.hours) : "";
+        const cls = mine ? "xl-fill" : canMove ? "xl-hit" : "";
+        const style = mine ? `style="background:${p.color}"` : "";
         return `<td class="${cls}" data-assign="${p.id}" ${style}>${h}</td>`;
       })
       .join("");
     return `<tr class="xl-row" data-id="${t.id}">
-      <td class="xl-proj">
-        <span class="xl-thumb line-${t.line}" title="${escapeHtml(t.line)}">${escapeHtml(t.line)}</span>
-        <span class="xl-names">
-          <strong title="${escapeHtml(t.name)}">${escapeHtml(projectShort(t.name))}</strong>
-          <small title="${escapeHtml(t.name)}">${escapeHtml(t.name)}</small>
-        </span>
-      </td>
-      <td class="xl-num">${t.shifts || ""}</td>
-      <td class="xl-num">${t.hours ? Number(t.hours).toFixed(1) : ""}</td>
+      <td class="xl-gutter line-${t.line}"></td>
+      <td class="xl-name" title="${escapeHtml(t.name)}">${escapeHtml(t.name)}</td>
+      <td class="xl-num">${t.shifts ?? ""}</td>
+      <td class="xl-num">${fmtHours(t.hours)}</td>
       <td class="xl-num">${escapeHtml(excelDate(t.deadline))}</td>
       ${cells}
     </tr>`;
   };
 
-  const groups = lines
-    .map((line) => {
-      const rows = tasks.filter((t) => t.line === line);
-      const tot = rows.reduce((s, t) => s + (Number(t.hours) || 0), 0);
-      return `<tbody>
-        <tr class="xl-line"><td colspan="${4 + people.length}">${line} · MGX · ${rows.length} projects · ${tot.toFixed(1)} h</td></tr>
-        ${rows.map(rowHtml).join("")}
-      </tbody>`;
-    })
-    .join("");
+  const section = (line) => {
+    const rows = tasks.filter((t) => t.line === line);
+    const empl = people.map((_, i) => `<th>EMPL ${i + 1}</th>`).join("");
+    return `<tbody>
+      <tr class="xl-sec">
+        <th>${line}</th><th>MGX</th><th>SHIFTS</th><th>HOURS</th><th>DEADLINE</th>${empl}
+      </tr>
+      ${rows.map(rowHtml).join("")}
+    </tbody>`;
+  };
 
-  const totals = people.map((p) => `<td class="xl-num"><b>${hoursOf(tasks, p.id).toFixed(1)}</b></td>`).join("");
-  const empty = tasks.length
-    ? ""
-    : `<tbody><tr><td class="xl-empty" colspan="${4 + people.length}">No projects in ${monthLabel(state.month)} yet.</td></tr></tbody>`;
+  const totals = people.map((p) => `<td class="xl-num"><b>${fmtHours(hoursOf(p.id))}</b></td>`).join("");
 
   $("board").innerHTML = `
     <section class="xl-wrap">
       <div class="xl-caption">
-        <strong>${monthLabel(state.month)} · load sheet</strong>
-        <span>Same grid as SP_MGX_check — a row is a project, a column is a person, the cell is hours. Click a name to open. ${
-          canAssign() ? "Team lead: click an empty cell to assign." : ""
-        }</span>
+        <strong>${monthLabel(state.month)} · SP_MGX_check</strong>
+        <span>Mirror of the Excel load sheet. Pull reads the file, Save writes it. Click an empty hours cell to assign.</span>
       </div>
       <div class="xl-scroll">
         <table class="xl-table">
           <thead>
             <tr>
-              <th class="xl-proj-h">Project</th>
-              <th>Shifts</th>
-              <th>Hours</th>
-              <th>Deadline</th>
-              ${colHeads}
+              <th></th>
+              <th class="xl-proj-h">${state.month.slice(0, 4)} PROJECT NAME</th>
+              <th></th><th></th><th></th>
+              ${nameHeads}
+            </tr>
+            <tr class="xl-sec">
+              <th></th><th>MGX</th><th>SHIFTS</th><th>HOURS</th><th>DEADLINE</th>${emplHeads}
             </tr>
           </thead>
-          ${groups || empty}
+          ${section("DX")}
+          ${section("DD")}
+          ${tasks.some((t) => t.line === "DS") ? section("DS") : ""}
           <tfoot>
             <tr>
+              <td></td>
               <td>total</td>
-              <td class="xl-num"><b>${allShifts.toFixed(1)}</b></td>
-              <td class="xl-num"><b>${allHours.toFixed(1)}</b></td>
+              <td class="xl-num"><b>${fmtHours(allShifts)}</b></td>
+              <td class="xl-num"><b>${fmtHours(allHours)}</b></td>
               <td></td>
               ${totals}
             </tr>
@@ -611,19 +609,62 @@ function renderExcelSheet() {
       const cell = e.target.closest("td[data-assign]");
       const t = state.db.tasks.find((x) => x.id === row.dataset.id);
       if (!t) return;
-      if (cell && canAssign() && cell.classList.contains("xl-hit")) {
+      if (cell && canMove) {
         e.preventDefault();
-        const assigneeId = cell.dataset.assign;
+        const assigneeId = cell.dataset.assign === t.assigneeId ? "" : cell.dataset.assign;
         updateTask(t.id, {
           assigneeId,
           role: me().role,
-          note: `${me().name} assigned ${person(assigneeId)?.name || assigneeId} (Excel sheet)`,
+          note: `${me().name} set Excel column ${person(assigneeId)?.name || "empty"}`,
         });
         return;
       }
       openTask(t.id);
     });
   });
+}
+
+async function pullExcel() {
+  const out = await api("/api/excel/pull", { month: state.month });
+  if (out.error || !out.state) {
+    toast(out.error || "Excel file not available here — use Open xlsx");
+    return;
+  }
+  applyState(out.state);
+  toast(`Excel: ${out.updated || 0} rows updated, ${out.added || 0} new`);
+}
+
+async function importExcelFile(file) {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let bin = "";
+  bytes.forEach((b) => {
+    bin += String.fromCharCode(b);
+  });
+  const out = await api("/api/excel/import", { month: state.month, content: btoa(bin) });
+  if (out.error || !out.state) {
+    toast(out.error || "Could not read that workbook");
+    return;
+  }
+  applyState(out.state);
+  toast(`Excel: ${out.updated || 0} updated, ${out.added || 0} new`);
+}
+
+async function saveExcel() {
+  await api("/api/excel/save", { month: state.month });
+  try {
+    const res = await fetch(`/api/excel/file?month=${encodeURIComponent(state.month)}`);
+    if (!res.ok) throw new Error("no file");
+    const blob = await res.blob();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "SP_MGX_check.xlsx";
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast("Saved SP_MGX_check.xlsx — same file the studio keeps");
+  } catch {
+    downloadMonthCsv();
+    toast("Downloaded CSV. Full xlsx mirror runs in the studio app.");
+  }
 }
 
 function renderBoard() {
@@ -1251,6 +1292,11 @@ $("delMove").addEventListener("change", () => {
 });
 $("delModal").addEventListener("click", (e) => {
   if (e.target === $("delModal")) $("delModal").classList.remove("show");
+});
+$("excelFile")?.addEventListener("change", async (e) => {
+  const file = e.target.files?.[0];
+  e.target.value = "";
+  if (file) await importExcelFile(file);
 });
 $("pasteClose").onclick = () => $("pasteModal").classList.remove("show");
 $("pasteCopy").onclick = async () => {
