@@ -401,11 +401,27 @@ body.col-resizing * { cursor: col-resize !important; }
 }
 .drawer-bg.show { display: flex; }
 .drawer {
-  width: min(480px, 100%); background: #fff; height: 100%; overflow: auto;
-  box-shadow: var(--shadow); padding: 16px 20px 40px;
+  width: min(480px, 100%); background: #fff; height: 100%; overflow: hidden;
+  box-shadow: var(--shadow); padding: 16px 20px 16px;
+  display: flex; flex-direction: column;
 }
+.drawer-body { flex: 1; overflow: auto; min-height: 0; padding-right: 4px; }
+.drawer-head {
+  display: flex; align-items: flex-start; gap: 12px; margin: 0 0 4px;
+}
+.drawer-head h2 { flex: 1; margin: 0; font-size: 15px; line-height: 1.35; font-weight: 500; }
+.drawer-x {
+  border: 0; background: transparent; width: 32px; height: 32px; border-radius: 6px;
+  cursor: pointer; color: var(--muted); font-size: 22px; line-height: 1; flex: 0 0 auto;
+}
+.drawer-x:hover { background: #f0f1f5; color: var(--ink); }
 .drawer h2 { margin: 0 0 8px; font-size: 15px; line-height: 1.35; font-weight: 500; }
 .drawer .meta { color: var(--muted); font-size: 12px; margin-bottom: 16px; font-weight: 400; }
+.drawer-actions {
+  display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+  margin-top: auto; padding-top: 16px; border-top: 1px solid #eceef5;
+}
+.drawer-actions .btn.primary { margin-left: auto; }
 .brief {
   background: #f7f8fc; border-radius: 8px; padding: 12px; white-space: pre-wrap;
   font-size: 13px; line-height: 1.5; border: 1px solid #eceef5; font-weight: 400;
