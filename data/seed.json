@@ -31,21 +31,39 @@
     },
     {
       "id": "designer",
-      "name": "Designer",
+      "name": "Настя",
       "role": "designer",
-      "color": "#00c875"
+      "color": "#59BBFF"
     },
     {
       "id": "designer2",
-      "name": "Designer 2",
+      "name": "Маша",
       "role": "designer",
-      "color": "#579bfc"
+      "color": "#92D050"
     },
     {
       "id": "designer3",
-      "name": "Designer 3",
+      "name": "Сергій",
       "role": "designer",
-      "color": "#ff5ac4"
+      "color": "#FFD966"
+    },
+    {
+      "id": "designer4",
+      "name": "Аліна",
+      "role": "designer",
+      "color": "#C6B19B"
+    },
+    {
+      "id": "designer5",
+      "name": "Олекса",
+      "role": "designer",
+      "color": "#B4A7D6"
+    },
+    {
+      "id": "designer6",
+      "name": "Андрій",
+      "role": "designer",
+      "color": "#76D7C4"
     }
   ],
   "tasks": [

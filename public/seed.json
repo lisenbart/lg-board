@@ -31,19 +31,37 @@
       "id": "designer",
       "name": "Designer",
       "role": "designer",
-      "color": "#00c875"
+      "color": "#59BBFF"
     },
     {
       "id": "designer2",
       "name": "Designer 2",
       "role": "designer",
-      "color": "#579bfc"
+      "color": "#92D050"
     },
     {
       "id": "designer3",
       "name": "Designer 3",
       "role": "designer",
-      "color": "#ff5ac4"
+      "color": "#FFD966"
+    },
+    {
+      "id": "designer4",
+      "name": "Designer 4",
+      "role": "designer",
+      "color": "#C6B19B"
+    },
+    {
+      "id": "designer5",
+      "name": "Designer 5",
+      "role": "designer",
+      "color": "#B4A7D6"
+    },
+    {
+      "id": "designer6",
+      "name": "Designer 6",
+      "role": "designer",
+      "color": "#76D7C4"
     }
   ],
   "tasks": [

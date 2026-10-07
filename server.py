@@ -2,13 +2,17 @@
 """Lisenbart studio portal — local/cloud HTTP app (stdlib only)."""
 from __future__ import annotations
 
+import base64
 import json
 import re
 import threading
+import tempfile
 from datetime import datetime, timezone
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
+
+import excel_io
 
 ROOT = Path(__file__).resolve().parent
 PUBLIC = ROOT / "public"
@@ -104,6 +108,24 @@ class Handler(SimpleHTTPRequestHandler):
             return
         if path == "/health":
             self._json(200, {"ok": True})
+            return
+        if path == "/api/excel/file":
+            qs = parse_qs(urlparse(self.path).query)
+            month = (qs.get("month") or ["2026-10"])[0]
+            with LOCK:
+                db = load_db()
+                xlsx = excel_io.write_month(db, month)
+            data = xlsx.read_bytes()
+            self.send_response(200)
+            self.send_header(
+                "Content-Type",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+            self.send_header("Content-Disposition", 'attachment; filename="SP_MGX_check.xlsx"')
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
             return
         if path == "/":
             self.path = "/index.html"
@@ -310,7 +332,53 @@ class Handler(SimpleHTTPRequestHandler):
                 if note:
                     task.setdefault("activity", []).append({"at": utc_now(), "text": note})
                 save_db(db)
+                try:
+                    excel_io.write_month(db, task.get("month") or db.get("meta", {}).get("month") or "2026-10")
+                except FileNotFoundError:
+                    pass
                 self._json(200, {"task": task, "state": db})
+                return
+            if path == "/api/excel/pull":
+                month = data.get("month") or db.get("meta", {}).get("month") or "2026-10"
+                parsed = excel_io.parse_workbook(excel_io.XLSX_PATH, month)
+                stats = excel_io.apply_to_db(db, parsed, month)
+                db.setdefault("events", []).insert(
+                    0, {"at": utc_now(), "text": f"Excel pull {month}: {stats['updated']} updated, {stats['added']} new"}
+                )
+                save_db(db)
+                self._json(200, {**stats, "state": db})
+                return
+            if path == "/api/excel/import":
+                month = data.get("month") or db.get("meta", {}).get("month") or "2026-10"
+                raw = data.get("content") or ""
+                try:
+                    blob = base64.b64decode(raw)
+                except Exception:
+                    self._json(400, {"error": "not a valid Excel file"})
+                    return
+                with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
+                    tmp.write(blob)
+                    tmp_path = Path(tmp.name)
+                try:
+                    parsed = excel_io.parse_workbook(tmp_path, month)
+                    stats = excel_io.apply_to_db(db, parsed, month)
+                    excel_io.XLSX_PATH.write_bytes(blob)
+                finally:
+                    tmp_path.unlink(missing_ok=True)
+                db.setdefault("events", []).insert(
+                    0, {"at": utc_now(), "text": f"Excel import {month}: {stats['updated']} updated, {stats['added']} new"}
+                )
+                save_db(db)
+                try:
+                    excel_io.write_month(db, month)
+                except FileNotFoundError:
+                    pass
+                self._json(200, {**stats, "state": db})
+                return
+            if path == "/api/excel/save":
+                month = data.get("month") or db.get("meta", {}).get("month") or "2026-10"
+                excel_io.write_month(db, month)
+                self._json(200, {"ok": True, "file": str(excel_io.XLSX_PATH), "state": db})
                 return
             if path == "/api/people/update":
                 if (data.get("role") or "") != "finance":
