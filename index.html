@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@300;400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/board.css?v=15" />
+  <link rel="stylesheet" href="assets/board.css?v=16" />
 </head>
 <body>
   <div class="sandbox-ribbon">Sandbox demo · Lisenbart studio desk · Superplay stays on Monday External Weekly</div>
@@ -93,8 +93,20 @@
     </div>
   </div>
 
+  <div class="modal-bg" id="pasteModal">
+    <div class="modal">
+      <h3 id="pasteTitle">Paste into Monday</h3>
+      <p id="pasteIntro" style="color:#676879;font-size:13px">Until Superplay grants Monday access, copy this into External Weekly.</p>
+      <textarea id="pasteText" readonly></textarea>
+      <div class="modal-actions">
+        <button class="btn ghost" id="pasteClose">Close</button>
+        <button class="btn primary" id="pasteCopy">Copy</button>
+      </div>
+    </div>
+  </div>
+
   <div class="toast" id="toast"></div>
-  <script src="assets/store.js?v=15"></script>
-  <script src="assets/app.js?v=15"></script>
+  <script src="assets/store.js?v=16"></script>
+  <script src="assets/app.js?v=16"></script>
 </body>
 </html>

@@ -71,6 +71,81 @@ function escapeHtml(s) {
     .replaceAll('"', "&quot;");
 }
 
+async function copyText(text) {
+  const value = String(text || "");
+  try {
+    await navigator.clipboard.writeText(value);
+    return true;
+  } catch {
+    try {
+      const area = document.createElement("textarea");
+      area.value = value;
+      area.setAttribute("readonly", "");
+      area.style.position = "fixed";
+      area.style.left = "-9999px";
+      document.body.appendChild(area);
+      area.select();
+      const ok = document.execCommand("copy");
+      area.remove();
+      return ok;
+    } catch {
+      return false;
+    }
+  }
+}
+
+function showPaste(title, intro, text) {
+  $("pasteTitle").textContent = title;
+  $("pasteIntro").textContent = intro;
+  $("pasteText").value = text;
+  $("pasteModal").classList.add("show");
+}
+
+function mondayReply(task) {
+  return `${task.name}\ncheck it please\n${task.resultUrl || ""}`.trim();
+}
+
+function telegramLine(task) {
+  const who = person(task.assigneeId)?.name || "unassigned";
+  return `${who}\n${task.name}`;
+}
+
+function csvCell(value) {
+  return `"${String(value ?? "").replaceAll('"', '""')}"`;
+}
+
+function monthCsv() {
+  const header = ["Project", "Line", "Shifts", "Hours", "Status", "Assignee", "Brief", "Result"];
+  const rows = [header.map(csvCell).join(",")];
+  for (const t of monthTasks()) {
+    rows.push(
+      [
+        t.name,
+        t.line,
+        t.shifts ?? "",
+        t.hours ?? "",
+        STATUS[t.studioStatus]?.label || t.studioStatus,
+        person(t.assigneeId)?.name || "",
+        t.brief || "",
+        t.resultUrl || "",
+      ]
+        .map(csvCell)
+        .join(",")
+    );
+  }
+  return rows.join("\n");
+}
+
+function downloadMonthCsv() {
+  const blob = new Blob([monthCsv()], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `SP_MGX_${state.month}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast("CSV downloaded — open in Excel like SP_MGX_check");
+}
+
 function person(id) {
   return (state.db.people || []).find((p) => p.id === id);
 }
@@ -257,6 +332,7 @@ function renderToolbar() {
       <button class="btn orange" id="btnEmail">Shift email</button>
       <button class="btn" id="btnFolders" ${n ? "" : "disabled"}>Folders (${n})</button>
       <button class="btn green" id="btnExport" ${n ? "" : "disabled"}>Send to client (${n})</button>
+      <button class="btn ghost" id="btnCsv">Excel CSV</button>
       <input class="search" placeholder="Search project" />
       <button class="btn ghost" id="btnReset">Reset demo</button>
     `;
@@ -266,6 +342,7 @@ function renderToolbar() {
   $("btnEmail")?.addEventListener("click", () => $("emailModal").classList.add("show"));
   $("btnFolders")?.addEventListener("click", provision);
   $("btnExport")?.addEventListener("click", exportMonday);
+  $("btnCsv")?.addEventListener("click", downloadMonthCsv);
   $("btnReset")?.addEventListener("click", resetDemo);
 }
 
@@ -611,6 +688,7 @@ function renderClose() {
     <section class="group" style="padding:18px">
       <h2 style="margin:0 0 8px">Finance · ${monthLabel(state.month)}</h2>
       <p style="color:#676879">Designers and the manager do not see this. Hours by line for the selected month.</p>
+      <p style="margin:0 0 12px"><button class="btn ghost" id="btnCsvClose">Excel CSV</button></p>
       <div class="kpis" style="padding:0 0 16px">
         <div class="kpi"><b>${byLine.DD.toFixed(1)} h</b><span>${moneyLine("DD", byLine.DD)}</span></div>
         <div class="kpi"><b>${byLine.DX.toFixed(1)} h</b><span>${moneyLine("DX", byLine.DX)}</span></div>
@@ -625,6 +703,7 @@ function renderClose() {
         })
         .join("")}
     </section>`;
+  $("btnCsvClose")?.addEventListener("click", downloadMonthCsv);
 }
 
 function captureTeamDrafts() {
@@ -841,9 +920,18 @@ function openTask(id) {
       </select></div>`
         : `<div class="field"><label>Assignee</label><div>${personCell(t.assigneeId)}</div></div>`
     }
-    <div class="field"><label>Brief</label><div class="brief">${escapeHtml(t.brief || "No brief yet")}</div>
+    <div class="field"><label>Brief</label>
+      ${
+        canOps() || canAssign()
+          ? `<textarea class="brief-edit" id="stBrief" placeholder="Paste the Monday / Google Doc brief">${escapeHtml(t.brief || "")}</textarea>
+      <label style="margin-top:10px">Google Doc</label>
+      <input id="stDoc" value="${escapeHtml(t.docUrl || "")}" placeholder="https://docs.google.com/document/..." />
+      <label style="margin-top:10px">Drive folder</label>
+      <input id="stFolder" value="${escapeHtml(t.folderUrl || "")}" placeholder="https://drive.google.com/drive/folders/..." />`
+          : `<div class="brief">${escapeHtml(t.brief || "No brief yet")}</div>
       ${t.docUrl ? `<p><a href="${escapeHtml(t.docUrl)}" target="_blank" rel="noreferrer">Open Google Doc</a></p>` : ""}
-      ${t.folderUrl ? `<p><a href="${escapeHtml(t.folderUrl)}" target="_blank" rel="noreferrer">Drive folder</a></p>` : ""}
+      ${t.folderUrl ? `<p><a href="${escapeHtml(t.folderUrl)}" target="_blank" rel="noreferrer">Drive folder</a></p>` : ""}`
+      }
     </div>
     ${
       canEditTime()
@@ -861,6 +949,7 @@ function openTask(id) {
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn primary" id="saveTask">Save</button>
+      ${canAssign() || canOps() ? `<button class="btn ghost" id="copyTelegram">Copy Telegram</button>` : ""}
       ${canOps() && t.resultUrl ? `<button class="btn green" id="exportOne">Send this to client</button>` : ""}
     </div>
   `;
@@ -885,6 +974,9 @@ function openTask(id) {
     }
     const assigneeId = $("stPerson") ? $("stPerson").value : t.assigneeId;
     const patch = { resultUrl, studioStatus, assigneeId, role: me().role };
+    if ($("stBrief")) patch.brief = $("stBrief").value;
+    if ($("stDoc")) patch.docUrl = $("stDoc").value.trim();
+    if ($("stFolder")) patch.folderUrl = $("stFolder").value.trim();
     if (canEditTime() && $("stShifts")) {
       const shifts = parseShifts($("stShifts").value);
       if (shifts === null) {
@@ -901,10 +993,18 @@ function openTask(id) {
           : `${me().name} updated status`;
     updateTask(t.id, { ...patch, note });
   };
+  $("copyTelegram")?.addEventListener("click", async () => {
+    const line = telegramLine({ ...t, assigneeId: $("stPerson") ? $("stPerson").value : t.assigneeId });
+    const ok = await copyText(line);
+    showPaste(
+      "Telegram",
+      "Paste this in the studio chat so the designer gets the name without hunting Monday.",
+      line
+    );
+    toast(ok ? "Telegram line copied" : "Copy failed — select the text");
+  });
   $("exportOne")?.addEventListener("click", async () => {
-    const out = await api("/api/export-monday", { ids: [t.id] });
-    applyState(out.state);
-    toast("Sent to Monday: check it please + Senior Approval");
+    await sendToClient([t.id]);
     openTask(t.id);
   });
 }
@@ -929,8 +1029,7 @@ async function provision() {
   applyState(out.state);
   toast("Folders marked in _PORTAL_TEST");
 }
-async function exportMonday() {
-  const ids = [...state.selected];
+async function sendToClient(ids) {
   const ready = state.db.tasks.filter((t) => ids.includes(t.id) && t.resultUrl);
   if (!ready.length) {
     toast("Need a result link first. You can send 2 of 10 without waiting.");
@@ -938,7 +1037,17 @@ async function exportMonday() {
   }
   const out = await api("/api/export-monday", { ids: ready.map((t) => t.id) });
   applyState(out.state);
-  toast(`Sent to client: ${out.exported.length}`);
+  const pack = (out.exported || []).map((row) => row.reply).join("\n\n");
+  const ok = await copyText(pack);
+  showPaste(
+    "Paste into Monday",
+    "Monday API is not connected yet. Paste this into External Weekly — status on our board is already Senior Approval.",
+    pack
+  );
+  toast(ok ? `Copied ${out.exported.length} Monday replies` : `Ready to copy ${out.exported.length} replies`);
+}
+async function exportMonday() {
+  await sendToClient([...state.selected]);
 }
 async function resetDemo() {
   const out = await api("/api/reset", {});
@@ -991,6 +1100,14 @@ $("delMove").addEventListener("change", () => {
 });
 $("delModal").addEventListener("click", (e) => {
   if (e.target === $("delModal")) $("delModal").classList.remove("show");
+});
+$("pasteClose").onclick = () => $("pasteModal").classList.remove("show");
+$("pasteCopy").onclick = async () => {
+  const ok = await copyText($("pasteText").value);
+  toast(ok ? "Copied" : "Select the text and copy");
+};
+$("pasteModal").addEventListener("click", (e) => {
+  if (e.target === $("pasteModal")) $("pasteModal").classList.remove("show");
 });
 $("emailCancel").onclick = () => $("emailModal").classList.remove("show");
 $("emailApply").onclick = async () => {
