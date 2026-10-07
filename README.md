@@ -36,6 +36,12 @@ Also:
 
 Not in v1: live Monday API, invoice PDFs, Telegram, Playables, Slotomania, calculator rewrite.
 
+## Show Superplay (Matan)
+
+Do **not** send the Cursor Preview URL. It only opens for the Lisenbart account.
+
+This Cloud Agent VM cannot publish a public website (outbound HTTPS is locked). For Matan, send **screenshots** (or the Drive folder with them). A live guest link needs hosting on a Lisenbart domain later, e.g. `board.lisenbart.games`.
+
 ## Run
 
 Python 3 only. No npm.

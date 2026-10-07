@@ -22,9 +22,21 @@
 
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); }
+body { display: flex; flex-direction: column; }
+.sandbox-ribbon {
+  flex: 0 0 auto;
+  background: #1f243a;
+  color: #d7dcf3;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-align: center;
+  padding: 7px 16px;
+  border-bottom: 1px solid #3a4166;
+}
 button, input, select, textarea { font: inherit; }
 a { color: var(--blue); }
-.app { display: grid; grid-template-columns: 232px 1fr; min-height: 100%; }
+.app { display: grid; grid-template-columns: 232px 1fr; flex: 1; min-height: 0; }
 
 .sidebar {
   background: var(--sidebar);
