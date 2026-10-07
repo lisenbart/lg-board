@@ -24,75 +24,75 @@
     },
     {
       "id": "manager",
-      "name": "Anastasiia",
+      "name": "Анастасія",
       "role": "manager",
       "email": "anastasiia@lisenbart.games",
-      "color": "#9d50dd"
+      "color": "#9d50dd",
+      "payOrder": 1,
+      "jobTitle": "менеджер",
+      "legalName": "Анастасі Верлинська",
+      "bankCard": "4874070053093694",
+      "iban": "UA173220010000026202314266322"
     },
     {
       "id": "teamlead",
-      "name": "Team lead",
-      "role": "teamlead",
-      "color": "#fdab3d"
-    },
-    {
-      "id": "designer",
       "name": "Настя",
-      "role": "designer",
+      "role": "teamlead",
       "color": "#59BBFF",
+      "payOrder": 2,
+      "jobTitle": "тімлід",
       "rateUsd": 15,
       "legalName": "Анастасія Сиченко",
       "phone": "+380 99 550 5455",
+      "email": "cat44cat22@gmail.com",
       "bank": "Monobank",
-      "bankCard": "4441114424460887",
-      "iban": "UA173220010000026202314266322"
+      "bankCard": "4441114424460887"
     },
     {
       "id": "designer2",
       "name": "Маша",
       "role": "designer",
       "color": "#92D050",
+      "payOrder": 4,
       "rateUsd": 12,
       "legalName": "Терлецька Марія Максимівна",
       "bank": "Monobank",
-      "bankCard": "",
-      "iban": "UA683220010000026202353816766"
+      "iban": "UA683220010000026202353816766",
+      "taxId": "3781707605"
     },
     {
       "id": "designer3",
       "name": "Сергій",
       "role": "designer",
       "color": "#FFD966",
+      "payOrder": 3,
       "rateUsd": 15,
       "legalName": "Лащенко Сергій Олексійович",
       "phone": "+380 93 763 1347",
+      "email": "lashenko285@gmail.com",
       "bank": "Monobank",
       "bankCard": "4441111039612886",
-      "iban": "UA433220010000026202353175173"
+      "iban": "UA433220010000026202353175173",
+      "taxId": "3276811970"
     },
     {
       "id": "designer4",
       "name": "Аліна",
       "role": "designer",
-      "color": "#C6B19B"
+      "color": "#C6B19B",
+      "payOrder": 5,
+      "legalName": "Аліна Колесник",
+      "iban": "UA193220010000026205327095598"
     },
     {
       "id": "designer5",
       "name": "Олекса",
       "role": "designer",
-      "color": "#B4A7D6"
-    },
-    {
-      "id": "designer6",
-      "name": "Андрій",
-      "role": "designer",
-      "color": "#76D7C4",
-      "rateUsd": 12,
-      "legalName": "Андрій Миглін",
-      "phone": "+380 99 608 9025",
-      "bank": "Monobank",
-      "bankCard": "5168752085544776",
-      "iban": "UA643052990000026201875784751"
+      "color": "#B4A7D6",
+      "payOrder": 6,
+      "legalName": "Злотко Олексій",
+      "bankCard": "432345037851582",
+      "iban": "UA943077700000026208713943056"
     }
   ],
   "tasks": [
@@ -107,7 +107,7 @@
       "deadline": "2026-10-07",
       "studioStatus": "done",
       "mondayStatus": "WIP",
-      "assigneeId": "designer",
+      "assigneeId": "teamlead",
       "brief": "Please combine Halloween Fire Trial gameplay with DD-VEO-059-001 hook.\nLength = 30s.\nKeep energy high in the first 3 seconds.\nDeliver 4 sizes: 1080x1080, 1080x1350, 1080x1920, 1920x1080.",
       "folderUrl": "https://drive.google.com/drive/folders/1FoSMDTF2vBhyUUtHHQBttNULo1bs-CYU",
       "docUrl": "https://docs.google.com/document/d/1dqLPaUmZ0CJjtx7JOvN7DfKRN79R9bV1zlVN2-z6tPI/edit",
@@ -140,7 +140,7 @@
       "deadline": "2026-10-07",
       "studioStatus": "done",
       "mondayStatus": "WIP",
-      "assigneeId": "designer",
+      "assigneeId": "teamlead",
       "brief": "Hi,\n\nPlease combine\n\n1. DD-VEO-059-001_GravePumpkin + DD-AIV-HalloweenDiamondBlast\n2. Length = 30s\n3. Trim last ±8 seconds of video\n4. Add a motion transition between the hook and the video\n\nThanks\n\nNaming:\n1080x1080 / 1080x1350 / 1080x1920 / 1920x1080",
       "folderUrl": "https://drive.google.com/drive/folders/1aJX-A7np2alJOHLkTmav6gG9Gj8t5NsW",
       "docUrl": "https://docs.google.com/document/d/1rs2waEdxsf2xKKWwn643oAnOLty72o9kElL7vRwRPNs/edit",
@@ -377,7 +377,7 @@
       "deadline": "",
       "studioStatus": "wip",
       "mondayStatus": "WIP",
-      "assigneeId": "designer",
+      "assigneeId": "teamlead",
       "brief": "Halloween Save 60s, hook DX-VEO-055-001. Four sizes.",
       "folderUrl": "",
       "docUrl": "",

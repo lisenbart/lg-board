@@ -138,15 +138,32 @@ def _nbu_from(db: dict, nbu: dict | None = None) -> dict:
     return fetch_nbu()
 
 
+def hours_people(db: dict) -> list[dict]:
+    people = db.get("people") or []
+    return [p for p in people if p.get("role") == "teamlead"] + [
+        p for p in people if p.get("role") == "designer"
+    ]
+
+
+def pay_people(db: dict) -> list[dict]:
+    return [
+        p
+        for p in db.get("people") or []
+        if p.get("role") in {"manager", "teamlead", "designer"}
+    ]
+
+
 def _pay_row(person: dict, default_pay: float) -> dict:
     return {
         "id": person.get("id"),
         "name": person.get("name") or person.get("id"),
         "legalName": person.get("legalName") or "",
+        "jobTitle": person.get("jobTitle") or "",
         "bank": person.get("bank") or "",
         "bankCard": person.get("bankCard") or "",
         "iban": person.get("iban") or "",
         "phone": person.get("phone") or "",
+        "payOrder": person.get("payOrder") or 99,
         "rate": person_rate(person, default_pay),
         "projects": 0,
         "shifts": 0.0,
@@ -166,11 +183,7 @@ def snapshot(db: dict, month: str, nbu: dict | None = None) -> dict:
     tasks = [t for t in db.get("tasks") or [] if (t.get("month") or meta.get("month")) == month]
     people = {p["id"]: p for p in db.get("people") or []}
     lines = {k: {"line": k, "projects": 0, "shifts": 0.0, "hours": 0.0, "bill": 0.0} for k in ("DD", "DX", "DS")}
-    pay = {
-        p["id"]: _pay_row(p, default_pay)
-        for p in db.get("people") or []
-        if p.get("role") == "designer"
-    }
+    pay = {p["id"]: _pay_row(p, default_pay) for p in pay_people(db)}
     unassigned = {"projects": 0, "shifts": 0.0, "hours": 0.0}
     for t in tasks:
         line = t.get("line") if t.get("line") in lines else "DD"
@@ -182,7 +195,7 @@ def snapshot(db: dict, month: str, nbu: dict | None = None) -> dict:
         lines[line]["bill"] += h * client_rate
         pid = t.get("assigneeId") or ""
         p = people.get(pid)
-        if not p or p.get("role") != "designer":
+        if not p or p.get("id") not in pay:
             unassigned["projects"] += 1
             unassigned["shifts"] += sh
             unassigned["hours"] += h
@@ -192,7 +205,7 @@ def snapshot(db: dict, month: str, nbu: dict | None = None) -> dict:
         row["shifts"] += sh
         row["hours"] += h
         row["payUsd"] += h * row["rate"]
-    payroll = sorted(pay.values(), key=lambda r: (-r["hours"], r["name"]))
+    payroll = sorted(pay.values(), key=lambda r: (r.get("payOrder") or 99, r["name"]))
     for row in payroll:
         row["payUah"] = round(row["payUsd"] * fx, 2)
         row["payUsd"] = round(row["payUsd"], 2)
@@ -392,7 +405,7 @@ def write_month(db: dict, ym: str, nbu_rate: float | None = None, path: Path | N
     tax = float(meta.get("taxPct") if meta.get("taxPct") is not None else TAX_PCT)
     default_pay = float(meta.get("designerRateUsd") or 15)
     fx = float(nbu_rate or (meta.get("nbuRate") or FALLBACK_NBU))
-    designers = [p for p in db.get("people") or [] if p.get("role") == "designer"]
+    designers = hours_people(db)
     tasks = [t for t in db.get("tasks") or [] if (t.get("month") or ym) == ym]
     by_line = {k: [] for k in ("DX", "DD", "DS")}
     for t in tasks:
@@ -508,5 +521,48 @@ def write_month(db: dict, ym: str, nbu_rate: float | None = None, path: Path | N
     ws.column_dimensions["B"].width = 72
     for col in range(3, usd_col + 1):
         ws.column_dimensions[get_column_letter(col)].width = 14
+    _write_employeers_sheet(wb, db)
+    wb.save(path)
+    return path
+
+
+def _write_employeers_sheet(wb, db: dict) -> None:
+    name = next((n for n in wb.sheetnames if n.strip().lower() == "employeers"), None)
+    ws = wb[name] if name else wb.create_sheet("Employeers")
+    for r in range(6, 31):
+        for c in range(1, 9):
+            ws.cell(r, c).value = None
+    ws["E4"] = "LISENBART FILM CREW"
+    headers = ["", "name", "phone", "email", "name of bank", "bank card", "IBAN", "ІПН"]
+    fills = ["D9EAD3", "D9EAD3", "FCE4D6", "C9DAF8", "D9D9D9", "D9D9D9", "D9D9D9", "D9D9D9"]
+    for i, (label, fill) in enumerate(zip(headers, fills), 1):
+        cell = ws.cell(6, i, label or None)
+        if label:
+            cell.fill = PatternFill("solid", fgColor=fill)
+            cell.font = CALIBRI_BOLD
+    crew = sorted(pay_people(db), key=lambda p: p.get("payOrder") or 99)
+    numbers = [1, 2, 3, 5, 6, 7]
+    for i, person in enumerate(crew):
+        r = 7 + i
+        title = person.get("jobTitle") or ""
+        legal = person.get("legalName") or person.get("name") or ""
+        shown = f"{legal} - {title}" if title else legal
+        ws.cell(r, 1, numbers[i] if i < len(numbers) else i + 1)
+        ws.cell(r, 2, shown)
+        ws.cell(r, 3, person.get("phone") or None)
+        mail = person.get("email") or ""
+        if mail.endswith("lisenbart.games"):
+            mail = ""
+        ws.cell(r, 4, mail or None)
+        ws.cell(r, 5, person.get("bank") or None)
+        ws.cell(r, 6, person.get("bankCard") or None)
+        ws.cell(r, 7, person.get("iban") or None)
+        ws.cell(r, 8, person.get("taxId") or None)
+
+
+def write_employeers(db: dict, path: Path | None = None) -> Path:
+    path = Path(path or CALC_PATH)
+    wb = load_workbook(path)
+    _write_employeers_sheet(wb, db)
     wb.save(path)
     return path

@@ -320,7 +320,7 @@ function financeSnapshot() {
     (row) => row.line !== "DS" || row.projects
   );
   const payMap = {};
-  for (const p of designers()) {
+  for (const p of crew()) {
     payMap[p.id] = { person: p, projects: 0, shifts: 0, hours: 0, tasks: [] };
   }
   let unassignedHours = 0;
@@ -328,13 +328,12 @@ function financeSnapshot() {
   let unassignedProjects = 0;
   for (const t of tasks) {
     const p = t.assigneeId ? person(t.assigneeId) : null;
-    if (!p || p.role !== "designer") {
+    if (!p || !payMap[p.id]) {
       unassignedHours += hoursOf(t);
       unassignedShifts += Number(t.shifts) || 0;
       unassignedProjects += 1;
       continue;
     }
-    if (!payMap[p.id]) payMap[p.id] = { person: p, projects: 0, shifts: 0, hours: 0, tasks: [] };
     payMap[p.id].projects += 1;
     payMap[p.id].shifts += Number(t.shifts) || 0;
     payMap[p.id].hours += hoursOf(t);
@@ -352,7 +351,11 @@ function financeSnapshot() {
         customRate: row.person.rateUsd != null && row.person.rateUsd !== "",
       };
     })
-    .sort((a, b) => b.hours - a.hours || String(a.person.name).localeCompare(String(b.person.name)));
+    .sort(
+      (a, b) =>
+        (a.person.payOrder || 99) - (b.person.payOrder || 99) ||
+        String(a.person.name).localeCompare(String(b.person.name))
+    );
   const clientIn = totalHours * rate;
   const afterTax = clientIn - clientIn * tax;
   const empl = payroll.reduce((s, r) => s + r.payUsd, 0);
@@ -392,7 +395,11 @@ function isExecView() {
   return isDesigner() || isTeamLead();
 }
 function designers() {
-  return state.db.people.filter((p) => p.role === "designer");
+  const people = state.db.people || [];
+  return people.filter((p) => p.role === "teamlead").concat(people.filter((p) => p.role === "designer"));
+}
+function crew() {
+  return (state.db.people || []).filter((p) => p.role === "manager" || p.role === "teamlead" || p.role === "designer");
 }
 
 function toast(msg) {
@@ -1214,7 +1221,7 @@ function renderEmployees(fin) {
       return `<tr>
         <td>
           ${personCell(row.person.id)}
-          ${row.person.legalName ? `<div class="muted">${escapeHtml(row.person.legalName)}</div>` : ""}
+          <div class="muted">${escapeHtml([row.person.jobTitle, row.person.legalName].filter(Boolean).join(" · "))}</div>
         </td>
         <td class="num">${hoursLabel(row.hours)}</td>
         <td class="num"><input class="fin-person-rate" data-id="${row.person.id}" type="number" min="0" step="0.5" value="${shown}" placeholder="${fin.defaultPayRate}" /></td>

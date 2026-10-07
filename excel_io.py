@@ -51,7 +51,10 @@ def find_sheet(wb, ym: str):
 
 
 def designers(db: dict) -> list[dict]:
-    return [p for p in db.get("people") or [] if p.get("role") == "designer"]
+    people = db.get("people") or []
+    return [p for p in people if p.get("role") == "teamlead"] + [
+        p for p in people if p.get("role") == "designer"
+    ]
 
 
 def ensure_people(db: dict, names: list[str]) -> None:
