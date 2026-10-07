@@ -42,10 +42,9 @@ Studio money never unlocks on the hosted link. Localhost is the studio sandbox.
 
 - **Pull from Monday** — demo import until Superplay grants board access.
 - **Shift email** — Orit format: `NAME | 0.3 shifts`. Hours = shift × 9.
-- Manager / team lead can paste the brief and Drive / Doc links.
-- Designer sets WIP or Done and pastes the result link.
-- **Send to client** copies `check it please` + the result link for External Weekly. Status becomes Senior Approval.
-- **Copy Telegram** — designer name + project, for the studio chat.
+- Manager / team lead can paste the brief and Drive / Doc links. **Open Drive** opens the sandbox month folder — the board does not create Drive folders.
+- Designer sets WIP or Done and pastes the result link. Assignment lives on the board; there is no Telegram copy step.
+- **Send to client** copies `check it please` + the result link for External Weekly. Status becomes Senior Approval. Superplay is not on this board, so this step stays until Monday API is connected.
 - Files on Drive are the source. The portal is a monitor: a new task or an assign writes into `SP_MGX_check.xlsx`; **Refresh from file** reads the sheet back. Sandbox copy is in `_PORTAL_TEST`. The live studio workbook is not overwritten. No CSV export.
 - Test folders only in Drive [`_PORTAL_TEST`](https://drive.google.com/drive/folders/1HY7vcxR5Tmot5RNJyQ2ZeImD9J4BOuX8). Live `Projects / 10_October` is untouched.
 

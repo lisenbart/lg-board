@@ -275,29 +275,6 @@ class Handler(SimpleHTTPRequestHandler):
                 save_db(db)
                 self._json(200, {"exported": exported, "state": db})
                 return
-            if path == "/api/provision":
-                ids = set(data.get("ids") or [])
-                parent = (
-                    db.get("meta", {}).get("driveSandboxOctober")
-                    or db.get("meta", {}).get("driveSandbox")
-                    or ""
-                )
-                n = 0
-                for task in db["tasks"]:
-                    if task["id"] not in ids:
-                        continue
-                    if not task.get("folderUrl"):
-                        task["folderUrl"] = parent
-                    task.setdefault("activity", []).append(
-                        {
-                            "at": utc_now(),
-                            "text": "Folder marked in Drive _PORTAL_TEST / 10_October (sandbox)",
-                        }
-                    )
-                    n += 1
-                save_db(db)
-                self._json(200, {"provisioned": n, "state": db})
-                return
             if path == "/api/tasks/update":
                 task_id = data.get("id")
                 task = next((t for t in db["tasks"] if t["id"] == task_id), None)

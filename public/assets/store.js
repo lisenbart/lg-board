@@ -198,27 +198,6 @@
       return { exported, state: clone(db) };
     }
 
-    if (path === "/api/provision") {
-      const ids = new Set(data.ids || []);
-      const dd = db.meta?.driveOctoberDD || "";
-      const dx = db.meta?.driveOctoberDX || "";
-      let n = 0;
-      for (const task of db.tasks) {
-        if (!ids.has(task.id)) continue;
-        const parent = task.line === "DD" ? dd : dx;
-        if (!task.folderUrl) task.folderUrl = parent;
-        if (!task.docUrl) task.docUrl = parent;
-        task.activity = task.activity || [];
-        task.activity.push({
-          at: now(),
-          text: "Folder/brief marked in _PORTAL_TEST (sandbox, not live October)",
-        });
-        n += 1;
-      }
-      writeDb(db);
-      return { provisioned: n, state: clone(db) };
-    }
-
     if (path === "/api/tasks/update") {
       const task = db.tasks.find((t) => t.id === data.id);
       if (!task) return { error: "not found" };

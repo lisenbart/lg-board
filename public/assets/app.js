@@ -213,11 +213,6 @@ function mondayReply(task) {
   return `${task.name}\ncheck it please\n${task.resultUrl || ""}`.trim();
 }
 
-function telegramLine(task) {
-  const who = person(task.assigneeId)?.name || "unassigned";
-  return `${who}\n${task.name}`;
-}
-
 function person(id) {
   return (state.db.people || []).find((p) => p.id === id);
 }
@@ -305,6 +300,11 @@ function driveMonthFolder(ym) {
   const [y, m] = ym.split("-").map(Number);
   const name = new Date(y, m - 1, 1).toLocaleString("en-US", { month: "long" });
   return `${String(m).padStart(2, "0")}_${name}`;
+}
+function sandboxDriveUrl() {
+  const meta = state.db?.meta || {};
+  if (state.month === "2026-10" && meta.driveSandboxOctober) return meta.driveSandboxOctober;
+  return meta.driveSandbox || "";
 }
 function taskMonth(t) {
   return t.month || (t.deadline && String(t.deadline).slice(0, 7)) || state.db?.meta?.month || state.month;
@@ -446,13 +446,17 @@ function renderToolbar() {
     return;
   }
   const n = state.selected.size;
+  const drive = sandboxDriveUrl();
   if (isExecView()) {
-    $("toolbar").innerHTML = `<input class="search" placeholder="Search project" />`;
+    $("toolbar").innerHTML = `
+      ${drive ? `<a class="btn" href="${escapeHtml(drive)}" target="_blank" rel="noreferrer">Open Drive</a>` : ""}
+      <input class="search" placeholder="Search project" />
+    `;
   } else {
     $("toolbar").innerHTML = `
       <button class="btn primary" id="btnImport">Pull from Monday</button>
       <button class="btn orange" id="btnEmail">Shift email</button>
-      <button class="btn" id="btnFolders" ${n ? "" : "disabled"}>Folders (${n})</button>
+      ${drive ? `<a class="btn" href="${escapeHtml(drive)}" target="_blank" rel="noreferrer">Open Drive</a>` : ""}
       <button class="btn green" id="btnExport" ${n ? "" : "disabled"}>Send to client (${n})</button>
       <input class="search" placeholder="Search project" />
       <button class="btn ghost" id="btnReset">Reset demo</button>
@@ -461,7 +465,6 @@ function renderToolbar() {
   $("toolbar").querySelector(".search")?.addEventListener("input", render);
   $("btnImport")?.addEventListener("click", importMonday);
   $("btnEmail")?.addEventListener("click", () => $("emailModal").classList.add("show"));
-  $("btnFolders")?.addEventListener("click", provision);
   $("btnExport")?.addEventListener("click", exportMonday);
   $("btnReset")?.addEventListener("click", resetDemo);
 }
@@ -1185,7 +1188,8 @@ function openTask(id) {
       <label style="margin-top:10px">Google Doc</label>
       <input id="stDoc" value="${escapeHtml(t.docUrl || "")}" placeholder="https://docs.google.com/document/..." />
       <label style="margin-top:10px">Drive folder</label>
-      <input id="stFolder" value="${escapeHtml(t.folderUrl || "")}" placeholder="https://drive.google.com/drive/folders/..." />`
+      <input id="stFolder" value="${escapeHtml(t.folderUrl || "")}" placeholder="https://drive.google.com/drive/folders/..." />
+      ${sandboxDriveUrl() ? `<p class="status-hint"><a href="${escapeHtml(sandboxDriveUrl())}" target="_blank" rel="noreferrer">Open this month on Drive</a> — paste the project folder link here. The board does not create Drive folders.</p>` : ""}`
           : `<div class="brief">${escapeHtml(t.brief || "No brief yet")}</div>
       ${t.docUrl ? `<p><a href="${escapeHtml(t.docUrl)}" target="_blank" rel="noreferrer">Open Google Doc</a></p>` : ""}
       ${t.folderUrl ? `<p><a href="${escapeHtml(t.folderUrl)}" target="_blank" rel="noreferrer">Drive folder</a></p>` : ""}`
@@ -1207,7 +1211,6 @@ function openTask(id) {
     </div>
     </div>
     <div class="drawer-actions">
-      ${canAssign() || canOps() ? `<button class="btn ghost" id="copyTelegram">Copy Telegram</button>` : ""}
       ${canOps() && t.resultUrl ? `<button class="btn green" id="exportOne">Send this to client</button>` : ""}
       <button class="btn primary" id="saveTask">Save</button>
     </div>
@@ -1252,16 +1255,6 @@ function openTask(id) {
           : `${me().name} updated status`;
     updateTask(t.id, { ...patch, note }, { close: true });
   };
-  $("copyTelegram")?.addEventListener("click", async () => {
-    const line = telegramLine({ ...t, assigneeId: $("stPerson") ? $("stPerson").value : t.assigneeId });
-    const ok = await copyText(line);
-    showPaste(
-      "Telegram",
-      "Paste this in the studio chat so the designer gets the name without hunting Monday.",
-      line
-    );
-    toast(ok ? "Telegram line copied" : "Copy failed — select the text");
-  });
   $("exportOne")?.addEventListener("click", async () => {
     await sendToClient([t.id]);
     openTask(t.id);
@@ -1291,11 +1284,6 @@ async function importMonday() {
   const out = await api("/api/import-monday", { month: state.month });
   applyState(out.state);
   toast(out.added ? `Pulled ${out.added} new from Monday` : "Nothing new");
-}
-async function provision() {
-  const out = await api("/api/provision", { ids: [...state.selected] });
-  applyState(out.state);
-  toast("Folders marked in _PORTAL_TEST");
 }
 async function sendToClient(ids) {
   const ready = state.db.tasks.filter((t) => ids.includes(t.id) && t.resultUrl);
