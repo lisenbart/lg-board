@@ -12,6 +12,12 @@ const ROLE_LABEL = {
   teamlead: "Team lead",
   designer: "Designer",
 };
+const TEAM_JOBS = [
+  { id: "designer", label: "Designer" },
+  { id: "teamlead", label: "Team lead" },
+  { id: "manager", label: "Manager" },
+  { id: "finance", label: "Finance" },
+];
 
 const NAME_WIDTH_KEY = "lg-name-width";
 const NAME_WIDTH_DEFAULT = 520;
@@ -33,6 +39,7 @@ const state = {
   openId: null,
   designerFilter: null,
   month: "2026-10",
+  teamDrafts: {},
 };
 const $ = (id) => document.getElementById(id);
 
@@ -576,6 +583,31 @@ function renderClose() {
     </section>`;
 }
 
+function captureTeamDrafts() {
+  $("board")?.querySelectorAll(".team-row").forEach((row) => {
+    const input = row.querySelector(".team-name");
+    if (input) state.teamDrafts[row.dataset.id] = input.value;
+  });
+}
+
+function displayName(p) {
+  const draft = state.teamDrafts[p.id];
+  return draft !== undefined ? draft : p.name;
+}
+
+async function flushTeamNames() {
+  captureTeamDrafts();
+  const people = (state.db.people || [])
+    .map((p) => ({ id: p.id, name: String(displayName(p) || "").trim() }))
+    .filter((p) => p.name);
+  if (!people.length) return { state: state.db };
+  const out = await api("/api/people/update", { people, role: me().role });
+  if (out.error || !out.state) return out;
+  for (const p of people) delete state.teamDrafts[p.id];
+  applyState(out.state);
+  return out;
+}
+
 function renderTeam() {
   if (!isFinance()) {
     state.view = "board";
@@ -586,22 +618,30 @@ function renderTeam() {
     .map(
       (p) => `
       <div class="team-row" data-id="${p.id}">
-        ${personCell(p.id)}
+        <span class="person"><span class="avatar" style="background:${p.color}">${initials(displayName(p))}</span>${escapeHtml(displayName(p))}</span>
         <span class="role-tag">${escapeHtml(ROLE_LABEL[p.role] || p.role)}</span>
-        <input class="team-name" value="${escapeHtml(p.name)}" placeholder="Real name" />
-        <button class="btn primary team-save" type="button">Save name</button>
+        <input class="team-name" value="${escapeHtml(displayName(p))}" placeholder="Real name" />
+        <button class="btn primary team-save" type="button">Save</button>
+        <button class="btn ghost team-del" type="button">Delete</button>
       </div>`
     )
     .join("");
   $("board").innerHTML = `
     <section class="group" style="padding:18px">
       <h2 style="margin:0 0 8px">Team names</h2>
-      <p style="color:#676879">Finance only. Change Designer → a real name. The login role stays the same, so permissions do not change. Add a designer if someone new joins — like another EMPL column in Excel.</p>
+      <p style="color:#676879">Finance only. Rename a job title to a real name. Role stays for access. Unsaved names are kept if you add or delete someone.</p>
       ${rows}
-      <div style="margin-top:16px">
-        <button class="btn" type="button" id="addDesigner">Add designer</button>
+      <div class="team-add">
+        <select id="addJob">${TEAM_JOBS.map((j) => `<option value="${j.id}">${j.label}</option>`).join("")}</select>
+        <button class="btn" type="button" id="addPerson">Add person</button>
+        <button class="btn primary" type="button" id="saveAllNames">Save all names</button>
       </div>
     </section>`;
+  $("board").querySelectorAll(".team-name").forEach((input) => {
+    input.addEventListener("input", () => {
+      state.teamDrafts[input.closest(".team-row").dataset.id] = input.value;
+    });
+  });
   $("board").querySelectorAll(".team-save").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const row = btn.closest(".team-row");
@@ -615,18 +655,55 @@ function renderTeam() {
         toast(out.error || "Could not save");
         return;
       }
+      delete state.teamDrafts[row.dataset.id];
       applyState(out.state);
       toast("Name saved");
     });
   });
-  $("addDesigner").onclick = async () => {
-    const out = await api("/api/people/add", { role: me().role });
+  $("board").querySelectorAll(".team-del").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const id = btn.closest(".team-row").dataset.id;
+      const p = person(id);
+      if (id === me().id) {
+        toast("You cannot delete the person you are logged in as");
+        return;
+      }
+      if (!confirm(`Delete ${displayName(p)}? Their projects become unassigned.`)) return;
+      const flushed = await flushTeamNames();
+      if (flushed.error) {
+        toast(flushed.error);
+        return;
+      }
+      const out = await api("/api/people/delete", { id, role: me().role, actorId: me().id });
+      if (out.error || !out.state) {
+        toast(out.error || "Could not delete");
+        return;
+      }
+      delete state.teamDrafts[id];
+      if (state.designerFilter === id) state.designerFilter = null;
+      applyState(out.state);
+      toast("Person deleted");
+    });
+  });
+  $("saveAllNames").onclick = async () => {
+    const out = await flushTeamNames();
+    if (out.error) toast(out.error);
+    else toast("All names saved");
+  };
+  $("addPerson").onclick = async () => {
+    const job = $("addJob").value;
+    const flushed = await flushTeamNames();
+    if (flushed.error) {
+      toast(flushed.error);
+      return;
+    }
+    const out = await api("/api/people/add", { role: me().role, job });
     if (out.error || !out.state) {
       toast(out.error || "Could not add");
       return;
     }
     applyState(out.state);
-    toast("Designer added — rename them");
+    toast("Person added — type the real name");
   };
 }
 

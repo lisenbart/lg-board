@@ -320,11 +320,23 @@ body.col-resizing * { cursor: col-resize !important; }
 .field { margin: 12px 0; }
 .team-row {
   display: grid;
-  grid-template-columns: 180px 120px minmax(160px, 1fr) auto;
+  grid-template-columns: 180px 120px minmax(160px, 1fr) auto auto;
   gap: 10px;
   align-items: center;
   padding: 10px 0;
   border-bottom: 1px solid #f0f1f5;
+}
+.team-add {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 16px;
+}
+.team-add select {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 10px;
 }
 .team-name { border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; }
 .role-tag {

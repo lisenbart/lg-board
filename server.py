@@ -316,40 +316,87 @@ class Handler(SimpleHTTPRequestHandler):
                 if (data.get("role") or "") != "finance":
                     self._json(403, {"error": "only finance can rename people"})
                     return
-                person = next((p for p in db["people"] if p["id"] == data.get("id")), None)
-                if not person:
+                items = data.get("people")
+                if not items:
+                    items = [{"id": data.get("id"), "name": data.get("name")}]
+                updated = []
+                for item in items:
+                    person = next((p for p in db["people"] if p["id"] == item.get("id")), None)
+                    if not person:
+                        continue
+                    name = str(item.get("name") or "").strip()
+                    if not name:
+                        self._json(400, {"error": "name cannot be empty"})
+                        return
+                    person["name"] = name
+                    updated.append(person)
+                if not updated and data.get("id"):
                     self._json(404, {"error": "not found"})
                     return
-                name = str(data.get("name") or "").strip()
-                if not name:
-                    self._json(400, {"error": "name cannot be empty"})
-                    return
-                person["name"] = name
                 save_db(db)
-                self._json(200, {"person": person, "state": db})
+                self._json(200, {"people": updated, "state": db})
                 return
             if path == "/api/people/add":
                 if (data.get("role") or "") != "finance":
                     self._json(403, {"error": "only finance can add people"})
                     return
+                job = data.get("job") or "designer"
+                labels = {
+                    "designer": "Designer",
+                    "teamlead": "Team lead",
+                    "manager": "Manager",
+                    "finance": "Finance",
+                }
+                if job not in labels:
+                    self._json(400, {"error": "unknown role"})
+                    return
                 existing = {p["id"] for p in db["people"]}
                 n = 1
                 while True:
-                    pid = "designer" if n == 1 else f"designer{n}"
+                    pid = job if n == 1 else f"{job}{n}"
                     if pid not in existing:
                         break
                     n += 1
-                palette = ["#00c875", "#579bfc", "#ff5ac4", "#fdab3d", "#9d50dd", "#00c2e0", "#bb3354"]
-                designers = [p for p in db["people"] if p.get("role") == "designer"]
+                palette = {
+                    "designer": ["#00c875", "#579bfc", "#ff5ac4", "#fdab3d", "#9d50dd", "#00c2e0", "#bb3354"],
+                    "teamlead": ["#fdab3d", "#e67e22"],
+                    "manager": ["#9d50dd", "#7b2cbf"],
+                    "finance": ["#0073ea", "#0059b3"],
+                }[job]
+                count = len([p for p in db["people"] if p.get("role") == job])
                 person = {
                     "id": pid,
-                    "name": f"Designer {n}",
-                    "role": "designer",
-                    "color": palette[len(designers) % len(palette)],
+                    "name": labels[job] if n == 1 else f"{labels[job]} {n}",
+                    "role": job,
+                    "color": palette[count % len(palette)],
                 }
                 db["people"].append(person)
                 save_db(db)
                 self._json(200, {"person": person, "state": db})
+                return
+            if path == "/api/people/delete":
+                if (data.get("role") or "") != "finance":
+                    self._json(403, {"error": "only finance can delete people"})
+                    return
+                pid = data.get("id")
+                person = next((p for p in db["people"] if p["id"] == pid), None)
+                if not person:
+                    self._json(404, {"error": "not found"})
+                    return
+                if pid == data.get("actorId"):
+                    self._json(400, {"error": "you cannot delete yourself"})
+                    return
+                if person.get("role") == "finance" and sum(
+                    1 for p in db["people"] if p.get("role") == "finance"
+                ) <= 1:
+                    self._json(400, {"error": "keep at least one finance login"})
+                    return
+                for task in db["tasks"]:
+                    if task.get("assigneeId") == pid:
+                        task["assigneeId"] = ""
+                db["people"] = [p for p in db["people"] if p["id"] != pid]
+                save_db(db)
+                self._json(200, {"deleted": pid, "state": db})
                 return
         self._json(404, {"error": "unknown endpoint"})
 
