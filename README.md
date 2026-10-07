@@ -55,13 +55,16 @@ Roles in the demo are job titles, not names:
 
 Also:
 
-- **Pull from Monday** — demo import (no Monday token yet).
+- **Pull from Monday** — demo import until Superplay grants board access.
 - **Shift email** — Orit format: `NAME | 0.3 shifts`. Hours = shift × 9.
+- Manager / team lead can paste the brief and Drive / Doc links while Monday is still manual.
 - Designer sets status and pastes the result link.
-- **Send to client** on selected projects (2 of 10 is fine) → `check it please` + **Senior Approval**.
+- **Send to client** copies `check it please` + the result link to paste into External Weekly. Studio status becomes Senior Approval.
+- **Copy Telegram** — designer name + project, for the studio chat.
+- **Excel CSV** — month hours for `SP_MGX_check.xlsx`.
 - Test folders only in Drive [`_PORTAL_TEST`](https://drive.google.com/drive/folders/1HY7vcxR5Tmot5RNJyQ2ZeImD9J4BOuX8). Live `Projects / 10_October` is untouched.
 
-Not in v1: live Monday API, invoice PDFs, Telegram, Playables, calculator rewrite.
+Not in v1: live Monday API, real Drive folder create, invoice PDFs, Playables.
 
 ## Run locally
 
