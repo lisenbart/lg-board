@@ -218,42 +218,6 @@ function telegramLine(task) {
   return `${who}\n${task.name}`;
 }
 
-function csvCell(value) {
-  return `"${String(value ?? "").replaceAll('"', '""')}"`;
-}
-
-function monthCsv() {
-  const header = ["Project", "Line", "Shifts", "Hours", "Status", "Assignee", "Brief", "Result"];
-  const rows = [header.map(csvCell).join(",")];
-  for (const t of monthTasks()) {
-    rows.push(
-      [
-        t.name,
-        t.line,
-        t.shifts ?? "",
-        t.hours ?? "",
-        STATUS[t.studioStatus]?.label || t.studioStatus,
-        person(t.assigneeId)?.name || "",
-        t.brief || "",
-        t.resultUrl || "",
-      ]
-        .map(csvCell)
-        .join(",")
-    );
-  }
-  return rows.join("\n");
-}
-
-function downloadMonthCsv() {
-  const blob = new Blob([monthCsv()], { type: "text/csv;charset=utf-8" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = `SP_MGX_${state.month}.csv`;
-  a.click();
-  URL.revokeObjectURL(a.href);
-  toast("CSV downloaded — this is a dump, not the SP_MGX_check calculator");
-}
-
 function person(id) {
   return (state.db.people || []).find((p) => p.id === id);
 }
@@ -471,20 +435,14 @@ function renderToolbar() {
     return;
   }
   if (state.view === "excel") {
-    $("toolbar").innerHTML = isDesigner()
-      ? `<input class="search" placeholder="Search project" />`
-      : `
-      <button class="btn primary" id="btnExcelPull">Pull from Excel</button>
-      <button class="btn green" id="btnExcelSave">Update calculator</button>
-      <button class="btn" id="btnExcelOpen">Open xlsx</button>
-      <button class="btn ghost" id="btnExcelReplace">Replace workbook</button>
+    const drive = state.db?.meta?.driveSandboxExcel || "";
+    $("toolbar").innerHTML = `
+      ${isDesigner() ? "" : `<button class="btn" id="btnExcelPull">Refresh from file</button>`}
+      ${drive ? `<a class="btn" href="${escapeHtml(drive)}" target="_blank" rel="noreferrer">Open on Drive</a>` : ""}
       <input class="search" placeholder="Search project" />
     `;
     $("toolbar").querySelector(".search")?.addEventListener("input", render);
     $("btnExcelPull")?.addEventListener("click", pullExcel);
-    $("btnExcelOpen")?.addEventListener("click", openExcelFile);
-    $("btnExcelSave")?.addEventListener("click", saveExcel);
-    $("btnExcelReplace")?.addEventListener("click", () => $("excelFile")?.click());
     return;
   }
   const n = state.selected.size;
@@ -496,7 +454,6 @@ function renderToolbar() {
       <button class="btn orange" id="btnEmail">Shift email</button>
       <button class="btn" id="btnFolders" ${n ? "" : "disabled"}>Folders (${n})</button>
       <button class="btn green" id="btnExport" ${n ? "" : "disabled"}>Send to client (${n})</button>
-      <button class="btn ghost" id="btnCsv" title="Plain table dump — not the SP_MGX_check calculator">Export CSV</button>
       <input class="search" placeholder="Search project" />
       <button class="btn ghost" id="btnReset">Reset demo</button>
     `;
@@ -506,7 +463,6 @@ function renderToolbar() {
   $("btnEmail")?.addEventListener("click", () => $("emailModal").classList.add("show"));
   $("btnFolders")?.addEventListener("click", provision);
   $("btnExport")?.addEventListener("click", exportMonday);
-  $("btnCsv")?.addEventListener("click", downloadMonthCsv);
   $("btnReset")?.addEventListener("click", resetDemo);
 }
 
@@ -725,7 +681,7 @@ function renderExcelSheet() {
         <span>${
           isDesigner()
             ? "Overall picture this month. Hours = shifts × 9. Read only."
-            : "Same calculator as Drive. Hours stay = shifts × 9. Update calculator writes this month in place — other months stay. Live studio file is not touched."
+            : "This is SP_MGX_check — the same sheet on Drive. A new task or an assign here writes into that file. Refresh from file if you edited the sheet."
         }</span>
       </div>
       <div class="xl-scroll">
@@ -782,56 +738,11 @@ function renderExcelSheet() {
 async function pullExcel() {
   const out = await api("/api/excel/pull", { month: state.month });
   if (out.error || !out.state) {
-    toast(out.error || "Excel file not available here — use Open xlsx");
+    toast(out.error || "Could not read SP_MGX_check");
     return;
   }
   applyState(out.state);
   toast(`Excel: ${out.updated || 0} rows updated, ${out.added || 0} new`);
-}
-
-async function importExcelFile(file) {
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  let bin = "";
-  bytes.forEach((b) => {
-    bin += String.fromCharCode(b);
-  });
-  const out = await api("/api/excel/import", { month: state.month, content: btoa(bin) });
-  if (out.error || !out.state) {
-    toast(out.error || "Could not read that workbook");
-    return;
-  }
-  applyState(out.state);
-  toast(`Excel: ${out.updated || 0} updated, ${out.added || 0} new`);
-}
-
-async function openExcelFile() {
-  try {
-    const res = await fetch("/api/excel/file");
-    if (!res.ok) throw new Error("no file");
-    const blob = await res.blob();
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "SP_MGX_check.xlsx";
-    a.click();
-    URL.revokeObjectURL(a.href);
-    toast("This is the calculator workbook — hours are formulas, not a CSV");
-  } catch {
-    toast("Workbook not available here");
-  }
-}
-
-async function saveExcel() {
-  const out = await api("/api/excel/save", { month: state.month });
-  if (out.error) {
-    toast(out.error);
-    return;
-  }
-  if (out.ok) {
-    if (out.state) applyState(out.state);
-    toast(out.message || "Calculator updated in place. Hours = shifts × 9.");
-    return;
-  }
-  toast("The Excel calculator lives in the studio sandbox, not this client preview.");
 }
 
 function renderBoard() {
@@ -1047,7 +958,6 @@ function renderClose() {
     <section class="group" style="padding:18px">
       <h2 style="margin:0 0 8px">Finance · ${monthLabel(state.month)}</h2>
       <p style="color:#676879">Designers and the manager do not see this. Hours by line for the selected month.</p>
-      <p style="margin:0 0 12px"><button class="btn ghost" id="btnCsvClose">Excel CSV</button></p>
       <div class="kpis" style="padding:0 0 16px">
         <div class="kpi"><b>${byLine.DD.toFixed(1)} h</b><span>${moneyLine("DD", byLine.DD)}</span></div>
         <div class="kpi"><b>${byLine.DX.toFixed(1)} h</b><span>${moneyLine("DX", byLine.DX)}</span></div>
@@ -1062,7 +972,6 @@ function renderClose() {
         })
         .join("")}
     </section>`;
-  $("btnCsvClose")?.addEventListener("click", downloadMonthCsv);
 }
 
 function captureTeamDrafts() {
@@ -1470,11 +1379,6 @@ $("delMove").addEventListener("change", () => {
 });
 $("delModal").addEventListener("click", (e) => {
   if (e.target === $("delModal")) $("delModal").classList.remove("show");
-});
-$("excelFile")?.addEventListener("change", async (e) => {
-  const file = e.target.files?.[0];
-  e.target.value = "";
-  if (file) await importExcelFile(file);
 });
 $("pasteClose").onclick = () => $("pasteModal").classList.remove("show");
 $("pasteCopy").onclick = async () => {
