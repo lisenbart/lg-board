@@ -1157,7 +1157,7 @@ function renderClient(fin) {
     <div class="fin-empty">No hours in ${escapeHtml(fin.month)}. Pull from Monday or paste the shift email first.</div>`;
   }
   const pack = state.invoiceFolder || {};
-  const folder = pack.folder || monthFolderName(fin.month);
+  const folder = pack.folder || monthFolderName(state.month);
   const folderFiles = (pack.files || [])
     .map(
       (f) =>
@@ -1176,7 +1176,7 @@ function renderClient(fin) {
     <div class="fin-head">
       <div>
         <h2>Client · SuperPlay Ltd · ${escapeHtml(fin.month)}</h2>
-        <p>One Superplay invoice per direction. Create sits on the DD / DX row — same CLIENT IN total. Writes <code>${escapeHtml(monthFolderName(fin.month))}</code> with the live Word form plus a PDF to sign.</p>
+        <p>One Superplay invoice per direction. Create sits on the DD / DX row — same CLIENT IN total. Writes <code>${escapeHtml(monthFolderName(state.month))}</code> with the live Word form plus a PDF to sign.</p>
       </div>
     </div>
     <div class="fin-kpis">
