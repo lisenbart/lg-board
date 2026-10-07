@@ -56,7 +56,36 @@ a { color: var(--blue); }
   border-bottom: 1px solid var(--line);
   padding: 12px 20px 0;
 }
-.top-row { display: flex; align-items: center; gap: 12px; }
+.top-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.month-switch {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  background: #f7f8fc;
+  margin-left: 4px;
+}
+.month-btn {
+  border: 0;
+  background: transparent;
+  width: 32px;
+  cursor: pointer;
+  color: var(--ink);
+  font-size: 20px;
+  line-height: 1;
+}
+.month-btn:hover { background: #eef2fb; }
+.month-now {
+  min-width: 148px;
+  padding: 6px 10px;
+  text-align: center;
+  border-left: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+}
+.month-now strong { display: block; font-size: 14px; }
+.month-now small { display: block; color: var(--muted); font-size: 11px; }
+.month-now.this-month strong { color: var(--blue); }
 .board-title { font-size: 22px; font-weight: 700; margin: 0; }
 .role-hint { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
 .views { display: flex; gap: 4px; margin-top: 10px; }

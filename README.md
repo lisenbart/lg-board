@@ -2,6 +2,8 @@
 
 Online portal for **SUPERPLAY MGX**. The client stays on Monday (`External Weekly`). Designers work here and are never added to Monday.
 
+The board is one month at a time. The header shows **October 2026** (arrows change month; click the name to jump to today). Hours, load, and finance follow the selected month — same idea as a tab in the Excel file.
+
 One list, not Monday groups. Projects stay in a single table and are sorted by studio status so the same mark sits together:
 
 **Ready to Start → WIP → Need Fixing → Done → Senior Approval**

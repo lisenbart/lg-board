@@ -45,6 +45,10 @@ def hours_from_shift(shift: float) -> float:
     return round(shift * 9, 1)
 
 
+def task_month(data: dict, db: dict) -> str:
+    return data.get("month") or db.get("meta", {}).get("month") or "2026-10"
+
+
 def line_from_name(name: str) -> str:
     prefix = name.split("-", 1)[0].upper()
     return prefix if prefix in {"DD", "DX", "DS"} else "DD"
@@ -140,6 +144,7 @@ class Handler(SimpleHTTPRequestHandler):
                                 "shifts": row["shifts"],
                                 "hours": row["hours"],
                                 "deadline": "",
+                                "month": task_month(data, db),
                                 "studioStatus": "new",
                                 "mondayStatus": "Ready to Start",
                                 "assigneeId": "",
@@ -187,6 +192,7 @@ class Handler(SimpleHTTPRequestHandler):
                             "shifts": item.get("shifts") or 0,
                             "hours": item.get("hours") or 0,
                             "deadline": "",
+                            "month": item.get("month") or task_month(data, db),
                             "studioStatus": "new",
                             "mondayStatus": item.get("mondayStatus") or "Ready to Start",
                             "assigneeId": "",

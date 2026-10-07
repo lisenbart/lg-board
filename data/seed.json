@@ -10,12 +10,42 @@
     "clientRateUsd": 35
   },
   "people": [
-    { "id": "finance", "name": "Finance", "role": "finance", "color": "#0073ea" },
-    { "id": "manager", "name": "Manager", "role": "manager", "color": "#9d50dd" },
-    { "id": "teamlead", "name": "Team lead", "role": "teamlead", "color": "#fdab3d" },
-    { "id": "designer", "name": "Designer", "role": "designer", "color": "#00c875" },
-    { "id": "designer2", "name": "Designer 2", "role": "designer", "color": "#579bfc" },
-    { "id": "designer3", "name": "Designer 3", "role": "designer", "color": "#ff5ac4" }
+    {
+      "id": "finance",
+      "name": "Finance",
+      "role": "finance",
+      "color": "#0073ea"
+    },
+    {
+      "id": "manager",
+      "name": "Manager",
+      "role": "manager",
+      "color": "#9d50dd"
+    },
+    {
+      "id": "teamlead",
+      "name": "Team lead",
+      "role": "teamlead",
+      "color": "#fdab3d"
+    },
+    {
+      "id": "designer",
+      "name": "Designer",
+      "role": "designer",
+      "color": "#00c875"
+    },
+    {
+      "id": "designer2",
+      "name": "Designer 2",
+      "role": "designer",
+      "color": "#579bfc"
+    },
+    {
+      "id": "designer3",
+      "name": "Designer 3",
+      "role": "designer",
+      "color": "#ff5ac4"
+    }
   ],
   "tasks": [
     {
@@ -36,10 +66,20 @@
       "resultUrl": "https://drive.google.com/drive/folders/1FoSMDTF2vBhyUUtHHQBttNULo1bs-CYU",
       "source": "monday+email",
       "activity": [
-        { "at": "2026-10-06T13:36:00Z", "text": "Orit email: 0.3 shifts" },
-        { "at": "2026-10-06T14:10:00Z", "text": "Pulled from Monday, brief in Doc" },
-        { "at": "2026-10-07T09:20:00Z", "text": "Designer pasted the result" }
-      ]
+        {
+          "at": "2026-10-06T13:36:00Z",
+          "text": "Orit email: 0.3 shifts"
+        },
+        {
+          "at": "2026-10-06T14:10:00Z",
+          "text": "Pulled from Monday, brief in Doc"
+        },
+        {
+          "at": "2026-10-07T09:20:00Z",
+          "text": "Designer pasted the result"
+        }
+      ],
+      "month": "2026-10"
     },
     {
       "id": "t-dd-239-002",
@@ -59,10 +99,20 @@
       "resultUrl": "https://drive.google.com/drive/folders/1aJX-A7np2alJOHLkTmav6gG9Gj8t5NsW",
       "source": "monday+email",
       "activity": [
-        { "at": "2026-10-06T13:36:00Z", "text": "Orit email: 0.3 shifts" },
-        { "at": "2026-10-06T14:12:00Z", "text": "Folder and brief created in _PORTAL_TEST" },
-        { "at": "2026-10-07T10:05:00Z", "text": "Designer pasted the result — ready to send" }
-      ]
+        {
+          "at": "2026-10-06T13:36:00Z",
+          "text": "Orit email: 0.3 shifts"
+        },
+        {
+          "at": "2026-10-06T14:12:00Z",
+          "text": "Folder and brief created in _PORTAL_TEST"
+        },
+        {
+          "at": "2026-10-07T10:05:00Z",
+          "text": "Designer pasted the result — ready to send"
+        }
+      ],
+      "month": "2026-10"
     },
     {
       "id": "t-dd-224-002",
@@ -82,9 +132,16 @@
       "resultUrl": "",
       "source": "monday+email",
       "activity": [
-        { "at": "2026-10-06T13:36:00Z", "text": "Orit email: 0.3 shifts" },
-        { "at": "2026-10-07T08:40:00Z", "text": "Team lead assigned Designer 2" }
-      ]
+        {
+          "at": "2026-10-06T13:36:00Z",
+          "text": "Orit email: 0.3 shifts"
+        },
+        {
+          "at": "2026-10-07T08:40:00Z",
+          "text": "Team lead assigned Designer 2"
+        }
+      ],
+      "month": "2026-10"
     },
     {
       "id": "t-dd-231-002",
@@ -103,7 +160,13 @@
       "docUrl": "",
       "resultUrl": "",
       "source": "monday+email",
-      "activity": [{ "at": "2026-10-06T13:36:00Z", "text": "Orit email: 0.3 shifts" }]
+      "activity": [
+        {
+          "at": "2026-10-06T13:36:00Z",
+          "text": "Orit email: 0.3 shifts"
+        }
+      ],
+      "month": "2026-10"
     },
     {
       "id": "t-dd-228-002",
@@ -122,7 +185,13 @@
       "docUrl": "",
       "resultUrl": "",
       "source": "monday+email",
-      "activity": [{ "at": "2026-10-06T13:36:00Z", "text": "Orit email: 0.3 shifts" }]
+      "activity": [
+        {
+          "at": "2026-10-06T13:36:00Z",
+          "text": "Orit email: 0.3 shifts"
+        }
+      ],
+      "month": "2026-10"
     },
     {
       "id": "t-dd-225-002",
@@ -141,7 +210,13 @@
       "docUrl": "",
       "resultUrl": "",
       "source": "monday+email",
-      "activity": [{ "at": "2026-10-06T13:36:00Z", "text": "Orit email: 0.3 shifts" }]
+      "activity": [
+        {
+          "at": "2026-10-06T13:36:00Z",
+          "text": "Orit email: 0.3 shifts"
+        }
+      ],
+      "month": "2026-10"
     },
     {
       "id": "t-dd-229-002",
@@ -160,7 +235,13 @@
       "docUrl": "",
       "resultUrl": "",
       "source": "monday",
-      "activity": [{ "at": "2026-10-06T12:00:00Z", "text": "Appeared on Monday External Weekly" }]
+      "activity": [
+        {
+          "at": "2026-10-06T12:00:00Z",
+          "text": "Appeared on Monday External Weekly"
+        }
+      ],
+      "month": "2026-10"
     },
     {
       "id": "t-dd-227-002",
@@ -179,7 +260,13 @@
       "docUrl": "",
       "resultUrl": "",
       "source": "monday+email",
-      "activity": [{ "at": "2026-10-06T13:36:00Z", "text": "Orit email: 0.3 shifts" }]
+      "activity": [
+        {
+          "at": "2026-10-06T13:36:00Z",
+          "text": "Orit email: 0.3 shifts"
+        }
+      ],
+      "month": "2026-10"
     },
     {
       "id": "t-dd-233-002",
@@ -198,7 +285,13 @@
       "docUrl": "",
       "resultUrl": "",
       "source": "monday+email",
-      "activity": [{ "at": "2026-10-06T13:36:00Z", "text": "Orit email: 0.3 shifts" }]
+      "activity": [
+        {
+          "at": "2026-10-06T13:36:00Z",
+          "text": "Orit email: 0.3 shifts"
+        }
+      ],
+      "month": "2026-10"
     },
     {
       "id": "t-dd-235-002",
@@ -217,7 +310,13 @@
       "docUrl": "",
       "resultUrl": "",
       "source": "monday+email",
-      "activity": [{ "at": "2026-10-06T13:36:00Z", "text": "Orit email: 0.3 shifts" }]
+      "activity": [
+        {
+          "at": "2026-10-06T13:36:00Z",
+          "text": "Orit email: 0.3 shifts"
+        }
+      ],
+      "month": "2026-10"
     },
     {
       "id": "t-dx-0225-002",
@@ -236,7 +335,13 @@
       "docUrl": "",
       "resultUrl": "",
       "source": "monday",
-      "activity": [{ "at": "2026-10-05T11:00:00Z", "text": "Team lead assigned Designer" }]
+      "activity": [
+        {
+          "at": "2026-10-05T11:00:00Z",
+          "text": "Team lead assigned Designer"
+        }
+      ],
+      "month": "2026-10"
     },
     {
       "id": "t-dx-0215-002",
@@ -256,8 +361,12 @@
       "resultUrl": "https://drive.google.com/drive/folders/1ulNcDzMwA73xa4Nx9OPY2xtnwNUkUhZr",
       "source": "monday+email",
       "activity": [
-        { "at": "2026-10-06T19:40:00Z", "text": "Designer 3 pasted the result" }
-      ]
+        {
+          "at": "2026-10-06T19:40:00Z",
+          "text": "Designer 3 pasted the result"
+        }
+      ],
+      "month": "2026-10"
     },
     {
       "id": "t-dx-0222-003",
@@ -276,7 +385,13 @@
       "docUrl": "",
       "resultUrl": "",
       "source": "monday",
-      "activity": [{ "at": "2026-10-06T18:00:00Z", "text": "On Monday: WIP" }]
+      "activity": [
+        {
+          "at": "2026-10-06T18:00:00Z",
+          "text": "On Monday: WIP"
+        }
+      ],
+      "month": "2026-10"
     },
     {
       "id": "t-dx-231-002",
@@ -296,13 +411,26 @@
       "resultUrl": "https://drive.google.com/drive/folders/1ebZZm5szIjdEimc8ojtNxIfBMYfhAYn8",
       "source": "monday+email",
       "activity": [
-        { "at": "2026-10-05T17:16:00Z", "text": "Designer 2 pasted the result" },
-        { "at": "2026-10-06T11:00:00Z", "text": "Sent to Monday: check it please + Senior Approval" }
-      ]
+        {
+          "at": "2026-10-05T17:16:00Z",
+          "text": "Designer 2 pasted the result"
+        },
+        {
+          "at": "2026-10-06T11:00:00Z",
+          "text": "Sent to Monday: check it please + Senior Approval"
+        }
+      ],
+      "month": "2026-10"
     }
   ],
   "events": [
-    { "at": "2026-10-06T13:36:00Z", "text": "Orit sent the October HC pack — 10 DD tasks at 0.3 shift" },
-    { "at": "2026-10-07T10:05:00Z", "text": "3 tasks ready to send to Monday one by one, without waiting for the rest" }
+    {
+      "at": "2026-10-06T13:36:00Z",
+      "text": "Orit sent the October HC pack — 10 DD tasks at 0.3 shift"
+    },
+    {
+      "at": "2026-10-07T10:05:00Z",
+      "text": "3 tasks ready to send to Monday one by one, without waiting for the rest"
+    }
   ]
 }

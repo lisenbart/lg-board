@@ -23,6 +23,8 @@ const STATUS_BY_ROLE = {
   finance: ["new", "wip", "revision", "done", "approve"],
 };
 
+const MONTH_KEY = "lg-month";
+
 const state = {
   db: null,
   roleId: "finance",
@@ -30,6 +32,7 @@ const state = {
   selected: new Set(),
   openId: null,
   designerFilter: null,
+  month: "2026-10",
 };
 const $ = (id) => document.getElementById(id);
 
@@ -93,9 +96,33 @@ async function api(path, payload) {
   return res.json();
 }
 
+function calendarMonth() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+function shiftMonth(ym, delta) {
+  const [y, m] = ym.split("-").map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+function monthLabel(ym) {
+  const [y, m] = ym.split("-").map(Number);
+  return new Date(y, m - 1, 1).toLocaleString("en-US", { month: "long", year: "numeric" });
+}
+function driveMonthFolder(ym) {
+  const [y, m] = ym.split("-").map(Number);
+  const name = new Date(y, m - 1, 1).toLocaleString("en-US", { month: "long" });
+  return `${String(m).padStart(2, "0")}_${name}`;
+}
+function taskMonth(t) {
+  return t.month || (t.deadline && String(t.deadline).slice(0, 7)) || state.db?.meta?.month || state.month;
+}
+function monthTasks() {
+  return state.db.tasks.filter((t) => taskMonth(t) === state.month);
+}
 function visibleTasks() {
   const q = (document.querySelector(".search")?.value || "").toLowerCase();
-  return state.db.tasks.filter((t) => {
+  return monthTasks().filter((t) => {
     if (q && !`${t.name} ${t.brief}`.toLowerCase().includes(q)) return false;
     if (isDesigner() && t.assigneeId !== me().id) return false;
     if (!isDesigner() && state.designerFilter) {
@@ -118,8 +145,28 @@ function renderWho() {
     .join("");
 }
 
+function renderMonth() {
+  const here = state.month === calendarMonth();
+  $("monthLabel").textContent = monthLabel(state.month);
+  $("monthMeta").textContent = here
+    ? `This month · Drive ${driveMonthFolder(state.month)}`
+    : `Drive ${driveMonthFolder(state.month)}`;
+  $("monthLabel").parentElement.classList.toggle("this-month", here);
+  const nav = $("navClose");
+  if (nav) nav.textContent = monthLabel(state.month);
+}
+
+function setMonth(ym) {
+  state.month = ym;
+  state.selected.clear();
+  state.designerFilter = null;
+  localStorage.setItem(MONTH_KEY, ym);
+  render();
+}
+
 function renderChrome() {
   $("financeNav").hidden = !isFinance();
+  renderMonth();
   $("roleHint").textContent = isDesigner()
     ? "Your queue only. Set WIP or Done and paste the result. You cannot send to Monday."
     : canAssign()
@@ -192,14 +239,15 @@ function renderKpis() {
     `;
     return;
   }
-  const hours = state.db.tasks.reduce((s, t) => s + (Number(t.hours) || 0), 0);
-  const ready = state.db.tasks.filter((t) => t.studioStatus === "done").length;
+  const month = monthTasks();
+  const hours = month.reduce((s, t) => s + (Number(t.hours) || 0), 0);
+  const ready = month.filter((t) => t.studioStatus === "done").length;
   const money = isFinance()
     ? `<div class="kpi"><b>$${(hours * 35).toFixed(0)}</b><span>invoice draft × $35</span></div>`
     : "";
   $("kpis").innerHTML = `
-    <div class="kpi"><b>${state.db.tasks.length}</b><span>projects</span></div>
-    <div class="kpi"><b>${hours.toFixed(1)} h</b><span>hours in pipeline</span></div>
+    <div class="kpi"><b>${month.length}</b><span>projects · ${monthLabel(state.month)}</span></div>
+    <div class="kpi"><b>${hours.toFixed(1)} h</b><span>hours in ${monthLabel(state.month)}</span></div>
     <div class="kpi"><b>${ready}</b><span>Done, waiting to send</span></div>
     ${money}
   `;
@@ -255,7 +303,7 @@ function renderLoad() {
   }
   box.hidden = false;
   const people = designers();
-  const tasks = state.db.tasks;
+  const tasks = monthTasks();
   const rows = people.map((p) => {
     const mine = tasks.filter((t) => t.assigneeId === p.id);
     const hours = mine.reduce((s, t) => s + (Number(t.hours) || 0), 0);
@@ -342,7 +390,9 @@ function renderBoard() {
               })
               .join("")
           : `<div class="cell empty" style="padding:12px 16px">${
-              isDesigner() ? "Nothing assigned to you yet" : "Nothing here"
+              isDesigner()
+                ? `Nothing assigned to you in ${monthLabel(state.month)}`
+                : `No projects in ${monthLabel(state.month)} yet. Pull from Monday or paste a shift email.`
             }</div>`
       }
     </section>`;
@@ -489,10 +539,11 @@ function renderClose() {
     render();
     return;
   }
+  const month = monthTasks();
   const byLine = { DD: 0, DX: 0, DS: 0 };
-  for (const t of state.db.tasks) byLine[t.line] = (byLine[t.line] || 0) + (Number(t.hours) || 0);
+  for (const t of month) byLine[t.line] = (byLine[t.line] || 0) + (Number(t.hours) || 0);
   const people = {};
-  for (const t of state.db.tasks) {
+  for (const t of month) {
     if (!t.assigneeId) continue;
     const p = person(t.assigneeId);
     if (!p || p.role !== "designer") continue;
@@ -500,7 +551,7 @@ function renderClose() {
   }
   $("board").innerHTML = `
     <section class="group" style="padding:18px">
-      <h2 style="margin:0 0 8px">Finance · October</h2>
+      <h2 style="margin:0 0 8px">Finance · ${monthLabel(state.month)}</h2>
       <p style="color:#676879">Designers and the manager do not see this. Client invoice and people hours after the 15th.</p>
       <div class="kpis" style="padding:0 0 16px">
         <div class="kpi"><b>${byLine.DD.toFixed(1)} h</b><span>DD × $35 = $${(byLine.DD * 35).toFixed(0)}</span></div>
@@ -627,7 +678,7 @@ async function updateTask(id, patch) {
   if (state.openId && $("drawerBg").classList.contains("show")) openTask(id);
 }
 async function importMonday() {
-  const out = await api("/api/import-monday", {});
+  const out = await api("/api/import-monday", { month: state.month });
   applyState(out.state);
   toast(out.added ? `Pulled ${out.added} new from Monday` : "Nothing new");
 }
@@ -649,6 +700,8 @@ async function exportMonday() {
 }
 async function resetDemo() {
   const out = await api("/api/reset", {});
+  state.month = out.meta?.month || "2026-10";
+  localStorage.setItem(MONTH_KEY, state.month);
   applyState(out);
   toast("Demo reset");
 }
@@ -668,6 +721,10 @@ function render() {
   renderBoard();
 }
 
+$("monthPrev").addEventListener("click", () => setMonth(shiftMonth(state.month, -1)));
+$("monthNext").addEventListener("click", () => setMonth(shiftMonth(state.month, 1)));
+$("monthLabel").addEventListener("click", () => setMonth(calendarMonth()));
+
 $("who").addEventListener("change", (e) => {
   state.roleId = e.target.value;
   state.selected.clear();
@@ -682,7 +739,7 @@ $("navClose").addEventListener("click", () => {
 });
 $("emailCancel").onclick = () => $("emailModal").classList.remove("show");
 $("emailApply").onclick = async () => {
-  const out = await api("/api/parse-email", { text: $("emailText").value });
+  const out = await api("/api/parse-email", { text: $("emailText").value, month: state.month });
   applyState(out.state);
   $("emailModal").classList.remove("show");
   toast(`Email: ${out.added} new, ${out.updated} shifts updated`);
@@ -693,5 +750,6 @@ $("drawerBg").addEventListener("click", (e) => {
 
 api("/api/state").then((db) => {
   state.db = db;
+  state.month = localStorage.getItem(MONTH_KEY) || calendarMonth() || db.meta?.month || "2026-10";
   render();
 });

@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/assets/board.css?v=8" />
+  <link rel="stylesheet" href="/assets/board.css?v=9" />
 </head>
 <body>
   <div class="app">
@@ -36,6 +36,14 @@
         <div class="top-row">
           <h1 class="board-title">SUPERPLAY MGX</h1>
           <span class="pill dep-MGX">MGX</span>
+          <div class="month-switch" id="monthSwitch">
+            <button type="button" class="month-btn" id="monthPrev" title="Previous month">‹</button>
+            <div class="month-now">
+              <strong id="monthLabel">October 2026</strong>
+              <small id="monthMeta"></small>
+            </div>
+            <button type="button" class="month-btn" id="monthNext" title="Next month">›</button>
+          </div>
           <div class="who" style="margin-left:auto">
             <span style="font-size:12px;color:#676879">I am</span>
             <select id="who"></select>
@@ -69,6 +77,6 @@
   </div>
 
   <div class="toast" id="toast"></div>
-  <script src="/assets/app.js?v=8"></script>
+  <script src="/assets/app.js?v=9"></script>
 </body>
 </html>
