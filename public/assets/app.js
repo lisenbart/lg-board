@@ -1,9 +1,9 @@
 const STATUS = {
-  new: { label: "New", cls: "status-new", order: 1 },
-  wip: { label: "In progress", cls: "status-wip", order: 2 },
-  revision: { label: "Revision", cls: "status-revision", order: 3 },
+  new: { label: "Ready to Start", cls: "status-new", order: 1 },
+  wip: { label: "WIP", cls: "status-wip", order: 2 },
+  revision: { label: "Need Fixing", cls: "status-revision", order: 3 },
   done: { label: "Done", cls: "status-done", order: 4 },
-  approve: { label: "Sent", cls: "status-approve", order: 5 },
+  approve: { label: "Senior Approval", cls: "status-approve", order: 5 },
 };
 
 const ROLE_LABEL = {
@@ -154,7 +154,7 @@ function renderKpis() {
     const active = tasks.filter((t) => t.studioStatus === "wip" || t.studioStatus === "revision").length;
     $("kpis").innerHTML = `
       <div class="kpi"><b>${tasks.length}</b><span>assigned to me</span></div>
-      <div class="kpi"><b>${active}</b><span>in progress / revision</span></div>
+      <div class="kpi"><b>${active}</b><span>WIP / Need Fixing</span></div>
       <div class="kpi"><b>${hours.toFixed(1)} h</b><span>my hours this month</span></div>
     `;
     return;

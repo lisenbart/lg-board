@@ -4,7 +4,9 @@ Online portal for **SUPERPLAY MGX**. The client stays on Monday (`External Weekl
 
 One list, not Monday groups. Projects stay in a single table and are sorted by studio status so the same mark sits together:
 
-**New → In progress → Revision → Done → Sent**
+**Ready to Start → WIP → Need Fixing → Done → Senior Approval**
+
+Same names and colors as Superplay’s Monday `External Weekly`. Studio-only step: designer marks **Done** here; manager send turns it into **Senior Approval** on Monday.
 
 ## What v1 does (sandbox)
 
@@ -20,7 +22,7 @@ Also:
 - **Pull from Monday** — demo import (no Monday token yet).
 - **Shift email** — Orit format: `NAME | 0.3 shifts`. Hours = shift × 9.
 - Designer sets status and pastes the result link.
-- **Send to client** on selected projects (2 of 10 is fine) → `check it please` + Senior Approval. Studio mark becomes **Sent**.
+- **Send to client** on selected projects (2 of 10 is fine) → `check it please` + **Senior Approval**.
 - Month-close draft (finance only): DD/DX hours × $35 and people hours @ $15.
 - Test folders only in Drive [`_PORTAL_TEST`](https://drive.google.com/drive/folders/1HY7vcxR5Tmot5RNJyQ2ZeImD9J4BOuX8). Live `Projects / 10_October` is untouched.
 

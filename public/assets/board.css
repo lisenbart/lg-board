@@ -8,7 +8,7 @@
   --blue-hover: #0060b9;
   --orange: #fdab3d;
   --green: #00c875;
-  --red: #e2445c;
+  --red: #bb3354;
   --purple: #a25ddc;
   --sky: #66ccff;
   --pink: #ff5ac4;
@@ -151,10 +151,10 @@ a { color: var(--blue); }
   border-left: 1px solid #eceef5;
 }
 .cols.ops .meta, .row.ops .meta {
-  grid-template-columns: 52px 92px 158px 118px 56px 64px;
+  grid-template-columns: 52px 92px 158px 154px 56px 64px;
 }
 .cols.exec .meta, .row.exec .meta {
-  grid-template-columns: 158px 92px 56px 64px 118px;
+  grid-template-columns: 158px 92px 56px 64px 154px;
 }
 .col-splitter {
   position: absolute;
@@ -247,11 +247,23 @@ body.col-resizing * { cursor: col-resize !important; }
 }
 .toast.show { display: block; }
 
-.status-new { background: var(--orange); color: #3a2a00; }
-.status-wip { background: var(--wip); }
-.status-revision { background: var(--red); }
-.status-done { background: var(--green); color: #083; }
-.status-approve { background: var(--sky); color: #034; }
+.status-new,
+.status-wip,
+.status-revision,
+.status-done,
+.status-approve {
+  width: 100%;
+  justify-content: center;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  padding: 6px 8px;
+  color: #fff;
+}
+.status-new { background: #fdab3d; }
+.status-wip { background: #579bfc; }
+.status-revision { background: #bb3354; }
+.status-done { background: #00c875; }
+.status-approve { background: #66ccff; }
 .row.status-gap { box-shadow: inset 0 12px 0 var(--bg); }
 .line-DD { background: var(--green); color: #043; }
 .line-DX { background: var(--purple); }
