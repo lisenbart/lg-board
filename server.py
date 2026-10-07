@@ -141,6 +141,30 @@ class Handler(SimpleHTTPRequestHandler):
             force = (qs.get("refresh") or [""])[0] in {"1", "true", "yes"}
             self._json(200, finance_io.fetch_nbu(force=force))
             return
+        if path == "/api/finance/invoices":
+            qs = parse_qs(urlparse(self.path).query)
+            month = (qs.get("month") or [""])[0] or load_db().get("meta", {}).get("month") or "2026-10"
+            self._json(200, finance_io.list_invoices(month))
+            return
+        if path == "/api/finance/invoice/file":
+            qs = parse_qs(urlparse(self.path).query)
+            month = (qs.get("month") or [""])[0] or "2026-10"
+            name = (qs.get("name") or [""])[0]
+            try:
+                fpath = finance_io.resolve_invoice_file(month, name)
+            except ValueError:
+                self._json(400, {"error": "bad invoice file name"})
+                return
+            except FileNotFoundError:
+                self.send_error(404, "invoice file missing")
+                return
+            ctype = (
+                "application/pdf"
+                if fpath.suffix == ".pdf"
+                else "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            )
+            self._bytes(fpath.read_bytes(), ctype, fpath.name)
+            return
         if path == "/api/finance/calculator":
             xlsx = finance_io.CALC_PATH
             if not xlsx.exists():
@@ -460,13 +484,13 @@ class Handler(SimpleHTTPRequestHandler):
                 if not row or not row["hours"]:
                     self._json(400, {"error": f"no {line} hours this month"})
                     return
-                blob = finance_io.build_invoice(line, row["hours"], row["bill"])
-                name = finance_io.invoice_filename(line)
-                self._bytes(
-                    blob,
-                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                    name,
+                pack = finance_io.issue_invoice(line, row["hours"], row["bill"], month)
+                pack["message"] = (
+                    f"Wrote {pack['folder']}: {pack['docxName']}"
+                    + (f" + {pack['pdfName']}" if pack.get("pdfName") else "")
+                    + ". Sign the PDF and send."
                 )
+                self._json(200, pack)
                 return
             if path == "/api/finance/save":
                 if (data.get("role") or "") != "finance":
@@ -639,6 +663,7 @@ def _monday_fixture() -> list[dict]:
 
 def main() -> None:
     load_db()
+    ThreadingHTTPServer.allow_reuse_address = True
     httpd = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
     print(f"LG Board http://127.0.0.1:{PORT}", flush=True)
     httpd.serve_forever()

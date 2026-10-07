@@ -1,24 +1,46 @@
 """SUPERPLAY MGX calculator + Superplay invoice (Word), from the studio files."""
 from __future__ import annotations
 
+import os
+import re
+import shutil
+import subprocess
+import tempfile
 import time
+import zipfile
 from datetime import datetime, timedelta, timezone
 from io import BytesIO
 from pathlib import Path
 from urllib.request import urlopen, Request
 from urllib.error import URLError
 
-from docx import Document
-from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.oxml.ns import qn
-from docx.oxml import OxmlElement
-from docx.shared import Cm, Pt, RGBColor
 from openpyxl import load_workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
 ROOT = Path(__file__).resolve().parent
 CALC_PATH = ROOT / "data" / "finance" / "SUPERPLAY_MGX_Calculator.xlsx"
+TEMPLATE_DIR = ROOT / "data" / "finance" / "templates"
+INVOICES_DIR = ROOT / "data" / "invoices"
+ICLOUD_MGX = (
+    Path.home()
+    / "Library/Mobile Documents/com~apple~CloudDocs/Lisenbart"
+    / "ACCOUNTING/LISENBART GAMES/LLC/docs/_clients/SUPERPLAY/invoice/MGX"
+)
+W_T = re.compile(r"(<w:t(?:\s[^>]*)?>)(.*?)(</w:t>)", re.DOTALL)
+W_P = re.compile(r"<w:p[ >].*?</w:p>", re.DOTALL)
+CHROME_BINS = [
+    "/usr/local/bin/google-chrome",
+    "/usr/bin/google-chrome",
+    "/usr/bin/chromium",
+    "/usr/bin/chromium-browser",
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+]
+SOFFICE_BINS = [
+    "/usr/bin/soffice",
+    "/usr/bin/lowriter",
+    "/Applications/LibreOffice.app/Contents/MacOS/soffice",
+]
 NBU_URL = "https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?valcode=USD&json"
 TAX_PCT = 0.05
 CLIENT_RATE = 35.0
@@ -251,118 +273,384 @@ def snapshot(db: dict, month: str, nbu: dict | None = None) -> dict:
     }
 
 
-def _set_run_font(run, size=11, bold=False, name="Times New Roman"):
-    run.font.size = Pt(size)
-    run.font.bold = bold
-    run.font.name = name
-    run._element.rPr.rFonts.set(qn("w:eastAsia"), name)
+PDF_HTML = """<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+@page { size: A4; margin: 16mm 18mm; }
+html, body { margin: 0; padding: 0; color: #000;
+  font-family: "Times New Roman", Times, serif; font-size: 10.5pt; }
+p { margin: 0.35em 0; }
+table { border-collapse: collapse; width: 100%; margin: 8px 0; }
+td, th { border: 1px solid #000; padding: 4px 6px; text-align: center; vertical-align: middle; }
+</style></head><body>__BODY__</body></html>
+"""
+INVOICE_NAME = re.compile(r"^invoice[A-Z]{2}_\d{4}\.\d{2}\.\d{2}\.(docx|pdf)$")
 
 
-def _shade(cell, hex_color: str) -> None:
-    tc = cell._tc
-    tcPr = tc.get_or_add_tcPr()
-    shd = OxmlElement("w:shd")
-    shd.set(qn("w:fill"), hex_color)
-    shd.set(qn("w:val"), "clear")
-    tcPr.append(shd)
+def now_kyiv() -> datetime:
+    try:
+        from zoneinfo import ZoneInfo
+
+        return datetime.now(ZoneInfo("Europe/Kyiv"))
+    except Exception:
+        return datetime.now(timezone(timedelta(hours=3)))
 
 
-def _set_cell(cell, text, *, bold=False, center=False, size=10):
-    cell.text = ""
-    p = cell.paragraphs[0]
-    if center:
-        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = p.add_run(str(text))
-    _set_run_font(run, size=size, bold=bold)
+def month_folder_name(ym: str) -> str:
+    y, m = [int(x) for x in ym.split("-")]
+    return f"{m:02d}_{datetime(y, m, 1).strftime('%B')}"
+
+
+def invoice_filename(line: str, when: datetime | None = None, ext: str = "docx") -> str:
+    when = when or now_kyiv()
+    return f"invoice{line}_{when.strftime('%Y.%m.%d')}.{ext}"
+
+
+def _plain_wt(xml: str) -> str:
+    return "".join(m.group(2) for m in W_T.finditer(xml))
+
+
+def _replace_in_xml(xml: str, old: str, new: str) -> str:
+    if not old or old == new:
+        return xml
+    if old in xml:
+        return xml.replace(old, new)
+
+    def para(match: re.Match) -> str:
+        block = match.group(0)
+        runs = list(W_T.finditer(block))
+        joined = "".join(r.group(2) for r in runs)
+        if old not in joined:
+            return block
+        joined = joined.replace(old, new)
+        seen = 0
+
+        def put(tm: re.Match) -> str:
+            nonlocal seen
+            seen += 1
+            if seen == 1:
+                return tm.group(1) + joined + tm.group(3)
+            return tm.group(1) + tm.group(3)
+
+        return W_T.sub(put, block)
+
+    return W_P.sub(para, xml)
+
+
+def _detect_tokens(xml: str) -> dict:
+    plain = _plain_wt(xml)
+    tok: dict = {}
+    m = re.search(r"Invoice\s*/\s*№\s*([A-Z]{2}\s+\d{2}/\d{2})", plain)
+    if m:
+        tok["number"] = m.group(1)
+    m = re.search(r"Date and Place:\s*(\d{2}\.\d{2}\.\d{4})", plain)
+    if m:
+        tok["date"] = m.group(1)
+    m = re.search(r"not later than\s*(\d{2}\.\d{2}\.\d{4})", plain)
+    if m:
+        tok["pay_by"] = m.group(1)
+    m = re.search(r"(\d+[.,]\d+)\s*h", plain)
+    if m:
+        tok["hours"] = m.group(0)
+    m = re.search(
+        r"goods/services\s*:?\s*(\d+(?:[.,]\d+)?)\s*USD",
+        plain,
+        re.I,
+    )
+    if m:
+        tok["amount"] = f"{m.group(1)} USD"
+    else:
+        totals = [
+            a
+            for a in re.findall(r"(\d+(?:[.,]\d+)?)\s*USD", plain)
+            if a not in {"35"} and "per hour" not in a
+        ]
+        if totals:
+            tok["amount"] = f"{totals[-1]} USD"
+    m = re.search(r"Total to pay/\s*(.+?United States dollars \d{2} cents)", plain)
+    if m:
+        tok["words"] = m.group(1).strip()
+    m = re.search(r"Marketing video and design for ([A-Z]{2})", plain)
+    if m:
+        tok["line"] = m.group(1)
+    return tok
+
+
+def format_hours(hours: float, sample: str = "") -> str:
+    sep = "," if "," in (sample or "0,0") else "."
+    return f"{hours:.1f}".replace(".", sep) + " h"
+
+
+def format_amount(amount: float) -> str:
+    if abs(amount - round(amount)) < 0.005:
+        return f"{int(round(amount))} USD"
+    return f"{round(amount, 2):.2f} USD"
+
+
+def template_path(line: str) -> Path:
+    line = (line or "DD").upper()
+    key = "DD" if line == "DS" else line
+    if ICLOUD_MGX.exists():
+        found = sorted(
+            ICLOUD_MGX.glob(f"*/invoice{key}_*.docx"),
+            key=lambda p: p.stat().st_mtime,
+        )
+        if found:
+            return found[-1]
+    bundled = TEMPLATE_DIR / f"invoice{key}.docx"
+    if bundled.exists():
+        return bundled
+    other = TEMPLATE_DIR / "invoiceDD.docx"
+    if other.exists():
+        return other
+    raise FileNotFoundError(
+        f"Superplay invoice template missing for {key}. Put invoice{key}.docx in {TEMPLATE_DIR}"
+    )
+
+
+def clone_invoice(line: str, hours: float, amount: float, when: datetime | None = None) -> bytes:
+    line = (line or "DD").upper()
+    when = when or now_kyiv()
+    src = template_path(line).read_bytes()
+    zin = zipfile.ZipFile(BytesIO(src))
+    xmls = {}
+    for name in zin.namelist():
+        if name.startswith("word/") and name.endswith(".xml"):
+            xmls[name] = zin.read(name).decode("utf-8")
+    body = xmls.get("word/document.xml", "")
+    tok = _detect_tokens(body)
+    amt_s = format_amount(amount)
+    hours_s = format_hours(hours, tok.get("hours") or "")
+    words = usd_in_words(amount)
+    replacements = [
+        (tok.get("words") or "", words),
+        (tok.get("hours") or "", hours_s),
+        (tok.get("amount") or "", amt_s),
+        (tok.get("number") or "", f"{line} {when.strftime('%d/%m')}"),
+        (tok.get("date") or "", when.strftime("%d.%m.%Y")),
+        (tok.get("pay_by") or "", (when + timedelta(days=21)).strftime("%d.%m.%Y")),
+        (
+            f"Marketing video and design for {tok.get('line') or line}",
+            f"Marketing video and design for {line}",
+        ),
+    ]
+    replacements.sort(key=lambda p: len(p[0]), reverse=True)
+    for name, xml in list(xmls.items()):
+        for old, new in replacements:
+            xml = _replace_in_xml(xml, old, new)
+        xmls[name] = xml
+    out = BytesIO()
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zout:
+        for item in zin.infolist():
+            data = xmls[item.filename].encode("utf-8") if item.filename in xmls else zin.read(item.filename)
+            zout.writestr(item, data)
+    return out.getvalue()
 
 
 def build_invoice(line: str, hours: float, amount: float, when: datetime | None = None) -> bytes:
+    return clone_invoice(line, hours, amount, when)
+
+
+def invoice_destinations(ym: str) -> list[Path]:
+    folder = month_folder_name(ym)
+    dests: list[Path] = []
+    env = (os.environ.get("LISENBART_INVOICE_DIR") or "").strip()
+    if env:
+        dests.append(Path(env).expanduser() / folder)
+    if ICLOUD_MGX.exists():
+        dests.append(ICLOUD_MGX / folder)
+    dests.append(INVOICES_DIR / folder)
+    seen: set[str] = set()
+    unique: list[Path] = []
+    for path in dests:
+        key = str(path)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(path)
+    return unique
+
+
+def primary_invoice_dir(ym: str) -> Path:
+    dests = invoice_destinations(ym)
+    for path in dests:
+        if path.exists():
+            return path
+    return dests[-1]
+
+
+def _which(path: str) -> str | None:
+    p = Path(path)
+    if p.exists():
+        return str(p)
+    found = shutil.which(path)
+    return found
+
+
+def docx_to_pdf(docx_bytes: bytes, pdf_path: Path) -> bytes:
+    pdf_path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_p = Path(tmp)
+        src = tmp_p / "invoice.docx"
+        src.write_bytes(docx_bytes)
+        for binary in SOFFICE_BINS:
+            exe = _which(binary)
+            if not exe:
+                continue
+            try:
+                subprocess.run(
+                    [exe, "--headless", "--convert-to", "pdf", "--outdir", str(tmp_p), str(src)],
+                    check=True,
+                    timeout=60,
+                    capture_output=True,
+                )
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
+                continue
+            produced = tmp_p / "invoice.pdf"
+            if produced.exists() and produced.stat().st_size > 200:
+                data = produced.read_bytes()
+                pdf_path.write_bytes(data)
+                return data
+        try:
+            import mammoth
+        except ImportError:
+            return b""
+        with src.open("rb") as fh:
+            html_body = mammoth.convert_to_html(fh).value
+        html = PDF_HTML.replace("__BODY__", html_body)
+        dest = tmp_p / "invoice.pdf"
+        try:
+            from weasyprint import HTML as WeasyHTML
+
+            WeasyHTML(string=html, base_url=str(tmp_p)).write_pdf(dest)
+        except Exception:
+            dest.unlink(missing_ok=True)
+        if dest.exists() and dest.stat().st_size > 200:
+            data = dest.read_bytes()
+            pdf_path.write_bytes(data)
+            return data
+        chrome = next((p for p in (_which(b) for b in CHROME_BINS) if p), None)
+        if not chrome:
+            return b""
+        html_path = tmp_p / "invoice.html"
+        html_path.write_text(html, encoding="utf-8")
+        profile = tmp_p / "chrome-profile"
+        profile.mkdir(exist_ok=True)
+        try:
+            subprocess.run(
+                [
+                    chrome,
+                    "--headless=new",
+                    "--disable-gpu",
+                    "--no-sandbox",
+                    "--disable-dev-shm-usage",
+                    f"--user-data-dir={profile}",
+                    "--no-pdf-header-footer",
+                    f"--print-to-pdf={dest}",
+                    html_path.as_uri(),
+                ],
+                check=True,
+                timeout=20,
+                capture_output=True,
+            )
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
+            return b""
+        if dest.exists() and dest.stat().st_size > 200:
+            data = dest.read_bytes()
+            pdf_path.write_bytes(data)
+            return data
+    return b""
+
+
+def issue_invoice(
+    line: str,
+    hours: float,
+    amount: float,
+    month: str,
+    when: datetime | None = None,
+) -> dict:
     line = (line or "DD").upper()
-    when = when or datetime.now(timezone.utc)
-    pay_by = when + timedelta(days=21)
-    dmy = when.strftime("%d.%m.%Y")
-    num = f"{line} {when.strftime('%d/%m')}"
-    hours_s = f"{hours:.1f}".replace(".", ",")
-    amt = int(round(amount)) if abs(amount - round(amount)) < 0.005 else round(amount, 2)
-    amt_s = f"{amt} USD" if isinstance(amt, int) else f"{amt:.2f} USD"
-    words = usd_in_words(amount if not isinstance(amt, int) else amt)
-    desc = f"Marketing video and design for {line}"
-
-    doc = Document()
-    section = doc.sections[0]
-    section.top_margin = Cm(1.6)
-    section.bottom_margin = Cm(1.6)
-    section.left_margin = Cm(1.8)
-    section.right_margin = Cm(1.8)
-
-    title = doc.add_paragraph()
-    title.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = title.add_run(f"Invoice / № {num}")
-    _set_run_font(run, size=16, bold=True)
-
-    head = doc.add_table(rows=8, cols=1)
-    head.style = "Table Grid"
-    blocks = [
-        f"Date and Place: {dmy}, Kyiv",
-        "Supplier Private Entrepreneur Dmytro Viacheslavovych Lisenbart ITN (Individual Taxpayer Number): 2750612938 SRN (State Registration Number): 20690000000046690 Address: vul.Pryrichna 9-А, kv.81, Kyiv 04213, Ukraine",
-        "Customer: SuperPlay Ltd Israel",
-        "Subject matter: Marketing animation video",
-        "Currency: USD",
-        f"Price (amount) of the goods/services : {amt_s}",
-        "Terms of payments and acceptation: Postpayment of 100% upon the services delivery. The services being rendered at the location of the Customer.",
-        "Customer Bank information: Beneficiary's bank: JSC UNIVERSAL BANK IBAN: UA723220010000026000300061506 SWIFT: UNJSUAUKXXX",
+    when = when or now_kyiv()
+    docx_bytes = clone_invoice(line, hours, amount, when)
+    docx_name = invoice_filename(line, when, "docx")
+    pdf_name = invoice_filename(line, when, "pdf")
+    dests = invoice_destinations(month)
+    written: list[Path] = []
+    pdf_bytes = b""
+    for dest in dests:
+        dest.mkdir(parents=True, exist_ok=True)
+        docx_path = dest / docx_name
+        docx_path.write_bytes(docx_bytes)
+        written.append(docx_path)
+        pdf_path = dest / pdf_name
+        if not pdf_bytes:
+            pdf_bytes = docx_to_pdf(docx_bytes, pdf_path)
+        elif pdf_bytes:
+            pdf_path.write_bytes(pdf_bytes)
+        if pdf_path.exists():
+            written.append(pdf_path)
+    primary = dests[0] if dests[0].exists() else dests[-1]
+    files = [
+        {
+            "name": docx_name,
+            "url": f"/api/finance/invoice/file?month={month}&name={docx_name}",
+            "kind": "docx",
+        }
     ]
-    for i, text in enumerate(blocks):
-        _set_cell(head.cell(i, 0), text, center=True, size=10)
-
-    doc.add_paragraph()
-    grid = doc.add_table(rows=4, cols=5)
-    grid.style = "Table Grid"
-    headers = ["№", "Description", "Quantity", "Price, USD", "Amount, USD"]
-    for i, h in enumerate(headers):
-        _set_cell(grid.cell(0, i), h, bold=True, center=True, size=10)
-        _shade(grid.cell(0, i), "D9D9D9")
-    _set_cell(grid.cell(1, 0), "1", center=True)
-    _set_cell(grid.cell(1, 1), desc, center=True)
-    _set_cell(grid.cell(1, 2), f"{hours_s} h", center=True)
-    _set_cell(grid.cell(1, 3), amt_s, center=True)
-    _set_cell(grid.cell(1, 4), amt_s, center=True)
-    _set_cell(grid.cell(2, 3), "Total", bold=True, center=True)
-    _set_cell(grid.cell(2, 4), amt_s, bold=True, center=True)
-    merged = grid.cell(3, 0).merge(grid.cell(3, 3))
-    _set_cell(merged, f"Total to pay/ {words}", center=True, size=9)
-    _set_cell(grid.cell(3, 4), amt_s, bold=True, center=True)
-
-    notes = [
-        "All charges of correspondent banks are at the Supplier’s expenses",
-        f"This Invoice is an offer to enter into the agreement. Payment according hereto shall be deemed as an acceptation of the offer to enter into the agreement on the terms and conditions set out herein. Payment according hereto may be made not later than {pay_by.strftime('%d.%m.%Y')}",
-        "Please note, that payment according hereto at the same time is the evidence of the work performance and the service delivery in full scope, acceptation thereof and the confirmation of final mutual installments between Parties",
-        "Payment according hereto shall be also the confirmation that Parties have no claims to each other and have no intention to submit any claims. The agreement shall not include penalty and fine clauses",
-        "The Parties shall not be liable for non-performance or improper performance of the obligations under the agreement during the term of insuperable force circumstances.",
-        "Any disputes arising out of the agreement between the Parties shall be settled by the competent court at the location of a defendant.",
-    ]
-    for text in notes:
-        p = doc.add_paragraph()
-        run = p.add_run(text)
-        _set_run_font(run, size=9)
-
-    sign = doc.add_paragraph()
-    run = sign.add_run("Supplier: _______________________ ( Lisenbart Dmytro )")
-    _set_run_font(run, size=11)
-    ver = doc.add_paragraph()
-    ver.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    run = ver.add_run("v 1.0")
-    _set_run_font(run, size=9)
-    run.font.color.rgb = RGBColor(0x88, 0x88, 0x88)
-
-    buf = BytesIO()
-    doc.save(buf)
-    return buf.getvalue()
+    if pdf_bytes:
+        files.append(
+            {
+                "name": pdf_name,
+                "url": f"/api/finance/invoice/file?month={month}&name={pdf_name}",
+                "kind": "pdf",
+            }
+        )
+    return {
+        "ok": True,
+        "folder": month_folder_name(month),
+        "folderPath": str(primary),
+        "docxName": docx_name,
+        "pdfName": pdf_name if pdf_bytes else "",
+        "files": files,
+        "written": [str(p) for p in written],
+        "hours": hours,
+        "amount": round(float(amount), 2),
+        "date": when.strftime("%d.%m.%Y"),
+        "pdfReady": bool(pdf_bytes),
+    }
 
 
-def invoice_filename(line: str, when: datetime | None = None) -> str:
-    when = when or datetime.now(timezone.utc)
-    return f"invoice{line}_{when.strftime('%Y.%m.%d')}.docx"
+def list_invoices(month: str) -> dict:
+    folder = month_folder_name(month)
+    dest = primary_invoice_dir(month)
+    files = []
+    if dest.exists():
+        for path in sorted(dest.iterdir()):
+            if path.is_file() and INVOICE_NAME.match(path.name):
+                files.append(
+                    {
+                        "name": path.name,
+                        "url": f"/api/finance/invoice/file?month={month}&name={path.name}",
+                        "size": path.stat().st_size,
+                    }
+                )
+    return {
+        "folder": folder,
+        "folderPath": str(dest),
+        "exists": dest.exists(),
+        "files": files,
+    }
+
+
+def resolve_invoice_file(month: str, name: str) -> Path:
+    name = Path(name).name
+    if not INVOICE_NAME.match(name):
+        raise ValueError("bad invoice file name")
+    for dest in invoice_destinations(month):
+        cand = dest / name
+        if cand.is_file():
+            return cand
+    raise FileNotFoundError(name)
 
 
 HEADER_FILL = PatternFill("solid", fgColor="D8D8D8")

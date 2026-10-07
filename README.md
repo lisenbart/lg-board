@@ -46,12 +46,12 @@ Studio money never unlocks on the hosted link. Localhost is the studio sandbox.
 - Designer sets WIP or Done and pastes the result link. Assignment lives on the board; there is no Telegram copy step.
 - **Send to client** copies `check it please` + the result link for External Weekly. Status becomes Senior Approval. Superplay is not on this board, so this step stays until Monday API is connected.
 - **Finance** (Dmytro only) — two inner tabs, same idea as the Excel tab mirroring `SP_MGX_check.xlsx`:
-  - **Client** — totals by direction (DD / DX, and DS if that line has hours), not per task. **Create invoice** downloads a Word file in the PE Lisenbart / SuperPlay Ltd form (`invoiceDD_YYYY.MM.DD.docx`): today's date, hours with a comma, amount = hours × $35.
+  - **Client** — totals by direction (DD / DX, and DS if that line has hours), not per task. **Create** sits on the DD / DX row (same CLIENT IN total). That clones the live Superplay Word form (`invoiceDD_YYYY.MM.DD.docx`) — date, hours, amount only — into a month folder like `10_October` with Word + PDF to sign. On the studio Mac that folder is `…/SUPERPLAY/invoice/MGX/10_October`; the sandbox also writes `data/invoices/10_October`.
   - **Employeers** — the MGX calculator: CLIENT IN, minus 5% tax, then EMPL vs studio. Each person shows USD, UAH at the NBU rate, and a copyable bank card (or IBAN). Hours come from the board / `SP_MGX_check`; **Write into calculator** updates `SUPERPLAY_MGX_Calculator.xlsx` for this month.
 - Files on Drive are the source. The portal is a monitor: a new task or an assign writes into `SP_MGX_check.xlsx`; **Refresh from file** reads the sheet back. Sandbox copy is in `_PORTAL_TEST`. The live studio workbook is not overwritten. No CSV export.
 - Test folders only in Drive [`_PORTAL_TEST`](https://drive.google.com/drive/folders/1HY7vcxR5Tmot5RNJyQ2ZeImD9J4BOuX8). Live `Projects / 10_October` is untouched.
 
-Not in this slice: live Monday API, real Drive folder create, Playables board, client OAuth. Invoices are Word downloads from the studio template — not a tax e-invoicing feed. If NBU is unreachable, type today's USD/UAH rate.
+Not in this slice: live Monday API, Playables board, client OAuth. Invoices clone the live PE Lisenbart / SuperPlay Ltd Word (not a rebuilt layout). If NBU is unreachable, type today's USD/UAH rate.
 
 ## Run locally
 

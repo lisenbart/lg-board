@@ -66,6 +66,7 @@ const state = {
   session: null,
   finTab: "client",
   nbu: null,
+  invoiceFolder: null,
 };
 const $ = (id) => document.getElementById(id);
 
@@ -592,17 +593,8 @@ function renderToolbar() {
       $("btnCalcSave")?.addEventListener("click", saveCalculator);
       return;
     }
-    const buttons = fin.byLine
-      .filter((row) => row.line !== "DS" || row.hours)
-      .map((row) => {
-        const disabled = row.hours ? "" : "disabled";
-        return `<button class="btn ${row.hours ? "primary" : ""}" data-line="${row.line}" ${disabled}>Create invoice ${row.line}</button>`;
-      })
-      .join("");
-    $("toolbar").innerHTML = buttons || `<span class="muted">No hours this month</span>`;
-    $("toolbar").querySelectorAll("[data-line]").forEach((btn) => {
-      btn.addEventListener("click", () => downloadInvoice(btn.dataset.line));
-    });
+    const folder = monthFolderName(state.month);
+    $("toolbar").innerHTML = `<span class="muted">Create on the DD / DX row. Writes <code>${escapeHtml(folder)}</code> — Word + PDF to sign.</span>`;
     return;
   }
   if (state.view === "excel") {
@@ -1125,6 +1117,7 @@ function renderClose() {
   $("board").querySelectorAll("[data-inv]").forEach((btn) => {
     btn.addEventListener("click", () => downloadInvoice(btn.dataset.inv));
   });
+  loadInvoiceFolder();
   $("board").querySelectorAll(".fin-copy").forEach((btn) => {
     btn.addEventListener("click", async (e) => {
       e.preventDefault();
@@ -1139,6 +1132,9 @@ function renderClient(fin) {
   const lineRows = fin.byLine
     .map((row) => {
       const share = fin.totalHours ? Math.round((row.hours / fin.totalHours) * 100) : 0;
+      const create = row.hours
+        ? `<button type="button" class="btn primary" data-inv="${row.line}">Create</button>`
+        : `<span class="muted">—</span>`;
       return `<tr>
         <td><span class="pill line-${escapeHtml(row.line)}">${escapeHtml(row.line)}</span></td>
         <td class="num">${row.projects}</td>
@@ -1147,14 +1143,8 @@ function renderClient(fin) {
         <td class="num">${usd(fin.clientRate)}</td>
         <td class="num"><b>${usd(row.bill)}</b></td>
         <td class="num muted">${share}%</td>
+        <td class="fin-create">${create}</td>
       </tr>`;
-    })
-    .join("");
-  const invoiceBtns = fin.byLine
-    .filter((row) => row.line !== "DS" || row.hours)
-    .map((row) => {
-      const disabled = row.hours ? "" : "disabled";
-      return `<button type="button" class="btn ${row.hours ? "primary" : ""}" data-inv="${row.line}" ${disabled}>Create invoice ${row.line}</button>`;
     })
     .join("");
   if (empty) {
@@ -1166,13 +1156,22 @@ function renderClient(fin) {
     </div>
     <div class="fin-empty">No hours in ${escapeHtml(fin.month)}. Pull from Monday or paste the shift email first.</div>`;
   }
+  const pack = state.invoiceFolder || {};
+  const folderFiles = (pack.files || [])
+    .map(
+      (f) =>
+        `<a class="btn ghost" href="${escapeHtml(f.url)}" download="${escapeHtml(f.name)}">${escapeHtml(f.name)}</a>`
+    )
+    .join("");
+  const folderNote = pack.folder
+    ? `<div class="fin-folder"><span>On disk: <code>${escapeHtml(pack.folder)}</code>${pack.folderPath ? ` · ${escapeHtml(pack.folderPath)}` : ""}</span>${folderFiles}</div>`
+    : "";
   return `
     <div class="fin-head">
       <div>
         <h2>Client · SuperPlay Ltd · ${escapeHtml(fin.month)}</h2>
-        <p>Same hours as the Excel tab. Invoice Word matches PE Lisenbart / SuperPlay Ltd — date today, totals for DD and DX (and DS if that line has hours).</p>
+        <p>One Superplay invoice per direction. Create sits on the DD / DX row — same CLIENT IN total. Writes <code>${escapeHtml(monthFolderName(fin.month))}</code> with the live Word form plus a PDF to sign.</p>
       </div>
-      <div class="fin-actions">${invoiceBtns}</div>
     </div>
     <div class="fin-kpis">
       <div class="kpi"><b>${fin.tasks.length}</b><span>projects this month</span></div>
@@ -1184,11 +1183,12 @@ function renderClient(fin) {
       <h3>By direction</h3>
       <div class="fin-scroll">
         <table class="fin-table">
-          <thead><tr><th>Line</th><th class="num">Projects</th><th class="num">Shifts</th><th class="num">Hours</th><th class="num">Rate</th><th class="num">CLIENT IN</th><th class="num">Share</th></tr></thead>
+          <thead><tr><th>Line</th><th class="num">Projects</th><th class="num">Shifts</th><th class="num">Hours</th><th class="num">Rate</th><th class="num">CLIENT IN</th><th class="num">Share</th><th></th></tr></thead>
           <tbody>${lineRows}</tbody>
-          <tfoot><tr><td>MGX</td><td class="num">${fin.tasks.length}</td><td class="num">${fin.totalShifts.toFixed(1)}</td><td class="num">${hoursLabel(fin.totalHours)}</td><td></td><td class="num">${usd(fin.clientIn)}</td><td></td></tr></tfoot>
+          <tfoot><tr><td>MGX</td><td class="num">${fin.tasks.length}</td><td class="num">${fin.totalShifts.toFixed(1)}</td><td class="num">${hoursLabel(fin.totalHours)}</td><td></td><td class="num">${usd(fin.clientIn)}</td><td></td><td></td></tr></tfoot>
         </table>
       </div>
+      ${folderNote}
     </section>`;
 }
 
@@ -1285,32 +1285,57 @@ function ensureNbu() {
     .catch(() => {});
 }
 
+function monthFolderName(ym) {
+  const [y, m] = String(ym || "").split("-").map(Number);
+  if (!y || !m) return "";
+  const name = new Date(y, m - 1, 1).toLocaleString("en-US", { month: "long" });
+  return `${String(m).padStart(2, "0")}_${name}`;
+}
+
+function loadInvoiceFolder() {
+  if (!isFinance() || state.view !== "close" || state.finTab === "employees") return;
+  fetch(`/api/finance/invoices?month=${encodeURIComponent(state.month)}`)
+    .then((r) => r.json())
+    .then((pack) => {
+      if (!pack || pack.error) return;
+      const same =
+        state.invoiceFolder &&
+        state.invoiceFolder.folder === pack.folder &&
+        JSON.stringify(state.invoiceFolder.files || []) === JSON.stringify(pack.files || []);
+      state.invoiceFolder = pack;
+      if (!same && state.view === "close" && state.finTab !== "employees") render();
+    })
+    .catch(() => {});
+}
+
 async function downloadInvoice(line) {
   const res = await fetch("/api/finance/invoice", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ line, month: state.month, role: me().role, nbuRate: nbuRate() }),
   });
-  if (!res.ok) {
-    let msg = "Could not build the invoice";
-    try {
-      const j = await res.json();
-      msg = j.error || msg;
-    } catch {
-      /* ignore */
-    }
-    toast(msg);
+  let out = {};
+  try {
+    out = await res.json();
+  } catch {
+    toast("Could not build the invoice");
     return;
   }
-  const blob = await res.blob();
-  const cd = res.headers.get("Content-Disposition") || "";
-  const m = cd.match(/filename="([^"]+)"/);
-  const name = (m && m[1]) || `invoice${line}.docx`;
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = name;
-  a.click();
-  toast(`Saved ${name}`);
+  if (!res.ok || out.error) {
+    toast(out.error || "Could not build the invoice");
+    return;
+  }
+  state.invoiceFolder = out;
+  (out.files || []).forEach((f, i) => {
+    setTimeout(() => {
+      const a = document.createElement("a");
+      a.href = f.url;
+      a.download = f.name;
+      a.click();
+    }, i * 350);
+  });
+  toast(out.message || `Wrote ${out.folder}`);
+  if (state.view === "close") render();
 }
 
 async function saveCalculator() {
