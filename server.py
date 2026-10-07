@@ -391,12 +391,36 @@ class Handler(SimpleHTTPRequestHandler):
                 ) <= 1:
                     self._json(400, {"error": "keep at least one finance login"})
                     return
-                for task in db["tasks"]:
-                    if task.get("assigneeId") == pid:
-                        task["assigneeId"] = ""
+                held = [t for t in db["tasks"] if t.get("assigneeId") == pid]
+                if held and "reassignTo" not in data:
+                    self._json(
+                        409,
+                        {
+                            "error": "this person still has projects — choose who takes them",
+                            "count": len(held),
+                        },
+                    )
+                    return
+                dest = data.get("reassignTo", "")
+                if dest == pid:
+                    self._json(400, {"error": "cannot move projects onto the person being deleted"})
+                    return
+                if dest and not any(p["id"] == dest for p in db["people"]):
+                    self._json(400, {"error": "move-to person not found"})
+                    return
+                for task in held:
+                    task["assigneeId"] = dest
+                    task.setdefault("activity", []).append(
+                        {
+                            "at": utc_now(),
+                            "text": (
+                                f"Moved from deleted person to {dest or 'unassigned'}"
+                            ),
+                        }
+                    )
                 db["people"] = [p for p in db["people"] if p["id"] != pid]
                 save_db(db)
-                self._json(200, {"deleted": pid, "state": db})
+                self._json(200, {"deleted": pid, "reassigned": len(held), "state": db})
                 return
         self._json(404, {"error": "unknown endpoint"})
 

@@ -661,29 +661,7 @@ function renderTeam() {
     });
   });
   $("board").querySelectorAll(".team-del").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const id = btn.closest(".team-row").dataset.id;
-      const p = person(id);
-      if (id === me().id) {
-        toast("You cannot delete the person you are logged in as");
-        return;
-      }
-      if (!confirm(`Delete ${displayName(p)}? Their projects become unassigned.`)) return;
-      const flushed = await flushTeamNames();
-      if (flushed.error) {
-        toast(flushed.error);
-        return;
-      }
-      const out = await api("/api/people/delete", { id, role: me().role, actorId: me().id });
-      if (out.error || !out.state) {
-        toast(out.error || "Could not delete");
-        return;
-      }
-      delete state.teamDrafts[id];
-      if (state.designerFilter === id) state.designerFilter = null;
-      applyState(out.state);
-      toast("Person deleted");
-    });
+    btn.addEventListener("click", () => openDeletePerson(btn.closest(".team-row").dataset.id));
   });
   $("saveAllNames").onclick = async () => {
     const out = await flushTeamNames();
@@ -705,6 +683,84 @@ function renderTeam() {
     applyState(out.state);
     toast("Person added — type the real name");
   };
+}
+
+function assignedTo(id) {
+  return (state.db.tasks || []).filter((t) => t.assigneeId === id);
+}
+
+function openDeletePerson(id) {
+  const p = person(id);
+  if (!p) return;
+  if (id === me().id) {
+    toast("You cannot delete the person you are logged in as");
+    return;
+  }
+  const held = assignedTo(id);
+  $("delTitle").textContent = `Delete ${displayName(p)}?`;
+  $("delProjects").innerHTML = held.length
+    ? held.map((t) => `<li title="${escapeHtml(t.name)}">${escapeHtml(t.name)}</li>`).join("")
+    : "";
+  $("delProjects").hidden = !held.length;
+  const wrap = $("delMoveWrap");
+  wrap.hidden = !held.length;
+  if (held.length) {
+    $("delIntro").textContent = `${displayName(p)} still has ${held.length} project${held.length === 1 ? "" : "s"}. Choose who takes them, or leave unassigned. You cannot delete until you choose.`;
+    const others = state.db.people
+      .filter((x) => x.id !== id)
+      .sort((a, b) => {
+        const ra = a.role === p.role ? 0 : 1;
+        const rb = b.role === p.role ? 0 : 1;
+        if (ra !== rb) return ra - rb;
+        return String(displayName(a)).localeCompare(String(displayName(b)));
+      });
+    $("delMove").innerHTML =
+      `<option value="" disabled selected>Choose…</option>` +
+      `<option value="__none__">Leave unassigned</option>` +
+      others
+        .map((x) => `<option value="${x.id}">${escapeHtml(displayName(x))} · ${ROLE_LABEL[x.role] || x.role}</option>`)
+        .join("");
+    $("delConfirm").disabled = true;
+  } else {
+    $("delIntro").textContent = "No projects are assigned to this person. Safe to delete.";
+    $("delConfirm").disabled = false;
+  }
+  $("delModal").dataset.id = id;
+  $("delModal").classList.add("show");
+}
+
+async function confirmDeletePerson() {
+  const id = $("delModal").dataset.id;
+  const p = person(id);
+  if (!p) return;
+  const held = assignedTo(id);
+  let reassignTo;
+  if (held.length) {
+    const raw = $("delMove").value;
+    if (!raw) {
+      toast("Choose where the projects go");
+      return;
+    }
+    reassignTo = raw === "__none__" ? "" : raw;
+  }
+  const flushed = await flushTeamNames();
+  if (flushed.error) {
+    toast(flushed.error);
+    return;
+  }
+  const payload = { id, role: me().role, actorId: me().id };
+  if (held.length) payload.reassignTo = reassignTo;
+  const out = await api("/api/people/delete", payload);
+  if (out.error || !out.state) {
+    toast(out.error || "Could not delete");
+    return;
+  }
+  delete state.teamDrafts[id];
+  if (state.designerFilter === id) state.designerFilter = null;
+  $("delModal").classList.remove("show");
+  applyState(out.state);
+  const moved = held.length ? (reassignTo ? ` · ${held.length} moved` : ` · ${held.length} unassigned`) : "";
+  toast(`Deleted ${displayName(p)}${moved}`);
 }
 
 function openTask(id) {
@@ -883,6 +939,14 @@ $("navTeam").addEventListener("click", () => {
   if (!isFinance()) return;
   state.view = "team";
   render();
+});
+$("delCancel").onclick = () => $("delModal").classList.remove("show");
+$("delConfirm").onclick = () => confirmDeletePerson();
+$("delMove").addEventListener("change", () => {
+  $("delConfirm").disabled = !$("delMove").value;
+});
+$("delModal").addEventListener("click", (e) => {
+  if (e.target === $("delModal")) $("delModal").classList.remove("show");
 });
 $("emailCancel").onclick = () => $("emailModal").classList.remove("show");
 $("emailApply").onclick = async () => {

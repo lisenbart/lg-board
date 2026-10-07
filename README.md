@@ -23,7 +23,7 @@ Roles in the demo are job titles, not names:
 - **Designer** — only their assigned projects. Hours, brief, paste the result. No money. Other designers’ queues stay hidden.
 - **Team lead** — assigns designers. No Monday buttons, no invoices.
 - **Manager** — pull from Monday and send finished work to the client. Does not assign people.
-- **Finance** — manager pipeline plus the money tab. Can rename job titles to real names, add a person (any role), or delete (projects become unassigned).
+- **Finance** — manager pipeline plus the money tab. Can rename job titles to real names, add a person, or delete. If the person still has projects, you must move them to someone else (or explicitly leave unassigned) before delete.
 
 Also:
 

@@ -338,6 +338,24 @@ body.col-resizing * { cursor: col-resize !important; }
   border-radius: 6px;
   padding: 8px 10px;
 }
+.del-projects {
+  max-height: 180px;
+  overflow: auto;
+  padding: 0;
+  margin: 8px 0 12px;
+  list-style: none;
+  border: 1px solid #eceef5;
+  border-radius: 8px;
+}
+.del-projects li {
+  padding: 8px 10px;
+  font-size: 12px;
+  border-bottom: 1px solid #f0f1f5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.del-projects li:last-child { border-bottom: 0; }
 .team-name { border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; }
 .role-tag {
   font-size: 12px;
