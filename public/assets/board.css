@@ -144,6 +144,7 @@ a { color: var(--blue); }
 .btn {
   border: 0; border-radius: 4px; padding: 6px 10px; cursor: pointer;
   background: #f0f1f5; color: var(--ink); font-weight: 400; font-size: 13px;
+  text-decoration: none; display: inline-flex; align-items: center;
 }
 .btn:hover { filter: brightness(0.97); }
 .btn.primary { background: var(--blue); color: #fff; }

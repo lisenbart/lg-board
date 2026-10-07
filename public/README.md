@@ -8,4 +8,4 @@ Open `index.html` (or the GitHub Pages URL). Use **I am** to try Manager, Team l
 
 Until Monday is connected: paste briefs and Drive links in a project, **Send to client** copies `check it please` + the result link, **Copy Telegram** is for the studio chat.
 
-The **Excel** tab is the load calculator (`hours = shifts × 9`). The studio app updates that workbook in place. This GitHub preview only shows the grid.
+The **Excel** tab is the `SP_MGX_check` sheet. The studio app writes into that file when you assign or add a task. This GitHub preview only shows the grid.

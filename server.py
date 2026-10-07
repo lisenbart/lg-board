@@ -49,6 +49,14 @@ def hours_from_shift(shift: float) -> float:
     return round(shift * 9, 1)
 
 
+def sync_excel(db: dict, month: str | None = None) -> None:
+    ym = month or db.get("meta", {}).get("month") or "2026-10"
+    try:
+        excel_io.write_month(db, ym)
+    except FileNotFoundError:
+        pass
+
+
 def task_month(data: dict, db: dict) -> str:
     return data.get("month") or db.get("meta", {}).get("month") or "2026-10"
 
@@ -191,6 +199,7 @@ class Handler(SimpleHTTPRequestHandler):
                     },
                 )
                 save_db(db)
+                sync_excel(db, data.get("month"))
                 self._json(200, {"added": added, "updated": updated, "parsed": rows, "state": db})
                 return
             if path == "/api/import-monday":
@@ -230,6 +239,7 @@ class Handler(SimpleHTTPRequestHandler):
                     0, {"at": utc_now(), "text": f"Monday import: {added} new tasks"}
                 )
                 save_db(db)
+                sync_excel(db, data.get("month"))
                 self._json(200, {"added": added, "state": db})
                 return
             if path == "/api/export-monday":
@@ -331,10 +341,7 @@ class Handler(SimpleHTTPRequestHandler):
                 if note:
                     task.setdefault("activity", []).append({"at": utc_now(), "text": note})
                 save_db(db)
-                try:
-                    excel_io.write_month(db, task.get("month") or db.get("meta", {}).get("month") or "2026-10")
-                except FileNotFoundError:
-                    pass
+                sync_excel(db, task.get("month"))
                 self._json(200, {"task": task, "state": db})
                 return
             if path == "/api/excel/pull":
