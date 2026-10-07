@@ -10,7 +10,7 @@ Same names and colors as Superplay’s Monday `External Weekly`. Each role has i
 
 - **Designer** — WIP, Done. Cannot send Senior Approval to Monday.
 - **Team lead** — Ready to Start, WIP, Need Fixing, Done. Assigns people. No Monday send.
-- **Manager / Finance** — full set, including Senior Approval via **Send to client**.
+- **Manager / Finance** — full set, including Senior Approval via **Send to client**. They edit **shifts**; hours always = shifts × 9.
 
 Manager, team lead, and finance see a **designer load** strip: one cell per project (Excel-style), hours vs an even split, Light / Even / Heavy. Click a card to filter the list.
 

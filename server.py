@@ -283,6 +283,20 @@ class Handler(SimpleHTTPRequestHandler):
                 ):
                     self._json(403, {"error": f"{role} cannot set {nxt}"})
                     return
+                if "shifts" in data:
+                    if role not in {"manager", "finance"}:
+                        self._json(403, {"error": "only manager or finance can edit time"})
+                        return
+                    try:
+                        shift = float(str(data["shifts"]).replace(",", "."))
+                    except (TypeError, ValueError):
+                        self._json(400, {"error": "shifts must be a number"})
+                        return
+                    if shift < 0:
+                        self._json(400, {"error": "shifts must be 0 or more"})
+                        return
+                    task["shifts"] = shift
+                    task["hours"] = hours_from_shift(shift)
                 for key in ("studioStatus", "assigneeId", "resultUrl", "brief", "folderUrl", "docUrl"):
                     if key in data:
                         task[key] = data[key]

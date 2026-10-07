@@ -202,8 +202,17 @@ a { color: var(--blue); }
   padding: 0 10px 0 8px;
   background: #fff;
 }
-.cols.ops .frozen, .row.ops .frozen { grid-template-columns: 52px 36px minmax(0, 1fr) 88px; }
-.cols.exec .frozen, .row.exec .frozen { grid-template-columns: 52px minmax(0, 1fr) 88px; }
+.cols.ops .frozen, .row.ops .frozen { grid-template-columns: 52px 36px minmax(0, 1fr) 108px; }
+.cols.exec .frozen, .row.exec .frozen { grid-template-columns: 52px minmax(0, 1fr) 108px; }
+.time-edit { display: inline-flex; align-items: center; gap: 4px; }
+.shift-in {
+  width: 58px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 4px 6px;
+  background: #fff;
+}
+.time-edit small { color: var(--muted); font-size: 11px; white-space: nowrap; }
 .meta {
   flex: 0 0 auto;
   display: grid;

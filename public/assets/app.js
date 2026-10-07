@@ -56,6 +56,20 @@ function isDesigner() {
 function canOps() {
   return me().role === "manager" || me().role === "finance";
 }
+function canEditTime() {
+  return canOps();
+}
+function shiftHours() {
+  return Number(state.db?.meta?.shiftHours) || 9;
+}
+function hoursFromShifts(shifts) {
+  return Math.round(Number(shifts) * shiftHours() * 10) / 10;
+}
+function parseShifts(raw) {
+  const n = Number(String(raw ?? "").trim().replace(",", "."));
+  if (!Number.isFinite(n) || n < 0) return null;
+  return Math.round(n * 1000) / 1000;
+}
 function canAssign() {
   return me().role === "teamlead";
 }
@@ -200,8 +214,15 @@ function personCell(id) {
   return `<span class="person"><span class="avatar" style="background:${p.color}">${initials(p.name)}</span>${escapeHtml(p.name)}</span>`;
 }
 function timeCell(t) {
+  const hours = t.hours || hoursFromShifts(t.shifts || 0);
+  if (canEditTime()) {
+    return `<span class="time-edit">
+      <input class="shift-in" data-id="${t.id}" type="number" min="0" step="0.1" value="${t.shifts ?? ""}" title="Shifts · hours = shifts × ${shiftHours()}" />
+      <small>${hours ? hours + "h" : "—"}</small>
+    </span>`;
+  }
   if (!t.shifts && !t.hours) return `<span class="empty">—</span>`;
-  return `${t.shifts || "—"} / ${t.hours || "—"}h`;
+  return `${t.shifts || "—"} / ${hours || "—"}h`;
 }
 
 function statusRank(t) {
@@ -342,6 +363,39 @@ function renderBoard() {
     });
   });
   bindSplitter($("board").querySelector(".group"));
+  bindTimeEdits();
+}
+
+function bindTimeEdits() {
+  $("board").querySelectorAll(".shift-in").forEach((el) => {
+    const commit = () => {
+      const t = state.db.tasks.find((x) => x.id === el.dataset.id);
+      if (!t) return;
+      const shifts = parseShifts(el.value);
+      if (shifts === null) {
+        el.value = t.shifts ?? "";
+        toast("Shifts must be 0 or more");
+        return;
+      }
+      if (shifts === Number(t.shifts)) return;
+      const hours = hoursFromShifts(shifts);
+      const hint = el.parentElement?.querySelector("small");
+      if (hint) hint.textContent = hours ? hours + "h" : "—";
+      updateTask(t.id, {
+        shifts,
+        role: me().role,
+        note: `${me().name} set ${shifts} shifts → ${hours} h`,
+      });
+    };
+    el.addEventListener("click", (e) => e.stopPropagation());
+    el.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        el.blur();
+      }
+    });
+    el.addEventListener("change", commit);
+  });
 }
 
 function rowHtml(t, mode, gap) {
@@ -498,6 +552,13 @@ function openTask(id) {
       ${t.docUrl ? `<p><a href="${escapeHtml(t.docUrl)}" target="_blank" rel="noreferrer">Open Google Doc</a></p>` : ""}
       ${t.folderUrl ? `<p><a href="${escapeHtml(t.folderUrl)}" target="_blank" rel="noreferrer">Drive folder</a></p>` : ""}
     </div>
+    ${
+      canEditTime()
+        ? `<div class="field"><label>Shifts</label>
+      <input id="stShifts" type="number" min="0" step="0.1" value="${t.shifts ?? ""}" />
+      <p class="status-hint" id="stHoursHint">= ${hoursFromShifts(t.shifts || 0)} h (shifts × ${shiftHours()}). Same unit as Orit’s email.</p></div>`
+        : `<div class="field"><label>Time</label><div>${t.shifts || 0} shifts · ${t.hours || 0} h</div></div>`
+    }
     <div class="field"><label>${isDesigner() ? "Paste result link here" : "Result link"}</label>
       <input id="stResult" value="${escapeHtml(t.resultUrl || "")}" placeholder="https://drive.google.com/..." ${isDesigner() && mine || canOps() ? "" : "disabled"} />
     </div>
@@ -512,6 +573,16 @@ function openTask(id) {
   `;
   $("drawerBg").classList.add("show");
   $("closeDrawer").onclick = () => $("drawerBg").classList.remove("show");
+  $("stShifts")?.addEventListener("input", () => {
+    const shifts = parseShifts($("stShifts").value);
+    const hint = $("stHoursHint");
+    if (!hint) return;
+    if (shifts === null) {
+      hint.textContent = "Enter a number, 0 or more.";
+      return;
+    }
+    hint.textContent = `= ${hoursFromShifts(shifts)} h (shifts × ${shiftHours()}). Same unit as Orit’s email.`;
+  });
   $("saveTask").onclick = () => {
     const resultUrl = $("stResult").value.trim();
     const studioStatus = $("stStatus").value;
@@ -520,8 +591,22 @@ function openTask(id) {
       return;
     }
     const assigneeId = $("stPerson") ? $("stPerson").value : t.assigneeId;
-    const note = resultUrl && resultUrl !== t.resultUrl ? `${me().name} pasted the result` : `${me().name} updated status`;
-    updateTask(t.id, { resultUrl, studioStatus, assigneeId, note, role: me().role });
+    const patch = { resultUrl, studioStatus, assigneeId, role: me().role };
+    if (canEditTime() && $("stShifts")) {
+      const shifts = parseShifts($("stShifts").value);
+      if (shifts === null) {
+        toast("Shifts must be 0 or more");
+        return;
+      }
+      patch.shifts = shifts;
+    }
+    const note =
+      patch.shifts !== undefined && patch.shifts !== Number(t.shifts)
+        ? `${me().name} set ${patch.shifts} shifts → ${hoursFromShifts(patch.shifts)} h`
+        : resultUrl && resultUrl !== t.resultUrl
+          ? `${me().name} pasted the result`
+          : `${me().name} updated status`;
+    updateTask(t.id, { ...patch, note });
   };
   $("exportOne")?.addEventListener("click", async () => {
     const out = await api("/api/export-monday", { ids: [t.id] });
@@ -539,7 +624,7 @@ async function updateTask(id, patch) {
   }
   applyState(out.state);
   toast("Saved");
-  if (state.openId) openTask(id);
+  if (state.openId && $("drawerBg").classList.contains("show")) openTask(id);
 }
 async function importMonday() {
   const out = await api("/api/import-monday", {});
