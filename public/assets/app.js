@@ -1,20 +1,29 @@
 const STATUS = {
-  imported: { label: "З Monday", cls: "status-imported" },
+  imported: { label: "Новий", cls: "status-imported" },
   todo: { label: "До роботи", cls: "status-todo" },
   doing: { label: "В роботі", cls: "status-doing" },
   done: { label: "Здано", cls: "status-done" },
-  sent: { label: "Senior Approval", cls: "status-sent" },
+  sent: { label: "У клієнта", cls: "status-sent" },
   fix: { label: "Правки", cls: "status-fix" },
 };
 
-const GROUPS = [
-  { id: "new", title: "Нові / з Monday", color: "#c4c4c4", statuses: ["imported"] },
-  { id: "ready", title: "Ready to Start", color: "#fdab3d", statuses: ["todo"] },
-  { id: "wip", title: "WIP", color: "#579bfc", statuses: ["doing"] },
-  { id: "done", title: "Здано — можна на апрув", color: "#00c875", statuses: ["done"] },
-  { id: "sent", title: "На Senior Approval у клієнта", color: "#66ccff", statuses: ["sent"] },
-  { id: "fix", title: "Need Fixing", color: "#e2445c", statuses: ["fix"] },
+const GROUPS_OPS = [
+  { id: "new", title: "Щойно з клієнта", color: "#c4c4c4", statuses: ["imported"] },
+  { id: "ready", title: "До роботи", color: "#fdab3d", statuses: ["todo"] },
+  { id: "wip", title: "В роботі", color: "#579bfc", statuses: ["doing"] },
+  { id: "done", title: "Здано — на апрув", color: "#00c875", statuses: ["done"] },
+  { id: "sent", title: "Вже у клієнта", color: "#66ccff", statuses: ["sent"] },
+  { id: "fix", title: "Правки", color: "#e2445c", statuses: ["fix"] },
 ];
+
+const GROUPS_EXEC = [
+  { id: "free", title: "Ще вільні", color: "#c4c4c4", statuses: ["imported", "todo"] },
+  { id: "wip", title: "В роботі", color: "#579bfc", statuses: ["doing"] },
+  { id: "done", title: "Здано", color: "#00c875", statuses: ["done", "sent"] },
+  { id: "fix", title: "Правки", color: "#e2445c", statuses: ["fix"] },
+];
+
+const ROLE_LABEL = { finance: "фінанси", manager: "менеджер", executor: "виконавець" };
 
 const state = { db: null, roleId: "dmytro", view: "board", selected: new Set(), openId: null };
 const $ = (id) => document.getElementById(id);
@@ -30,9 +39,17 @@ function escapeHtml(s) {
 function person(id) {
   return (state.db.people || []).find((p) => p.id === id);
 }
-
 function me() {
   return person(state.roleId) || state.db.people[0];
+}
+function isFinance() {
+  return me().role === "finance";
+}
+function isExecutor() {
+  return me().role === "executor";
+}
+function canOps() {
+  return me().role === "manager" || me().role === "finance";
 }
 
 function toast(msg) {
@@ -55,7 +72,7 @@ function visibleTasks() {
   const q = (document.querySelector(".search")?.value || "").toLowerCase();
   const mine = state.view === "mine";
   return state.db.tasks.filter((t) => {
-    if (q && !t.name.toLowerCase().includes(q)) return false;
+    if (q && !`${t.name} ${t.brief}`.toLowerCase().includes(q)) return false;
     if (mine && t.assigneeId !== state.roleId) return false;
     return true;
   });
@@ -66,23 +83,59 @@ function renderWho() {
     .map(
       (p) =>
         `<option value="${p.id}" ${p.id === state.roleId ? "selected" : ""}>${escapeHtml(p.name)} · ${
-          p.role === "studio" ? "студія" : "виконавець"
+          ROLE_LABEL[p.role] || p.role
         }</option>`
     )
     .join("");
 }
 
+function renderChrome() {
+  $("financeNav").hidden = !isFinance();
+  $("roleHint").textContent = isExecutor()
+    ? "Вам: хто що робить, скільки часу, бриф і куди здати результат. Грошей тут немає."
+    : canOps() && !isFinance()
+      ? "Постановка: забрати з Monday, назнати людей, віддати здані таски клієнту."
+      : "Ви бачите постановку і окремо фінанси. Інвойси — лише тут, виконавцям їх не видно.";
+  $("sideFoot").innerHTML = isFinance()
+    ? "Пісочниця Drive: _PORTAL_TEST<br>Бойовий October не чіпаємо."
+    : isExecutor()
+      ? "Здаєте лінк у картці проекту. Monday вам не потрібен."
+      : "Імпорт / експорт Monday — ваші кнопки. Фінанси бачить лише Дмитро.";
+
+  const tabs = [];
+  tabs.push({ id: "board", label: isExecutor() ? "Усі проекти" : "Постановка" });
+  if (isExecutor()) tabs.push({ id: "mine", label: "Мої" });
+  if (canOps()) tabs.push({ id: "ready", label: "Готові здати клієнту" });
+  if (isFinance()) tabs.push({ id: "close", label: "Фінанси" });
+  if (!tabs.some((t) => t.id === state.view)) state.view = "board";
+  $("views").innerHTML = tabs
+    .map(
+      (t) =>
+        `<button class="view-tab ${state.view === t.id ? "active" : ""}" data-view="${t.id}">${t.label}</button>`
+    )
+    .join("");
+  $("views").querySelectorAll(".view-tab").forEach((el) => {
+    el.addEventListener("click", () => {
+      state.view = el.dataset.view;
+      render();
+    });
+  });
+}
+
 function renderToolbar() {
-  const studio = me().role === "studio";
   const n = state.selected.size;
-  $("toolbar").innerHTML = `
-    ${studio ? `<button class="btn primary" id="btnImport">Завантажити з Monday</button>` : ""}
-    ${studio ? `<button class="btn orange" id="btnEmail">Вставити лист зі shift</button>` : ""}
-    ${studio ? `<button class="btn" id="btnFolders" ${n ? "" : "disabled"}>Створити теки (${n})</button>` : ""}
-    ${studio ? `<button class="btn green" id="btnExport" ${n ? "" : "disabled"}>Вивантажити в Monday (${n})</button>` : ""}
-    <input class="search" placeholder="Пошук за назвою таску" />
-    ${studio ? `<button class="btn ghost" id="btnReset">Скинути демо</button>` : ""}
-  `;
+  if (isExecutor()) {
+    $("toolbar").innerHTML = `<input class="search" placeholder="Знайти проект" />`;
+  } else {
+    $("toolbar").innerHTML = `
+      <button class="btn primary" id="btnImport">Забрати з Monday</button>
+      <button class="btn orange" id="btnEmail">Лист зі shift</button>
+      <button class="btn" id="btnFolders" ${n ? "" : "disabled"}>Теки (${n})</button>
+      <button class="btn green" id="btnExport" ${n ? "" : "disabled"}>Віддати клієнту (${n})</button>
+      <input class="search" placeholder="Пошук проекту" />
+      <button class="btn ghost" id="btnReset">Скинути демо</button>
+    `;
+  }
   $("toolbar").querySelector(".search")?.addEventListener("input", render);
   $("btnImport")?.addEventListener("click", importMonday);
   $("btnEmail")?.addEventListener("click", () => $("emailModal").classList.add("show"));
@@ -92,28 +145,45 @@ function renderToolbar() {
 }
 
 function renderKpis() {
-  const tasks = state.db.tasks;
-  const hours = tasks.reduce((s, t) => s + (Number(t.hours) || 0), 0);
-  const dd = tasks.filter((t) => t.line === "DD").reduce((s, t) => s + (Number(t.hours) || 0), 0);
-  const dx = tasks.filter((t) => t.line === "DX").reduce((s, t) => s + (Number(t.hours) || 0), 0);
-  const ready = tasks.filter((t) => t.studioStatus === "done").length;
+  if (state.view === "close") {
+    $("kpis").innerHTML = "";
+    return;
+  }
+  const tasks = visibleTasks();
+  if (isExecutor()) {
+    const mine = state.db.tasks.filter((t) => t.assigneeId === me().id);
+    const hours = mine.reduce((s, t) => s + (Number(t.hours) || 0), 0);
+    $("kpis").innerHTML = `
+      <div class="kpi"><b>${tasks.length}</b><span>проектів на дошці</span></div>
+      <div class="kpi"><b>${mine.length}</b><span>назначено мені</span></div>
+      <div class="kpi"><b>${hours.toFixed(1)} h</b><span>мій час у цьому місяці</span></div>
+    `;
+    return;
+  }
+  const hours = state.db.tasks.reduce((s, t) => s + (Number(t.hours) || 0), 0);
+  const ready = state.db.tasks.filter((t) => t.studioStatus === "done").length;
+  const money = isFinance()
+    ? `<div class="kpi"><b>$${(hours * 35).toFixed(0)}</b><span>чорновик інвойсу × $35</span></div>`
+    : "";
   $("kpis").innerHTML = `
-    <div class="kpi"><b>${tasks.length}</b><span>тасків у столі</span></div>
-    <div class="kpi"><b>${hours.toFixed(1)} h</b><span>годин у таблиці</span></div>
-    <div class="kpi"><b>${dd.toFixed(1)} / ${dx.toFixed(1)}</b><span>DD / DX години</span></div>
-    <div class="kpi"><b>${ready}</b><span>готові на апрув зараз</span></div>
-    <div class="kpi"><b>$${(hours * 35).toFixed(0)}</b><span>чорновик інвойсу × $35</span></div>
+    <div class="kpi"><b>${state.db.tasks.length}</b><span>проектів</span></div>
+    <div class="kpi"><b>${hours.toFixed(1)} h</b><span>годин у постановці</span></div>
+    <div class="kpi"><b>${ready}</b><span>чекають відправки клієнту</span></div>
+    ${money}
   `;
 }
 
 function initials(name) {
   return (name || "?").slice(0, 1);
 }
-
 function personCell(id) {
   const p = person(id);
-  if (!p) return `<span class="empty">—</span>`;
+  if (!p) return `<span class="empty">вільний</span>`;
   return `<span class="person"><span class="avatar" style="background:${p.color}">${initials(p.name)}</span>${escapeHtml(p.name)}</span>`;
+}
+function timeCell(t) {
+  if (!t.shifts && !t.hours) return `<span class="empty">—</span>`;
+  return `${t.shifts || "—"} / ${t.hours || "—"}h`;
 }
 
 function renderBoard() {
@@ -121,28 +191,36 @@ function renderBoard() {
     renderClose();
     return;
   }
-  const tasks = visibleTasks();
-  const html = GROUPS.map((g) => {
-    const rows = tasks.filter((t) => g.statuses.includes(t.studioStatus));
-    return `
+  const exec = isExecutor();
+  const groups = exec ? GROUPS_EXEC : GROUPS_OPS;
+  let tasks = visibleTasks();
+  if (state.view === "ready") tasks = tasks.filter((t) => t.studioStatus === "done");
+  const mode = exec ? "exec" : "ops";
+  const head = exec
+    ? `<div class="cols exec"><div>Проект</div><div>Хто робить</div><div>Час</div><div>Бриф</div><div>Результат</div><div>Статус</div></div>`
+    : `<div class="cols ops"><div></div><div>Проект</div><div>Лінія</div><div>Час</div><div>Хто</div><div>Статус</div><div>Бриф</div><div>Результат</div></div>`;
+
+  $("board").innerHTML = groups
+    .map((g) => {
+      const rows = tasks.filter((t) => g.statuses.includes(t.studioStatus));
+      if (state.view === "ready" && g.id !== "done") return "";
+      return `
       <section class="group">
         <div class="group-head">
           <span class="gdot" style="background:${g.color}"></span>
           <h3 style="color:${g.color}">${g.title}</h3>
           <span class="count">${rows.length}</span>
         </div>
-        <div class="cols hide-sm">
-          <div></div><div>Task</div><div>Лінія</div><div>Shift</div><div>Hours</div>
-          <div>Виконавець</div><div>Статус студії</div><div>Monday</div><div>Бриф</div><div>Результат</div>
-        </div>
+        ${head}
         ${
           rows.length
-            ? rows.map(rowHtml).join("")
+            ? rows.map((t) => rowHtml(t, mode)).join("")
             : `<div class="cell empty" style="padding:12px 16px">Порожньо</div>`
         }
       </section>`;
-  }).join("");
-  $("board").innerHTML = html;
+    })
+    .join("");
+
   $("board").querySelectorAll(".row").forEach((el) => {
     el.addEventListener("click", (e) => {
       if (e.target.closest("input,select,a,button")) return;
@@ -160,114 +238,133 @@ function renderBoard() {
   });
 }
 
-function rowHtml(t) {
+function rowHtml(t, mode) {
   const st = STATUS[t.studioStatus] || STATUS.todo;
   const checked = state.selected.has(t.id) ? "checked" : "";
+  const brief = t.docUrl
+    ? `<a class="linkish" href="${escapeHtml(t.docUrl)}" target="_blank" rel="noreferrer">Бриф</a>`
+    : t.brief
+      ? `<span class="linkish">є текст</span>`
+      : `<span class="empty">немає</span>`;
+  const result = t.resultUrl
+    ? `<a class="linkish" href="${escapeHtml(t.resultUrl)}" target="_blank" rel="noreferrer">Лінк</a>`
+    : `<span class="empty">вставити</span>`;
+  if (mode === "exec") {
+    return `
+      <div class="row exec" data-id="${t.id}">
+        <div class="cell name" title="${escapeHtml(t.name)}">${escapeHtml(t.name)}</div>
+        <div class="cell">${personCell(t.assigneeId)}</div>
+        <div class="cell">${timeCell(t)}</div>
+        <div class="cell">${brief}</div>
+        <div class="cell">${result}</div>
+        <div class="cell"><span class="pill ${st.cls}">${st.label}</span></div>
+      </div>`;
+  }
   return `
-    <div class="row ${checked ? "selected" : ""}" data-id="${t.id}">
+    <div class="row ops ${checked ? "selected" : ""}" data-id="${t.id}">
       <div class="cell"><input class="chk" data-id="${t.id}" type="checkbox" ${checked} /></div>
       <div class="cell name" title="${escapeHtml(t.name)}">${escapeHtml(t.name)}</div>
       <div class="cell"><span class="pill line-${t.line}">${t.line}</span></div>
-      <div class="cell">${t.shifts || "—"}</div>
-      <div class="cell">${t.hours || "—"}</div>
+      <div class="cell">${timeCell(t)}</div>
       <div class="cell">${personCell(t.assigneeId)}</div>
       <div class="cell"><span class="pill ${st.cls}">${st.label}</span></div>
-      <div class="cell hide-sm"><span class="pill status-doing">${escapeHtml(t.mondayStatus || "—")}</span></div>
-      <div class="cell hide-sm">${t.docUrl ? `<a class="linkish" href="${escapeHtml(t.docUrl)}" target="_blank" rel="noreferrer">Doc</a>` : `<span class="empty">N/A</span>`}</div>
-      <div class="cell hide-sm">${t.resultUrl ? `<a class="linkish" href="${escapeHtml(t.resultUrl)}" target="_blank" rel="noreferrer">Link</a>` : `<span class="empty">—</span>`}</div>
+      <div class="cell">${brief}</div>
+      <div class="cell">${result}</div>
     </div>`;
 }
 
 function renderClose() {
+  if (!isFinance()) {
+    state.view = "board";
+    render();
+    return;
+  }
   const byLine = { DD: 0, DX: 0, DS: 0 };
   for (const t of state.db.tasks) byLine[t.line] = (byLine[t.line] || 0) + (Number(t.hours) || 0);
   const people = {};
   for (const t of state.db.tasks) {
     if (!t.assigneeId) continue;
+    const p = person(t.assigneeId);
+    if (!p || p.role !== "executor") continue;
     people[t.assigneeId] = (people[t.assigneeId] || 0) + (Number(t.hours) || 0);
   }
   $("board").innerHTML = `
     <section class="group" style="padding:18px">
-      <h2 style="margin:0 0 8px">Чорновик закриття жовтня</h2>
-      <p style="color:#676879">Це моніторинг з дошки, не бойові інвойси. Кнопка генерації PDF — наступний шар.</p>
+      <h2 style="margin:0 0 8px">Фінанси · жовтень</h2>
+      <p style="color:#676879">Цього екрана немає у виконавця і в менеджера. Тут лише ви: інвойс клієнту і години людей після 15-го.</p>
       <div class="kpis" style="padding:0 0 16px">
         <div class="kpi"><b>${byLine.DD.toFixed(1)} h</b><span>DD × $35 = $${(byLine.DD * 35).toFixed(0)}</span></div>
         <div class="kpi"><b>${byLine.DX.toFixed(1)} h</b><span>DX × $35 = $${(byLine.DX * 35).toFixed(0)}</span></div>
-        <div class="kpi"><b>${byLine.DS.toFixed(1)} h</b><span>DS (якщо з’явиться)</span></div>
+        <div class="kpi"><b>${byLine.DS.toFixed(1)} h</b><span>DS</span></div>
       </div>
-      <h3>Години людей (для calc після 15-го)</h3>
+      <h3>Гонорари людей @ $15/год</h3>
       ${Object.entries(people)
-        .map(([id, h]) => {
-          const p = person(id);
-          return `<div style="padding:8px 0;border-bottom:1px solid #f0f1f5">${personCell(id)} — <b>${h.toFixed(1)} h</b> · $${(h * 15).toFixed(0)} @ $15</div>`;
-        })
+        .map(([id, h]) => `<div style="padding:8px 0;border-bottom:1px solid #f0f1f5">${personCell(id)} — <b>${h.toFixed(1)} h</b> · $${(h * 15).toFixed(0)}</div>`)
         .join("")}
-      <p style="font-size:12px;color:#676879">Клієнту йде окремий файл SP-LG_projects (без імен) + інвойси DD/DX. Тут лише щоб ви бачили, що цифри зійдуться.</p>
     </section>`;
+}
+
+function executorStatuses() {
+  return ["todo", "doing", "done", "fix"];
 }
 
 function openTask(id) {
   const t = state.db.tasks.find((x) => x.id === id);
   if (!t) return;
   state.openId = id;
-  const studio = me().role === "studio";
   const mine = t.assigneeId === me().id;
-  const canEdit = studio || mine || !t.assigneeId;
+  const canEdit = canOps() || mine || (!t.assigneeId && isExecutor());
+  const statusOpts = (isExecutor() ? executorStatuses() : Object.keys(STATUS))
+    .map((k) => `<option value="${k}" ${t.studioStatus === k ? "selected" : ""}>${STATUS[k].label}</option>`)
+    .join("");
   $("drawer").innerHTML = `
     <button class="btn ghost" id="closeDrawer">Закрити</button>
     <h2>${escapeHtml(t.name)}</h2>
-    <div class="meta">${t.line} · ${t.department} · ${t.game} · ${t.shifts || 0} shift · ${t.hours || 0} h</div>
-    <div class="field"><label>Статус у студії</label>
-      <select id="stStatus" ${canEdit ? "" : "disabled"}>
-        ${Object.entries(STATUS)
-          .map(([k, v]) => `<option value="${k}" ${t.studioStatus === k ? "selected" : ""}>${v.label}</option>`)
-          .join("")}
-      </select>
-    </div>
-    <div class="field"><label>Виконавець</label>
-      <select id="stPerson" ${studio ? "" : "disabled"}>
-        <option value="">— не призначено</option>
+    <div class="meta">${t.line} · час ${t.shifts || 0} shift / ${t.hours || 0} h · ${person(t.assigneeId)?.name || "ще вільний"}</div>
+    ${
+      canOps()
+        ? `<div class="field"><label>Назначити</label>
+      <select id="stPerson">
+        <option value="">— вільний</option>
         ${state.db.people
           .filter((p) => p.role === "executor")
           .map((p) => `<option value="${p.id}" ${t.assigneeId === p.id ? "selected" : ""}>${p.name}</option>`)
           .join("")}
-      </select>
-    </div>
-    ${!t.assigneeId && me().role === "executor" ? `<button class="btn primary" id="claim">Взяти собі</button>` : ""}
-    <div class="field"><label>Бриф з Monday</label><div class="brief">${escapeHtml(t.brief || "Ще немає тексту брифу")}</div>
+      </select></div>`
+        : `<div class="field"><label>Хто робить</label><div>${personCell(t.assigneeId)}</div></div>`
+    }
+    ${!t.assigneeId && isExecutor() ? `<button class="btn primary" id="claim">Взяти собі</button>` : ""}
+    <div class="field"><label>Бриф</label><div class="brief">${escapeHtml(t.brief || "Ще немає тексту брифу")}</div>
       ${t.docUrl ? `<p><a href="${escapeHtml(t.docUrl)}" target="_blank" rel="noreferrer">Відкрити Google Doc</a></p>` : ""}
-      ${t.folderUrl ? `<p><a href="${escapeHtml(t.folderUrl)}" target="_blank" rel="noreferrer">Тека на Drive</a></p>` : `<p class="empty">Теки ще немає — студія натисне «Створити теки»</p>`}
+      ${t.folderUrl ? `<p><a href="${escapeHtml(t.folderUrl)}" target="_blank" rel="noreferrer">Тека на Drive</a></p>` : ""}
     </div>
-    <div class="field"><label>Лінк на результат</label>
+    <div class="field"><label>${isExecutor() ? "Сюди вставити результат" : "Лінк на результат"}</label>
       <input id="stResult" value="${escapeHtml(t.resultUrl || "")}" placeholder="https://drive.google.com/..." ${canEdit ? "" : "disabled"} />
+    </div>
+    <div class="field"><label>Статус</label>
+      <select id="stStatus" ${canEdit ? "" : "disabled"}>${statusOpts}</select>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn primary" id="saveTask">Зберегти</button>
-      ${studio && t.resultUrl ? `<button class="btn green" id="exportOne">Вивантажити цей у Monday</button>` : ""}
+      ${canOps() && t.resultUrl ? `<button class="btn green" id="exportOne">Віддати цей клієнту</button>` : ""}
     </div>
-    <h3 style="margin-top:22px;font-size:14px">Історія — щоб ви лишались у контексті</h3>
-    <ul class="activity">${(t.activity || [])
-      .slice()
-      .reverse()
-      .map((a) => `<li>${escapeHtml(a.at.slice(0, 16).replace("T", " "))} — ${escapeHtml(a.text)}</li>`)
-      .join("")}</ul>
   `;
   $("drawerBg").classList.add("show");
   $("closeDrawer").onclick = () => $("drawerBg").classList.remove("show");
   $("claim")?.addEventListener("click", () =>
-    updateTask(t.id, { assigneeId: me().id, studioStatus: "doing", note: `${me().name} взяв(ла) таск` })
+    updateTask(t.id, { assigneeId: me().id, studioStatus: "doing", note: `${me().name} взяв(ла) проект` })
   );
   $("saveTask").onclick = () => {
     const resultUrl = $("stResult").value.trim();
     const studioStatus = $("stStatus").value;
     const assigneeId = $("stPerson") ? $("stPerson").value : t.assigneeId;
-    const note = resultUrl && resultUrl !== t.resultUrl ? `${me().name} додав(ла) лінк на результат` : `${me().name} оновив(ла) статус`;
+    const note = resultUrl && resultUrl !== t.resultUrl ? `${me().name} вставив(ла) результат` : `${me().name} оновив(ла) статус`;
     updateTask(t.id, { resultUrl, studioStatus, assigneeId, note });
   };
   $("exportOne")?.addEventListener("click", async () => {
     const out = await api("/api/export-monday", { ids: [t.id] });
     applyState(out.state);
-    toast("Цей таск пішов у Monday як Senior Approval + check it please");
+    toast("Цей проект віддано клієнту: check it please + Senior Approval");
     openTask(t.id);
   });
 }
@@ -278,37 +375,32 @@ async function updateTask(id, patch) {
   toast("Збережено");
   if (state.openId) openTask(id);
 }
-
 async function importMonday() {
   const out = await api("/api/import-monday", {});
   applyState(out.state);
-  toast(out.added ? `З Monday підтягнуто ${out.added} нових` : "Нових у Monday немає, статуси звірені");
+  toast(out.added ? `З Monday ${out.added} нових` : "Нових немає");
 }
-
 async function provision() {
   const out = await api("/api/provision", { ids: [...state.selected] });
   applyState(out.state);
-  toast("Теки позначені в _PORTAL_TEST, не в бойовому October");
+  toast("Теки в _PORTAL_TEST");
 }
-
 async function exportMonday() {
   const ids = [...state.selected];
   const ready = state.db.tasks.filter((t) => ids.includes(t.id) && t.resultUrl);
   if (!ready.length) {
-    toast("Потрібен лінк на результат. Можна здавати по 2 з 10, не чекаючи решту.");
+    toast("Спочатку лінк на результат. Можна віддати 2 з 10, не чекаючи решту.");
     return;
   }
   const out = await api("/api/export-monday", { ids: ready.map((t) => t.id) });
   applyState(out.state);
-  toast(`Вивантажено ${out.exported.length}: check it please + Senior Approval`);
+  toast(`Віддано клієнту: ${out.exported.length}`);
 }
-
 async function resetDemo() {
   const out = await api("/api/reset", {});
   applyState(out);
-  toast("Демо повернуто до жовтневої пачки");
+  toast("Демо скинуто");
 }
-
 function applyState(db) {
   state.db = db;
   state.selected = new Set([...state.selected].filter((id) => db.tasks.some((t) => t.id === id)));
@@ -317,10 +409,8 @@ function applyState(db) {
 
 function render() {
   if (!state.db) return;
-  document.querySelectorAll(".view-tab").forEach((el) => {
-    el.classList.toggle("active", el.dataset.view === state.view);
-  });
   renderWho();
+  renderChrome();
   renderToolbar();
   renderKpis();
   renderBoard();
@@ -329,15 +419,11 @@ function render() {
 $("who").addEventListener("change", (e) => {
   state.roleId = e.target.value;
   state.selected.clear();
+  state.view = "board";
   render();
 });
-document.querySelectorAll(".view-tab").forEach((el) => {
-  el.addEventListener("click", () => {
-    state.view = el.dataset.view;
-    render();
-  });
-});
 $("navClose").addEventListener("click", () => {
+  if (!isFinance()) return;
   state.view = "close";
   render();
 });

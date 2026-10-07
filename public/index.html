@@ -24,12 +24,11 @@
       <button class="nav-item active">SUPERPLAY MGX</button>
       <button class="nav-item" disabled>SUPERPLAY Playables <span class="soon">скоро</span></button>
       <button class="nav-item" disabled>SLOTOMANIA <span class="soon">скоро</span></button>
-      <div class="nav-label">Закриття</div>
-      <button class="nav-item" id="navClose">Жовтень 2026</button>
-      <div class="side-foot">
-        Пісочниця Drive: _PORTAL_TEST<br />
-        Бойовий Projects / 10_October не чіпаємо.
+      <div id="financeNav" hidden>
+        <div class="nav-label">Фінанси</div>
+        <button class="nav-item" id="navClose">Жовтень 2026</button>
       </div>
+      <div class="side-foot" id="sideFoot"></div>
     </aside>
 
     <section class="main">
@@ -42,11 +41,8 @@
             <select id="who"></select>
           </div>
         </div>
-        <div class="views">
-          <button class="view-tab active" data-view="board">Головна дошка</button>
-          <button class="view-tab" data-view="mine">Мої задачі</button>
-          <button class="view-tab" data-view="close">Закриття місяця</button>
-        </div>
+        <p class="role-hint" id="roleHint"></p>
+        <div class="views" id="views"></div>
       </header>
 
       <div class="toolbar" id="toolbar"></div>

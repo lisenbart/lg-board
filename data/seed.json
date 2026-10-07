@@ -10,8 +10,8 @@
     "clientRateUsd": 35
   },
   "people": [
-    { "id": "dmytro", "name": "Дмитро", "role": "studio", "color": "#0073ea" },
-    { "id": "anastasiya", "name": "Анастасія", "role": "studio", "color": "#9d50dd" },
+    { "id": "dmytro", "name": "Дмитро", "role": "finance", "color": "#0073ea" },
+    { "id": "anastasiya", "name": "Анастасія", "role": "manager", "color": "#9d50dd" },
     { "id": "nastya", "name": "Настя", "role": "executor", "color": "#fdab3d" },
     { "id": "masha", "name": "Маша", "role": "executor", "color": "#00c875" },
     { "id": "sergiy", "name": "Сергій", "role": "executor", "color": "#579bfc" },
