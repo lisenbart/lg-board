@@ -472,10 +472,7 @@ class Handler(SimpleHTTPRequestHandler):
                 if (data.get("role") or "") != "finance":
                     self._json(403, {"error": "only finance can make invoices"})
                     return
-                line = str(data.get("line") or "").upper()
-                if line not in {"DD", "DX", "DS"}:
-                    self._json(400, {"error": "invoice line must be DD, DX or DS"})
-                    return
+                line = str(data.get("line") or "BOTH").upper().replace(" ", "")
                 month = data.get("month") or db.get("meta", {}).get("month") or "2026-10"
                 nbu = None
                 if data.get("nbuRate"):
@@ -484,15 +481,36 @@ class Handler(SimpleHTTPRequestHandler):
                     except (TypeError, ValueError):
                         nbu = None
                 snap = finance_io.snapshot(db, month, nbu)
-                row = next((r for r in snap["byLine"] if r["line"] == line), None)
-                if not row or not row["hours"]:
-                    self._json(400, {"error": f"no {line} hours this month"})
+                if line in {"BOTH", "ALL", "MGX", "DD/DX", "DDDX"}:
+                    rows = [
+                        r
+                        for r in snap["byLine"]
+                        if r.get("hours") and r["line"] in {"DD", "DX", "DS"}
+                    ]
+                elif line in {"DD", "DX", "DS"}:
+                    rows = [r for r in snap["byLine"] if r["line"] == line and r.get("hours")]
+                else:
+                    self._json(400, {"error": "invoice line must be DD, DX or both"})
                     return
-                pack = finance_io.issue_invoice(line, row["hours"], row["bill"], month)
+                if not rows:
+                    self._json(400, {"error": "no hours this month to invoice"})
+                    return
+                packs = [
+                    finance_io.issue_invoice(r["line"], r["hours"], r["bill"], month)
+                    for r in rows
+                ]
+                pack = packs[0]
+                names = []
+                files = []
+                for item in packs:
+                    names.append(item["docxName"])
+                    if item.get("pdfName"):
+                        names.append(item["pdfName"])
+                    files.extend(item.get("files") or [])
+                pack["files"] = files
+                pack["invoices"] = packs
                 pack["message"] = (
-                    f"Wrote {pack['folder']}: {pack['docxName']}"
-                    + (f" + {pack['pdfName']}" if pack.get("pdfName") else "")
-                    + ". Sign the PDF and send."
+                    f"Wrote {pack['folder']} ({', '.join(names)}). Sign the PDFs and send."
                 )
                 self._json(200, pack)
                 return
