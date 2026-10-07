@@ -456,23 +456,7 @@ def build_invoice(line: str, hours: float, amount: float, when: datetime | None 
 
 
 def invoice_destinations(ym: str) -> list[Path]:
-    folder = month_folder_name(ym)
-    dests: list[Path] = []
-    env = (os.environ.get("LISENBART_INVOICE_DIR") or "").strip()
-    if env:
-        dests.append(Path(env).expanduser() / folder)
-    if ICLOUD_MGX.exists():
-        dests.append(ICLOUD_MGX / folder)
-    dests.append(INVOICES_DIR / folder)
-    seen: set[str] = set()
-    unique: list[Path] = []
-    for path in dests:
-        key = str(path)
-        if key in seen:
-            continue
-        seen.add(key)
-        unique.append(path)
-    return unique
+    return [INVOICES_DIR / month_folder_name(ym)]
 
 
 def primary_invoice_dir(ym: str) -> Path:
@@ -618,7 +602,6 @@ def issue_invoice(
         "ok": True,
         "folder": month_folder_name(month),
         "folderPath": str(primary),
-        "icloud": str(ICLOUD_MGX / month_folder_name(month)),
         "docxName": docx_name,
         "pdfName": pdf_name if pdf_bytes else "",
         "files": files,
@@ -649,7 +632,6 @@ def list_invoices(month: str) -> dict:
     return {
         "folder": folder,
         "folderPath": str(dest),
-        "icloud": str(ICLOUD_MGX / folder),
         "exists": dest.exists(),
         "files": files,
     }

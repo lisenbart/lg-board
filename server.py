@@ -507,18 +507,17 @@ class Handler(SimpleHTTPRequestHandler):
                         names.append(item["pdfName"])
                     files.extend(item.get("files") or [])
                 first = packs[0]
+                folder_path = first.get("folderPath") or ""
                 self._json(
                     200,
                     {
                         "ok": True,
                         "folder": first["folder"],
-                        "folderPath": first.get("folderPath"),
+                        "folderPath": folder_path,
                         "files": files,
                         "docxName": first["docxName"],
                         "pdfName": first.get("pdfName") or "",
-                        "message": (
-                            f"Wrote {first['folder']} ({', '.join(names)}). Sign the PDFs and send."
-                        ),
+                        "message": f"Wrote {folder_path}",
                     },
                 )
                 return

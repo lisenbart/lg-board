@@ -1166,6 +1166,7 @@ function renderClient(fin) {
         </table>
       </div>
       <div class="fin-create-bar">
+        <code class="fin-path">/workspace/data/invoices/${escapeHtml(monthFolderName(state.month))}</code>
         <button type="button" class="btn primary" id="btnCreateInvoices" ${canCreate ? "" : "disabled"}>Create DD / DX</button>
       </div>
     </section>`;
@@ -1291,7 +1292,7 @@ async function createMonthInvoices() {
       toast(out.error || "Could not build the invoices");
       return;
     }
-    toast(out.message || `Wrote ${out.folder}`);
+    toast(out.message || out.folderPath || `Wrote ${out.folder}`);
   } finally {
     if (btn) btn.disabled = false;
   }
