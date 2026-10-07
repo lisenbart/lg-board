@@ -581,6 +581,7 @@ body.col-resizing * { cursor: col-resize !important; }
   display: flex; flex-wrap: wrap; justify-content: space-between;
   align-items: center; gap: 10px; margin-top: 12px;
 }
+.fin-create-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .fin-path {
   font-size: 12px; color: var(--muted); word-break: break-all;
   user-select: all;

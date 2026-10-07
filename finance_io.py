@@ -5,6 +5,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 import zipfile
@@ -457,6 +458,40 @@ def build_invoice(line: str, hours: float, amount: float, when: datetime | None 
 
 def invoice_destinations(ym: str) -> list[Path]:
     return [INVOICES_DIR / month_folder_name(ym)]
+
+
+def reveal_invoice_dir(ym: str) -> dict:
+    dest = INVOICES_DIR / month_folder_name(ym)
+    dest.mkdir(parents=True, exist_ok=True)
+    if sys.platform == "darwin":
+        cmds = [["open", str(dest)]]
+    elif sys.platform == "win32":
+        cmds = [["explorer", str(dest)]]
+    else:
+        cmds = [
+            ["xdg-open", str(dest)],
+            ["gio", "open", str(dest)],
+            ["nautilus", "--browser", str(dest)],
+        ]
+    for cmd in cmds:
+        try:
+            subprocess.run(cmd, check=True, timeout=8, capture_output=True)
+            return {"ok": True, "opened": True, "folderPath": str(dest)}
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError, OSError):
+            continue
+    return {"ok": True, "opened": False, "folderPath": str(dest)}
+
+
+def zip_invoice_dir(ym: str) -> tuple[str, bytes]:
+    dest = INVOICES_DIR / month_folder_name(ym)
+    dest.mkdir(parents=True, exist_ok=True)
+    folder = month_folder_name(ym)
+    buf = BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for path in sorted(dest.iterdir()):
+            if path.is_file() and INVOICE_NAME.match(path.name):
+                zf.write(path, f"{folder}/{path.name}")
+    return f"{folder}.zip", buf.getvalue()
 
 
 def primary_invoice_dir(ym: str) -> Path:

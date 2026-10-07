@@ -1114,6 +1114,7 @@ function renderClose() {
   $("finSaveNbu")?.addEventListener("click", saveNbuRate);
   $("finSavePay")?.addEventListener("click", saveEmployeeRates);
   $("btnCreateInvoices")?.addEventListener("click", createMonthInvoices);
+  $("btnOpenFolder")?.addEventListener("click", openInvoiceFolder);
   $("board").querySelectorAll(".fin-copy").forEach((btn) => {
     btn.addEventListener("click", async (e) => {
       e.preventDefault();
@@ -1167,7 +1168,10 @@ function renderClient(fin) {
       </div>
       <div class="fin-create-bar">
         <code class="fin-path">/workspace/data/invoices/${escapeHtml(monthFolderName(state.month))}</code>
-        <button type="button" class="btn primary" id="btnCreateInvoices" ${canCreate ? "" : "disabled"}>Create DD / DX</button>
+        <div class="fin-create-actions">
+          <button type="button" class="btn" id="btnOpenFolder">Open folder</button>
+          <button type="button" class="btn primary" id="btnCreateInvoices" ${canCreate ? "" : "disabled"}>Create DD / DX</button>
+        </div>
       </div>
     </section>`;
 }
@@ -1272,6 +1276,34 @@ function monthFolderName(ym) {
   return `${String(m).padStart(2, "0")}_${name}`;
 }
 
+function downloadInvoiceZip() {
+  const a = document.createElement("a");
+  a.href = `/api/finance/invoice/zip?month=${encodeURIComponent(state.month)}`;
+  a.download = `${monthFolderName(state.month)}.zip`;
+  a.click();
+}
+
+async function openInvoiceFolder() {
+  const res = await fetch("/api/finance/invoice/reveal", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ month: state.month, role: me().role }),
+  });
+  let out = {};
+  try {
+    out = await res.json();
+  } catch {
+    toast("Could not open the folder");
+    return;
+  }
+  if (out.opened) {
+    toast(`Opened ${out.folderPath}`);
+    return;
+  }
+  downloadInvoiceZip();
+  toast(`This Preview is the sandbox. Downloaded ${monthFolderName(state.month)}.zip — that folder is not on your Mac.`);
+}
+
 async function createMonthInvoices() {
   const btn = $("btnCreateInvoices");
   if (btn) btn.disabled = true;
@@ -1292,7 +1324,19 @@ async function createMonthInvoices() {
       toast(out.error || "Could not build the invoices");
       return;
     }
-    toast(out.message || out.folderPath || `Wrote ${out.folder}`);
+    const opened = await fetch("/api/finance/invoice/reveal", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ month: state.month, role: me().role }),
+    })
+      .then((r) => r.json())
+      .catch(() => ({}));
+    if (opened.opened) {
+      toast(`Wrote and opened ${out.folderPath || opened.folderPath}`);
+      return;
+    }
+    downloadInvoiceZip();
+    toast(`Wrote ${out.folderPath || "/workspace/data/invoices/10_October"}. Downloaded zip — Preview is not your Mac.`);
   } finally {
     if (btn) btn.disabled = false;
   }

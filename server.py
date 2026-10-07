@@ -169,6 +169,15 @@ class Handler(SimpleHTTPRequestHandler):
             )
             self._bytes(fpath.read_bytes(), ctype, fpath.name)
             return
+        if path == "/api/finance/invoice/zip":
+            qs = parse_qs(urlparse(self.path).query)
+            month = (qs.get("month") or [""])[0] or load_db().get("meta", {}).get("month") or "2026-10"
+            name, data = finance_io.zip_invoice_dir(month)
+            if not data:
+                self._json(404, {"error": "no invoices in the sandbox folder yet"})
+                return
+            self._bytes(data, "application/zip", name)
+            return
         if path == "/api/finance/calculator":
             xlsx = finance_io.CALC_PATH
             if not xlsx.exists():
@@ -520,6 +529,13 @@ class Handler(SimpleHTTPRequestHandler):
                         "message": f"Wrote {folder_path}",
                     },
                 )
+                return
+            if path == "/api/finance/invoice/reveal":
+                if (data.get("role") or "") != "finance":
+                    self._json(403, {"error": "only finance can open the invoice folder"})
+                    return
+                month = data.get("month") or db.get("meta", {}).get("month") or "2026-10"
+                self._json(200, finance_io.reveal_invoice_dir(month))
                 return
             if path == "/api/finance/save":
                 if (data.get("role") or "") != "finance":
