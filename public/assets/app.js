@@ -1249,6 +1249,7 @@ function renderBoard() {
       const id = el.dataset.id;
       if (el.checked) state.selected.add(id);
       else state.selected.delete(id);
+      el.closest(".row")?.classList.toggle("selected", el.checked);
       renderToolbar();
     });
   });
