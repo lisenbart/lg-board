@@ -1811,7 +1811,9 @@ function openTask(id) {
   const statusOpts = statusChoices(t)
     .map((k) => {
       const selected = t.studioStatus === k ? "selected" : "";
-      const disabled = k !== t.studioStatus && !canSetStatus(k) ? "disabled" : "";
+      const roleBlock = k !== t.studioStatus && !canSetStatus(k);
+      const needResult = k === "done" && k !== t.studioStatus && !String(t.resultUrl || "").trim();
+      const disabled = roleBlock || needResult ? "disabled" : "";
       return `<option value="${k}" ${selected} ${disabled}>${STATUS[k].label}</option>`;
     })
     .join("");
@@ -1853,11 +1855,12 @@ function openTask(id) {
       <p class="status-hint" id="stHoursHint">= ${hoursFromShifts(t.shifts || 0)} h</p></div>`
         : `<div class="field"><label>Time</label><div>${t.shifts || 0} shifts · ${t.hours || 0} h</div></div>`
     }
-    <div class="field"><label>${canPasteResult(t) && !canOps() ? "Result link" : "Result link"}</label>
-      <input id="stResult" value="${escapeHtml(t.resultUrl || "")}" placeholder="${workFolder(t) ? "Empty = same as Open folder" : "https://drive.google.com/..."}" ${canPasteResult(t) ? "" : "disabled"} />
+    <div class="field"><label>${canPasteResult(t) && !canOps() ? "Paste result link here" : "Result link"}</label>
+      <input id="stResult" value="${escapeHtml(t.resultUrl || "")}" placeholder="https://drive.google.com/..." ${canPasteResult(t) ? "" : "disabled"} />
     </div>
     <div class="field"><label>Status</label>
       <select id="stStatus" ${canEdit && !lockedStatus ? "" : "disabled"}>${statusOpts}</select>
+      <p class="status-hint" id="stDoneHint"></p>
     </div>
     </div>
     <div class="drawer-actions">
@@ -1869,15 +1872,19 @@ function openTask(id) {
   `;
   $("drawerBg").classList.add("show");
   $("closeDrawer").onclick = closeDrawer;
-  $("stStatus")?.addEventListener("change", () => {
-    if ($("stStatus").value !== "done") return;
-    if ($("stResult").value.trim()) return;
-    const work = workFolder({
-      brief: $("stBrief") ? $("stBrief").value : t.brief,
-      folderUrl: $("stFolder") ? $("stFolder").value : t.folderUrl,
-    });
-    if (work) $("stResult").value = work;
-  });
+  const syncDoneOption = () => {
+    const opt = $("stStatus")?.querySelector('option[value="done"]');
+    const hint = $("stDoneHint");
+    const hasResult = Boolean($("stResult")?.value.trim());
+    if (opt) {
+      opt.disabled = (!hasResult && t.studioStatus !== "done") || (!canSetStatus("done") && t.studioStatus !== "done");
+      if (opt.disabled && $("stStatus").value === "done") $("stStatus").value = t.studioStatus;
+    }
+    if (hint) hint.textContent = hasResult ? "" : "Paste the result link first.";
+  };
+  $("stResult")?.addEventListener("input", syncDoneOption);
+  $("stResult")?.addEventListener("change", syncDoneOption);
+  syncDoneOption();
   $("stShifts")?.addEventListener("input", () => {
     const shifts = parseShifts($("stShifts").value);
     const hint = $("stHoursHint");
@@ -1889,6 +1896,7 @@ function openTask(id) {
     hint.textContent = `= ${hoursFromShifts(shifts)} h`;
   });
   $("saveTask").onclick = () => {
+    const resultUrl = $("stResult").value.trim();
     const studioStatus = $("stStatus").value;
     if (studioStatus !== t.studioStatus && !canSetStatus(studioStatus)) {
       toast("This role cannot set " + (STATUS[studioStatus]?.label || studioStatus));
@@ -1898,22 +1906,15 @@ function openTask(id) {
       toast("Senior Approval is set only when you Send to client");
       return;
     }
-    const briefNow = $("stBrief") ? $("stBrief").value : t.brief;
-    const folderNow = $("stFolder") ? $("stFolder").value.trim() : t.folderUrl;
-    let resultUrl = $("stResult").value.trim();
-    const work = workFolder({ brief: briefNow, folderUrl: folderNow });
     if (studioStatus === "done" && !resultUrl) {
-      if (!work) {
-        toast("Need a folder link before Done");
-        return;
-      }
-      resultUrl = work;
+      toast("Paste the result link before Done");
+      return;
     }
     const assigneeId = $("stPerson") ? $("stPerson").value : t.assigneeId;
     const patch = { resultUrl, studioStatus, assigneeId, role: me().role };
-    if ($("stBrief")) patch.brief = briefNow;
+    if ($("stBrief")) patch.brief = $("stBrief").value;
     if ($("stDoc")) patch.docUrl = $("stDoc").value.trim();
-    if ($("stFolder")) patch.folderUrl = folderNow;
+    if ($("stFolder")) patch.folderUrl = $("stFolder").value.trim();
     if (canEditTime() && $("stShifts")) {
       const shifts = parseShifts($("stShifts").value);
       if (shifts === null) {
