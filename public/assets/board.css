@@ -42,17 +42,6 @@ html, body {
 }
 body { display: flex; flex-direction: column; }
 h1, h2, h3, h4, strong, b { font-weight: var(--fw-med); }
-.sandbox-ribbon {
-  flex: 0 0 auto;
-  background: #1f243a;
-  color: #c5cae3;
-  font-size: var(--fs-xs);
-  font-weight: 400;
-  letter-spacing: 0.01em;
-  text-align: center;
-  padding: 6px 16px;
-  border-bottom: 1px solid #3a4166;
-}
 button, input, select, textarea { font: inherit; font-weight: 400; }
 a { color: var(--blue); }
 .app { display: grid; grid-template-columns: 220px 1fr; flex: 1; min-height: 0; }
@@ -129,6 +118,8 @@ a { color: var(--blue); }
 .month-now.this-month strong { color: var(--blue); font-weight: 500; }
 .board-title { font-size: var(--fs-title); font-weight: 500; margin: 0; letter-spacing: -0.02em; }
 .role-hint { margin: 2px 0 0; color: var(--muted); font-size: var(--fs-sm); font-weight: 400; }
+.role-hint:empty, .side-foot:empty, .toolbar:empty, .kpis:empty { display: none; }
+.month-now small:empty { display: none; }
 .views { display: flex; gap: 2px; margin-top: 6px; }
 .view-tab {
   border: 0; background: transparent; padding: 7px 10px; cursor: pointer;
@@ -190,7 +181,7 @@ html.studio-host.in-app .login-gate { display: none !important; }
   box-shadow: var(--shadow);
 }
 .login-card .logo { width: 36px; height: 36px; font-size: 13px; margin-bottom: 12px; }
-.login-card h1 { margin: 0 0 6px; font-size: 20px; letter-spacing: -0.03em; }
+.login-card h1 { margin: 0 0 16px; font-size: 20px; letter-spacing: -0.03em; }
 .login-card > p { margin: 0 0 18px; color: var(--muted); font-size: 13px; }
 .login-acc, .login-seat {
   display: block;

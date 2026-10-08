@@ -43,19 +43,19 @@ const ACCOUNTS = [
   {
     email: "dmytro@lisenbart.games",
     name: "Dmytro",
-    blurb: "You see everything, including Finance.",
+    blurb: "Finance",
     lockRole: "finance",
   },
   {
     email: "anastasiia@lisenbart.games",
     name: "Anastasiia",
-    blurb: "Manager desk. Everything except Finance.",
+    blurb: "Line Producer",
     lockRole: "manager",
   },
   {
     email: "lisenbart.games@gmail.com",
     name: "Designers · Drive",
-    blurb: "Shared studio mailbox. Pick team lead or a designer.",
+    blurb: "Team Lead / Motion design",
     lockRole: null,
   },
 ];
@@ -540,9 +540,7 @@ function renderWho() {
 function renderMonth() {
   const here = state.month === calendarMonth();
   $("monthLabel").textContent = monthLabel(state.month);
-  $("monthMeta").textContent = here
-    ? `This month · Drive ${driveMonthFolder(state.month)}`
-    : `Drive ${driveMonthFolder(state.month)}`;
+  $("monthMeta").textContent = here ? "This month" : "";
   $("monthLabel").parentElement.classList.toggle("this-month", here);
   const nav = $("navClose");
   if (nav) nav.textContent = monthLabel(state.month);
@@ -559,23 +557,8 @@ function setMonth(ym) {
 function renderChrome() {
   $("financeNav").hidden = !isFinance();
   renderMonth();
-  $("roleHint").textContent =
-    isFinance() && (state.view === "close" || state.view === "team")
-      ? ""
-      : isDesigner()
-        ? "Your queue. Set WIP or Done and paste the result. Excel is the overall picture — read only."
-        : isTeamLead()
-          ? "Your work plus every designer. Assign people. Ready to Start, WIP, Need Fixing, Done — not Senior Approval."
-          : canOps() && !isFinance()
-            ? "Full pipeline except Finance. Pull from Monday, assign, send Done work as Senior Approval."
-            : "";
-  $("sideFoot").innerHTML = isFinance()
-    ? ""
-    : isDesigner()
-      ? "Your queue is private. Excel shows the whole month, without money."
-      : isTeamLead()
-        ? "Open a project and pick a designer. Monday send stays with the manager."
-        : "Monday import / export are manager actions. Finance stays with Dmytro.";
+  $("roleHint").textContent = "";
+  $("sideFoot").innerHTML = "";
 
   const tabs = [];
   tabs.push({
@@ -666,16 +649,10 @@ function renderKpis() {
   const month = monthTasks();
   const hours = month.reduce((s, t) => s + (Number(t.hours) || 0), 0);
   const ready = month.filter((t) => t.studioStatus === "done").length;
-  const clientRate = Number(state.db?.meta?.clientRateUsd);
-  const money =
-    isFinance() && clientRate
-      ? `<div class="kpi"><b>$${(hours * clientRate).toFixed(0)}</b><span>CLIENT IN × $${clientRate}/h</span></div>`
-      : "";
   $("kpis").innerHTML = `
-    <div class="kpi"><b>${month.length}</b><span>projects · ${monthLabel(state.month)}</span></div>
-    <div class="kpi"><b>${hours.toFixed(1)} h</b><span>hours in ${monthLabel(state.month)}</span></div>
-    <div class="kpi"><b>${ready}</b><span>Done, waiting to send</span></div>
-    ${money}
+    <div class="kpi"><b>${month.length}</b><span>projects</span></div>
+    <div class="kpi"><b>${hours.toFixed(1)} h</b><span>hours</span></div>
+    <div class="kpi"><b>${ready}</b><span>Done</span></div>
   `;
 }
 
@@ -767,8 +744,7 @@ function renderLoad() {
   const unOn = state.designerFilter === "unassigned" ? " on" : "";
   box.innerHTML = `
     <div class="load-head">
-      <strong>Designer load</strong>
-      <span>Cells = projects (like Excel). Bar vs even split ${fair.toFixed(1)} h. Click to filter.</span>
+      <strong>Load</strong>
     </div>
     <div class="load-row">
       ${cards}
@@ -862,14 +838,6 @@ function renderExcelSheet() {
 
   $("board").innerHTML = `
     <section class="xl-wrap">
-      <div class="xl-caption">
-        <strong>${monthLabel(state.month)} · SP_MGX_check</strong>
-        <span>${
-          isDesigner()
-            ? "Overall picture this month. Hours = shifts × 9. Read only."
-            : "This is SP_MGX_check — the same sheet on Drive. Open a row to assign. Edits in the card write back into the file."
-        }</span>
-      </div>
       <div class="xl-scroll">
         <table class="xl-table">
           <thead>
@@ -902,7 +870,7 @@ function renderExcelSheet() {
       const t = state.db.tasks.find((x) => x.id === row.dataset.id);
       if (!t) return;
       if (isDesigner() && t.assigneeId !== me().id) {
-        toast("Overall picture only — open your own projects from My projects");
+        toast("Open your own projects from My projects");
         return;
       }
       openTask(t.id);
@@ -965,8 +933,8 @@ function renderBoard() {
               .join("")
           : `<div class="cell empty" style="padding:12px 16px">${
               isDesigner()
-                ? `Nothing assigned to you in ${monthLabel(state.month)}`
-                : `No projects in ${monthLabel(state.month)} yet. Pull from Monday or paste a shift email.`
+                ? `Nothing assigned in ${monthLabel(state.month)}`
+                : `No projects in ${monthLabel(state.month)}`
             }</div>`
       }
     </section>`;
@@ -1234,7 +1202,7 @@ function renderClose() {
     btn.addEventListener("click", async (e) => {
       e.preventDefault();
       const ok = await copyText(btn.dataset.copy || "");
-      toast(ok ? "Copied — pay in the banking app" : "Could not copy");
+      toast(ok ? "Copied" : "Could not copy");
     });
   });
 }
@@ -1306,12 +1274,6 @@ function renderStudio(fin) {
     .join("");
   const empty = !fin.tasks.length ? `<div class="fin-empty">No hours in ${escapeHtml(fin.month)}.</div>` : "";
   return `
-    <div class="fin-kpis">
-      <div class="kpi"><b data-kpi="clientIn">${usd(fin.clientIn)}</b><span>CLIENT IN</span></div>
-      <div class="kpi"><b data-kpi="afterTax">${usd(fin.afterTax)}</b><span>STUDIO (TAX)</span></div>
-      <div class="kpi"><b data-kpi="empl">${usd(fin.empl)}</b><span>EMPL</span></div>
-      <div class="kpi"><b data-kpi="studio">${usd(fin.studio)}</b><span>STUDIO</span></div>
-    </div>
     <section class="group fin-card">
       <div class="fin-rates">
         <label>NBU USD/UAH <input id="finNbu" type="number" min="0" step="0.01" value="${fin.fx}" /></label>
@@ -1712,7 +1674,7 @@ function renderTeam() {
       return;
     }
     applyState(out.state);
-    toast("Person added — type the real name");
+    toast("Person added");
   };
 }
 
@@ -1736,7 +1698,7 @@ function openDeletePerson(id) {
   const wrap = $("delMoveWrap");
   wrap.hidden = !held.length;
   if (held.length) {
-    $("delIntro").textContent = `${displayName(p)} still has ${held.length} project${held.length === 1 ? "" : "s"}. Choose who takes them, or leave unassigned. You cannot delete until you choose.`;
+    $("delIntro").textContent = `${held.length} project${held.length === 1 ? "" : "s"} — choose who takes them.`;
     const others = state.db.people
       .filter((x) => x.id !== id)
       .sort((a, b) => {
@@ -1753,7 +1715,7 @@ function openDeletePerson(id) {
         .join("");
     $("delConfirm").disabled = true;
   } else {
-    $("delIntro").textContent = "No projects are assigned to this person. Safe to delete.";
+    $("delIntro").textContent = "";
     $("delConfirm").disabled = false;
   }
   $("delModal").dataset.id = id;
@@ -1808,11 +1770,6 @@ function openTask(id) {
       return `<option value="${k}" ${selected} ${disabled}>${STATUS[k].label}</option>`;
     })
     .join("");
-  const statusHint = isDesigner()
-    ? "Designer: WIP or Done. Manager sends Senior Approval to Monday."
-    : isTeamLead()
-      ? "Team lead: Ready to Start, WIP, Need Fixing, Done. No Monday send."
-      : "Manager / Finance: send Done work to Senior Approval on Monday.";
   $("drawer").innerHTML = `
     <div class="drawer-head">
       <h2>${escapeHtml(t.name)}</h2>
@@ -1826,7 +1783,7 @@ function openTask(id) {
       <select id="stPerson">
         <option value="">— unassigned</option>
         ${designers()
-          .map((p) => `<option value="${p.id}" ${t.assigneeId === p.id ? "selected" : ""}>${p.name}</option>`)
+          .map((p) => `<option value="${p.id}" ${t.assigneeId === p.id ? "selected" : ""}>${escapeHtml(p.name)} · ${jobMeta(p).code}</option>`)
           .join("")}
       </select></div>`
         : `<div class="field"><label>Assignee</label><div>${personCell(t.assigneeId)}</div></div>`
@@ -1839,7 +1796,7 @@ function openTask(id) {
       <input id="stDoc" value="${escapeHtml(t.docUrl || "")}" placeholder="https://docs.google.com/document/..." />
       <label style="margin-top:10px">Drive folder</label>
       <input id="stFolder" value="${escapeHtml(t.folderUrl || "")}" placeholder="https://drive.google.com/drive/folders/..." />
-      ${sandboxDriveUrl() ? `<p class="status-hint"><a href="${escapeHtml(sandboxDriveUrl())}" target="_blank" rel="noreferrer">Open this month on Drive</a> — paste the project folder link here. The board does not create Drive folders.</p>` : ""}`
+      ${sandboxDriveUrl() ? `<p class="status-hint"><a href="${escapeHtml(sandboxDriveUrl())}" target="_blank" rel="noreferrer">Open this month on Drive</a></p>` : ""}`
           : `<div class="brief">${escapeHtml(t.brief || "No brief yet")}</div>
       ${t.docUrl ? `<p><a href="${escapeHtml(t.docUrl)}" target="_blank" rel="noreferrer">Open Google Doc</a></p>` : ""}
       ${t.folderUrl ? `<p><a href="${escapeHtml(t.folderUrl)}" target="_blank" rel="noreferrer">Drive folder</a></p>` : ""}`
@@ -1849,7 +1806,7 @@ function openTask(id) {
       canEditTime()
         ? `<div class="field"><label>Shifts</label>
       <input id="stShifts" type="number" min="0" step="0.1" value="${t.shifts ?? ""}" />
-      <p class="status-hint" id="stHoursHint">= ${hoursFromShifts(t.shifts || 0)} h (shifts × ${shiftHours()}). Same unit as Orit’s email.</p></div>`
+      <p class="status-hint" id="stHoursHint">= ${hoursFromShifts(t.shifts || 0)} h</p></div>`
         : `<div class="field"><label>Time</label><div>${t.shifts || 0} shifts · ${t.hours || 0} h</div></div>`
     }
     <div class="field"><label>${isDesigner() ? "Paste result link here" : "Result link"}</label>
@@ -1857,7 +1814,6 @@ function openTask(id) {
     </div>
     <div class="field"><label>Status</label>
       <select id="stStatus" ${canEdit && !lockedStatus ? "" : "disabled"}>${statusOpts}</select>
-      <p class="status-hint">${statusHint}</p>
     </div>
     </div>
     <div class="drawer-actions">
@@ -1875,7 +1831,7 @@ function openTask(id) {
       hint.textContent = "Enter a number, 0 or more.";
       return;
     }
-    hint.textContent = `= ${hoursFromShifts(shifts)} h (shifts × ${shiftHours()}). Same unit as Orit’s email.`;
+    hint.textContent = `= ${hoursFromShifts(shifts)} h`;
   });
   $("saveTask").onclick = () => {
     const resultUrl = $("stResult").value.trim();
