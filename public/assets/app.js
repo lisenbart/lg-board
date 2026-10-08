@@ -568,10 +568,20 @@ function setMonth(ym) {
   render();
 }
 
+function roleLine() {
+  const p = me();
+  const b = jobMeta(p);
+  if (p.role === "designer") return `${b.code} ${b.title} · your queue · paste the result, then Done`;
+  if (p.role === "teamlead") return `${b.code} ${b.title} · assign people · your own tasks like MD`;
+  if (p.role === "manager") return `${b.code} ${b.title} · hours · Send to client after Done`;
+  if (p.role === "finance") return `${b.code} ${b.title} · studio money`;
+  return "";
+}
+
 function renderChrome() {
   $("financeNav").hidden = !isFinance();
   renderMonth();
-  $("roleHint").textContent = "";
+  $("roleHint").textContent = roleLine();
   $("sideFoot").innerHTML = "";
 
   const tabs = [];
@@ -705,6 +715,85 @@ function packLinksHtml(t) {
     : "";
   if (!brief && !folder) return "";
   return `<div class="pack-links">${brief}${folder}</div>`;
+}
+function hasDriveDoc(t) {
+  return Boolean(String(t?.docUrl || "").trim());
+}
+function hasDriveFolder(t) {
+  return Boolean(workFolder(t));
+}
+function cardJob(t) {
+  const role = me().role;
+  const mine = t.assigneeId === me().id;
+  const hasResult = Boolean(String(t.resultUrl || "").trim());
+  const who = person(t.assigneeId);
+  const name = who ? displayName(who) : "";
+  if (role === "designer") {
+    if (t.studioStatus === "approve") {
+      return { tone: "ok", title: "Sent to client", body: "LP already sent this. Nothing else on this card." };
+    }
+    if (t.studioStatus === "done") {
+      return { tone: "wait", title: "Waiting for LP", body: "Result is in. Line Producer sends it to the client." };
+    }
+    if (t.studioStatus === "revision") {
+      return { tone: "fix", title: "Need Fixing", body: "Fix the work, paste the new result link, then Done." };
+    }
+    if (!hasResult) {
+      return {
+        tone: "do",
+        title: "Your job",
+        body: "Open the brief, work in the folder, paste the finished-file link, then Done.",
+      };
+    }
+    return { tone: "do", title: "Mark Done", body: "Result link is in. Set Done and Save." };
+  }
+  if (role === "teamlead") {
+    if (!t.assigneeId) {
+      return { tone: "do", title: "Your job", body: "Assign a designer. They see it in their queue after Save." };
+    }
+    if (mine && t.studioStatus !== "done" && t.studioStatus !== "approve") {
+      if (t.studioStatus === "revision") {
+        return { tone: "fix", title: "This is your work · Need Fixing", body: "Fix, paste the new result link, then Done." };
+      }
+      if (!hasResult) {
+        return { tone: "do", title: "This is your work", body: "Same as MD: paste the result link, then Done." };
+      }
+      return { tone: "do", title: "Mark Done", body: "Result link is in. Set Done and Save." };
+    }
+    if (t.studioStatus === "done") {
+      return { tone: "wait", title: "Waiting for LP", body: `${name || "Designer"} finished. You cannot Send to client — that is LP.` };
+    }
+    if (t.studioStatus === "approve") {
+      return { tone: "ok", title: "Sent to client", body: "Nothing else on this card." };
+    }
+    if (t.studioStatus === "revision") {
+      return { tone: "fix", title: "Need Fixing", body: `${name || "Designer"} must fix and paste a new result.` };
+    }
+    return { tone: "wait", title: "Assigned", body: `${name || "They"} work this. Reassign here if the person is wrong.` };
+  }
+  if (t.studioStatus === "approve") {
+    return { tone: "ok", title: "Already sent", body: "Copy the Monday reply if External Weekly still needs it." };
+  }
+  if (t.studioStatus === "done" && hasResult) {
+    return { tone: "do", title: "Your job", body: "Result is in. Send to client — that sets Senior Approval." };
+  }
+  if (!t.assigneeId) {
+    return { tone: "wait", title: "Waiting for TL", body: "Set hours if needed. Team Lead assigns. You send only after Done." };
+  }
+  if (t.studioStatus === "revision") {
+    return { tone: "wait", title: "In Need Fixing", body: `${name || "Designer"} is fixing. Send only after they mark Done again.` };
+  }
+  return {
+    tone: "wait",
+    title: "In progress",
+    body: `${name || "Designer"} is on this. Send only when status is Done and the result link is pasted.`,
+  };
+}
+function showResultField(t) {
+  if (String(t.resultUrl || "").trim()) return true;
+  if (t.assigneeId === me().id && (isDesigner() || isTeamLead())) return true;
+  if (canOps() && t.studioStatus !== "new") return true;
+  return false;
 }
 function timeCell(t) {
   const hours = t.hours || hoursFromShifts(t.shifts || 0);
@@ -968,21 +1057,21 @@ function renderGuide() {
       <div class="guide-grid">
         ${card("manager", "LP", "Line Producer", "Анастасія. Бачить усе, крім Finance.", [
           `Новий пак: ${ui("Pull from Monday")} або ${ui("Shift email")} (рядок як в Orit: NAME | 0.3 shifts).`,
-          `Портал сам робить теку + бриф у пісочниці Drive. Живу теку клієнта не чіпаємо.`,
-          `Години: поле ${ui("Shifts")} у рядку. 1 shift = 9 годин.`,
+          `У картці зверху — твій крок. Бриф уже текстом. ${ui("Open brief")} / ${ui("Open folder")} відкривають Drive. URL туди не вставляєш.`,
+          `Години: поле ${ui("Shifts")} у рядку або в картці. 1 shift = 9 годин. Виконавця ставить TL.`,
           `Дзвіночок: ${ui("New")} — нові без виконавця (якщо тягнула не ти). ${ui("Send")} — ${ui("Done")} з лінком, час здавати.`,
           `${ui("Send to client")} лише з ${ui("Done")} + лінк результату. Копіює текст у External Weekly. ${ui("Senior Approval")} сам не виставляється.`,
         ])}
         ${card("teamlead", "TL", "Team Lead", "Настя. Усі проєкти + свої як виконавця.", [
-          `Дзвіночок ${ui("New")} — нові без людини. Відкрий картку, глянь ${ui("Open brief")}.`,
-          `У картці ${ui("Assign designer")} → ${ui("Save")}. Людина одразу бачить таск у себе.`,
-          `Свої таски робиш як MD: лінк результату, потім ${ui("Done")}.`,
-          `${ui("Excel")} — та сама картина, що ${ui("SP_MGX_check")}. ${ui("Send to client")} у TL немає.`,
+          `Дзвіночок ${ui("New")} — нові без людини. Картка каже ${ui("Assign a designer")} — це твоя робота, не URL і не Done.`,
+          `Прочитай бриф, ${ui("Open brief")} якщо треба Doc. ${ui("Who works this")} → ${ui("Save")}. Людина одразу бачить таск у себе.`,
+          `Свої таски — як MD: ${ui("Paste result link here")}, потім ${ui("Done")}.`,
+          `${ui("Excel")} — та сама картина, що ${ui("SP_MGX_check")}. ${ui("Send to client")} у TL немає — це LP.`,
         ])}
         ${card("designer", "MD", "Motion design", "Маша, Сергій, Аліна, Олекса. Лише свої таски.", [
           `Дзвіночок ${ui("On you")} — тебе поставили. ${ui("Fix")} — ${ui("Need Fixing")}.`,
-          `${ui("Open brief")} — завдання. ${ui("Open folder")} — тека, куди класти результат (зазвичай тека клієнта з брифа).`,
-          `Зробив → встав посилання в ${ui("Paste result link here")}. Поки лінка немає, ${ui("Done")} у статусі немає.`,
+          `Бриф на картці. ${ui("Open brief")} — Doc. ${ui("Open folder")} — тека, куди класти файл (не сирі URL).`,
+          `Зробив → ${ui("Paste result link here")} (лінк на файл, не на теку). Поки лінка немає, ${ui("Done")} у статусі немає.`,
           `Потім статус ${ui("Done")} → ${ui("Save")}. Далі чекає LP. Правки: ${ui("Need Fixing")} → знову лінк і ${ui("Done")}.`,
         ])}
         ${finance}
@@ -1894,6 +1983,13 @@ function openTask(id) {
   const mine = t.assigneeId === me().id;
   const canEdit = canOps() || canAssign() || mine;
   const lockedStatus = t.studioStatus === "approve" && !canOps();
+  const job = cardJob(t);
+  const performer = mine && (isDesigner() || isTeamLead());
+  const canPaste = canPasteResult(t);
+  const needResultUi = showResultField(t);
+  const pack = packLinksHtml(t);
+  const missingDoc = !hasDriveDoc(t);
+  const missingFolder = !hasDriveFolder(t);
   const statusOpts = statusChoices(t)
     .map((k) => {
       const selected = t.studioStatus === k ? "selected" : "";
@@ -1902,47 +1998,96 @@ function openTask(id) {
       return `<option value="${k}" ${selected} ${roleBlock ? "disabled" : ""}>${STATUS[k].label}</option>`;
     })
     .join("");
+  const assignBlock = canAssign()
+    ? `<div class="field${!t.assigneeId && isTeamLead() ? " field-focus" : ""}">
+        <label>${isTeamLead() && !t.assigneeId ? "Assign designer" : "Who works this"}</label>
+        <select id="stPerson">
+          <option value="">— unassigned</option>
+          ${designers()
+            .map(
+              (p) =>
+                `<option value="${p.id}" ${t.assigneeId === p.id ? "selected" : ""}>${escapeHtml(p.name)} · ${jobMeta(p).code}</option>`
+            )
+            .join("")}
+        </select>
+        ${
+          isTeamLead() && !t.assigneeId
+            ? `<p class="status-hint">This is the TL step. MD and Send to client come after.</p>`
+            : canOps() && !t.assigneeId
+              ? `<p class="status-hint">Team Lead usually assigns. Change it here only if needed.</p>`
+              : ""
+        }
+      </div>`
+    : `<div class="field"><label>Who works this</label><div>${personCell(t.assigneeId)}</div></div>`;
+  const driveNote = canOps()
+    ? missingDoc || missingFolder
+      ? `<div class="drive-missing">
+          <p>No Drive pack yet. Create it, or paste links you already have.</p>
+          <button type="button" class="btn" id="ensureDrive">Create folder + brief</button>
+          <details class="drive-paste">
+            <summary>I already have Drive links</summary>
+            <label>Brief Doc URL</label>
+            <input id="stDoc" value="${escapeHtml(t.docUrl || "")}" placeholder="https://docs.google.com/document/..." />
+            <label>Work folder URL</label>
+            <input id="stFolder" value="${escapeHtml(t.folderUrl || "")}" placeholder="https://drive.google.com/drive/folders/..." />
+          </details>
+        </div>`
+      : `<p class="status-hint">Open brief = the Doc. Open folder = where the file goes. You do not paste those URLs.</p>`
+    : missingDoc && missingFolder
+      ? `<p class="status-hint">No Drive pack yet — ask LP.</p>`
+      : `<p class="status-hint">${isDesigner() || performer ? "Work in the folder. Paste the finished file link below — not the folder." : "Open brief = the Doc. Open folder = where the file goes."}</p>`;
+  const briefBlock = `<div class="field">
+      <label>Brief</label>
+      ${
+        canOps()
+          ? `<textarea class="brief-edit" id="stBrief" placeholder="Monday / email brief — the text on this card">${escapeHtml(t.brief || "")}</textarea>`
+          : `<div class="brief">${escapeHtml(t.brief || "No brief yet")}</div>`
+      }
+      ${pack}
+      ${driveNote}
+    </div>`;
+  const timeBlock = canEditTime()
+    ? `<div class="field"><label>Shifts</label>
+      <input id="stShifts" type="number" min="0" step="0.1" value="${t.shifts ?? ""}" />
+      <p class="status-hint" id="stHoursHint">= ${hoursFromShifts(t.shifts || 0)} h · LP sets this. 1 shift = 9 h.</p></div>`
+    : "";
+  const resultBlock = needResultUi
+    ? canPaste
+      ? `<div class="field${performer ? " field-focus" : ""}">
+          <label>${performer ? "Paste result link here" : "Result"}</label>
+          <input id="stResult" value="${escapeHtml(t.resultUrl || "")}" placeholder="https://drive.google.com/..." />
+          <p class="status-hint">${
+            performer
+              ? "Link to the finished file — not the work folder, not the brief."
+              : "Designer pastes this. Required before Send to client."
+          }</p>
+        </div>`
+      : `<div class="field"><label>Result</label>${
+          t.resultUrl
+            ? `<a class="linkish" href="${escapeHtml(t.resultUrl)}" target="_blank" rel="noreferrer">Open result</a>`
+            : `<div class="empty">Waiting for ${escapeHtml(person(t.assigneeId)?.name || "designer")}</div>`
+        }</div>`
+    : "";
+  const st = STATUS[t.studioStatus] || STATUS.new;
   $("drawer").innerHTML = `
     <div class="drawer-head">
       <h2>${escapeHtml(t.name)}</h2>
       <button type="button" class="drawer-x" id="closeDrawer" aria-label="Close">×</button>
     </div>
-    <div class="meta">${t.line} · ${t.shifts || 0} shift / ${t.hours || 0} h · ${person(t.assigneeId)?.name || "unassigned"}</div>
+    <div class="meta">${t.line} · ${t.shifts || 0} shift / ${t.hours || 0} h · <span class="pill ${st.cls}">${st.label}</span></div>
     <div class="drawer-body">
-    ${
-      canAssign()
-        ? `<div class="field"><label>Assign designer</label>
-      <select id="stPerson">
-        <option value="">— unassigned</option>
-        ${designers()
-          .map((p) => `<option value="${p.id}" ${t.assigneeId === p.id ? "selected" : ""}>${escapeHtml(p.name)} · ${jobMeta(p).code}</option>`)
-          .join("")}
-      </select></div>`
-        : `<div class="field"><label>Assignee</label><div>${personCell(t.assigneeId)}</div></div>`
-    }
-    <div class="field"><label>Brief</label>
-      ${
-        canOps() || canAssign()
-          ? `<textarea class="brief-edit" id="stBrief" placeholder="Paste the Monday / Google Doc brief">${escapeHtml(t.brief || "")}</textarea>
-      ${packLinksHtml(t)}
-      <label style="margin-top:10px">Brief Doc URL</label>
-      <input id="stDoc" value="${escapeHtml(t.docUrl || "")}" placeholder="https://docs.google.com/document/..." />
-      <label style="margin-top:10px">Work folder URL</label>
-      <input id="stFolder" value="${escapeHtml(t.folderUrl || "")}" placeholder="Client folder, or ours if they did not send one" />`
-          : `<div class="brief">${escapeHtml(t.brief || "No brief yet")}</div>
-      ${packLinksHtml(t)}`
-      }
+    <div class="card-job tone-${job.tone}">
+      ${jobBadgeHtml(me())}
+      <div>
+        <strong>${escapeHtml(job.title)}</strong>
+        <p>${escapeHtml(job.body)}</p>
+      </div>
     </div>
-    ${
-      canEditTime()
-        ? `<div class="field"><label>Shifts</label>
-      <input id="stShifts" type="number" min="0" step="0.1" value="${t.shifts ?? ""}" />
-      <p class="status-hint" id="stHoursHint">= ${hoursFromShifts(t.shifts || 0)} h</p></div>`
-        : `<div class="field"><label>Time</label><div>${t.shifts || 0} shifts · ${t.hours || 0} h</div></div>`
-    }
-    <div class="field"><label>${canPasteResult(t) && !canOps() ? "Paste result link here" : "Result link"}</label>
-      <input id="stResult" value="${escapeHtml(t.resultUrl || "")}" placeholder="https://drive.google.com/..." ${canPasteResult(t) ? "" : "disabled"} />
-    </div>
+    ${isTeamLead() ? assignBlock : ""}
+    ${briefBlock}
+    ${!isTeamLead() ? assignBlock : ""}
+    ${timeBlock}
+    ${resultBlock}
     <div class="field"><label>Status</label>
       <select id="stStatus" ${canEdit && !lockedStatus ? "" : "disabled"}>${statusOpts}</select>
       <p class="status-hint" id="stDoneHint"></p>
@@ -1951,7 +2096,6 @@ function openTask(id) {
     <div class="drawer-actions">
       ${canOps() && isSendable(t) ? `<button class="btn green" id="exportOne">Send this to client</button>` : ""}
       ${canOps() && t.studioStatus === "approve" && t.resultUrl ? `<button class="btn" id="copyOne">Copy Monday reply</button>` : ""}
-      ${canOps() && !(t.folderUrl && t.docUrl) ? `<button type="button" class="btn" id="ensureDrive">Create folder + brief</button>` : ""}
       <button class="btn primary" id="saveTask">Save</button>
     </div>
   `;
@@ -1965,7 +2109,7 @@ function openTask(id) {
     const sel = $("stStatus");
     const hint = $("stDoneHint");
     if (!sel) return;
-    const hasResult = Boolean($("stResult")?.value.trim());
+    const hasResult = Boolean(($("stResult")?.value || t.resultUrl || "").trim());
     const allowDone = (hasResult || t.studioStatus === "done") && (canSetStatus("done") || t.studioStatus === "done");
     let opt = sel.querySelector('option[value="done"]');
     if (allowDone && !opt) {
@@ -1979,7 +2123,17 @@ function openTask(id) {
       opt.remove();
     }
     if (hint) {
-      hint.textContent = hasResult ? "" : "Done is locked until you paste the result link.";
+      if (performer && !hasResult && t.studioStatus !== "done" && t.studioStatus !== "approve") {
+        hint.textContent = "Done appears here after you paste the result link.";
+      } else if (canOps() && t.studioStatus === "done") {
+        hint.textContent = "Send to client — that sets Senior Approval.";
+      } else if (canOps() && t.studioStatus !== "approve" && t.studioStatus !== "new") {
+        hint.textContent = "Senior Approval is set only by Send to client.";
+      } else if (isTeamLead() && t.assigneeId && t.assigneeId !== me().id) {
+        hint.textContent = "Need Fixing sends it back to the designer.";
+      } else {
+        hint.textContent = "";
+      }
     }
   };
   $("stResult")?.addEventListener("input", syncDoneOption);
@@ -1987,7 +2141,7 @@ function openTask(id) {
   $("stResult")?.addEventListener("paste", () => setTimeout(syncDoneOption, 0));
   $("stStatus")?.addEventListener("change", () => {
     if ($("stStatus").value !== "done") return;
-    if ($("stResult").value.trim()) return;
+    if (($("stResult")?.value || t.resultUrl || "").trim()) return;
     $("stStatus").value = t.studioStatus;
     toast("Paste the result link before Done");
     syncDoneOption();
@@ -2001,10 +2155,10 @@ function openTask(id) {
       hint.textContent = "Enter a number, 0 or more.";
       return;
     }
-    hint.textContent = `= ${hoursFromShifts(shifts)} h`;
+    hint.textContent = `= ${hoursFromShifts(shifts)} h · LP sets this. 1 shift = 9 h.`;
   });
   $("saveTask").onclick = () => {
-    const resultUrl = $("stResult").value.trim();
+    const resultUrl = ($("stResult")?.value || t.resultUrl || "").trim();
     const studioStatus = $("stStatus").value;
     if (studioStatus !== t.studioStatus && !canSetStatus(studioStatus)) {
       toast("This role cannot set " + (STATUS[studioStatus]?.label || studioStatus));
@@ -2019,7 +2173,8 @@ function openTask(id) {
       return;
     }
     const assigneeId = $("stPerson") ? $("stPerson").value : t.assigneeId;
-    const patch = { resultUrl, studioStatus, assigneeId, role: me().role };
+    const patch = { studioStatus, assigneeId, role: me().role };
+    if ($("stResult")) patch.resultUrl = resultUrl;
     if ($("stBrief")) patch.brief = $("stBrief").value;
     if ($("stDoc")) patch.docUrl = $("stDoc").value.trim();
     if ($("stFolder")) patch.folderUrl = $("stFolder").value.trim();
