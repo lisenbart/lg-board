@@ -58,6 +58,8 @@
         game: "Dice Dreams",
         mondayStatus: "Ready to Start",
         brief: "Resize BananaBoat 8s. Keep logo top-left.",
+        folderUrl: "https://drive.google.com/drive/folders/13-eo8f5K8rZm-DEkIXgQ0EWNsqC_O5HF",
+        docUrl: "https://docs.google.com/document/d/1dbxJCigaJisDTUnHFqjkmAFTctjM_kFR1tMrw9dFTxU/edit",
       },
     ];
   }
@@ -170,8 +172,8 @@
           mondayStatus: item.mondayStatus || "Ready to Start",
           assigneeId: "",
           brief: item.brief || "",
-          folderUrl: "",
-          docUrl: "",
+          folderUrl: item.folderUrl || "",
+          docUrl: item.docUrl || "",
           resultUrl: "",
           source: "monday",
           activity: [{ at: now(), text: "Pulled from Monday External Weekly" }],
@@ -181,7 +183,11 @@
       db.events = db.events || [];
       db.events.unshift({ at: now(), text: `Monday import: ${added} new tasks` });
       writeDb(db);
-      return { added, state: clone(db) };
+      return { added, drive: { created: 0, linked: added, ready: added }, state: clone(db) };
+    }
+
+    if (path === "/api/drive/ensure") {
+      return { error: "Drive folders are created in the studio sandbox, not on GitHub Pages." };
     }
 
     if (path === "/api/export-monday") {

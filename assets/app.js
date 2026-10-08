@@ -1846,6 +1846,7 @@ function openTask(id) {
     <div class="drawer-actions">
       ${canOps() && isSendable(t) ? `<button class="btn green" id="exportOne">Send this to client</button>` : ""}
       ${canOps() && t.studioStatus === "approve" && t.resultUrl ? `<button class="btn" id="copyOne">Copy Monday reply</button>` : ""}
+      ${canOps() && !(t.folderUrl && t.docUrl) ? `<button type="button" class="btn" id="ensureDrive">Create folder + brief</button>` : ""}
       <button class="btn primary" id="saveTask">Save</button>
     </div>
   `;
@@ -1901,6 +1902,17 @@ function openTask(id) {
     await sendToClient([t.id]);
     openTask(t.id);
   });
+  $("ensureDrive")?.addEventListener("click", async () => {
+    const out = await api("/api/drive/ensure", { id: t.id, month: state.month, role: me().role });
+    if (out.error || !out.ok) {
+      toast(out.error || "Could not create the Drive folder");
+      if (out.state) applyState(out.state);
+      return;
+    }
+    applyState(out.state);
+    toast("Folder + brief on Drive");
+    openTask(t.id);
+  });
   $("copyOne")?.addEventListener("click", async () => {
     const pack = mondayReply(t);
     const ok = await copyText(pack);
@@ -1935,7 +1947,18 @@ async function importMonday() {
     return;
   }
   applyState(out.state);
-  toast(out.added ? `Pulled ${out.added} new from Monday` : "Nothing new");
+  toast(
+    out.added
+      ? `Pulled ${out.added} new from Monday${driveToast(out.drive)}`
+      : "Nothing new"
+  );
+}
+function driveToast(drive) {
+  if (!drive) return "";
+  if (drive.created) return ` · ${drive.created} Drive folder${drive.created === 1 ? "" : "s"} + brief`;
+  if (drive.ready) return " · Drive folder + brief ready";
+  if (drive.errors?.length) return " · Drive folder skipped";
+  return "";
 }
 async function sendToClient(ids) {
   if (!canOps()) {
@@ -2054,7 +2077,7 @@ $("emailApply").onclick = async () => {
   }
   applyState(out.state);
   $("emailModal").classList.remove("show");
-  toast(`Email: ${out.added} new, ${out.updated} shifts updated`);
+  toast(`Email: ${out.added} new, ${out.updated} shifts updated${driveToast(out.drive)}`);
 };
 $("drawerBg").addEventListener("click", (e) => {
   if (e.target === $("drawerBg")) closeDrawer();
