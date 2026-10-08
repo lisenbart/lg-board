@@ -775,16 +775,10 @@ function clientSlotsHtml(t) {
   const sourceBody = sourceBits
     ? `${sourceBits}<p class="status-hint">Take this. Put the finished file in Result — not here.</p>`
     : `<p class="status-hint">Folder + brief land with the task. Source video is the file named in the client note.</p>`;
-  const edit = canOps()
-    ? `<details class="brief-more"><summary>Edit brief text</summary>
-        <textarea class="brief-edit" id="stBrief" placeholder="Monday / email brief">${escapeHtml(t.brief || "")}</textarea>
-      </details>`
-    : "";
   return `<div class="slot slot-client">
       <div class="slot-kicker"><span class="slot-n">1</span> From client <em>pinned</em></div>
       ${msg}${names}
       ${docBtn ? `<div class="pack-links">${docBtn}</div>` : ""}
-      ${edit}
     </div>
     <div class="slot slot-source">
       <div class="slot-kicker"><span class="slot-n">2</span> Source</div>
@@ -2231,7 +2225,6 @@ function openTask(id) {
     const assigneeId = $("stPerson") ? $("stPerson").value : t.assigneeId;
     const patch = { studioStatus, assigneeId, role: me().role };
     if ($("stResult")) patch.resultUrl = resultUrl;
-    if ($("stBrief")) patch.brief = $("stBrief").value;
     if (canEditTime() && $("stShifts")) {
       const shifts = parseShifts($("stShifts").value);
       if (shifts === null) {

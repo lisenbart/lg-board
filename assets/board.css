@@ -576,8 +576,6 @@ body.col-resizing * { cursor: col-resize !important; }
   border-radius: 4px; padding: 3px 8px; max-width: 100%;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.brief-more { margin-top: 8px; }
-.brief-more summary { cursor: pointer; font-size: 12px; color: var(--muted); }
 .slot-result label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
 .slot-result input {
   width: 100%; border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px;
@@ -695,7 +693,6 @@ body.col-resizing * { cursor: col-resize !important; }
 }
 .modal h3 { margin: 0 0 8px; font-size: 15px; font-weight: 500; }
 .modal textarea { width: 100%; min-height: 220px; border: 1px solid var(--line); border-radius: 8px; padding: 10px; font-size: 13px; font-weight: 400; }
-.brief-edit { width: 100%; min-height: 120px; border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; font: inherit; line-height: 1.45; resize: vertical; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 
 .toast {
