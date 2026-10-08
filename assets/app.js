@@ -732,7 +732,7 @@ function parseBrief(t) {
       .trim();
     if (v && !naming.includes(v)) naming.push(v);
   };
-  const afterName = raw.split(/naming\s*:/i)[1] || "";
+  const afterName = raw.split(/\bnaming\s*:/i)[1] || "";
   if (afterName) {
     afterName.split(/\n/).forEach((line) => {
       const s = line.trim();
@@ -746,47 +746,78 @@ function parseBrief(t) {
   }
   if (!naming.length) {
     const deliver = raw.match(/deliver[^:\n]*:\s*([^\n]+)/i);
-    if (deliver) deliver[1].split(/[,/]/).map((x) => x.trim()).filter((x) => /\d\s*[x×]\s*\d/.test(x)).forEach(pushName);
+    if (deliver) {
+      deliver[1]
+        .split(/[,/]/)
+        .map((x) => x.trim())
+        .filter((x) => /\d\s*[x×]\s*\d/.test(x))
+        .forEach(pushName);
+    }
   }
-  return { raw, fileUrl, downloads, naming };
+  const text = raw
+    .replace(/\bnaming\s*:[\s\S]*$/i, "")
+    .replace(/\bdeliver[^:\n]*:[^\n]*/gi, "")
+    .trim();
+  return { raw, text, fileUrl, downloads, naming };
 }
-function clientSlotsHtml(t) {
+function sizeChip(n) {
+  const m = String(n).match(/(\d{3,4})\s*[x×]\s*(\d{3,4})/i);
+  return m ? `${m[1]}×${m[2]}` : n;
+}
+function pinHtml(t) {
+  const parts = parseBrief(t);
+  const body = parts.text
+    ? `<div class="pin-body">${escapeHtml(parts.text)}</div>`
+    : `<div class="pin-body is-empty">No brief from Monday yet</div>`;
+  const deliver = parts.naming.length
+    ? `<div class="pin-deliver">
+        <span>Deliver</span>
+        <div class="size-chips">${parts.naming
+          .map((n) => `<span class="size-chip" title="${escapeHtml(n)}">${escapeHtml(sizeChip(n))}</span>`)
+          .join("")}</div>
+      </div>`
+    : "";
+  const doc = t.docUrl
+    ? `<a class="pin-link" href="${escapeHtml(t.docUrl)}" target="_blank" rel="noreferrer">Open brief doc</a>`
+    : "";
+  return `<article class="pin">
+      <header class="pin-head">From client</header>
+      ${body}${deliver}
+      ${doc ? `<footer class="pin-foot">${doc}</footer>` : ""}
+    </article>`;
+}
+function sourceHtml(t) {
   const parts = parseBrief(t);
   const work = workFolder(t);
-  const shown = parts.naming.length
-    ? parts.raw.replace(/\n*naming\s*:[\s\S]*$/i, "").trim()
-    : parts.raw;
-  const msg = shown
-    ? `<div class="client-msg">${escapeHtml(shown)}</div>`
-    : `<div class="client-msg empty">No brief from Monday yet</div>`;
-  const names = parts.naming.length
-    ? `<ul class="naming">${parts.naming.map((n) => `<li>${escapeHtml(n)}</li>`).join("")}</ul>`
-    : "";
-  const docBtn = t.docUrl
-    ? `<a class="btn pack-brief" href="${escapeHtml(t.docUrl)}" target="_blank" rel="noreferrer">Open brief doc</a>`
-    : "";
   const videoBtn = parts.fileUrl
     ? `<a class="btn pack-brief" href="${escapeHtml(parts.fileUrl)}" target="_blank" rel="noreferrer">Open video</a>`
     : "";
   const folderBtn = work
     ? `<a class="btn pack-folder" href="${escapeHtml(work)}" target="_blank" rel="noreferrer">Open folder</a>`
     : "";
-  const fileChips = parts.downloads
+  const files = parts.downloads
     .map((f) => `<span class="file-chip">${escapeHtml(f)}</span>`)
     .join("");
-  const sourceBits = videoBtn + folderBtn + (fileChips ? `<div class="file-row">${fileChips}</div>` : "");
-  const sourceBody = sourceBits
-    ? `${sourceBits}<p class="status-hint">Take this. Put the finished file in Result — not here.</p>`
-    : `<p class="status-hint">Folder + brief land with the task. Source video is the file named in the client note.</p>`;
-  return `<div class="slot slot-client">
-      <div class="slot-kicker"><span class="slot-n">1</span> From client <em>pinned</em></div>
-      ${msg}${names}
-      ${docBtn ? `<div class="pack-links">${docBtn}</div>` : ""}
-    </div>
-    <div class="slot slot-source">
-      <div class="slot-kicker"><span class="slot-n">2</span> Source</div>
-      ${sourceBody}
-    </div>`;
+  const actions = videoBtn || folderBtn || files
+    ? `${videoBtn}${folderBtn}${files ? `<div class="file-row">${files}</div>` : ""}`
+    : `<p class="io-empty">Folder lands with the task</p>`;
+  return `<section class="io io-source">
+      <h3>Source</h3>
+      ${actions}
+    </section>`;
+}
+function resultHtml(t, performer, canPaste) {
+  if (!showResultField(t)) return "";
+  const body = canPaste
+    ? `<input id="stResult" value="${escapeHtml(t.resultUrl || "")}" placeholder="Paste finished file link" />
+        <p class="io-hint">${performer ? "The file, not the folder." : "Needed before Send to client."}</p>`
+    : t.resultUrl
+      ? `<a class="pin-link" href="${escapeHtml(t.resultUrl)}" target="_blank" rel="noreferrer">Open result</a>`
+      : `<p class="io-empty">Waiting for ${escapeHtml(person(t.assigneeId)?.name || "designer")}</p>`;
+  return `<section class="io io-result${performer ? " is-focus" : ""}">
+      <h3>Result</h3>
+      ${body}
+    </section>`;
 }
 function hasDriveDoc(t) {
   return Boolean(String(t?.docUrl || "").trim());
@@ -1151,7 +1182,7 @@ function renderGuide() {
         ])}
         ${card("designer", "MD", "Motion design", "Маша, Сергій, Аліна, Олекса. Лише свої таски.", [
           `Дзвіночок ${ui("On you")} — тебе поставили. ${ui("Fix")} — ${ui("Need Fixing")}.`,
-          `Картка: ${ui("1 From client")} (pin) → ${ui("2 Source")} (відео/тека) → ${ui("3 Result")} (лінк на файл).`,
+          `Картка: ${ui("From client")} → ${ui("Source")} → ${ui("Result")}.`,
           `Зробив → ${ui("Paste result link here")} (лінк на файл, не на теку). Поки лінка немає, ${ui("Done")} у статусі немає.`,
           `Потім статус ${ui("Done")} → ${ui("Save")}. Далі чекає LP. Правки: ${ui("Need Fixing")} → знову лінк і ${ui("Done")}.`,
         ])}
@@ -2067,7 +2098,6 @@ function openTask(id) {
   const job = cardJob(t);
   const performer = mine && (isDesigner() || isTeamLead());
   const canPaste = canPasteResult(t);
-  const needResultUi = showResultField(t);
   const statusOpts = statusChoices(t)
     .map((k) => {
       const selected = t.studioStatus === k ? "selected" : "";
@@ -2076,58 +2106,46 @@ function openTask(id) {
       return `<option value="${k}" ${selected} ${roleBlock ? "disabled" : ""}>${STATUS[k].label}</option>`;
     })
     .join("");
-  const assignBlock = canAssign()
-    ? `<div class="field${!t.assigneeId && isTeamLead() ? " field-focus" : ""}">
-        <label>${isTeamLead() && !t.assigneeId ? "Assign designer" : "Who works this"}</label>
-        <select id="stPerson">
-          <option value="">— unassigned</option>
-          ${designers()
-            .map(
-              (p) =>
-                `<option value="${p.id}" ${t.assigneeId === p.id ? "selected" : ""}>${escapeHtml(p.name)} · ${jobMeta(p).code}</option>`
-            )
-            .join("")}
-        </select>
-        ${
-          isTeamLead() && !t.assigneeId
-            ? `<p class="status-hint">This is the TL step. MD and Send to client come after.</p>`
-            : canOps() && !t.assigneeId
-              ? `<p class="status-hint">Team Lead usually assigns. Change it here only if needed.</p>`
-              : ""
-        }
-      </div>`
-    : `<div class="field"><label>Who works this</label><div>${personCell(t.assigneeId)}</div></div>`;
-  const briefBlock = clientSlotsHtml(t);
-  const timeBlock = canEditTime()
-    ? `<div class="field"><label>Shifts</label>
-      <input id="stShifts" type="number" min="0" step="0.1" value="${t.shifts ?? ""}" />
-      <p class="status-hint" id="stHoursHint">= ${hoursFromShifts(t.shifts || 0)} h · LP sets this. 1 shift = 9 h.</p></div>`
-    : "";
-  const resultBlock = needResultUi
-    ? `<div class="slot slot-result${performer ? " field-focus" : ""}">
-        <div class="slot-kicker"><span class="slot-n">3</span> Result</div>
-        ${
-          canPaste
-            ? `<label>${performer ? "Paste result link here" : "Result"}</label>
-          <input id="stResult" value="${escapeHtml(t.resultUrl || "")}" placeholder="https://drive.google.com/..." />
-          <p class="status-hint">${
-            performer
-              ? "Link to the finished file — not the work folder, not the brief."
-              : "Designer pastes this. Required before Send to client."
-          }</p>`
-            : t.resultUrl
-              ? `<a class="linkish" href="${escapeHtml(t.resultUrl)}" target="_blank" rel="noreferrer">Open result</a>`
-              : `<div class="empty">Waiting for ${escapeHtml(person(t.assigneeId)?.name || "designer")}</div>`
-        }
+  const assignHero = isTeamLead() && !t.assigneeId;
+  const assignSelect = canAssign()
+    ? `<select id="stPerson">
+        <option value="">— unassigned</option>
+        ${designers()
+          .map(
+            (p) =>
+              `<option value="${p.id}" ${t.assigneeId === p.id ? "selected" : ""}>${escapeHtml(p.name)} · ${jobMeta(p).code}</option>`
+          )
+          .join("")}
+      </select>`
+    : personCell(t.assigneeId);
+  const heroAssign = assignHero
+    ? `<div class="field field-focus">
+        <label>Assign designer</label>
+        ${assignSelect}
       </div>`
     : "";
+  const opsWho =
+    isDesigner()
+      ? ""
+      : canAssign() && !assignHero
+        ? `<div class="ops-item"><label>Assignee</label>${assignSelect}</div>`
+        : `<div class="ops-item"><label>Assignee</label>${personCell(t.assigneeId)}</div>`;
+  const opsTime = canEditTime()
+    ? `<div class="ops-item"><label>Shifts</label>
+        <input id="stShifts" type="number" min="0" step="0.1" value="${t.shifts ?? ""}" />
+        <p class="status-hint" id="stHoursHint">${hoursFromShifts(t.shifts || 0)} h</p></div>`
+    : "";
+  const opsStatus = `<div class="ops-item ops-status"><label>Status</label>
+      <select id="stStatus" ${canEdit && !lockedStatus ? "" : "disabled"}>${statusOpts}</select>
+      <p class="status-hint" id="stDoneHint"></p>
+    </div>`;
   const st = STATUS[t.studioStatus] || STATUS.new;
   $("drawer").innerHTML = `
     <div class="drawer-head">
       <h2>${escapeHtml(t.name)}</h2>
       <button type="button" class="drawer-x" id="closeDrawer" aria-label="Close">×</button>
     </div>
-    <div class="meta">${t.line} · ${t.shifts || 0} shift / ${t.hours || 0} h · <span class="pill ${st.cls}">${st.label}</span></div>
+    <div class="meta"><span class="pill line-${t.line}">${t.line}</span> ${t.shifts || 0} shift · ${t.hours || 0} h · <span class="pill ${st.cls}">${st.label}</span></div>
     <div class="drawer-body">
     <div class="card-job tone-${job.tone}">
       ${jobBadgeHtml(me())}
@@ -2136,15 +2154,13 @@ function openTask(id) {
         <p>${escapeHtml(job.body)}</p>
       </div>
     </div>
-    ${isTeamLead() ? assignBlock : ""}
-    ${briefBlock}
-    ${resultBlock}
-    ${!isTeamLead() ? assignBlock : ""}
-    ${timeBlock}
-    <div class="field"><label>Status</label>
-      <select id="stStatus" ${canEdit && !lockedStatus ? "" : "disabled"}>${statusOpts}</select>
-      <p class="status-hint" id="stDoneHint"></p>
+    ${heroAssign}
+    ${pinHtml(t)}
+    <div class="io-stack">
+      ${sourceHtml(t)}
+      ${resultHtml(t, performer, canPaste)}
     </div>
+    <div class="ops">${opsWho}${opsTime}${opsStatus}</div>
     </div>
     <div class="drawer-actions">
       ${canOps() && isSendable(t) ? `<button class="btn green" id="exportOne">Send this to client</button>` : ""}
@@ -2208,7 +2224,7 @@ function openTask(id) {
       hint.textContent = "Enter a number, 0 or more.";
       return;
     }
-    hint.textContent = `= ${hoursFromShifts(shifts)} h · LP sets this. 1 shift = 9 h.`;
+    hint.textContent = `${hoursFromShifts(shifts)} h`;
   });
   $("saveTask").onclick = () => {
     const resultUrl = ($("stResult")?.value || t.resultUrl || "").trim();
