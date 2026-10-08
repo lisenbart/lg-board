@@ -247,9 +247,13 @@ a { color: var(--blue); }
   vertical-align: 1px;
 }
 .notice-new { background: #e0f0ff; color: #0059b3; }
+.notice-ready { background: #fff3d6; color: #9a6700; }
+.notice-wip { background: #e0f0ff; color: #0059b3; }
 .notice-mine { background: #e6f9ef; color: #037f4c; }
-.notice-fix { background: #fff3d6; color: #9a6700; }
+.notice-fix { background: #fde8ee; color: #9b2245; }
+.notice-done { background: #e6f9ef; color: #037f4c; }
 .notice-send { background: #efe6fb; color: #6b21a8; }
+.notice-sent { background: #e7f7ff; color: #0369a1; }
 .notice-none { background: #eef0f5; color: #676879; }
 .who select { border: 1px solid var(--line); border-radius: 16px; padding: 4px 8px; background: #fff; font-size: 12px; }
 #whoMail {
@@ -470,9 +474,19 @@ body.col-resizing {
   user-select: none;
 }
 body.col-resizing * { cursor: col-resize !important; }
-.row:hover, .row:hover .frozen { background: #f7f8fc; }
-.row.selected, .row.selected .frozen { background: #e7f1fd; }
+.row:hover, .row:hover .frozen, .row:hover .meta { background: #f7f8fc; }
+.row.selected { box-shadow: inset 0 0 0 2px rgba(0, 115, 234, 0.45); }
 .cols .frozen, .cols .meta { background: #fff; }
+.row.tone-new, .row.tone-new .frozen, .row.tone-new .meta { background: #fff8ee; }
+.row.tone-wip, .row.tone-wip .frozen, .row.tone-wip .meta { background: #f3f8ff; }
+.row.tone-revision, .row.tone-revision .frozen, .row.tone-revision .meta { background: #fdf3f6; }
+.row.tone-done, .row.tone-done .frozen, .row.tone-done .meta { background: #f1fbf6; }
+.row.tone-approve, .row.tone-approve .frozen, .row.tone-approve .meta { background: #f2fbff; }
+.row.tone-new:hover, .row.tone-new:hover .frozen, .row.tone-new:hover .meta { background: #ffefd6; }
+.row.tone-wip:hover, .row.tone-wip:hover .frozen, .row.tone-wip:hover .meta { background: #e7f1ff; }
+.row.tone-revision:hover, .row.tone-revision:hover .frozen, .row.tone-revision:hover .meta { background: #fae6eb; }
+.row.tone-done:hover, .row.tone-done:hover .frozen, .row.tone-done:hover .meta { background: #e3f7ec; }
+.row.tone-approve:hover, .row.tone-approve:hover .frozen, .row.tone-approve:hover .meta { background: #e3f6ff; }
 .cell { padding: 2px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 400; }
 .name { font-weight: 400; }
 .pill {
