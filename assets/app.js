@@ -1133,59 +1133,75 @@ function renderGuide() {
         "Finance",
         "Dmytro. Команда цей блок не відкриває.",
         [
-          `Вкладка ${ui("Finance")}: ${ui("Client")} — суми DD / DX і ${ui("Create DD / DX")} (Word + PDF лише в пісочниці).`,
-          `${ui("Studio")} / ${ui("Employeers")} — калькулятор місяця, ставка, подат %, NBU. Не плутати з чергою тасків.`,
+          `Три вкладки, години ті самі що ${ui("Excel")} / ${ui("SP_MGX_check")}. Не черга тасків.`,
+          `${ui("Client")} — totals DD / DX. ${ui("Create DD / DX")} пише Word + PDF лише в пісочницю, не в live October.`,
+          `${ui("Studio")} — CLIENT IN → STUDIO (TAX) → EMPL → STUDIO. Подат % і NBU.`,
+          `${ui("Employeers")} — LP $5 × усі години місяця. TL і MD $15/h на свої таски. UAH = USD × NBU.`,
         ]
       );
+  const chip = (cls, label) => `<span class="notice-chip notice-${cls}">${label}</span>`;
   $("board").innerHTML = `
     <section class="guide">
       <div class="guide-intro">
         <h2>Як працює LG Board</h2>
-        <p>Monday лишається у клієнта. Тут — наша черга, хто що робить, години і здача. Підписи кнопок англійською — як на екрані.</p>
+        <p>Monday лишається у клієнта. Тут — черга студії, години і здача. Чіп біля назви — статус проєкту. ${ui("Send to client")} — кнопка LP, не бейдж. Підписи кнопок англійською — як на екрані.</p>
+      </div>
+      <div class="guide-chips">
+        ${chip("ready", "Ready")} чекати старту
+        ${chip("wip", "WIP")} в роботі
+        ${chip("fix", "Fix")} правки
+        ${chip("done", "Done")} дизайнер здав
+        ${chip("appr", "Appr.")} у клієнта
+        ${chip("closed", "Closed")} прийнято
       </div>
       <ol class="guide-flow">
         <li><span>1</span><b>LP</b> забирає таски з Monday / листа</li>
         <li><span>2</span><b>TL</b> ставить виконавця</li>
-        <li><span>3</span><b>MD</b> робить роботу → вставляє лінк → ${ui("Done")}</li>
+        <li><span>3</span><b>MD</b> вставляє лінк результату → ${ui("Done")}</li>
         <li><span>4</span><b>LP</b> тисне ${ui("Send to client")}</li>
-        <li><span>5</span>Статус стає ${ui("Senior Approval")}</li>
-        <li><span>6</span><b>LP</b> ставить ${ui("Closed")}, коли клієнт прийняв</li>
+        <li><span>5</span>чіп стає ${ui("Appr.")} (${ui("Senior Approval")})</li>
+        <li><span>6</span><b>LP</b> ${ui("Mark Closed")}, коли клієнт прийняв</li>
       </ol>
       <div class="guide-grid">
         ${card("manager", "LP", "Line Producer", "Анастасія. Бачить усе.", [
           `Новий пак: ${ui("Pull from Monday")} або ${ui("Shift email")} (рядок як в Orit: NAME | 0.3 shifts).`,
-          `Тека + бриф на Drive створюються самі, коли таск сідає. У картці ${ui("Open brief")} / ${ui("Open folder")} — без кнопки Create.`,
-          `Години: поле ${ui("Shifts")} у рядку або в картці. 1 shift = 9 годин. Виконавця ставить TL.`,
-          `Рядок фарбується за статусом. Чіп біля назви: ${ui("Ready")} / ${ui("WIP")} / ${ui("Fix")} / ${ui("Done")} / ${ui("Appr.")} / ${ui("Closed")}. Дзвіночок — лише непрочитане.`,
-          `${ui("Send to client")} лише з ${ui("Done")} + лінк результату. Копіює текст у External Weekly. ${ui("Senior Approval")} сам не виставляється.`,
-          `${ui("Closed")} — клієнт прийняв, таск закінчено. Ставить LP після ${ui("Senior Approval")}, не з ${ui("Done")}.`,
+          `Бриф на картці — 1:1 як у Monday Doc. ${ui("Open brief")} / ${ui("Open folder")} (Working folder). Без кнопки Create.`,
+          `Години: ${ui("Shifts")} у рядку або в картці. 1 shift = 9 годин. Виконавця ставить TL.`,
+          `Рядок фарбується за статусом. Чіп: ${ui("Ready")} / ${ui("WIP")} / ${ui("Fix")} / ${ui("Done")} / ${ui("Appr.")} / ${ui("Closed")}. Не ${ui("Send")}.`,
+          `${ui("Excel")} — той самий чіп у лівій колонці ${ui("DX")} / ${ui("DD")}.`,
+          `${ui("Send to client")} лише з ${ui("Done")} + лінк файлу. Копіює текст у External Weekly. ${ui("Appr.")} сам не ставиться.`,
+          `${ui("Mark Closed")} після ${ui("Appr.")}, коли клієнт прийняв. Зелений штамп, білий напис. Якщо відбили — ${ui("Need Fixing")}.`,
         ])}
         ${card("teamlead", "TL", "Team Lead", "Настя. Усі проєкти + свої як виконавця.", [
           `Дзвіночок ${ui("New")} — нові без людини. Картка каже ${ui("Assign a designer")} — це твоя робота, не URL і не Done.`,
           `Прочитай бриф, ${ui("Open brief")} якщо треба Doc. ${ui("Who works this")} → ${ui("Save")}. Людина одразу бачить таск у себе.`,
           `Свої таски — як MD: ${ui("Paste result link here")}, потім ${ui("Done")}.`,
-          `${ui("Excel")} — та сама картина, що ${ui("SP_MGX_check")}. ${ui("Send to client")} у TL немає — це LP.`,
+          `${ui("Excel")} — та сама картина, що ${ui("SP_MGX_check")}, з чіпами зліва. ${ui("Send to client")} і ${ui("Closed")} у TL немає — це LP.`,
         ])}
         ${card("designer", "MD", "Motion design", "Маша, Сергій, Аліна, Олекса. Лише свої таски.", [
           `Дзвіночок ${ui("On you")} — тебе поставили. ${ui("Fix")} — ${ui("Need Fixing")}.`,
-          `Картка: ${ui("From client")} → ${ui("Source")} → ${ui("Result")}.`,
+          `Картка: ${ui("From client")} → ${ui("Source")} → ${ui("Result")}. Бриф як у Monday, без вигаданих розмірів.`,
           `Зробив → ${ui("Paste result link here")} (лінк на файл, не на теку). Поки лінка немає, ${ui("Done")} у статусі немає.`,
-          `Потім статус ${ui("Done")} → ${ui("Save")}. Далі чекає LP. Правки: ${ui("Need Fixing")} → знову лінк і ${ui("Done")}.`,
+          `Потім ${ui("Done")} → ${ui("Save")}. Далі чекає LP. ${ui("Appr.")} — уже в клієнта. ${ui("Closed")} — прийнято, нічого не робити.`,
         ])}
         ${finance}
       </div>
       <div class="guide-notes">
         <div>
           <h3>Дзвіночок</h3>
-          <p>${ui("New")} нові · ${ui("On you")} тебе поставили · ${ui("Fix")} правки · ${ui("Send")} час клієнту. Відкрив картку — позначка зникла. Це не Telegram: Telegram пізніше, якщо треба пінг коли немає світла.</p>
+          <p>${ui("New")} нові · ${ui("On you")} тебе поставили · ${ui("Fix")} правки · ${ui("Send")} час клієнту (це inbox LP, не чіп рядка). Відкрив картку — позначка зникла. Telegram пізніше, якщо треба пінг коли немає світла.</p>
         </div>
         <div>
-          <h3>Три правила</h3>
+          <h3>Excel</h3>
+          <p>Місяць як ${ui("SP_MGX_check")}. Зліва жирні ${ui("DX")} / ${ui("DD")}, у тій клітинці чіп проєкту: ${ui("Ready")} / ${ui("WIP")} / ${ui("Fix")} / ${ui("Done")} / ${ui("Appr.")} / ${ui("Closed")}. ${ui("Send")} там немає.</p>
+        </div>
+        <div>
+          <h3>Правила</h3>
           <ol>
             <li>${ui("Done")} без вставленого лінка на результат — неможливо.</li>
-            <li>${ui("Send to client")} лише з ${ui("Done")}. Не з ${ui("Ready to Start")} і не з ${ui("WIP")}.</li>
-            <li>${ui("Senior Approval")} ставить тільки ${ui("Send to client")}, не руками зі списку статусів.</li>
-            <li>${ui("Closed")} ставить LP, коли клієнт прийняв. Не з ${ui("Done")} і не замість Send.</li>
+            <li>${ui("Send to client")} лише з ${ui("Done")}. Не з ${ui("Ready")} і не з ${ui("WIP")}.</li>
+            <li>${ui("Appr.")} ставить тільки ${ui("Send to client")}, не руками зі списку.</li>
+            <li>${ui("Closed")} ставить LP після ${ui("Appr.")}, коли клієнт прийняв. Не з ${ui("Done")} і не замість Send.</li>
           </ol>
         </div>
       </div>
