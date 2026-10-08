@@ -27,7 +27,7 @@ const TEAM_JOBS = [
 ];
 
 const NAME_WIDTH_KEY = "lg-name-width";
-const NAME_WIDTH_DEFAULT = 520;
+const NAME_WIDTH_DEFAULT = 412;
 
 const STATUS_BY_ROLE = {
   designer: ["wip", "done"],
@@ -1001,6 +1001,42 @@ function excelDate(value) {
   if (m) return `${m[3]}/${m[2]}`;
   return value || "";
 }
+function parseDeadlineIso(value) {
+  const s = String(value || "").trim();
+  if (!s) return "";
+  const ymd = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (ymd) return `${ymd[1]}-${ymd[2]}-${ymd[3]}`;
+  const dmy = s.match(/^(\d{1,2})[./](\d{1,2})(?:[./](\d{2,4}))?$/);
+  if (!dmy) return "";
+  const year = dmy[3]
+    ? dmy[3].length === 2
+      ? `20${dmy[3]}`
+      : dmy[3]
+    : String(state.month || "").slice(0, 4) || "2026";
+  return `${year}-${String(dmy[2]).padStart(2, "0")}-${String(dmy[1]).padStart(2, "0")}`;
+}
+function deadlineMark(t) {
+  const iso = parseDeadlineIso(t.deadline);
+  if (!iso) return { cls: "none", iso: "", label: "—", title: "No deadline", fill: 0 };
+  const due = new Date(`${iso}T12:00:00`);
+  if (Number.isNaN(due.getTime())) return { cls: "none", iso: "", label: "—", title: "No deadline", fill: 0 };
+  const today = new Date();
+  today.setHours(12, 0, 0, 0);
+  const start = new Date(`${t.month || state.month}-01T12:00:00`);
+  const span = Math.max(1, due - start);
+  const fill = Math.max(0, Math.min(1, (today - start) / span));
+  const days = Math.round((due - today) / 86400000);
+  const label = excelDate(iso);
+  if (t.studioStatus === "closed") return { cls: "closed", iso, label, title: "Closed", fill };
+  if (days < 0) return { cls: "late", iso, label, title: `${-days}d late`, fill: 1 };
+  if (days === 0) return { cls: "soon", iso, label, title: "Due today", fill };
+  if (days <= 2) return { cls: "soon", iso, label, title: `${days}d left`, fill };
+  return { cls: "ok", iso, label, title: `${days}d left`, fill };
+}
+function dueCell(t) {
+  const d = deadlineMark(t);
+  return `<div class="due due-${d.cls}" title="${escapeHtml(d.title)}"><span>${escapeHtml(d.label)}</span><i class="due-bar" aria-hidden="true"><b style="width:${Math.round(d.fill * 100)}%"></b></i></div>`;
+}
 
 function fmtHours(n) {
   if (n === "" || n == null || Number.isNaN(Number(n))) return "";
@@ -1168,7 +1204,7 @@ function renderGuide() {
           `Бриф на картці — 1:1 як у Monday Doc. ${ui("Open brief")} / ${ui("Open folder")} (Working folder). Без кнопки Create.`,
           `Години: ${ui("Shifts")} у рядку або в картці. 1 shift = 9 годин. Виконавця ставить TL.`,
           `Рядок фарбується за статусом. Чіп: ${ui("Ready")} / ${ui("WIP")} / ${ui("Fix")} / ${ui("Done")} / ${ui("Appr.")} / ${ui("Closed")}. Не ${ui("Send")}.`,
-          `${ui("Excel")} — той самий чіп у лівій колонці ${ui("DX")} / ${ui("DD")}.`,
+          `${ui("Excel")} — той самий чіп у лівій колонці ${ui("DX")} / ${ui("DD")}. ${ui("Due")} = колонка ${ui("DEADLINE")} у файлі.`,
           `${ui("Send to client")} лише з ${ui("Done")} + лінк файлу. Копіює текст у External Weekly. ${ui("Appr.")} сам не ставиться.`,
           `${ui("Mark Closed")} після ${ui("Appr.")}, коли клієнт прийняв. Зелений штамп, білий напис. Якщо відбили — ${ui("Need Fixing")}.`,
         ])}
@@ -1193,7 +1229,7 @@ function renderGuide() {
         </div>
         <div>
           <h3>Excel</h3>
-          <p>Місяць як ${ui("SP_MGX_check")}. Зліва жирні ${ui("DX")} / ${ui("DD")}, у тій клітинці чіп проєкту: ${ui("Ready")} / ${ui("WIP")} / ${ui("Fix")} / ${ui("Done")} / ${ui("Appr.")} / ${ui("Closed")}. ${ui("Send")} там немає.</p>
+          <p>Місяць як ${ui("SP_MGX_check")}. Зліва жирні ${ui("DX")} / ${ui("DD")}, у тій клітинці чіп проєкту: ${ui("Ready")} / ${ui("WIP")} / ${ui("Fix")} / ${ui("Done")} / ${ui("Appr.")} / ${ui("Closed")}. ${ui("DEADLINE")} у файлі = ${ui("Due")} на пайплайні. ${ui("Send")} там немає.</p>
         </div>
         <div>
           <h3>Правила</h3>
@@ -1232,10 +1268,12 @@ function renderBoard() {
   const mode = exec ? "exec" : "ops";
   const frozenHead =
     mode === "ops"
-      ? `<div class="frozen"><div class="cell">Line</div><div class="cell"></div><div class="cell">Project</div><div class="cell">Time</div></div>`
-      : `<div class="frozen"><div class="cell">Line</div><div class="cell">Project</div><div class="cell">Time</div></div>`;
+      ? `<div class="frozen"><div class="cell">Line</div><div class="cell"></div><div class="cell">Project</div></div>`
+      : `<div class="frozen"><div class="cell">Line</div><div class="cell">Project</div></div>`;
   const head = `<div class="cols ${mode}">
       ${frozenHead}
+      <div class="col-time cell">Time</div>
+      <div class="col-due cell">Due</div>
       <div class="meta">
         <div class="cell">Status</div><div class="cell">Brief</div>
         <div class="cell">Result</div><div class="cell">Assignee</div>
@@ -1372,16 +1410,16 @@ function rowHtml(t, mode, gap) {
           <div class="cell"><span class="pill line-${t.line}">${t.line}</span></div>
           <div class="cell">${pick}</div>
           <div class="cell name" title="${escapeHtml(t.name)}">${chip}${escapeHtml(t.name)}</div>
-          <div class="cell">${timeCell(t)}</div>
         </div>`
       : `<div class="frozen">
           <div class="cell"><span class="pill line-${t.line}">${t.line}</span></div>
           <div class="cell name" title="${escapeHtml(t.name)}">${chip}${escapeHtml(t.name)}</div>
-          <div class="cell">${timeCell(t)}</div>
         </div>`;
   return `
     <div class="row ${mode} tone-${escapeHtml(t.studioStatus || "new")}${gapCls} ${checked ? "selected" : ""}" data-id="${t.id}">
       ${frozen}
+      <div class="col-time">${timeCell(t)}</div>
+      <div class="col-due">${dueCell(t)}</div>
       <div class="meta">
         <div class="cell"><span class="pill ${st.cls}">${st.label}</span></div>
         <div class="cell">${brief}</div>
@@ -1403,13 +1441,15 @@ function canSetStatus(next) {
 
 function savedNameWidth() {
   const n = Number(localStorage.getItem(NAME_WIDTH_KEY));
-  return Number.isFinite(n) && n >= 400 ? n : NAME_WIDTH_DEFAULT;
+  if (!Number.isFinite(n)) return NAME_WIDTH_DEFAULT;
+  const w = n === 520 ? NAME_WIDTH_DEFAULT : n;
+  return w >= 240 ? w : NAME_WIDTH_DEFAULT;
 }
 
 function applyNameWidth(group, px) {
   if (!group) return;
-  const max = Math.max(280, group.clientWidth - 300);
-  const w = Math.round(Math.min(Math.max(200, px), max));
+  const max = Math.max(280, group.clientWidth - 420);
+  const w = Math.round(Math.min(Math.max(240, px), max));
   group.style.setProperty("--name-width", `${w}px`);
   localStorage.setItem(NAME_WIDTH_KEY, String(w));
 }
@@ -2165,7 +2205,10 @@ function openTask(id) {
   const opsTime = canEditTime()
     ? `<div class="ops-item"><label>Shifts</label>
         <input id="stShifts" type="number" min="0" step="0.1" value="${t.shifts ?? ""}" />
-        <p class="status-hint" id="stHoursHint">${hoursFromShifts(t.shifts || 0)} h</p></div>`
+        <p class="status-hint" id="stHoursHint">${hoursFromShifts(t.shifts || 0)} h</p></div>
+       <div class="ops-item"><label>Deadline</label>
+        <input id="stDeadline" type="date" value="${parseDeadlineIso(t.deadline)}" />
+        <p class="status-hint">Same as Excel DEADLINE</p></div>`
     : "";
   const opsStatus = `<div class="ops-item ops-status"><label>Status</label>
       <select id="stStatus" ${canEdit && !lockedStatus ? "" : "disabled"}>${statusOpts}</select>
@@ -2293,9 +2336,21 @@ function openTask(id) {
       }
       patch.shifts = shifts;
     }
+    if (canEditTime() && $("stDeadline")) {
+      const deadline = parseDeadlineIso($("stDeadline").value);
+      if ($("stDeadline").value && !deadline) {
+        toast("Deadline must be a date");
+        return;
+      }
+      patch.deadline = deadline;
+    }
     const note =
       patch.shifts !== undefined && patch.shifts !== Number(t.shifts)
         ? `${me().name} set ${patch.shifts} shifts → ${hoursFromShifts(patch.shifts)} h`
+        : patch.deadline !== undefined && patch.deadline !== parseDeadlineIso(t.deadline)
+          ? patch.deadline
+            ? `${me().name} set deadline ${excelDate(patch.deadline)}`
+            : `${me().name} cleared deadline`
         : studioStatus === "closed" && t.studioStatus !== "closed"
           ? `${me().name} marked Closed (client accepted)`
           : resultUrl && resultUrl !== t.resultUrl

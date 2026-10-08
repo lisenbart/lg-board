@@ -280,6 +280,16 @@
         task.shifts = shift;
         task.hours = hoursFromShift(shift);
       }
+      if ("deadline" in data) {
+        if (role !== "manager" && role !== "finance") {
+          return { error: "only manager or finance can edit deadline" };
+        }
+        const raw = String(data.deadline || "").trim();
+        if (raw && !/^\d{4}-\d{2}-\d{2}$/.test(raw.slice(0, 10))) {
+          return { error: "deadline must be a date" };
+        }
+        task.deadline = raw ? raw.slice(0, 10) : "";
+      }
       for (const key of ["studioStatus", "assigneeId", "resultUrl", "brief", "folderUrl", "docUrl"]) {
         if (key in data) task[key] = data[key];
       }
