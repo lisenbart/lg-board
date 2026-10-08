@@ -3,6 +3,17 @@
   const KEY = "lg-board-db-v2";
   const EMAIL_LINE =
     /^\s*([A-Z]{2}-[A-Za-z0-9._-]+)\s*\|\s*([\d]+(?:[.,]\d+)?)\s*shifts?\s*$/i;
+  const OPS_ROLES = new Set(["manager", "finance"]);
+  const STATUS_BY_ROLE = {
+    designer: new Set(["wip", "done"]),
+    teamlead: new Set(["new", "wip", "revision", "done"]),
+    manager: new Set(["new", "wip", "revision", "done"]),
+    finance: new Set(["new", "wip", "revision", "done"]),
+  };
+  const mondayReply = (task) =>
+    `${task.name || ""}\ncheck it please\n${task.resultUrl || ""}`.trim();
+  const isSendable = (task) =>
+    task && task.studioStatus === "done" && String(task.resultUrl || "").trim();
 
   const clone = (x) => JSON.parse(JSON.stringify(x));
   const now = () => new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
@@ -84,6 +95,7 @@
     }
 
     if (path === "/api/parse-email") {
+      if (!OPS_ROLES.has(data.role)) return { error: "only Line Producer can parse shift email" };
       const rows = parseEmail(data.text);
       let added = 0;
       let updated = 0;
@@ -134,6 +146,7 @@
     }
 
     if (path === "/api/import-monday") {
+      if (!OPS_ROLES.has(data.role)) return { error: "only Line Producer can pull from Monday" };
       const incoming = data.tasks && data.tasks.length ? data.tasks : mondayFixture();
       let added = 0;
       for (const item of incoming) {
@@ -172,10 +185,11 @@
     }
 
     if (path === "/api/export-monday") {
+      if (!OPS_ROLES.has(data.role)) return { error: "only Line Producer can send to the client" };
       const ids = new Set(data.ids || []);
       const exported = [];
       for (const task of db.tasks) {
-        if (!ids.has(task.id) || !task.resultUrl) continue;
+        if (!ids.has(task.id) || !isSendable(task)) continue;
         task.studioStatus = "approve";
         task.mondayStatus = "Senior Approval";
         task.activity = task.activity || [];
@@ -185,9 +199,16 @@
         });
         exported.push({
           name: task.name,
-          reply: `check it please\n${task.resultUrl}`,
+          reply: mondayReply(task),
           mondayStatus: "Senior Approval",
         });
+      }
+      if (!exported.length) {
+        return {
+          error: "Send only works on Done projects that have a result link",
+          exported: [],
+          state: clone(db),
+        };
       }
       db.events = db.events || [];
       db.events.unshift({
@@ -203,14 +224,16 @@
       if (!task) return { error: "not found" };
       const nxt = data.studioStatus;
       const role = data.role || "";
-      const allowed = {
-        designer: new Set(["wip", "done"]),
-        teamlead: new Set(["new", "wip", "revision", "done"]),
-        manager: new Set(["new", "wip", "revision", "done", "approve"]),
-        finance: new Set(["new", "wip", "revision", "done", "approve"]),
-      };
+      const allowed = STATUS_BY_ROLE;
+      if (nxt === "approve" && nxt !== task.studioStatus) {
+        return { error: "Senior Approval is set only when you Send to client" };
+      }
       if (nxt && nxt !== task.studioStatus && allowed[role] && !allowed[role].has(nxt)) {
         return { error: `${role} cannot set ${nxt}` };
+      }
+      const incomingResult = "resultUrl" in data ? data.resultUrl : task.resultUrl;
+      if (nxt === "done" && nxt !== task.studioStatus && !String(incomingResult || "").trim()) {
+        return { error: "paste the result link before Done" };
       }
       if ("shifts" in data) {
         if (role !== "manager" && role !== "finance") {
