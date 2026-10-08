@@ -26,7 +26,7 @@ Then:
 - **Designer** — only their queue, plus a read-only Excel picture of the whole month.
 - **Client** — later, a separate login. Until then, share the GitHub Pages link with the crew for mechanics only.
 
-The shared Gmail cannot tell Настя from Маша, so the seat picker after that mailbox is required.
+The shared Gmail cannot tell Настя from Марія, so the seat picker after that mailbox is required.
 
 ## Team demo on GitHub Pages
 
