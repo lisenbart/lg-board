@@ -1141,11 +1141,11 @@ function renderGuide() {
         <li><span>5</span>Статус стає ${ui("Senior Approval")}</li>
       </ol>
       <div class="guide-grid">
-        ${card("manager", "LP", "Line Producer", "Анастасія. Бачить усе, крім Finance.", [
+        ${card("manager", "LP", "Line Producer", "Анастасія. Бачить усе.", [
           `Новий пак: ${ui("Pull from Monday")} або ${ui("Shift email")} (рядок як в Orit: NAME | 0.3 shifts).`,
           `Тека + бриф на Drive створюються самі, коли таск сідає. У картці ${ui("Open brief")} / ${ui("Open folder")} — без кнопки Create.`,
           `Години: поле ${ui("Shifts")} у рядку або в картці. 1 shift = 9 годин. Виконавця ставить TL.`,
-          `Рядок фарбується за статусом. Чіп біля назви: ${ui("Ready")} / ${ui("WIP")} / ${ui("Fix")} / ${ui("Send")} / ${ui("Sent")}. Дзвіночок — лише непрочитане.`,
+          `Рядок фарбується за статусом. Чіп біля назви: ${ui("Ready")} / ${ui("WIP")} / ${ui("Fix")} / ${ui("Send")} / ${ui("Appr.")}. Дзвіночок — лише непрочитане.`,
           `${ui("Send to client")} лише з ${ui("Done")} + лінк результату. Копіює текст у External Weekly. ${ui("Senior Approval")} сам не виставляється.`,
         ])}
         ${card("teamlead", "TL", "Team Lead", "Настя. Усі проєкти + свої як виконавця.", [
