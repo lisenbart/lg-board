@@ -435,6 +435,11 @@ body.col-resizing * { cursor: col-resize !important; }
   background: #f7f8fc; border-radius: 8px; padding: 12px; white-space: pre-wrap;
   font-size: 13px; line-height: 1.5; border: 1px solid #eceef5; font-weight: 400;
 }
+.pack-links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.pack-links .btn { text-decoration: none; }
+.pack-links .pack-brief { background: #e7f1fd; color: var(--blue); border-color: #c5ddf8; }
+.pack-links .pack-brief:hover { background: #d6e8fb; }
+.pack-links .pack-folder { background: #f3f4f8; }
 .field { margin: 12px 0; }
 .team-row {
   display: grid;
