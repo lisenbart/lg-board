@@ -560,7 +560,7 @@ function renderChrome() {
   $("financeNav").hidden = !isFinance();
   renderMonth();
   $("roleHint").textContent =
-    isFinance() && state.view === "close" && state.finTab === "employees"
+    isFinance() && (state.view === "close" || state.view === "team")
       ? ""
       : isDesigner()
         ? "Your queue. Set WIP or Done and paste the result. Excel is the overall picture — read only."
@@ -568,9 +568,9 @@ function renderChrome() {
           ? "Your work plus every designer. Assign people. Ready to Start, WIP, Need Fixing, Done — not Senior Approval."
           : canOps() && !isFinance()
             ? "Full pipeline except Finance. Pull from Monday, assign, send Done work as Senior Approval."
-            : "Same hours as SP_MGX_check. Client invoices, Studio take (tax then EMPL), Employeers from the MGX calculator + NBU.";
+            : "";
   $("sideFoot").innerHTML = isFinance()
-    ? "Drive sandbox: _PORTAL_TEST<br>Live October Projects stay untouched."
+    ? ""
     : isDesigner()
       ? "Your queue is private. Excel shows the whole month, without money."
       : isTeamLead()
@@ -609,17 +609,6 @@ function renderToolbar() {
     return;
   }
   if (state.view === "close") {
-    const fin = financeSnapshot();
-    const drive = state.db?.meta?.driveCalculator || "";
-    if (state.finTab === "employees" || state.finTab === "studio") {
-      $("toolbar").innerHTML = `
-        <button class="btn" id="btnCalcSave">Write into calculator</button>
-        <a class="btn" href="/api/finance/calculator">Download calculator</a>
-        ${drive ? `<a class="btn" href="${escapeHtml(drive)}" target="_blank" rel="noreferrer">Open calculator on Drive</a>` : ""}
-      `;
-      $("btnCalcSave")?.addEventListener("click", saveCalculator);
-      return;
-    }
     $("toolbar").innerHTML = "";
     return;
   }
@@ -1237,7 +1226,6 @@ function renderClose() {
       render();
     });
   });
-  $("finSaveNbu")?.addEventListener("click", saveNbuRate);
   $("btnCreateInvoices")?.addEventListener("click", createMonthInvoices);
   if (state.finTab === "employees") bindEmployeePay();
   if (state.finTab === "studio") bindStudioPay();
@@ -1268,24 +1256,17 @@ function renderClient(fin) {
     })
     .join("");
   if (empty) {
-    return `<div class="fin-head">
-      <div>
-        <h2>Client · ${escapeHtml(fin.month)}</h2>
-        <p>Hours from <code>SP_MGX_check</code> (shifts × ${shiftHours()}), billed as one Superplay invoice per direction — not per task.</p>
-      </div>
-    </div>
-    <div class="fin-empty">No hours in ${escapeHtml(fin.month)}. Pull from Monday or paste the shift email first.</div>`;
+    return `<div class="fin-empty">No hours in ${escapeHtml(fin.month)}.</div>`;
   }
   const canCreate = fin.byLine.some((row) => row.hours);
   return `
     <div class="fin-kpis">
-      <div class="kpi"><b>${fin.tasks.length}</b><span>projects this month</span></div>
-      <div class="kpi"><b>${hoursLabel(fin.totalHours)}</b><span>hours × ${usd(fin.clientRate)}/h</span></div>
+      <div class="kpi"><b>${fin.tasks.length}</b><span>projects</span></div>
+      <div class="kpi"><b>${hoursLabel(fin.totalHours)}</b><span>× ${usd(fin.clientRate)}/h</span></div>
       <div class="kpi"><b>${usd(fin.clientIn)}</b><span>CLIENT IN</span></div>
-      <div class="kpi"><b>${usd(fin.studio)}</b><span>Studio take · see Studio</span></div>
+      <div class="kpi"><b>${usd(fin.studio)}</b><span>STUDIO</span></div>
     </div>
     <section class="group fin-card">
-      <h3>By direction</h3>
       <div class="fin-scroll">
         <table class="fin-table">
           <thead><tr><th>Line</th><th class="num">Projects</th><th class="num">Shifts</th><th class="num">Hours</th><th class="num">Rate</th><th class="num">CLIENT IN</th><th class="num">Share</th></tr></thead>
@@ -1294,7 +1275,6 @@ function renderClient(fin) {
         </table>
       </div>
       <div class="fin-create-bar">
-        <code class="fin-path">/workspace/data/invoices/${escapeHtml(monthFolderName(state.month))}</code>
         <div class="fin-create-actions">
           <button type="button" class="btn" id="btnOpenFolder">Open folder</button>
           <button type="button" class="btn primary" id="btnCreateInvoices" ${canCreate ? "" : "disabled"}>Create DD / DX</button>
@@ -1306,10 +1286,10 @@ function renderClient(fin) {
 function renderStudio(fin) {
   const pct = taxPercent(fin.tax);
   const rows = [
-    { key: "clientIn", label: "CLIENT IN", usd: fin.clientIn, note: `${hoursLabel(fin.totalHours)} × ${usd(fin.clientRate)}` },
-    { key: "afterTax", label: "STUDIO (TAX)", usd: fin.afterTax, note: "CLIENT IN − tax" },
-    { key: "empl", label: "EMPL", usd: fin.empl, note: "LP $5 on all hours · TL/MD $15 on assigned" },
-    { key: "studio", label: "STUDIO", usd: fin.studio, note: "STUDIO (TAX) − EMPL" },
+    { key: "clientIn", label: "CLIENT IN", usd: fin.clientIn },
+    { key: "afterTax", label: "STUDIO (TAX)", usd: fin.afterTax },
+    { key: "empl", label: "EMPL", usd: fin.empl },
+    { key: "studio", label: "STUDIO", usd: fin.studio },
   ];
   const body = rows
     .map((row) => {
@@ -1318,31 +1298,24 @@ function renderStudio(fin) {
           ? `<label class="fin-tax-line"><b>STUDIO (TAX)</b><input id="finTaxPct" class="fin-tax-in" type="number" min="0" max="100" step="0.1" value="${pct}" /><span>%</span></label>`
           : `<b>${escapeHtml(row.label)}</b>`;
       return `<tr class="${row.key === "studio" ? "fin-studio-row" : ""}" data-row="${row.key}">
-        <td>${taxCtl}<div class="fin-legal">${escapeHtml(row.note)}</div></td>
+        <td>${taxCtl}</td>
         <td class="num" data-uah-amt data-usd-amt="${row.usd}">${uah(row.usd * fin.fx)}</td>
         <td class="num" data-usd>${usd(row.usd)}</td>
       </tr>`;
     })
     .join("");
-  const un = fin.unassignedProjects
-    ? `<p class="fin-unassigned">Unassigned ${hoursLabel(fin.unassignedHours)} still sit in CLIENT IN and therefore in STUDIO, not in EMPL.</p>`
-    : "";
-  const empty = !fin.tasks.length
-    ? `<div class="fin-empty" style="margin-bottom:12px">No hours in ${escapeHtml(fin.month)} — CLIENT IN is zero until the check file has shifts.</div>`
-    : "";
+  const empty = !fin.tasks.length ? `<div class="fin-empty">No hours in ${escapeHtml(fin.month)}.</div>` : "";
   return `
     <div class="fin-kpis">
       <div class="kpi"><b data-kpi="clientIn">${usd(fin.clientIn)}</b><span>CLIENT IN</span></div>
-      <div class="kpi"><b data-kpi="afterTax">${usd(fin.afterTax)}</b><span>after <span data-kpi-tax>${pct}</span>% tax</span></div>
+      <div class="kpi"><b data-kpi="afterTax">${usd(fin.afterTax)}</b><span>STUDIO (TAX)</span></div>
       <div class="kpi"><b data-kpi="empl">${usd(fin.empl)}</b><span>EMPL</span></div>
       <div class="kpi"><b data-kpi="studio">${usd(fin.studio)}</b><span>STUDIO</span></div>
     </div>
     <section class="group fin-card">
       <div class="fin-rates">
         <label>NBU USD/UAH <input id="finNbu" type="number" min="0" step="0.01" value="${fin.fx}" /></label>
-        <button type="button" class="btn" id="finSaveNbu">Use this rate</button>
       </div>
-      <p class="fin-calc-note">Calculator, bottom-right: CLIENT IN → STUDIO (TAX) → EMPL → STUDIO. Hours from <code>${escapeHtml(fin.hoursSource || "SP_MGX_check.xlsx")}</code>. Tax is saved into the calculator cell TAX.</p>
       ${empty}
       <div class="fin-scroll">
         <table class="fin-table" id="finStudioTable" data-client-in="${fin.clientIn}" data-empl="${fin.empl}">
@@ -1350,7 +1323,6 @@ function renderStudio(fin) {
           <tbody>${body}</tbody>
         </table>
       </div>
-      ${un}
     </section>`;
 }
 
@@ -1362,8 +1334,9 @@ function studioTaxFraction() {
 
 function bindStudioPay() {
   $("finNbu")?.addEventListener("input", refreshStudioMoney);
+  $("finNbu")?.addEventListener("change", () => saveNbuRate({ silent: true }));
   $("finTaxPct")?.addEventListener("input", refreshStudioMoney);
-  $("finTaxPct")?.addEventListener("change", () => saveTaxPct({ silent: false }));
+  $("finTaxPct")?.addEventListener("change", () => saveTaxPct({ silent: true }));
 }
 
 function refreshStudioMoney() {
@@ -1412,7 +1385,7 @@ async function saveTaxPct(opts = {}) {
     return;
   }
   applyState(out.state);
-  if (!opts.silent) toast(`Tax ${taxPercent(fraction)}% · written into the calculator`);
+  if (!opts.silent) toast(`Tax ${taxPercent(fraction)}%`);
 }
 
 function payCopy(row) {
@@ -1461,7 +1434,6 @@ function renderEmployees(fin) {
     <section class="group fin-card">
       <div class="fin-rates">
         <label>NBU USD/UAH <input id="finNbu" type="number" min="0" step="0.01" value="${fin.fx}" /></label>
-        <button type="button" class="btn" id="finSaveNbu">Use this rate</button>
       </div>
       <div class="fin-scroll">
         <table class="fin-table">
@@ -1510,6 +1482,7 @@ function bindEmployeePay() {
     el.addEventListener("change", () => saveEmployeeRates({ silent: true }));
   });
   $("finNbu")?.addEventListener("input", refreshEmployeePay);
+  $("finNbu")?.addEventListener("change", () => saveNbuRate({ silent: true }));
 }
 
 function ensureNbu() {
@@ -1557,7 +1530,7 @@ async function openInvoiceFolder() {
     return;
   }
   downloadInvoiceZip();
-  toast(`Downloaded ${monthFolderName(state.month)}.zip — /workspace is this sandbox, not your Mac Finder.`);
+  toast(`Downloaded ${monthFolderName(state.month)}.zip`);
 }
 
 async function createMonthInvoices() {
@@ -1593,39 +1566,30 @@ async function createMonthInvoices() {
       return;
     }
     downloadInvoiceZip();
-    toast(`Wrote ${path}. Downloaded zip — /workspace is this sandbox, not your Mac Finder.`);
+    toast(`Wrote ${path}`);
   } finally {
     if (btn) btn.disabled = false;
   }
 }
 
-async function saveCalculator() {
-  const out = await api("/api/finance/save", {
-    role: me().role,
-    month: state.month,
-    nbuRate: nbuRate(),
-  });
-  if (out.error) {
-    toast(out.error);
-    return;
-  }
-  toast(out.message || "Calculator updated");
-}
-
-async function saveNbuRate() {
+async function saveNbuRate(opts = {}) {
   const rate = parseRate($("finNbu")?.value);
   if (rate === null || rate === false || rate <= 0) {
     toast("NBU rate must be more than 0");
     return;
   }
-  const out = await api("/api/meta/update", { role: me().role, nbuRate: rate });
+  const out = await api("/api/meta/update", {
+    role: me().role,
+    month: state.month,
+    nbuRate: rate,
+  });
   if (out.error || !out.state) {
     toast(out.error || "Could not save NBU rate");
     return;
   }
   state.nbu = { rate, date: "", source: "manual" };
   applyState(out.state);
-  toast(`NBU ${rate} ₴ / $`);
+  if (!opts.silent) toast(`NBU ${rate} ₴ / $`);
 }
 
 async function saveEmployeeRates(opts = {}) {
@@ -1696,8 +1660,7 @@ function renderTeam() {
     .join("");
   $("board").innerHTML = `
     <section class="group" style="padding:18px">
-      <h2 style="margin:0 0 8px">Team names</h2>
-      <p style="color:#676879">Finance only. Посада never changes — LP Line Producer, TL Team Lead, MD Motion design. Only the display name can change. Hours stay on that person, not on the letters of the name. Add a person → new EMPL column. Remove someone → the old column stays empty so neighbouring hours do not shift.</p>
+      <h2 style="margin:0 0 12px">Team names</h2>
       ${rows}
       <div class="team-add">
         <select id="addJob">${TEAM_JOBS.map((j) => `<option value="${j.id}">${j.label}</option>`).join("")}</select>

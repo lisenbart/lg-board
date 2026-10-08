@@ -539,7 +539,7 @@ class Handler(SimpleHTTPRequestHandler):
                 except (TypeError, ValueError):
                     self._json(400, {"error": "rates must be numbers, 0 or more"})
                     return
-                if "taxPct" in data:
+                if "taxPct" in data or "nbuRate" in data:
                     try:
                         finance_io.write_month(
                             db,
