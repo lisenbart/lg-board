@@ -77,6 +77,7 @@ const state = {
   finApi: null,
   finApiMonth: null,
   finApiLoading: null,
+  driveTried: {},
 };
 const $ = (id) => document.getElementById(id);
 
@@ -795,6 +796,15 @@ function showResultField(t) {
   if (canOps() && t.studioStatus !== "new") return true;
   return false;
 }
+function fillDrivePackIfMissing(t) {
+  if (!isStudioHost() || !canOps()) return;
+  if ((hasDriveDoc(t) && hasDriveFolder(t)) || state.driveTried[t.id]) return;
+  state.driveTried[t.id] = true;
+  api("/api/drive/ensure", { id: t.id, month: state.month, role: me().role }).then((out) => {
+    if (out.state) applyState(out.state);
+    if (out.ok && state.openId === t.id) openTask(t.id);
+  });
+}
 function timeCell(t) {
   const hours = t.hours || hoursFromShifts(t.shifts || 0);
   if (canEditTime()) {
@@ -1057,7 +1067,7 @@ function renderGuide() {
       <div class="guide-grid">
         ${card("manager", "LP", "Line Producer", "Анастасія. Бачить усе, крім Finance.", [
           `Новий пак: ${ui("Pull from Monday")} або ${ui("Shift email")} (рядок як в Orit: NAME | 0.3 shifts).`,
-          `У картці зверху — твій крок. Бриф уже текстом. ${ui("Open brief")} / ${ui("Open folder")} відкривають Drive. URL туди не вставляєш.`,
+          `Тека + бриф на Drive створюються самі, коли таск сідає. У картці ${ui("Open brief")} / ${ui("Open folder")} — без кнопки Create.`,
           `Години: поле ${ui("Shifts")} у рядку або в картці. 1 shift = 9 годин. Виконавця ставить TL.`,
           `Дзвіночок: ${ui("New")} — нові без виконавця (якщо тягнула не ти). ${ui("Send")} — ${ui("Done")} з лінком, час здавати.`,
           `${ui("Send to client")} лише з ${ui("Done")} + лінк результату. Копіює текст у External Weekly. ${ui("Senior Approval")} сам не виставляється.`,
@@ -1988,8 +1998,6 @@ function openTask(id) {
   const canPaste = canPasteResult(t);
   const needResultUi = showResultField(t);
   const pack = packLinksHtml(t);
-  const missingDoc = !hasDriveDoc(t);
-  const missingFolder = !hasDriveFolder(t);
   const statusOpts = statusChoices(t)
     .map((k) => {
       const selected = t.studioStatus === k ? "selected" : "";
@@ -2019,23 +2027,14 @@ function openTask(id) {
         }
       </div>`
     : `<div class="field"><label>Who works this</label><div>${personCell(t.assigneeId)}</div></div>`;
-  const driveNote = canOps()
-    ? missingDoc || missingFolder
-      ? `<div class="drive-missing">
-          <p>No Drive pack yet. Create it, or paste links you already have.</p>
-          <button type="button" class="btn" id="ensureDrive">Create folder + brief</button>
-          <details class="drive-paste">
-            <summary>I already have Drive links</summary>
-            <label>Brief Doc URL</label>
-            <input id="stDoc" value="${escapeHtml(t.docUrl || "")}" placeholder="https://docs.google.com/document/..." />
-            <label>Work folder URL</label>
-            <input id="stFolder" value="${escapeHtml(t.folderUrl || "")}" placeholder="https://drive.google.com/drive/folders/..." />
-          </details>
-        </div>`
-      : `<p class="status-hint">Open brief = the Doc. Open folder = where the file goes. You do not paste those URLs.</p>`
-    : missingDoc && missingFolder
-      ? `<p class="status-hint">No Drive pack yet — ask LP.</p>`
-      : `<p class="status-hint">${isDesigner() || performer ? "Work in the folder. Paste the finished file link below — not the folder." : "Open brief = the Doc. Open folder = where the file goes."}</p>`;
+  const driveNote =
+    pack
+      ? `<p class="status-hint">${
+          isDesigner() || performer
+            ? "Work in the folder. Paste the finished file link below — not the folder."
+            : "Open brief = the Doc. Open folder = where the file goes."
+        }</p>`
+      : `<p class="status-hint">Folder + brief are created automatically when the task lands.</p>`;
   const briefBlock = `<div class="field">
       <label>Brief</label>
       ${
@@ -2176,8 +2175,6 @@ function openTask(id) {
     const patch = { studioStatus, assigneeId, role: me().role };
     if ($("stResult")) patch.resultUrl = resultUrl;
     if ($("stBrief")) patch.brief = $("stBrief").value;
-    if ($("stDoc")) patch.docUrl = $("stDoc").value.trim();
-    if ($("stFolder")) patch.folderUrl = $("stFolder").value.trim();
     if (canEditTime() && $("stShifts")) {
       const shifts = parseShifts($("stShifts").value);
       if (shifts === null) {
@@ -2198,17 +2195,7 @@ function openTask(id) {
     await sendToClient([t.id]);
     openTask(t.id);
   });
-  $("ensureDrive")?.addEventListener("click", async () => {
-    const out = await api("/api/drive/ensure", { id: t.id, month: state.month, role: me().role });
-    if (out.error || !out.ok) {
-      toast(out.error || "Could not create the Drive folder");
-      if (out.state) applyState(out.state);
-      return;
-    }
-    applyState(out.state);
-    toast("Folder + brief on Drive");
-    openTask(t.id);
-  });
+  fillDrivePackIfMissing(t);
   $("copyOne")?.addEventListener("click", async () => {
     const pack = mondayReply(t);
     const ok = await copyText(pack);
