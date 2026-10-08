@@ -24,15 +24,15 @@ Then:
 
 - **Team lead** — own work plus every designer. Assigns people. No Monday send, no Finance.
 - **Designer** — only their queue, plus a read-only Excel picture of the whole month.
-- **Client** — later, a separate login and view. Today that is the GitHub Pages demo (job titles, no Finance, no studio names).
+- **Client** — later, a separate login. Until then, share the GitHub Pages link with the crew for mechanics only.
 
 The shared Gmail cannot tell Настя from Маша, so the seat picker after that mailbox is required.
 
-## Client preview (what Matan should see)
+## Team demo on GitHub Pages
 
 Share **https://lisenbart.github.io/lg-board/** — not the Cursor Preview URL.
 
-That link hides Finance, invoice rates, and real studio names. Roles in the picker: Manager, Team lead, Designer.
+That pack is for walking the crew through queues, assign, Excel, and send-to-client. First names and LP / TL / MD badges are on. **Finance is off** — no invoices, rates, tax, or cards.
 
 Do **not** put this on glowl.direct. Prefer a Lisenbart name. Later: `board.lisenbart.games` with the same three-mailbox login.
 

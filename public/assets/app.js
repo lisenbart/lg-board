@@ -598,7 +598,7 @@ function renderToolbar() {
   if (state.view === "excel") {
     const drive = state.db?.meta?.driveSandboxExcel || "";
     $("toolbar").innerHTML = `
-      ${isDesigner() ? "" : `<button class="btn" id="btnExcelPull">Refresh from file</button>`}
+      ${isDesigner() || isClientPreview() ? "" : `<button class="btn" id="btnExcelPull">Refresh from file</button>`}
       ${drive ? `<a class="btn" href="${escapeHtml(drive)}" target="_blank" rel="noreferrer">Open on Drive</a>` : ""}
       <input class="search" placeholder="Search project" />
     `;
