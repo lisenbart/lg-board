@@ -572,26 +572,6 @@ body.col-resizing * { cursor: col-resize !important; }
   white-space: pre-wrap;
 }
 .pin-body.is-empty { color: #c5c7d0; }
-.pin-deliver {
-  margin: 0 14px 12px;
-  padding-top: 10px;
-  border-top: 1px dashed #e4e7f0;
-}
-.pin-deliver > span {
-  display: block;
-  font-size: 11px;
-  color: var(--muted);
-  margin-bottom: 6px;
-}
-.size-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.size-chip {
-  font-size: 12px;
-  background: #f7f8fc;
-  border: 1px solid #eceef5;
-  border-radius: 6px;
-  padding: 4px 8px;
-  max-width: 100%;
-}
 .pin-foot { padding: 0 14px 12px; }
 .pin-link { font-size: 12px; font-weight: 500; text-decoration: none; }
 .pin-link:hover { text-decoration: underline; }
