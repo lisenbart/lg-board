@@ -585,6 +585,7 @@ function renderChrome() {
     tabs.push({ id: "close", label: "Finance" });
     tabs.push({ id: "team", label: "Team" });
   }
+  tabs.push({ id: "guide", label: "Як це працює" });
   if (!tabs.some((t) => t.id === state.view)) state.view = "board";
   $("views").innerHTML = tabs
     .map(
@@ -601,11 +602,7 @@ function renderChrome() {
 }
 
 function renderToolbar() {
-  if (state.view === "team") {
-    $("toolbar").innerHTML = "";
-    return;
-  }
-  if (state.view === "close") {
+  if (state.view === "team" || state.view === "close" || state.view === "guide") {
     $("toolbar").innerHTML = "";
     return;
   }
@@ -651,7 +648,7 @@ function renderToolbar() {
 }
 
 function renderKpis() {
-  if (state.view === "close" || state.view === "team") {
+  if (state.view === "close" || state.view === "team" || state.view === "guide") {
     $("kpis").innerHTML = "";
     return;
   }
@@ -744,7 +741,7 @@ function loadTone(hours, fair) {
 function renderLoad() {
   const box = $("load");
   if (!box) return;
-  if (isDesigner() || state.view === "close" || state.view === "team" || state.view === "excel") {
+  if (isDesigner() || state.view === "close" || state.view === "team" || state.view === "excel" || state.view === "guide") {
     box.hidden = true;
     box.innerHTML = "";
     return;
@@ -926,6 +923,87 @@ async function pullExcel() {
   toast(`Excel: ${out.updated || 0} rows updated, ${out.added || 0} new`);
 }
 
+function ui(name) {
+  return `<b class="ui">${escapeHtml(name)}</b>`;
+}
+function renderGuide() {
+  const role = me()?.role;
+  const card = (id, badge, title, who, steps) => `
+    <article class="guide-card${role === id ? " is-you" : ""}">
+      <header>
+        <span class="job-badge job-${escapeHtml(badge.toLowerCase())}">${escapeHtml(badge)}</span>
+        <div>
+          <h3>${escapeHtml(title)}</h3>
+          <p>${escapeHtml(who)}</p>
+        </div>
+        ${role === id ? `<em>Ти зараз тут</em>` : ""}
+      </header>
+      <ol>${steps.map((s) => `<li>${s}</li>`).join("")}</ol>
+    </article>`;
+  const finance = isClientPreview()
+    ? ""
+    : card(
+        "finance",
+        "FN",
+        "Finance",
+        "Dmytro. Команда цей блок не відкриває.",
+        [
+          `Вкладка ${ui("Finance")}: ${ui("Client")} — суми DD / DX і ${ui("Create DD / DX")} (Word + PDF лише в пісочниці).`,
+          `${ui("Studio")} / ${ui("Employeers")} — калькулятор місяця, ставка, подат %, NBU. Не плутати з чергою тасків.`,
+        ]
+      );
+  $("board").innerHTML = `
+    <section class="guide">
+      <div class="guide-intro">
+        <h2>Як працює LG Board</h2>
+        <p>Monday лишається у клієнта. Тут — наша черга, хто що робить, години і здача. Підписи кнопок англійською — як на екрані.</p>
+      </div>
+      <ol class="guide-flow">
+        <li><span>1</span><b>LP</b> забирає таски з Monday / листа</li>
+        <li><span>2</span><b>TL</b> ставить виконавця</li>
+        <li><span>3</span><b>MD</b> робить роботу → вставляє лінк → ${ui("Done")}</li>
+        <li><span>4</span><b>LP</b> тисне ${ui("Send to client")}</li>
+        <li><span>5</span>Статус стає ${ui("Senior Approval")}</li>
+      </ol>
+      <div class="guide-grid">
+        ${card("manager", "LP", "Line Producer", "Анастасія. Бачить усе, крім Finance.", [
+          `Новий пак: ${ui("Pull from Monday")} або ${ui("Shift email")} (рядок як в Orit: NAME | 0.3 shifts).`,
+          `Портал сам робить теку + бриф у пісочниці Drive. Живу теку клієнта не чіпаємо.`,
+          `Години: поле ${ui("Shifts")} у рядку. 1 shift = 9 годин.`,
+          `Дзвіночок: ${ui("New")} — нові без виконавця (якщо тягнула не ти). ${ui("Send")} — ${ui("Done")} з лінком, час здавати.`,
+          `${ui("Send to client")} лише з ${ui("Done")} + лінк результату. Копіює текст у External Weekly. ${ui("Senior Approval")} сам не виставляється.`,
+        ])}
+        ${card("teamlead", "TL", "Team Lead", "Настя. Усі проєкти + свої як виконавця.", [
+          `Дзвіночок ${ui("New")} — нові без людини. Відкрий картку, глянь ${ui("Open brief")}.`,
+          `У картці ${ui("Assign designer")} → ${ui("Save")}. Людина одразу бачить таск у себе.`,
+          `Свої таски робиш як MD: лінк результату, потім ${ui("Done")}.`,
+          `${ui("Excel")} — та сама картина, що ${ui("SP_MGX_check")}. ${ui("Send to client")} у TL немає.`,
+        ])}
+        ${card("designer", "MD", "Motion design", "Маша, Сергій, Аліна, Олекса. Лише свої таски.", [
+          `Дзвіночок ${ui("On you")} — тебе поставили. ${ui("Fix")} — ${ui("Need Fixing")}.`,
+          `${ui("Open brief")} — завдання. ${ui("Open folder")} — тека, куди класти результат (зазвичай тека клієнта з брифа).`,
+          `Зробив → встав посилання в ${ui("Paste result link here")}. Поки лінка немає, ${ui("Done")} у статусі немає.`,
+          `Потім статус ${ui("Done")} → ${ui("Save")}. Далі чекає LP. Правки: ${ui("Need Fixing")} → знову лінк і ${ui("Done")}.`,
+        ])}
+        ${finance}
+      </div>
+      <div class="guide-notes">
+        <div>
+          <h3>Дзвіночок</h3>
+          <p>${ui("New")} нові · ${ui("On you")} тебе поставили · ${ui("Fix")} правки · ${ui("Send")} час клієнту. Відкрив картку — позначка зникла. Це не Telegram: Telegram пізніше, якщо треба пінг коли немає світла.</p>
+        </div>
+        <div>
+          <h3>Три правила</h3>
+          <ol>
+            <li>${ui("Done")} без вставленого лінка на результат — неможливо.</li>
+            <li>${ui("Send to client")} лише з ${ui("Done")}. Не з ${ui("Ready to Start")} і не з ${ui("WIP")}.</li>
+            <li>${ui("Senior Approval")} ставить тільки ${ui("Send to client")}, не руками зі списку статусів.</li>
+          </ol>
+        </div>
+      </div>
+    </section>`;
+}
+
 function renderBoard() {
   if (state.view === "close") {
     renderClose();
@@ -937,6 +1015,10 @@ function renderBoard() {
   }
   if (state.view === "excel") {
     renderExcelSheet();
+    return;
+  }
+  if (state.view === "guide") {
+    renderGuide();
     return;
   }
   const exec = isExecView();

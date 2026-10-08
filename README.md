@@ -17,5 +17,6 @@ Mechanics to walk through:
 3. Designer pastes the result link, then sets Done. Done is locked until the link is there.
 4. Line Producer picks Done rows → **Send to client** copies `check it please` + the link for External Weekly.
 5. Bell (top right) is per seat: TL sees new unassigned projects, MD sees assignments / Need Fixing, LP sees Done ready to send. Opening the card clears the mark.
+6. Tab **Як це працює** — коротка інструкція для LP / TL / MD.
 
 Excel on this page is a read-only grid. Disk writes, Monday API, and live invoice folders stay on the studio sandbox.
