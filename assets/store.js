@@ -238,8 +238,15 @@
         return { error: `${role} cannot set ${nxt}` };
       }
       const incomingResult = "resultUrl" in data ? data.resultUrl : task.resultUrl;
+      const incomingBrief = "brief" in data ? data.brief : task.brief;
+      const incomingFolder = "folderUrl" in data ? data.folderUrl : task.folderUrl;
       if (nxt === "done" && nxt !== task.studioStatus && !String(incomingResult || "").trim()) {
-        return { error: "paste the result link before Done" };
+        const m = String(incomingBrief || "").match(
+          /https:\/\/drive\.google\.com\/drive\/folders\/[a-zA-Z0-9_-]+/i
+        );
+        const auto = (m && m[0]) || String(incomingFolder || "").trim();
+        if (auto) data.resultUrl = auto;
+        else return { error: "paste the result link before Done" };
       }
       if ("shifts" in data) {
         if (role !== "manager" && role !== "finance") {

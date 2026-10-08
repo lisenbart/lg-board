@@ -691,12 +691,20 @@ function personCell(id) {
   if (!p) return `<span class="empty">unassigned</span>`;
   return `<span class="person"><span class="avatar" style="background:${p.color}">${initials(displayName(p))}</span>${escapeHtml(displayName(p))}${jobBadgeHtml(p)}</span>`;
 }
+function driveFolderIn(text) {
+  const m = String(text || "").match(/https:\/\/drive\.google\.com\/drive\/folders\/[a-zA-Z0-9_-]+/i);
+  return m ? m[0] : "";
+}
+function workFolder(t) {
+  return driveFolderIn(t?.brief) || String(t?.folderUrl || "").trim();
+}
 function packLinksHtml(t) {
+  const work = workFolder(t);
   const brief = t.docUrl
     ? `<a class="btn pack-brief" href="${escapeHtml(t.docUrl)}" target="_blank" rel="noreferrer">Open brief</a>`
     : "";
-  const folder = t.folderUrl
-    ? `<a class="btn pack-folder" href="${escapeHtml(t.folderUrl)}" target="_blank" rel="noreferrer">Open folder</a>`
+  const folder = work
+    ? `<a class="btn pack-folder" href="${escapeHtml(work)}" target="_blank" rel="noreferrer">Open folder</a>`
     : "";
   if (!brief && !folder) return "";
   return `<div class="pack-links">${brief}${folder}</div>`;
@@ -1832,8 +1840,8 @@ function openTask(id) {
       ${packLinksHtml(t)}
       <label style="margin-top:10px">Brief Doc URL</label>
       <input id="stDoc" value="${escapeHtml(t.docUrl || "")}" placeholder="https://docs.google.com/document/..." />
-      <label style="margin-top:10px">Project folder URL</label>
-      <input id="stFolder" value="${escapeHtml(t.folderUrl || "")}" placeholder="https://drive.google.com/drive/folders/..." />`
+      <label style="margin-top:10px">Work folder URL</label>
+      <input id="stFolder" value="${escapeHtml(t.folderUrl || "")}" placeholder="Client folder, or ours if they did not send one" />`
           : `<div class="brief">${escapeHtml(t.brief || "No brief yet")}</div>
       ${packLinksHtml(t)}`
       }
@@ -1845,8 +1853,8 @@ function openTask(id) {
       <p class="status-hint" id="stHoursHint">= ${hoursFromShifts(t.shifts || 0)} h</p></div>`
         : `<div class="field"><label>Time</label><div>${t.shifts || 0} shifts · ${t.hours || 0} h</div></div>`
     }
-    <div class="field"><label>${canPasteResult(t) && !canOps() ? "Paste result link here" : "Result link"}</label>
-      <input id="stResult" value="${escapeHtml(t.resultUrl || "")}" placeholder="https://drive.google.com/..." ${canPasteResult(t) ? "" : "disabled"} />
+    <div class="field"><label>${canPasteResult(t) && !canOps() ? "Result link" : "Result link"}</label>
+      <input id="stResult" value="${escapeHtml(t.resultUrl || "")}" placeholder="${workFolder(t) ? "Empty = same as Open folder" : "https://drive.google.com/..."}" ${canPasteResult(t) ? "" : "disabled"} />
     </div>
     <div class="field"><label>Status</label>
       <select id="stStatus" ${canEdit && !lockedStatus ? "" : "disabled"}>${statusOpts}</select>
@@ -1861,6 +1869,15 @@ function openTask(id) {
   `;
   $("drawerBg").classList.add("show");
   $("closeDrawer").onclick = closeDrawer;
+  $("stStatus")?.addEventListener("change", () => {
+    if ($("stStatus").value !== "done") return;
+    if ($("stResult").value.trim()) return;
+    const work = workFolder({
+      brief: $("stBrief") ? $("stBrief").value : t.brief,
+      folderUrl: $("stFolder") ? $("stFolder").value : t.folderUrl,
+    });
+    if (work) $("stResult").value = work;
+  });
   $("stShifts")?.addEventListener("input", () => {
     const shifts = parseShifts($("stShifts").value);
     const hint = $("stHoursHint");
@@ -1872,7 +1889,6 @@ function openTask(id) {
     hint.textContent = `= ${hoursFromShifts(shifts)} h`;
   });
   $("saveTask").onclick = () => {
-    const resultUrl = $("stResult").value.trim();
     const studioStatus = $("stStatus").value;
     if (studioStatus !== t.studioStatus && !canSetStatus(studioStatus)) {
       toast("This role cannot set " + (STATUS[studioStatus]?.label || studioStatus));
@@ -1882,15 +1898,22 @@ function openTask(id) {
       toast("Senior Approval is set only when you Send to client");
       return;
     }
+    const briefNow = $("stBrief") ? $("stBrief").value : t.brief;
+    const folderNow = $("stFolder") ? $("stFolder").value.trim() : t.folderUrl;
+    let resultUrl = $("stResult").value.trim();
+    const work = workFolder({ brief: briefNow, folderUrl: folderNow });
     if (studioStatus === "done" && !resultUrl) {
-      toast("Paste the result link before Done");
-      return;
+      if (!work) {
+        toast("Need a folder link before Done");
+        return;
+      }
+      resultUrl = work;
     }
     const assigneeId = $("stPerson") ? $("stPerson").value : t.assigneeId;
     const patch = { resultUrl, studioStatus, assigneeId, role: me().role };
-    if ($("stBrief")) patch.brief = $("stBrief").value;
+    if ($("stBrief")) patch.brief = briefNow;
     if ($("stDoc")) patch.docUrl = $("stDoc").value.trim();
-    if ($("stFolder")) patch.folderUrl = $("stFolder").value.trim();
+    if ($("stFolder")) patch.folderUrl = folderNow;
     if (canEditTime() && $("stShifts")) {
       const shifts = parseShifts($("stShifts").value);
       if (shifts === null) {
