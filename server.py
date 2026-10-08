@@ -533,6 +533,15 @@ class Handler(SimpleHTTPRequestHandler):
                         return
                     task["shifts"] = shift
                     task["hours"] = hours_from_shift(shift)
+                if "deadline" in data:
+                    if role not in {"manager", "finance"}:
+                        self._json(403, {"error": "only manager or finance can edit deadline"})
+                        return
+                    raw = str(data.get("deadline") or "").strip()
+                    if raw and not re.match(r"^\d{4}-\d{2}-\d{2}$", raw[:10]):
+                        self._json(400, {"error": "deadline must be a date"})
+                        return
+                    task["deadline"] = raw[:10] if raw else ""
                 for key in ("studioStatus", "assigneeId", "resultUrl", "brief", "folderUrl", "docUrl"):
                     if key in data:
                         task[key] = data[key]

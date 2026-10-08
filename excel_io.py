@@ -332,6 +332,8 @@ def _write_task_row(ws, row: int, task: dict, columns: list[tuple[int, dict | No
             ws.cell(row, 5).number_format = "DD.MM"
         except ValueError:
             ws.cell(row, 5, deadline)
+    else:
+        ws.cell(row, 5, None)
     who = task.get("assigneeId") or ""
     last_col = 5
     for col, person in columns:
