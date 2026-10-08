@@ -515,7 +515,7 @@ body.col-resizing * { cursor: col-resize !important; }
 }
 .drawer-bg.show { display: flex; }
 .drawer {
-  width: min(480px, 100%); background: #fff; height: 100%; overflow: hidden;
+  width: min(520px, 100%); background: #fff; height: 100%; overflow: hidden;
   box-shadow: var(--shadow); padding: 16px 20px 16px;
   display: flex; flex-direction: column;
 }
@@ -539,6 +539,48 @@ body.col-resizing * { cursor: col-resize !important; }
 .brief {
   background: #f7f8fc; border-radius: 8px; padding: 12px; white-space: pre-wrap;
   font-size: 13px; line-height: 1.5; border: 1px solid #eceef5; font-weight: 400;
+}
+.slot { margin: 0 0 14px; }
+.slot-kicker {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 11px; color: var(--muted); font-weight: 500;
+  margin-bottom: 8px; letter-spacing: 0.02em;
+}
+.slot-kicker em { font-style: normal; color: var(--blue); font-weight: 600; font-size: 10px; }
+.slot-n {
+  display: inline-grid; place-items: center;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: #eceef5; color: var(--ink); font-size: 10px; font-weight: 600;
+}
+.slot-client .slot-n { background: #e7f1fd; color: var(--blue); }
+.slot-source .slot-n { background: #fff4d6; color: #9a6700; }
+.slot-result .slot-n { background: #d8f5e6; color: #037f4c; }
+.client-msg {
+  background: #f7f8fc; border-radius: 8px; padding: 12px; white-space: pre-wrap;
+  font-size: 13px; line-height: 1.5; border: 1px solid #eceef5;
+  border-left: 3px solid var(--blue);
+}
+.client-msg.empty { color: #c5c7d0; }
+.naming {
+  list-style: none; margin: 8px 0 0; padding: 0;
+  border: 1px solid #eceef5; border-radius: 8px; overflow: hidden;
+}
+.naming li {
+  font-size: 12px; padding: 6px 10px; border-bottom: 1px solid #f0f1f5;
+  font-variant-numeric: tabular-nums; word-break: break-all;
+}
+.naming li:last-child { border-bottom: 0; }
+.file-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.file-chip {
+  font-size: 11px; background: #fff4d6; color: #9a6700;
+  border-radius: 4px; padding: 3px 8px; max-width: 100%;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.brief-more { margin-top: 8px; }
+.brief-more summary { cursor: pointer; font-size: 12px; color: var(--muted); }
+.slot-result label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+.slot-result input {
+  width: 100%; border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px;
 }
 .pack-links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .pack-links .btn { text-decoration: none; }
