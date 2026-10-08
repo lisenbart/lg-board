@@ -2,6 +2,8 @@ __pycache__/
 *.pyc
 .DS_Store
 data/db.json
+data/board.db
+data/drive_cache.json
 data/invoices/**
 !data/invoices/.gitkeep
 .tmp/

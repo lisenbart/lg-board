@@ -14,7 +14,7 @@ Mechanics to walk through:
 
 1. Projects land from Monday (demo pull until API access) and from the Orit shift email.
 2. Team lead assigns a person — that is the same assignment the Excel tab shows (`SP_MGX_check` picture).
-3. Designer sets WIP / Done and pastes the result link.
+3. Designer pastes the result link, then sets Done. Done is locked until the link is there.
 4. Line Producer picks Done rows → **Send to client** copies `check it please` + the link for External Weekly.
 
 Excel on this page is a read-only grid. Disk writes, Monday API, and live invoice folders stay on the studio sandbox.
