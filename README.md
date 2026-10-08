@@ -1,6 +1,6 @@
 # LG Board — team mechanics demo
 
-October MGX pack for the studio walkthrough. This is not the live board, and **Finance is not on this link** (no invoices, rates, tax, or cards).
+October MGX pack for the studio walkthrough. This is not the live board. **Finance** (Client / Studio / Employeers) is on this link behind a PIN — team seats do not see invoices, rates, tax, or cards. Word / PDF create stays on the studio sandbox.
 
 Open **https://lisenbart.github.io/lg-board/** and switch **I am**:
 

@@ -39,6 +39,7 @@ const LINES = ["DD", "DX", "DS"];
 
 const MONTH_KEY = "lg-month";
 const SESSION_KEY = "lg-session";
+const FIN_GATE_KEY = "lg-fin-gate";
 
 const ACCOUNTS = [
   {
@@ -90,6 +91,25 @@ function isStudioHost() {
 }
 function isClientPreview() {
   return !isStudioHost();
+}
+function financeUnlocked() {
+  if (isStudioHost()) return true;
+  try {
+    return sessionStorage.getItem(FIN_GATE_KEY) === "ok";
+  } catch {
+    return false;
+  }
+}
+function setFinanceUnlocked() {
+  try {
+    sessionStorage.setItem(FIN_GATE_KEY, "ok");
+  } catch {
+    /* ignore */
+  }
+}
+function financePinOk(raw) {
+  const digits = String(raw || "").replace(/\D/g, "");
+  return digits.length === 4 && Number(digits) === 0xcad;
 }
 function readSession() {
   try {
@@ -183,7 +203,7 @@ function showLogin(accountEmail) {
 }
 function visiblePeople() {
   const people = state.db?.people || [];
-  if (isClientPreview()) return people.filter((p) => p.role !== "finance");
+  if (isClientPreview() && !financeUnlocked()) return people.filter((p) => p.role !== "finance");
   return people;
 }
 
@@ -236,7 +256,7 @@ function me() {
   return person(state.roleId) || visiblePeople()[0] || state.db.people[0];
 }
 function isFinance() {
-  if (isClientPreview()) return false;
+  if (isClientPreview() && !financeUnlocked()) return false;
   return me().role === "finance";
 }
 function isDesigner() {
@@ -530,8 +550,12 @@ function renderWho() {
           } ${jobMeta(p).title}</option>`
       )
       .join("");
+    const gate = $("finGateBtn");
+    if (gate) gate.hidden = financeUnlocked();
     return;
   }
+  const gate = $("finGateBtn");
+  if (gate) gate.hidden = true;
   const account = accountByEmail(state.session?.email);
   mail.hidden = false;
   mail.textContent = account?.email || "";
@@ -1161,7 +1185,7 @@ function renderGuide() {
       </header>
       <ol>${steps.map((s) => `<li>${s}</li>`).join("")}</ol>
     </article>`;
-  const finance = isClientPreview()
+  const finance = isClientPreview() && !financeUnlocked()
     ? ""
     : card(
         "finance",
@@ -1547,6 +1571,7 @@ function financeFromApi(snap) {
 }
 
 function ensureFinanceSnapshot() {
+  if (isClientPreview()) return;
   if (state.finApiMonth === state.month && state.finApi) return;
   if (state.finApiLoading === state.month) return;
   state.finApiLoading = state.month;
@@ -1649,10 +1674,14 @@ function renderClient(fin) {
         </table>
       </div>
       <div class="fin-create-bar">
-        <div class="fin-create-actions">
+        ${
+          isClientPreview()
+            ? `<p class="fin-view-only">View only on this link. Word + PDF stay on the studio sandbox.</p>`
+            : `<div class="fin-create-actions">
           <button type="button" class="btn" id="btnOpenFolder">Open folder</button>
           <button type="button" class="btn primary" id="btnCreateInvoices" ${canCreate ? "" : "disabled"}>Create DD / DX</button>
-        </div>
+        </div>`
+        }
       </div>
     </section>`;
 }
@@ -2548,8 +2577,56 @@ async function ackNotices(payload) {
   if (out.state) applyState(out.state);
 }
 
+function financeSeat() {
+  return (state.db?.people || []).find((p) => p.role === "finance") || null;
+}
+function openFinanceSeat() {
+  const seat = financeSeat();
+  if (!seat) {
+    toast("Finance login is missing");
+    return;
+  }
+  state.roleId = seat.id;
+  state.view = "close";
+  state.selected.clear();
+  state.designerFilter = null;
+  setInboxOpen(false);
+  render();
+}
+function closeFinancePin() {
+  $("finGateModal")?.classList.remove("show");
+  const pin = $("finGatePin");
+  if (pin) pin.value = "";
+}
+function submitFinancePin() {
+  if (!financePinOk($("finGatePin")?.value)) {
+    toast("Wrong PIN");
+    $("finGatePin")?.select();
+    return;
+  }
+  setFinanceUnlocked();
+  closeFinancePin();
+  openFinanceSeat();
+}
+function requestFinance() {
+  if (!isClientPreview()) {
+    openFinanceSeat();
+    return;
+  }
+  if (financeUnlocked()) {
+    openFinanceSeat();
+    return;
+  }
+  $("finGateModal")?.classList.add("show");
+  setTimeout(() => $("finGatePin")?.focus(), 0);
+}
+
 function render() {
   if (!state.db) return;
+  if (isClientPreview() && me().role === "finance" && !financeUnlocked()) {
+    state.roleId = "manager";
+    if (state.view === "close" || state.view === "team") state.view = "board";
+  }
   renderWho();
   renderChrome();
   renderInbox();
@@ -2564,10 +2641,11 @@ $("monthNext").addEventListener("click", () => setMonth(shiftMonth(state.month, 
 $("monthLabel").addEventListener("click", () => setMonth(calendarMonth()));
 
 $("who").addEventListener("change", (e) => {
+  const next = person(e.target.value);
   state.roleId = e.target.value;
   state.selected.clear();
   state.designerFilter = null;
-  state.view = "board";
+  state.view = next?.role === "finance" ? "close" : "board";
   setInboxOpen(false);
   if (state.session) writeSession({ ...state.session, seatId: e.target.value });
   render();
@@ -2594,6 +2672,18 @@ $("signOut").addEventListener("click", () => {
   state.openId = null;
   $("drawerBg").classList.remove("show");
   showLogin();
+});
+$("finGateBtn")?.addEventListener("click", requestFinance);
+$("finGateCancel")?.addEventListener("click", closeFinancePin);
+$("finGateOk")?.addEventListener("click", submitFinancePin);
+$("finGatePin")?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    submitFinancePin();
+  }
+});
+$("finGateModal")?.addEventListener("click", (e) => {
+  if (e.target === $("finGateModal")) closeFinancePin();
 });
 $("navClose").addEventListener("click", () => {
   if (!isFinance()) return;
