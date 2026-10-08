@@ -81,8 +81,29 @@
     return found;
   }
 
+  function N() {
+    return window.LGNotices;
+  }
+
+  function migrate(db) {
+    if (!db) return db;
+    if (N()) N().ensure(db);
+    else {
+      db.notices = db.notices || [];
+      db.noticeReads = db.noticeReads || {};
+    }
+    return db;
+  }
+
   async function ensureDb() {
-    return readDb() || writeDb(await loadSeed());
+    const existing = readDb();
+    if (existing) {
+      const had = Object.prototype.hasOwnProperty.call(existing, "notices");
+      migrate(existing);
+      if (!had) writeDb(existing);
+      return existing;
+    }
+    return writeDb(migrate(await loadSeed()));
   }
 
   async function localApi(path, payload) {
@@ -92,7 +113,7 @@
     if (path === "/api/state") return clone(db);
 
     if (path === "/api/reset") {
-      db = writeDb(await loadSeed());
+      db = writeDb(migrate(await loadSeed()));
       return clone(db);
     }
 
@@ -136,6 +157,7 @@
             activity: [{ at: now(), text: `From Orit email: ${row.shifts} shifts` }],
           });
           added += 1;
+          if (N()) N().onLanded(db, db.tasks[db.tasks.length - 1], data.actorId);
         }
       }
       db.events = db.events || [];
@@ -179,6 +201,7 @@
           activity: [{ at: now(), text: "Pulled from Monday External Weekly" }],
         });
         added += 1;
+        if (N()) N().onLanded(db, db.tasks[db.tasks.length - 1], data.actorId);
       }
       db.events = db.events || [];
       db.events.unshift({ at: now(), text: `Monday import: ${added} new tasks` });
@@ -196,8 +219,10 @@
       const exported = [];
       for (const task of db.tasks) {
         if (!ids.has(task.id) || !isSendable(task)) continue;
+        const before = { studioStatus: task.studioStatus, assigneeId: task.assigneeId };
         task.studioStatus = "approve";
         task.mondayStatus = "Senior Approval";
+        if (N()) N().onTaskChange(db, task, before, data.actorId);
         task.activity = task.activity || [];
         task.activity.push({
           at: now(),
@@ -228,6 +253,7 @@
     if (path === "/api/tasks/update") {
       const task = db.tasks.find((t) => t.id === data.id);
       if (!task) return { error: "not found" };
+      const before = { studioStatus: task.studioStatus, assigneeId: task.assigneeId };
       const nxt = data.studioStatus;
       const role = data.role || "";
       const allowed = STATUS_BY_ROLE;
@@ -258,6 +284,7 @@
         task.activity = task.activity || [];
         task.activity.push({ at: now(), text: data.note });
       }
+      if (N()) N().onTaskChange(db, task, before, data.actorId);
       writeDb(db);
       return { task: clone(task), state: clone(db) };
     }
@@ -391,16 +418,28 @@
       if (dest === data.id) return { error: "cannot move projects onto the person being deleted" };
       if (dest && !db.people.some((p) => p.id === dest)) return { error: "move-to person not found" };
       for (const task of held) {
+        const before = { assigneeId: data.id, studioStatus: task.studioStatus };
         task.assigneeId = dest;
         task.activity = task.activity || [];
         task.activity.push({
           at: now(),
           text: `Moved from deleted person to ${dest || "unassigned"}`,
         });
+        if (dest && N()) N().onTaskChange(db, task, before, data.actorId);
       }
       db.people = db.people.filter((p) => p.id !== data.id);
       writeDb(db);
       return { deleted: data.id, reassigned: held.length, state: clone(db) };
+    }
+
+    if (path === "/api/notices/read") {
+      if (N()) {
+        if (data.all) N().ack(db, data.personId, { allMine: true });
+        else if (data.taskId) N().ack(db, data.personId, { taskId: data.taskId });
+        else N().ack(db, data.personId, { ids: data.ids || [] });
+      }
+      writeDb(db);
+      return { state: clone(db) };
     }
 
     if (path === "/api/excel/pull") {

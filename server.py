@@ -15,6 +15,7 @@ from urllib.parse import parse_qs, urlparse
 import drive_io
 import excel_io
 import finance_io
+import notice_io
 
 ROOT = Path(__file__).resolve().parent
 PUBLIC = ROOT / "public"
@@ -38,9 +39,13 @@ def load_db() -> dict:
     DATA.mkdir(exist_ok=True)
     if not DB_PATH.exists():
         seed = json.loads(SEED_PATH.read_text(encoding="utf-8"))
+        notice_io.ensure(seed)
         DB_PATH.write_text(json.dumps(seed, ensure_ascii=False, indent=2), encoding="utf-8")
         return seed
-    return json.loads(DB_PATH.read_text(encoding="utf-8"))
+    db = json.loads(DB_PATH.read_text(encoding="utf-8"))
+    if notice_io.ensure(db):
+        save_db(db)
+    return db
 
 
 def save_db(db: dict) -> None:
@@ -278,6 +283,7 @@ class Handler(SimpleHTTPRequestHandler):
             db = load_db()
             if path == "/api/reset":
                 db = json.loads(SEED_PATH.read_text(encoding="utf-8"))
+                notice_io.ensure(db)
                 save_db(db)
                 self._json(200, db)
                 return
@@ -329,6 +335,9 @@ class Handler(SimpleHTTPRequestHandler):
                         )
                         added += 1
                         fresh.append(db["tasks"][-1])
+                actor_id = data.get("actorId") or ""
+                for task in fresh:
+                    notice_io.on_landed(db, task, actor_id)
                 drive = drive_io.ensure_tasks(db, fresh, task_month(data, db))
                 db.setdefault("events", []).insert(
                     0,
@@ -393,6 +402,9 @@ class Handler(SimpleHTTPRequestHandler):
                     )
                     added += 1
                     fresh.append(db["tasks"][-1])
+                actor_id = data.get("actorId") or ""
+                for task in fresh:
+                    notice_io.on_landed(db, task, actor_id)
                 drive = drive_io.ensure_tasks(db, fresh, task_month(data, db))
                 db.setdefault("events", []).insert(
                     0, {"at": utc_now(), "text": f"Monday import: {added} new tasks"}
@@ -427,9 +439,11 @@ class Handler(SimpleHTTPRequestHandler):
                     return
                 ids = set(data.get("ids") or [])
                 exported = []
+                actor_id = data.get("actorId") or ""
                 for task in db["tasks"]:
                     if task["id"] not in ids or not is_sendable(task):
                         continue
+                    before = {"studioStatus": task.get("studioStatus"), "assigneeId": task.get("assigneeId")}
                     task["studioStatus"] = "approve"
                     task["mondayStatus"] = "Senior Approval"
                     task.setdefault("activity", []).append(
@@ -438,6 +452,7 @@ class Handler(SimpleHTTPRequestHandler):
                             "text": "Sent to Monday: check it please + link → Senior Approval",
                         }
                     )
+                    notice_io.on_task_change(db, task, before, actor_id)
                     exported.append(
                         {
                             "name": task["name"],
@@ -471,6 +486,10 @@ class Handler(SimpleHTTPRequestHandler):
                 if not task:
                     self._json(404, {"error": "not found"})
                     return
+                before = {
+                    "studioStatus": task.get("studioStatus"),
+                    "assigneeId": task.get("assigneeId"),
+                }
                 nxt = data.get("studioStatus")
                 role = data.get("role") or ""
                 allowed = STATUS_BY_ROLE
@@ -510,6 +529,7 @@ class Handler(SimpleHTTPRequestHandler):
                 note = data.get("note")
                 if note:
                     task.setdefault("activity", []).append({"at": utc_now(), "text": note})
+                notice_io.on_task_change(db, task, before, data.get("actorId") or "")
                 money = "assigneeId" in data or "shifts" in data
                 try:
                     sync_excel(db, task.get("month"), calculator=money)
@@ -846,7 +866,9 @@ class Handler(SimpleHTTPRequestHandler):
                 if dest and not any(p["id"] == dest for p in db["people"]):
                     self._json(400, {"error": "move-to person not found"})
                     return
+                actor_id = data.get("actorId") or ""
                 for task in held:
+                    before = {"assigneeId": pid, "studioStatus": task.get("studioStatus")}
                     task["assigneeId"] = dest
                     task.setdefault("activity", []).append(
                         {
@@ -856,6 +878,8 @@ class Handler(SimpleHTTPRequestHandler):
                             ),
                         }
                     )
+                    if dest:
+                        notice_io.on_task_change(db, task, before, actor_id)
                 db["people"] = [p for p in db["people"] if p["id"] != pid]
                 try:
                     sync_excel(db, calculator=True)
@@ -865,6 +889,18 @@ class Handler(SimpleHTTPRequestHandler):
                     return
                 save_db(db)
                 self._json(200, {"deleted": pid, "reassigned": len(held), "state": db})
+                return
+            if path == "/api/notices/read":
+                person_id = data.get("personId") or ""
+                notice_io.ensure(db)
+                if data.get("all"):
+                    notice_io.ack(db, person_id, all_mine=True)
+                elif data.get("taskId"):
+                    notice_io.ack(db, person_id, task_id=data.get("taskId"))
+                else:
+                    notice_io.ack(db, person_id, ids=list(data.get("ids") or []))
+                save_db(db)
+                self._json(200, {"state": db})
                 return
         self._json(404, {"error": "unknown endpoint"})
 

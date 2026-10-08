@@ -1047,21 +1047,25 @@ function rowHtml(t, mode, gap) {
         ? `<input class="chk" data-id="${t.id}" type="checkbox" ${checked} />`
         : ""
       : "";
+  const mark = window.LGNotices ? window.LGNotices.rowMark(state.db, me().id, t.id) : "";
+  const markChip = mark
+    ? `<span class="notice-chip notice-${mark}">${escapeHtml(window.LGNotices.MARK_LABEL[mark] || mark)}</span>`
+    : "";
   const frozen =
     mode === "ops"
       ? `<div class="frozen">
           <div class="cell"><span class="pill line-${t.line}">${t.line}</span></div>
           <div class="cell">${pick}</div>
-          <div class="cell name" title="${escapeHtml(t.name)}">${escapeHtml(t.name)}</div>
+          <div class="cell name" title="${escapeHtml(t.name)}">${markChip}${escapeHtml(t.name)}</div>
           <div class="cell">${timeCell(t)}</div>
         </div>`
       : `<div class="frozen">
           <div class="cell"><span class="pill line-${t.line}">${t.line}</span></div>
-          <div class="cell name" title="${escapeHtml(t.name)}">${escapeHtml(t.name)}</div>
+          <div class="cell name" title="${escapeHtml(t.name)}">${markChip}${escapeHtml(t.name)}</div>
           <div class="cell">${timeCell(t)}</div>
         </div>`;
   return `
-    <div class="row ${mode}${gapCls} ${checked ? "selected" : ""}" data-id="${t.id}">
+    <div class="row ${mode}${gapCls} ${checked ? "selected" : ""} ${mark ? `has-notice mark-${mark}` : ""}" data-id="${t.id}">
       ${frozen}
       <div class="meta">
         <div class="cell"><span class="pill ${st.cls}">${st.label}</span></div>
@@ -1872,6 +1876,10 @@ function openTask(id) {
   `;
   $("drawerBg").classList.add("show");
   $("closeDrawer").onclick = closeDrawer;
+  const N = window.LGNotices;
+  if (N && N.forPerson(state.db, me().id, true).some((n) => n.taskId === id)) {
+    ackNotices({ taskId: id });
+  }
   const syncDoneOption = () => {
     const opt = $("stStatus")?.querySelector('option[value="done"]');
     const hint = $("stDoneHint");
@@ -1960,7 +1968,7 @@ function closeDrawer() {
 }
 
 async function updateTask(id, patch, opts = {}) {
-  const out = await api("/api/tasks/update", { id, ...patch });
+  const out = await api("/api/tasks/update", { id, actorId: me().id, ...patch });
   if (out.error || !out.state) {
     toast(out.error || "Could not save");
     return;
@@ -1974,7 +1982,7 @@ async function updateTask(id, patch, opts = {}) {
   if (state.openId && $("drawerBg").classList.contains("show")) openTask(id);
 }
 async function importMonday() {
-  const out = await api("/api/import-monday", { month: state.month, role: me().role });
+  const out = await api("/api/import-monday", { month: state.month, role: me().role, actorId: me().id });
   if (out.error || !out.state) {
     toast(out.error || "Could not pull from Monday");
     return;
@@ -2004,7 +2012,7 @@ async function sendToClient(ids) {
     toast("Send only works on Done projects that have a result link");
     return;
   }
-  const out = await api("/api/export-monday", { ids: ready.map((t) => t.id), role: me().role });
+  const out = await api("/api/export-monday", { ids: ready.map((t) => t.id), role: me().role, actorId: me().id });
   if (out.error || !out.state) {
     toast(out.error || "Could not send");
     return;
@@ -2043,10 +2051,86 @@ function applyState(db) {
   render();
 }
 
+function inboxOpen() {
+  return $("inboxPanel") && !$("inboxPanel").hidden;
+}
+function setInboxOpen(open) {
+  const panel = $("inboxPanel");
+  const btn = $("inboxBtn");
+  if (!panel || !btn) return;
+  panel.hidden = !open;
+  btn.setAttribute("aria-expanded", open ? "true" : "false");
+  if (open) renderInboxList();
+}
+function renderInbox() {
+  const N = window.LGNotices;
+  const countEl = $("inboxCount");
+  const btn = $("inboxBtn");
+  if (!countEl || !btn || !N || !state.db) return;
+  const unread = N.forPerson(state.db, me().id, true);
+  countEl.hidden = !unread.length;
+  countEl.textContent = unread.length > 9 ? "9+" : String(unread.length);
+  btn.classList.toggle("has-unread", unread.length > 0);
+  $("inboxAll").hidden = !unread.length;
+  if (inboxOpen()) renderInboxList();
+}
+function renderInboxList() {
+  const N = window.LGNotices;
+  const list = $("inboxList");
+  if (!list || !N || !state.db) return;
+  const unread = N.forPerson(state.db, me().id, true);
+  if (!unread.length) {
+    list.innerHTML = `<p class="inbox-empty">Nothing waiting for you.</p>`;
+    return;
+  }
+  const groups = [];
+  const map = new Map();
+  for (const notice of unread) {
+    if (!map.has(notice.kind)) {
+      const group = { kind: notice.kind, items: [] };
+      map.set(notice.kind, group);
+      groups.push(group);
+    }
+    map.get(notice.kind).items.push(notice);
+  }
+  list.innerHTML = groups
+    .map((group) => {
+      const mark = (N.KINDS[group.kind] || {}).mark || "none";
+      return `<div class="inbox-group">
+        <div class="inbox-kind">${escapeHtml(N.labelOf(group.kind))} · ${group.items.length}</div>
+        ${group.items
+          .map(
+            (n) => `<button type="button" class="inbox-item" data-id="${escapeHtml(n.id)}" data-task="${escapeHtml(n.taskId || "")}">
+              <span class="notice-chip notice-${mark}">${escapeHtml(N.labelOf(n.kind))}</span>
+              <span class="inbox-item-text">
+                <strong>${escapeHtml(N.titleOf(n))}</strong>
+                <small>${escapeHtml(N.detailOf(n))}</small>
+              </span>
+            </button>`
+          )
+          .join("")}
+      </div>`;
+    })
+    .join("");
+  list.querySelectorAll(".inbox-item").forEach((el) => {
+    el.addEventListener("click", async () => {
+      const taskId = el.dataset.task;
+      setInboxOpen(false);
+      await ackNotices({ ids: [el.dataset.id] });
+      if (taskId) openTask(taskId);
+    });
+  });
+}
+async function ackNotices(payload) {
+  const out = await api("/api/notices/read", { personId: me().id, ...payload });
+  if (out.state) applyState(out.state);
+}
+
 function render() {
   if (!state.db) return;
   renderWho();
   renderChrome();
+  renderInbox();
   renderToolbar();
   renderKpis();
   renderLoad();
@@ -2062,8 +2146,22 @@ $("who").addEventListener("change", (e) => {
   state.selected.clear();
   state.designerFilter = null;
   state.view = "board";
+  setInboxOpen(false);
   if (state.session) writeSession({ ...state.session, seatId: e.target.value });
   render();
+});
+$("inboxBtn")?.addEventListener("click", (e) => {
+  e.stopPropagation();
+  setInboxOpen(!inboxOpen());
+});
+$("inboxAll")?.addEventListener("click", async (e) => {
+  e.stopPropagation();
+  await ackNotices({ all: true });
+  setInboxOpen(true);
+});
+document.addEventListener("click", (e) => {
+  if (!$("inboxWrap") || $("inboxWrap").contains(e.target)) return;
+  setInboxOpen(false);
 });
 $("signOut").addEventListener("click", () => {
   writeSession(null);
@@ -2103,7 +2201,7 @@ $("pasteModal").addEventListener("click", (e) => {
 });
 $("emailCancel").onclick = () => $("emailModal").classList.remove("show");
 $("emailApply").onclick = async () => {
-  const out = await api("/api/parse-email", { text: $("emailText").value, month: state.month, role: me().role });
+  const out = await api("/api/parse-email", { text: $("emailText").value, month: state.month, role: me().role, actorId: me().id });
   if (out.error || !out.state) {
     toast(out.error || "Could not parse email");
     return;

@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@300;400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/board.css?v=51" />
+  <link rel="stylesheet" href="assets/board.css?v=52" />
   <script>
     if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
       document.documentElement.classList.add("studio-host");
@@ -55,10 +55,25 @@
             </div>
             <button type="button" class="month-btn" id="monthNext" title="Next month">›</button>
           </div>
-          <div class="who" id="whoBox">
-            <span id="whoMail"></span>
-            <select id="who"></select>
-            <button type="button" class="btn ghost" id="signOut" hidden>Sign out</button>
+          <div class="top-end">
+            <div class="inbox" id="inboxWrap">
+              <button type="button" class="inbox-btn" id="inboxBtn" aria-label="Notices" aria-expanded="false">
+                <span class="inbox-bell" aria-hidden="true"></span>
+                <span class="inbox-count" id="inboxCount" hidden>0</span>
+              </button>
+              <div class="inbox-panel" id="inboxPanel" hidden>
+                <div class="inbox-head">
+                  <strong>For you</strong>
+                  <button type="button" class="btn ghost inbox-all" id="inboxAll">Mark all read</button>
+                </div>
+                <div class="inbox-list" id="inboxList"></div>
+              </div>
+            </div>
+            <div class="who" id="whoBox">
+              <span id="whoMail"></span>
+              <select id="who"></select>
+              <button type="button" class="btn ghost" id="signOut" hidden>Sign out</button>
+            </div>
           </div>
         </div>
         <p class="role-hint" id="roleHint"></p>
@@ -117,7 +132,8 @@
   </div>
 
   <div class="toast" id="toast"></div>
-  <script src="assets/store.js?v=37"></script>
-  <script src="assets/app.js?v=51"></script>
+  <script src="assets/notices.js?v=1"></script>
+  <script src="assets/store.js?v=38"></script>
+  <script src="assets/app.js?v=52"></script>
 </body>
 </html>
