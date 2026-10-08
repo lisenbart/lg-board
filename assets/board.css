@@ -546,6 +546,46 @@ body.col-resizing * { cursor: col-resize !important; }
 .pack-links .pack-brief:hover { background: #d6e8fb; }
 .pack-links .pack-folder { background: #f3f4f8; }
 .field { margin: 12px 0; }
+.field-focus input,
+.field-focus select {
+  border-color: #8bb8f0;
+  background: #f7fbff;
+}
+.card-job {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #eceef5;
+  background: #f7f8fc;
+}
+.card-job .job-badge { margin: 2px 0 0; }
+.card-job strong { display: block; font-size: 13px; font-weight: 500; }
+.card-job p { margin: 2px 0 0; font-size: 12px; color: var(--muted); line-height: 1.4; }
+.card-job.tone-do { background: #eef6ff; border-color: #c5ddf8; }
+.card-job.tone-do strong { color: var(--blue); }
+.card-job.tone-fix { background: #fdf2f4; border-color: #f0c9d2; }
+.card-job.tone-fix strong { color: var(--red); }
+.card-job.tone-ok { background: #f1fbf6; border-color: #c6eedd; }
+.card-job.tone-ok strong { color: #037f4c; }
+.card-job.tone-wait { background: #f7f8fc; }
+.drive-missing {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px dashed #d0d4e4;
+  border-radius: 8px;
+  background: #fbfbfd;
+}
+.drive-missing p { margin: 0 0 8px; font-size: 12px; color: var(--muted); }
+.drive-paste { margin-top: 8px; }
+.drive-paste summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--muted);
+}
+.drive-paste label { margin-top: 8px; }
 .team-row {
   display: grid;
   grid-template-columns: minmax(140px, 180px) minmax(150px, 200px) minmax(160px, 1fr) auto auto;
