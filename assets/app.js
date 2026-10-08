@@ -1321,7 +1321,7 @@ function rowHtml(t, mode, gap) {
           <div class="cell">${timeCell(t)}</div>
         </div>`;
   return `
-    <div class="row ${mode}${gapCls} ${checked ? "selected" : ""} ${mark ? `has-notice mark-${mark}` : ""}" data-id="${t.id}">
+    <div class="row ${mode}${gapCls} ${checked ? "selected" : ""}" data-id="${t.id}">
       ${frozen}
       <div class="meta">
         <div class="cell"><span class="pill ${st.cls}">${st.label}</span></div>

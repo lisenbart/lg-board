@@ -251,10 +251,6 @@ a { color: var(--blue); }
 .notice-fix { background: #fff3d6; color: #9a6700; }
 .notice-send { background: #efe6fb; color: #6b21a8; }
 .notice-none { background: #eef0f5; color: #676879; }
-.row.has-notice .frozen { box-shadow: inset 3px 0 0 var(--blue); }
-.row.has-notice.mark-mine .frozen { box-shadow: inset 3px 0 0 var(--green); }
-.row.has-notice.mark-fix .frozen { box-shadow: inset 3px 0 0 var(--orange); }
-.row.has-notice.mark-send .frozen { box-shadow: inset 3px 0 0 var(--purple); }
 .who select { border: 1px solid var(--line); border-radius: 16px; padding: 4px 8px; background: #fff; font-size: 12px; }
 #whoMail {
   color: var(--muted);
