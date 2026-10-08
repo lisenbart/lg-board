@@ -1144,7 +1144,7 @@ function renderGuide() {
           `Новий пак: ${ui("Pull from Monday")} або ${ui("Shift email")} (рядок як в Orit: NAME | 0.3 shifts).`,
           `Тека + бриф на Drive створюються самі, коли таск сідає. У картці ${ui("Open brief")} / ${ui("Open folder")} — без кнопки Create.`,
           `Години: поле ${ui("Shifts")} у рядку або в картці. 1 shift = 9 годин. Виконавця ставить TL.`,
-          `Дзвіночок: ${ui("New")} — нові без виконавця (якщо тягнула не ти). ${ui("Send")} — ${ui("Done")} з лінком, час здавати.`,
+          `Рядок фарбується за статусом. Чіп біля назви: ${ui("Ready")} / ${ui("WIP")} / ${ui("Fix")} / ${ui("Send")} / ${ui("Sent")}. Дзвіночок — лише непрочитане.`,
           `${ui("Send to client")} лише з ${ui("Done")} + лінк результату. Копіює текст у External Weekly. ${ui("Senior Approval")} сам не виставляється.`,
         ])}
         ${card("teamlead", "TL", "Team Lead", "Настя. Усі проєкти + свої як виконавця.", [
@@ -1284,6 +1284,18 @@ function bindTimeEdits() {
   });
 }
 
+function statusChip(t) {
+  const key = t.studioStatus || "new";
+  const send = canOps() && isSendable(t);
+  const spec = {
+    new: { cls: "ready", label: "Ready" },
+    wip: { cls: "wip", label: "WIP" },
+    revision: { cls: "fix", label: "Fix" },
+    done: send ? { cls: "send", label: "Send" } : { cls: "done", label: "Done" },
+    approve: { cls: "sent", label: "Sent" },
+  }[key] || { cls: "ready", label: "Ready" };
+  return `<span class="notice-chip notice-${spec.cls}">${spec.label}</span>`;
+}
 function rowHtml(t, mode, gap) {
   const st = STATUS[t.studioStatus] || STATUS.new;
   const sendable = isSendable(t);
@@ -1303,25 +1315,22 @@ function rowHtml(t, mode, gap) {
         ? `<input class="chk" data-id="${t.id}" type="checkbox" ${checked} />`
         : ""
       : "";
-  const mark = window.LGNotices ? window.LGNotices.rowMark(state.db, me().id, t.id) : "";
-  const markChip = mark
-    ? `<span class="notice-chip notice-${mark}">${escapeHtml(window.LGNotices.MARK_LABEL[mark] || mark)}</span>`
-    : "";
+  const chip = statusChip(t);
   const frozen =
     mode === "ops"
       ? `<div class="frozen">
           <div class="cell"><span class="pill line-${t.line}">${t.line}</span></div>
           <div class="cell">${pick}</div>
-          <div class="cell name" title="${escapeHtml(t.name)}">${markChip}${escapeHtml(t.name)}</div>
+          <div class="cell name" title="${escapeHtml(t.name)}">${chip}${escapeHtml(t.name)}</div>
           <div class="cell">${timeCell(t)}</div>
         </div>`
       : `<div class="frozen">
           <div class="cell"><span class="pill line-${t.line}">${t.line}</span></div>
-          <div class="cell name" title="${escapeHtml(t.name)}">${markChip}${escapeHtml(t.name)}</div>
+          <div class="cell name" title="${escapeHtml(t.name)}">${chip}${escapeHtml(t.name)}</div>
           <div class="cell">${timeCell(t)}</div>
         </div>`;
   return `
-    <div class="row ${mode}${gapCls} ${checked ? "selected" : ""}" data-id="${t.id}">
+    <div class="row ${mode} tone-${escapeHtml(t.studioStatus || "new")}${gapCls} ${checked ? "selected" : ""}" data-id="${t.id}">
       ${frozen}
       <div class="meta">
         <div class="cell"><span class="pill ${st.cls}">${st.label}</span></div>
