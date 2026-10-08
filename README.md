@@ -32,7 +32,7 @@ The shared Gmail cannot tell Настя from Маша, so the seat picker after 
 
 Share **https://lisenbart.github.io/lg-board/** — not the Cursor Preview URL.
 
-That pack is for walking the crew through queues, assign, Excel, and send-to-client. First names and LP / TL / MD badges are on. **Finance is off** — no invoices, rates, tax, or cards.
+That pack is for walking the crew through queues, assign, Excel, and send-to-client. First names and LP / TL / MD badges are on. **Finance** is behind a PIN (Dmytro only on that link) — view Client / Studio / Employeers, no Word/PDF create. Studio sandbox still writes invoices.
 
 Do **not** put this on glowl.direct. Prefer a Lisenbart name. Later: `board.lisenbart.games` with the same three-mailbox login.
 
