@@ -9,3 +9,4 @@ tmp-scaffold/
 node_modules/
 .env
 .env.local
+data/secrets/

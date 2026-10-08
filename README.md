@@ -42,7 +42,7 @@ Studio money never unlocks on the hosted link. Localhost is the studio sandbox.
 
 - **Pull from Monday** — demo import until Superplay grants board access.
 - **Shift email** — Orit format: `NAME | 0.3 shifts`. Hours = shift × 9.
-- Manager / team lead can paste the brief and Drive / Doc links. **Open Drive** opens the sandbox month folder — the board does not create Drive folders.
+- **Pull from Monday** / shift email on a **new** task creates a Drive pack in sandbox `_PORTAL_TEST / {mm}_{Month} / DD|DX / {task name}`: project folder + Google Doc with the brief. Live `Projects / 10_October` is not touched. If Drive is not connected, the task still lands; LP can retry **Create folder + brief** on the card. Manager / team lead can still paste Doc / folder links. **Open Drive** opens the sandbox month folder.
 - Designer sets WIP or Done and pastes the result link. Assignment lives on the board; there is no Telegram copy step.
 - **Send to client** copies `check it please` + the result link for External Weekly. Status becomes Senior Approval. Superplay is not on this board, so this step stays until Monday API is connected.
 - **Finance** (Dmytro only) — two inner tabs, same idea as the Excel tab mirroring `SP_MGX_check.xlsx`:

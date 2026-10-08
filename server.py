@@ -12,6 +12,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+import drive_io
 import excel_io
 import finance_io
 
@@ -286,6 +287,7 @@ class Handler(SimpleHTTPRequestHandler):
                     return
                 rows = parse_email(data.get("text") or "")
                 added, updated = 0, 0
+                fresh = []
                 for row in rows:
                     existing = next((t for t in db["tasks"] if t["name"] == row["name"]), None)
                     if existing:
@@ -326,6 +328,8 @@ class Handler(SimpleHTTPRequestHandler):
                             }
                         )
                         added += 1
+                        fresh.append(db["tasks"][-1])
+                drive = drive_io.ensure_tasks(db, fresh, task_month(data, db))
                 db.setdefault("events", []).insert(
                     0,
                     {
@@ -340,7 +344,16 @@ class Handler(SimpleHTTPRequestHandler):
                     self._json(500, {"error": str(e), "state": db})
                     return
                 save_db(db)
-                self._json(200, {"added": added, "updated": updated, "parsed": rows, "state": db})
+                self._json(
+                    200,
+                    {
+                        "added": added,
+                        "updated": updated,
+                        "parsed": rows,
+                        "drive": drive,
+                        "state": db,
+                    },
+                )
                 return
             if path == "/api/import-monday":
                 if data.get("role") not in OPS_ROLES:
@@ -348,6 +361,7 @@ class Handler(SimpleHTTPRequestHandler):
                     return
                 incoming = data.get("tasks") or _monday_fixture()
                 added = 0
+                fresh = []
                 for item in incoming:
                     if any(t["name"] == item["name"] for t in db["tasks"]):
                         existing = next(t for t in db["tasks"] if t["name"] == item["name"])
@@ -370,14 +384,16 @@ class Handler(SimpleHTTPRequestHandler):
                             "mondayStatus": item.get("mondayStatus") or "Ready to Start",
                             "assigneeId": "",
                             "brief": item.get("brief") or "",
-                            "folderUrl": "",
-                            "docUrl": "",
+                            "folderUrl": item.get("folderUrl") or "",
+                            "docUrl": item.get("docUrl") or "",
                             "resultUrl": "",
                             "source": "monday",
                             "activity": [{"at": utc_now(), "text": "Pulled from Monday External Weekly"}],
                         }
                     )
                     added += 1
+                    fresh.append(db["tasks"][-1])
+                drive = drive_io.ensure_tasks(db, fresh, task_month(data, db))
                 db.setdefault("events", []).insert(
                     0, {"at": utc_now(), "text": f"Monday import: {added} new tasks"}
                 )
@@ -388,7 +404,22 @@ class Handler(SimpleHTTPRequestHandler):
                     self._json(500, {"error": str(e), "state": db})
                     return
                 save_db(db)
-                self._json(200, {"added": added, "state": db})
+                self._json(200, {"added": added, "drive": drive, "state": db})
+                return
+            if path == "/api/drive/ensure":
+                if data.get("role") not in OPS_ROLES:
+                    self._json(403, {"error": "only Line Producer can create Drive folders"})
+                    return
+                task = next((t for t in db["tasks"] if t["id"] == data.get("id")), None)
+                if not task:
+                    self._json(404, {"error": "not found"})
+                    return
+                out = drive_io.ensure_task(db, task, data.get("month") or task.get("month"))
+                save_db(db)
+                if not out.get("ok"):
+                    self._json(400, {**out, "state": db})
+                    return
+                self._json(200, {**out, "state": db})
                 return
             if path == "/api/export-monday":
                 if data.get("role") not in OPS_ROLES:
@@ -846,6 +877,8 @@ def _monday_fixture() -> list[dict]:
             "game": "Dice Dreams",
             "mondayStatus": "Ready to Start",
             "brief": "Resize BananaBoat 8s. Keep logo top-left.",
+            "folderUrl": "https://drive.google.com/drive/folders/13-eo8f5K8rZm-DEkIXgQ0EWNsqC_O5HF",
+            "docUrl": "https://docs.google.com/document/d/1dbxJCigaJisDTUnHFqjkmAFTctjM_kFR1tMrw9dFTxU/edit",
         }
     ]
 
