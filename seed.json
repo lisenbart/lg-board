@@ -4,64 +4,54 @@
     "board": "SUPERPLAY MGX",
     "month": "2026-10",
     "driveSandbox": "https://drive.google.com/drive/folders/1HY7vcxR5Tmot5RNJyQ2ZeImD9J4BOuX8",
+    "driveSandboxOctober": "https://drive.google.com/drive/folders/1SWa4xC_gc6HNreKg6FVsCtXk456-ki4o",
+    "driveSandboxExcel": "https://drive.google.com/file/d/1ewWwcUWBW0iNG69ppskt5aWu7IiNzJap/view",
     "driveOctoberDD": "https://drive.google.com/drive/folders/1kPlSyHeetn6wF-yYYaHr7BxzmAQPfgel",
     "driveOctoberDX": "https://drive.google.com/drive/folders/13yLju8CXxsvhOnQ5H_X1Pg7udB6Ah7CH",
     "shiftHours": 9
   },
   "people": [
     {
-      "id": "finance",
-      "name": "Finance",
-      "role": "finance",
-      "color": "#0073ea"
-    },
-    {
       "id": "manager",
-      "name": "Manager",
+      "name": "Анастасія",
       "role": "manager",
-      "color": "#9d50dd"
+      "color": "#9d50dd",
+      "jobTitle": "Line Producer"
     },
     {
       "id": "teamlead",
-      "name": "Team lead",
+      "name": "Настя",
       "role": "teamlead",
-      "color": "#fdab3d"
-    },
-    {
-      "id": "designer",
-      "name": "Designer",
-      "role": "designer",
-      "color": "#59BBFF"
+      "color": "#59BBFF",
+      "jobTitle": "Team Lead"
     },
     {
       "id": "designer2",
-      "name": "Designer 2",
+      "name": "Маша",
       "role": "designer",
-      "color": "#92D050"
+      "color": "#92D050",
+      "jobTitle": "Motion design"
     },
     {
       "id": "designer3",
-      "name": "Designer 3",
+      "name": "Сергій",
       "role": "designer",
-      "color": "#FFD966"
+      "color": "#FFD966",
+      "jobTitle": "Motion design"
     },
     {
       "id": "designer4",
-      "name": "Designer 4",
+      "name": "Аліна",
       "role": "designer",
-      "color": "#C6B19B"
+      "color": "#C6B19B",
+      "jobTitle": "Motion design"
     },
     {
       "id": "designer5",
-      "name": "Designer 5",
+      "name": "Олекса",
       "role": "designer",
-      "color": "#B4A7D6"
-    },
-    {
-      "id": "designer6",
-      "name": "Designer 6",
-      "role": "designer",
-      "color": "#76D7C4"
+      "color": "#B4A7D6",
+      "jobTitle": "Motion design"
     }
   ],
   "tasks": [
@@ -76,7 +66,7 @@
       "deadline": "2026-10-07",
       "studioStatus": "done",
       "mondayStatus": "WIP",
-      "assigneeId": "designer",
+      "assigneeId": "teamlead",
       "brief": "Please combine Halloween Fire Trial gameplay with DD-VEO-059-001 hook.\nLength = 30s.\nKeep energy high in the first 3 seconds.\nDeliver 4 sizes: 1080x1080, 1080x1350, 1080x1920, 1920x1080.",
       "folderUrl": "https://drive.google.com/drive/folders/1FoSMDTF2vBhyUUtHHQBttNULo1bs-CYU",
       "docUrl": "https://docs.google.com/document/d/1dqLPaUmZ0CJjtx7JOvN7DfKRN79R9bV1zlVN2-z6tPI/edit",
@@ -93,7 +83,7 @@
         },
         {
           "at": "2026-10-07T09:20:00Z",
-          "text": "Designer pasted the result"
+          "text": "Настя pasted the result"
         }
       ],
       "month": "2026-10"
@@ -109,7 +99,7 @@
       "deadline": "2026-10-07",
       "studioStatus": "done",
       "mondayStatus": "WIP",
-      "assigneeId": "designer",
+      "assigneeId": "teamlead",
       "brief": "Hi,\n\nPlease combine\n\n1. DD-VEO-059-001_GravePumpkin + DD-AIV-HalloweenDiamondBlast\n2. Length = 30s\n3. Trim last ±8 seconds of video\n4. Add a motion transition between the hook and the video\n\nThanks\n\nNaming:\n1080x1080 / 1080x1350 / 1080x1920 / 1920x1080",
       "folderUrl": "https://drive.google.com/drive/folders/1aJX-A7np2alJOHLkTmav6gG9Gj8t5NsW",
       "docUrl": "https://docs.google.com/document/d/1rs2waEdxsf2xKKWwn643oAnOLty72o9kElL7vRwRPNs/edit",
@@ -126,7 +116,7 @@
         },
         {
           "at": "2026-10-07T10:05:00Z",
-          "text": "Designer pasted the result — ready to send"
+          "text": "Настя pasted the result — ready to send"
         }
       ],
       "month": "2026-10"
@@ -155,7 +145,7 @@
         },
         {
           "at": "2026-10-07T08:40:00Z",
-          "text": "Team lead assigned Designer 2"
+          "text": "Настя assigned Маша"
         }
       ],
       "month": "2026-10"
@@ -346,7 +336,7 @@
       "deadline": "",
       "studioStatus": "wip",
       "mondayStatus": "WIP",
-      "assigneeId": "designer",
+      "assigneeId": "teamlead",
       "brief": "Halloween Save 60s, hook DX-VEO-055-001. Four sizes.",
       "folderUrl": "",
       "docUrl": "",
@@ -355,7 +345,7 @@
       "activity": [
         {
           "at": "2026-10-05T11:00:00Z",
-          "text": "Team lead assigned Designer"
+          "text": "Настя assigned herself"
         }
       ],
       "month": "2026-10"
@@ -380,7 +370,7 @@
       "activity": [
         {
           "at": "2026-10-06T19:40:00Z",
-          "text": "Designer 3 pasted the result"
+          "text": "Сергій pasted the result"
         }
       ],
       "month": "2026-10"
@@ -430,7 +420,7 @@
       "activity": [
         {
           "at": "2026-10-05T17:16:00Z",
-          "text": "Designer 2 pasted the result"
+          "text": "Маша pasted the result"
         },
         {
           "at": "2026-10-06T11:00:00Z",

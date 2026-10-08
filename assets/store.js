@@ -1,6 +1,6 @@
 /** Browser store so the client demo runs on Netlify / GitHub Pages without Python. */
 (function () {
-  const KEY = "lg-board-db-v1";
+  const KEY = "lg-board-db-v2";
   const EMAIL_LINE =
     /^\s*([A-Z]{2}-[A-Za-z0-9._-]+)\s*\|\s*([\d]+(?:[.,]\d+)?)\s*shifts?\s*$/i;
 
@@ -198,27 +198,6 @@
       return { exported, state: clone(db) };
     }
 
-    if (path === "/api/provision") {
-      const ids = new Set(data.ids || []);
-      const dd = db.meta?.driveOctoberDD || "";
-      const dx = db.meta?.driveOctoberDX || "";
-      let n = 0;
-      for (const task of db.tasks) {
-        if (!ids.has(task.id)) continue;
-        const parent = task.line === "DD" ? dd : dx;
-        if (!task.folderUrl) task.folderUrl = parent;
-        if (!task.docUrl) task.docUrl = parent;
-        task.activity = task.activity || [];
-        task.activity.push({
-          at: now(),
-          text: "Folder/brief marked in _PORTAL_TEST (sandbox, not live October)",
-        });
-        n += 1;
-      }
-      writeDb(db);
-      return { provisioned: n, state: clone(db) };
-    }
-
     if (path === "/api/tasks/update") {
       const task = db.tasks.find((t) => t.id === data.id);
       if (!task) return { error: "not found" };
@@ -253,16 +232,71 @@
       return { task: clone(task), state: clone(db) };
     }
 
+    if (path === "/api/meta/update") {
+      if (data.role !== "finance") return { error: "only finance can edit rates" };
+      db.meta = db.meta || {};
+      const money = (val) => {
+        if (val === null || val === undefined || val === "") return null;
+        const n = Number(String(val).replace(",", "."));
+        if (!Number.isFinite(n) || n < 0) throw new Error("rate");
+        return n;
+      };
+      try {
+        if ("clientRateUsd" in data) {
+          const rate = money(data.clientRateUsd);
+          if (rate === null) return { error: "Superplay rate must be 0 or more" };
+          db.meta.clientRateUsd = rate;
+        }
+        if ("designerRateUsd" in data) {
+          const rate = money(data.designerRateUsd);
+          if (rate === null) return { error: "pay rate must be 0 or more" };
+          db.meta.designerRateUsd = rate;
+        }
+        if ("taxPct" in data) {
+          let rate = money(data.taxPct);
+          if (rate === null) return { error: "tax must be a number, 0–100%" };
+          if (rate > 1) rate = rate / 100;
+          if (rate > 1) return { error: "tax must be 0–100%" };
+          db.meta.taxPct = Math.round(rate * 1e6) / 1e6;
+        }
+        if ("nbuRate" in data) {
+          const rate = money(data.nbuRate);
+          if (rate === null || rate <= 0) return { error: "NBU rate must be more than 0" };
+          db.meta.nbuRate = rate;
+        }
+      } catch {
+        return { error: "rates must be numbers, 0 or more" };
+      }
+      writeDb(db);
+      return { meta: clone(db.meta), state: clone(db) };
+    }
+
     if (path === "/api/people/update") {
-      if (data.role !== "finance") return { error: "only finance can rename people" };
-      const items = data.people || [{ id: data.id, name: data.name }];
+      if (data.role !== "finance") return { error: "only finance can edit the team" };
+      const items = data.people || (() => {
+        const item = { id: data.id };
+        if ("name" in data) item.name = data.name;
+        if ("rateUsd" in data) item.rateUsd = data.rateUsd;
+        return [item];
+      })();
       const updated = [];
       for (const item of items) {
         const person = db.people.find((p) => p.id === item.id);
         if (!person) continue;
-        const name = String(item.name || "").trim();
-        if (!name) return { error: "name cannot be empty" };
-        person.name = name;
+        if ("name" in item && item.name !== undefined) {
+          const name = String(item.name || "").trim();
+          if (!name) return { error: "name cannot be empty" };
+          person.name = name;
+        }
+        if ("rateUsd" in item) {
+          if (item.rateUsd === null || item.rateUsd === undefined || item.rateUsd === "") {
+            delete person.rateUsd;
+          } else {
+            const n = Number(String(item.rateUsd).replace(",", "."));
+            if (!Number.isFinite(n) || n < 0) return { error: "pay rate must be a number, 0 or more" };
+            person.rateUsd = n;
+          }
+        }
         updated.push(clone(person));
       }
       if (!updated.length && data.id) return { error: "not found" };
@@ -294,12 +328,18 @@
         finance: ["#0073ea", "#0059b3"],
       }[job];
       const count = db.people.filter((p) => p.role === job).length;
+      const payOrder = Math.max(0, ...db.people.map((p) => Number(p.payOrder) || 0)) + 1;
+      const titles = { designer: "Motion design", teamlead: "Team Lead", manager: "Line Producer" };
       const person = {
         id: pid,
         name: n === 1 ? labels[job] : `${labels[job]} ${n}`,
         role: job,
         color: palette[count % palette.length],
+        payOrder,
       };
+      if (titles[job]) person.jobTitle = titles[job];
+      if (job === "manager") person.rateUsd = 5;
+      else if (job === "designer" || job === "teamlead") person.rateUsd = 15;
       db.people.push(person);
       writeDb(db);
       return { person: clone(person), state: clone(db) };
