@@ -39,6 +39,8 @@ SOFFICE_BINS = [
 NBU_URL = "https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?valcode=USD&json"
 TAX_PCT = 0.05
 CLIENT_RATE = 35.0
+MANAGER_RATE = 5.0
+DESIGNER_RATE = 15.0
 FALLBACK_NBU = 41.2
 _NBU_CACHE: dict = {"at": 0.0, "data": None}
 
@@ -128,17 +130,35 @@ def hours_of(task: dict, shift_hours: float = 9) -> float:
         return 0.0
 
 
-def person_rate(person: dict | None, default: float) -> float:
-    if not person:
-        return default
-    raw = person.get("rateUsd")
+def default_pay_rate(person: dict | None, meta: dict | None = None) -> float:
+    meta = meta or {}
+    if person and person.get("role") == "manager":
+        raw = meta.get("managerRateUsd")
+        fallback = MANAGER_RATE
+    else:
+        raw = meta.get("designerRateUsd")
+        fallback = DESIGNER_RATE
     if raw is None or raw == "":
-        return default
+        return fallback
     try:
         n = float(raw)
     except (TypeError, ValueError):
-        return default
-    return n if n >= 0 else default
+        return fallback
+    return n if n >= 0 else fallback
+
+
+def person_rate(person: dict | None, default: float | None = None, meta: dict | None = None) -> float:
+    fallback = default if default is not None else default_pay_rate(person, meta)
+    if not person:
+        return fallback
+    raw = person.get("rateUsd")
+    if raw is None or raw == "":
+        return fallback
+    try:
+        n = float(raw)
+    except (TypeError, ValueError):
+        return fallback
+    return n if n >= 0 else fallback
 
 
 def _nbu_from(db: dict, nbu: dict | None = None) -> dict:
@@ -170,7 +190,7 @@ def pay_people(db: dict) -> list[dict]:
     ]
 
 
-def _pay_row(person: dict, default_pay: float) -> dict:
+def _pay_row(person: dict, meta: dict | None = None) -> dict:
     return {
         "id": person.get("id"),
         "name": person.get("name") or person.get("id"),
@@ -181,7 +201,7 @@ def _pay_row(person: dict, default_pay: float) -> dict:
         "iban": person.get("iban") or "",
         "phone": person.get("phone") or "",
         "payOrder": person.get("payOrder") or 99,
-        "rate": person_rate(person, default_pay),
+        "rate": person_rate(person, meta=meta),
         "projects": 0,
         "shifts": 0.0,
         "hours": 0.0,
@@ -192,7 +212,6 @@ def _pay_row(person: dict, default_pay: float) -> dict:
 def snapshot(db: dict, month: str, nbu: dict | None = None) -> dict:
     meta = db.get("meta") or {}
     client_rate = float(meta.get("clientRateUsd") or CLIENT_RATE)
-    default_pay = float(meta.get("designerRateUsd") or 15)
     tax = float(meta.get("taxPct") if meta.get("taxPct") is not None else TAX_PCT)
     shift_hours = float(meta.get("shiftHours") or 9)
     nbu = _nbu_from(db, nbu)
@@ -200,7 +219,7 @@ def snapshot(db: dict, month: str, nbu: dict | None = None) -> dict:
     tasks = [t for t in db.get("tasks") or [] if (t.get("month") or meta.get("month")) == month]
     people = {p["id"]: p for p in db.get("people") or []}
     lines = {k: {"line": k, "projects": 0, "shifts": 0.0, "hours": 0.0, "bill": 0.0} for k in ("DD", "DX", "DS")}
-    pay = {p["id"]: _pay_row(p, default_pay) for p in pay_people(db)}
+    pay = {p["id"]: _pay_row(p, meta) for p in pay_people(db)}
     unassigned = {"projects": 0, "shifts": 0.0, "hours": 0.0}
     for t in tasks:
         line = t.get("line") if t.get("line") in lines else "DD"
@@ -217,7 +236,7 @@ def snapshot(db: dict, month: str, nbu: dict | None = None) -> dict:
             unassigned["shifts"] += sh
             unassigned["hours"] += h
             continue
-        row = pay.setdefault(pid, _pay_row(p, default_pay))
+        row = pay.setdefault(pid, _pay_row(p, meta))
         row["projects"] += 1
         row["shifts"] += sh
         row["hours"] += h
@@ -706,7 +725,6 @@ def write_month(db: dict, ym: str, nbu_rate: float | None = None, path: Path | N
     meta = db.get("meta") or {}
     client_rate = float(meta.get("clientRateUsd") or CLIENT_RATE)
     tax = float(meta.get("taxPct") if meta.get("taxPct") is not None else TAX_PCT)
-    default_pay = float(meta.get("designerRateUsd") or 15)
     fx = float(nbu_rate or (meta.get("nbuRate") or FALLBACK_NBU))
     designers = hours_people(db)
     tasks = [t for t in db.get("tasks") or [] if (t.get("month") or ym) == ym]
@@ -756,7 +774,7 @@ def write_month(db: dict, ym: str, nbu_rate: float | None = None, path: Path | N
         for i, person in enumerate(designers):
             cell = ws.cell(row, empl_start + i)
             if person["id"] == who:
-                rate = person_rate(person, default_pay)
+                rate = person_rate(person, meta=meta)
                 cell.value = f"=D{row}*{rate:g}"
                 raw = (person.get("color") or "92D050").replace("#", "")
                 cell.fill = PatternFill("solid", fgColor=raw[:6] or "92D050")

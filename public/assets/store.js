@@ -322,6 +322,8 @@
         role: job,
         color: palette[count % palette.length],
       };
+      if (job === "manager") person.rateUsd = 5;
+      else if (job === "designer" || job === "teamlead") person.rateUsd = 15;
       db.people.push(person);
       writeDb(db);
       return { person: clone(person), state: clone(db) };

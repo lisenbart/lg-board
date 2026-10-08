@@ -638,6 +638,10 @@ class Handler(SimpleHTTPRequestHandler):
                     "role": job,
                     "color": palette[count % len(palette)],
                 }
+                if job == "manager":
+                    person["rateUsd"] = 5
+                elif job in {"designer", "teamlead"}:
+                    person["rateUsd"] = 15
                 db["people"].append(person)
                 save_db(db)
                 self._json(200, {"person": person, "state": db})

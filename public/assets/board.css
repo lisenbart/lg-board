@@ -594,6 +594,7 @@ body.col-resizing * { cursor: col-resize !important; }
 .fin-head p { margin: 0; color: var(--muted); max-width: 52ch; }
 .fin-rates {
   display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px;
+  margin-bottom: 12px;
 }
 .fin-rates label {
   display: flex; flex-direction: column; gap: 4px;

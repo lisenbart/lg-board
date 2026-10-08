@@ -11,6 +11,7 @@
     "shiftHours": 9,
     "clientRateUsd": 35,
     "designerRateUsd": 15,
+    "managerRateUsd": 5,
     "taxPct": 0.05,
     "driveCalculator": "https://drive.google.com/file/d/1KNL8xAHUmTuZx3xe01XtlwxjYw_FThhA/view",
     "driveInvoiceMgx": "https://drive.google.com/drive/folders/1BugYUcLPzb47sc4fZMwYXG6FPigzsyP5"
@@ -31,6 +32,7 @@
       "color": "#9d50dd",
       "payOrder": 1,
       "jobTitle": "менеджер",
+      "rateUsd": 5,
       "legalName": "Анастасі Верлинська",
       "bankCard": "4874070053093694",
       "iban": "UA173220010000026202314266322"
@@ -55,7 +57,7 @@
       "role": "designer",
       "color": "#92D050",
       "payOrder": 4,
-      "rateUsd": 12,
+      "rateUsd": 15,
       "legalName": "Терлецька Марія Максимівна",
       "bank": "Monobank",
       "iban": "UA683220010000026202353816766",
@@ -82,6 +84,7 @@
       "role": "designer",
       "color": "#C6B19B",
       "payOrder": 5,
+      "rateUsd": 15,
       "legalName": "Аліна Колесник",
       "iban": "UA193220010000026205327095598"
     },
@@ -91,6 +94,7 @@
       "role": "designer",
       "color": "#B4A7D6",
       "payOrder": 6,
+      "rateUsd": 15,
       "legalName": "Злотко Олексій",
       "bankCard": "432345037851582",
       "iban": "UA943077700000026208713943056"

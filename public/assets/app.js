@@ -279,18 +279,22 @@ function hoursLabel(n) {
 }
 function clientRate() {
   const n = Number(state.db?.meta?.clientRateUsd);
-  return Number.isFinite(n) && n >= 0 ? n : 0;
+  return Number.isFinite(n) && n >= 0 ? n : 35;
 }
-function defaultPayRate() {
+function rolePayRate(p) {
+  if (p?.role === "manager") {
+    const n = Number(state.db?.meta?.managerRateUsd);
+    return Number.isFinite(n) && n >= 0 ? n : 5;
+  }
   const n = Number(state.db?.meta?.designerRateUsd);
-  return Number.isFinite(n) && n >= 0 ? n : 0;
+  return Number.isFinite(n) && n >= 0 ? n : 15;
 }
 function personPayRate(p) {
   if (p && p.rateUsd !== undefined && p.rateUsd !== null && p.rateUsd !== "") {
     const n = Number(p.rateUsd);
     if (Number.isFinite(n) && n >= 0) return n;
   }
-  return defaultPayRate();
+  return rolePayRate(p);
 }
 function parseRate(raw) {
   const s = String(raw ?? "").trim();
@@ -349,7 +353,6 @@ function financeSnapshot() {
         rate: payRate,
         payUsd,
         payUah: payUsd * fx,
-        customRate: row.person.rateUsd != null && row.person.rateUsd !== "",
       };
     })
     .sort(
@@ -385,7 +388,6 @@ function financeSnapshot() {
     fx,
     tax,
     clientRate: rate,
-    defaultPayRate: defaultPayRate(),
     nbu: state.nbu || { rate: fx, source: state.db?.meta?.nbuRate ? "manual" : "fallback" },
   };
 }
@@ -535,13 +537,16 @@ function setMonth(ym) {
 function renderChrome() {
   $("financeNav").hidden = !isFinance();
   renderMonth();
-  $("roleHint").textContent = isDesigner()
-    ? "Your queue. Set WIP or Done and paste the result. Excel is the overall picture — read only."
-    : isTeamLead()
-      ? "Your work plus every designer. Assign people. Ready to Start, WIP, Need Fixing, Done — not Senior Approval."
-      : canOps() && !isFinance()
-        ? "Full pipeline except Finance. Pull from Monday, assign, send Done work as Senior Approval."
-        : "Same hours as SP_MGX_check. Client invoices from the Word template. Employeers from the MGX calculator + NBU."
+  $("roleHint").textContent =
+    isFinance() && state.view === "close" && state.finTab === "employees"
+      ? ""
+      : isDesigner()
+        ? "Your queue. Set WIP or Done and paste the result. Excel is the overall picture — read only."
+        : isTeamLead()
+          ? "Your work plus every designer. Assign people. Ready to Start, WIP, Need Fixing, Done — not Senior Approval."
+          : canOps() && !isFinance()
+            ? "Full pipeline except Finance. Pull from Monday, assign, send Done work as Senior Approval."
+            : "Same hours as SP_MGX_check. Client invoices from the Word template. Employeers from the MGX calculator + NBU.";
   $("sideFoot").innerHTML = isFinance()
     ? "Drive sandbox: _PORTAL_TEST<br>Live October Projects stay untouched."
     : isDesigner()
@@ -1112,8 +1117,8 @@ function renderClose() {
     });
   });
   $("finSaveNbu")?.addEventListener("click", saveNbuRate);
-  $("finSavePay")?.addEventListener("click", saveEmployeeRates);
   $("btnCreateInvoices")?.addEventListener("click", createMonthInvoices);
+  if (state.finTab === "employees") bindEmployeePay();
   $("btnOpenFolder")?.addEventListener("click", openInvoiceFolder);
   $("board").querySelectorAll(".fin-copy").forEach((btn) => {
     btn.addEventListener("click", async (e) => {
@@ -1185,32 +1190,22 @@ function payCopy(row) {
 }
 
 function renderEmployees(fin) {
-  const nbuNote =
-    fin.nbu.source === "NBU"
-      ? `NBU ${fin.nbu.date || "today"}`
-      : fin.nbu.source === "manual"
-        ? "typed rate (saved)"
-        : "NBU did not answer — type today's rate";
   const payRows = fin.payroll
     .map((row) => {
-      const shown = row.customRate ? row.rate : "";
+      const fallback = rolePayRate(row.person);
       const copy = payCopy(row);
       const payCell = copy
         ? `<div class="fin-pay">
             <code class="fin-pan">${escapeHtml(copy.label)}</code>
             <button type="button" class="btn ghost fin-copy" data-copy="${escapeHtml(copy.value)}">Copy ${copy.kind}</button>
-          </div>
-          <div class="muted">${escapeHtml(row.person.bank || "")}${row.person.legalName ? " · " + escapeHtml(row.person.legalName) : ""}</div>`
-        : `<span class="empty">no card in Employeers</span>`;
-      return `<tr>
-        <td>
-          ${personCell(row.person.id)}
-          <div class="muted">${escapeHtml([row.person.jobTitle, row.person.legalName].filter(Boolean).join(" · "))}</div>
-        </td>
+          </div>`
+        : `<span class="empty">—</span>`;
+      return `<tr class="fin-pay-row" data-hours="${row.hours}" data-fallback="${fallback}">
+        <td>${personCell(row.person.id)}</td>
         <td class="num">${hoursLabel(row.hours)}</td>
-        <td class="num"><input class="fin-person-rate" data-id="${row.person.id}" type="number" min="0" step="0.5" value="${shown}" placeholder="${fin.defaultPayRate}" /></td>
-        <td class="num">${usd(row.payUsd)}</td>
-        <td class="num"><b>${uah(row.payUah)}</b></td>
+        <td class="num"><input class="fin-person-rate" data-id="${row.person.id}" type="number" min="0" step="0.5" value="${row.rate}" /></td>
+        <td class="num" data-usd>${usd(row.payUsd)}</td>
+        <td class="num" data-uah><b>${uah(row.payUah)}</b></td>
         <td>${payCell}</td>
       </tr>`;
     })
@@ -1219,41 +1214,63 @@ function renderEmployees(fin) {
     ? `<tr class="fin-warn-row">
         <td>Unassigned</td>
         <td class="num">${hoursLabel(fin.unassignedHours)}</td>
-        <td colspan="4" class="muted">On CLIENT IN, not in EMPL — assign before you pay</td>
+        <td colspan="4"></td>
       </tr>`
     : "";
+  const emplHours = fin.totalHours - fin.unassignedHours;
   return `
-    <div class="fin-head">
-      <div>
-        <h2>Employeers · ${escapeHtml(fin.month)}</h2>
-        <p>Hours from the board / <code>SP_MGX_check</code> into the MGX calculator. CLIENT IN, minus ${Math.round(fin.tax * 100)}% tax, then split EMPL vs studio. UAH = USD × NBU.</p>
-      </div>
+    <section class="group fin-card">
       <div class="fin-rates">
         <label>NBU USD/UAH <input id="finNbu" type="number" min="0" step="0.01" value="${fin.fx}" /></label>
         <button type="button" class="btn" id="finSaveNbu">Use this rate</button>
-        <span class="muted">${escapeHtml(nbuNote)}</span>
       </div>
-    </div>
-    <div class="fin-kpis">
-      <div class="kpi"><b>${usd(fin.clientIn)}</b><span>CLIENT IN · ${uah(fin.clientInUah)}</span></div>
-      <div class="kpi"><b>${usd(fin.afterTax)}</b><span>STUDIO (TAX) · after ${Math.round(fin.tax * 100)}%</span></div>
-      <div class="kpi"><b>${usd(fin.empl)}</b><span>EMPL · ${uah(fin.emplUah)}</span></div>
-      <div class="kpi"><b>${usd(fin.studio)}</b><span>STUDIO · ${uah(fin.studioUah)}</span></div>
-    </div>
-    <section class="group fin-card">
-      <h3>Pay each person</h3>
-      <p class="status-hint">Copy the card, open the bank app, send the UAH amount. Blank $/h uses the default ${usd(fin.defaultPayRate)}.</p>
       <div class="fin-scroll">
         <table class="fin-table">
-          <thead><tr><th>Person</th><th class="num">Hours</th><th class="num">$/h</th><th class="num">USD</th><th class="num">UAH</th><th>Card</th></tr></thead>
+          <thead><tr><th>Person</th><th class="num">Hours</th><th class="num">$/h</th><th class="num">Hours × $/h</th><th class="num">UAH</th><th>Card</th></tr></thead>
           <tbody>${payRows}${unRow}</tbody>
-          <tfoot><tr><td>EMPL</td><td class="num">${hoursLabel(fin.totalHours - fin.unassignedHours)}</td><td></td><td class="num">${usd(fin.empl)}</td><td class="num">${uah(fin.emplUah)}</td><td></td></tr></tfoot>
+          <tfoot><tr><td>EMPL</td><td class="num" data-empl-hours>${hoursLabel(emplHours)}</td><td></td><td class="num" data-empl-usd>${usd(fin.empl)}</td><td class="num" data-empl-uah>${uah(fin.emplUah)}</td><td></td></tr></tfoot>
         </table>
       </div>
-      <div class="fin-actions" style="margin-top:12px">
-        <button type="button" class="btn primary" id="finSavePay">Save rates</button>
-      </div>
     </section>`;
+}
+
+function employeePayFx() {
+  const n = parseRate($("finNbu")?.value);
+  if (n === null || n === false || n <= 0) return nbuRate();
+  return n;
+}
+
+function refreshEmployeePay() {
+  const root = $("board");
+  if (!root) return;
+  const fx = employeePayFx();
+  let empl = 0;
+  root.querySelectorAll("tr.fin-pay-row").forEach((tr) => {
+    const hours = Number(tr.dataset.hours) || 0;
+    const fallback = Number(tr.dataset.fallback);
+    const parsed = parseRate(tr.querySelector(".fin-person-rate")?.value);
+    const rate = parsed === null || parsed === false ? (Number.isFinite(fallback) ? fallback : 15) : parsed;
+    const usdAmt = hours * rate;
+    empl += usdAmt;
+    const usdEl = tr.querySelector("[data-usd]");
+    const uahEl = tr.querySelector("[data-uah]");
+    if (usdEl) usdEl.textContent = usd(usdAmt);
+    if (uahEl) uahEl.innerHTML = `<b>${uah(usdAmt * fx)}</b>`;
+  });
+  const footUsd = root.querySelector("[data-empl-usd]");
+  const footUah = root.querySelector("[data-empl-uah]");
+  if (footUsd) footUsd.textContent = usd(empl);
+  if (footUah) footUah.textContent = uah(empl * fx);
+}
+
+function bindEmployeePay() {
+  const root = $("board");
+  if (!root) return;
+  root.querySelectorAll(".fin-person-rate").forEach((el) => {
+    el.addEventListener("input", refreshEmployeePay);
+    el.addEventListener("change", () => saveEmployeeRates({ silent: true }));
+  });
+  $("finNbu")?.addEventListener("input", refreshEmployeePay);
 }
 
 function ensureNbu() {
@@ -1372,16 +1389,17 @@ async function saveNbuRate() {
   toast(`NBU ${rate} ₴ / $`);
 }
 
-async function saveEmployeeRates() {
+async function saveEmployeeRates(opts = {}) {
   const people = [];
   for (const el of $("board").querySelectorAll(".fin-person-rate")) {
     const p = person(el.dataset.id);
     if (!p) continue;
-    const rate = parseRate(el.value);
-    if (rate === false) {
+    const parsed = parseRate(el.value);
+    if (parsed === false) {
       toast(`Pay rate for ${p.name} must be 0 or more`);
       return;
     }
+    const rate = parsed === null ? rolePayRate(p) : parsed;
     people.push({ id: p.id, rateUsd: rate });
   }
   if (!people.length) return;
@@ -1391,7 +1409,7 @@ async function saveEmployeeRates() {
     return;
   }
   applyState(out.state);
-  toast("Pay rates saved");
+  if (!opts.silent) toast("Pay rates saved");
 }
 
 function captureTeamDrafts() {

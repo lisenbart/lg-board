@@ -8,7 +8,10 @@
     "driveSandboxExcel": "https://drive.google.com/file/d/1ewWwcUWBW0iNG69ppskt5aWu7IiNzJap/view",
     "driveOctoberDD": "https://drive.google.com/drive/folders/1kPlSyHeetn6wF-yYYaHr7BxzmAQPfgel",
     "driveOctoberDX": "https://drive.google.com/drive/folders/13yLju8CXxsvhOnQ5H_X1Pg7udB6Ah7CH",
-    "shiftHours": 9
+    "shiftHours": 9,
+    "clientRateUsd": 35,
+    "designerRateUsd": 15,
+    "managerRateUsd": 5
   },
   "people": [
     {
