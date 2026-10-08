@@ -31,8 +31,8 @@ const NAME_WIDTH_DEFAULT = 520;
 const STATUS_BY_ROLE = {
   designer: ["wip", "done"],
   teamlead: ["new", "wip", "revision", "done"],
-  manager: ["new", "wip", "revision", "done", "approve"],
-  finance: ["new", "wip", "revision", "done", "approve"],
+  manager: ["new", "wip", "revision", "done"],
+  finance: ["new", "wip", "revision", "done"],
 };
 const LINES = ["DD", "DX", "DS"];
 
@@ -419,9 +419,23 @@ function canAssign() {
 function isExecView() {
   return isDesigner() || isTeamLead();
 }
+function isSendable(t) {
+  return Boolean(t && t.studioStatus === "done" && String(t.resultUrl || "").trim());
+}
+function canPasteResult(t) {
+  if (canOps()) return true;
+  if (!t) return false;
+  return t.assigneeId === me().id && (isDesigner() || isTeamLead());
+}
 function designers() {
   const people = state.db.people || [];
-  return people.filter((p) => p.role === "teamlead").concat(people.filter((p) => p.role === "designer"));
+  return people
+    .filter((p) => p.role === "teamlead" || p.role === "designer")
+    .sort(
+      (a, b) =>
+        (Number(a.payOrder) || 99) - (Number(b.payOrder) || 99) ||
+        String(a.name).localeCompare(String(b.name))
+    );
 }
 function crew() {
   return (state.db.people || []).filter((p) => p.role === "manager" || p.role === "teamlead" || p.role === "designer");
@@ -445,7 +459,7 @@ async function api(path, payload) {
       body: payload ? JSON.stringify(payload) : undefined,
     });
     const type = res.headers.get("content-type") || "";
-    if (!res.ok || !type.includes("json")) throw new Error("no api");
+    if (!type.includes("json")) throw new Error("no api");
     return res.json();
   } catch (err) {
     if (typeof window.LGLocalApi !== "function") throw err;
@@ -606,7 +620,13 @@ function renderToolbar() {
     $("btnExcelPull")?.addEventListener("click", pullExcel);
     return;
   }
-  const n = state.selected.size;
+  if (canOps()) {
+    for (const id of [...state.selected]) {
+      const t = state.db.tasks.find((x) => x.id === id);
+      if (!isSendable(t)) state.selected.delete(id);
+    }
+  }
+  const n = [...state.selected].filter((id) => isSendable(state.db.tasks.find((x) => x.id === id))).length;
   const drive = sandboxDriveUrl();
   if (isExecView()) {
     $("toolbar").innerHTML = `
@@ -992,7 +1012,8 @@ function bindTimeEdits() {
 
 function rowHtml(t, mode, gap) {
   const st = STATUS[t.studioStatus] || STATUS.new;
-  const checked = state.selected.has(t.id) ? "checked" : "";
+  const sendable = isSendable(t);
+  const checked = sendable && state.selected.has(t.id) ? "checked" : "";
   const gapCls = gap ? " status-gap" : "";
   const brief = t.docUrl
     ? `<a class="linkish" href="${escapeHtml(t.docUrl)}" target="_blank" rel="noreferrer">Brief</a>`
@@ -1002,11 +1023,17 @@ function rowHtml(t, mode, gap) {
   const result = t.resultUrl
     ? `<a class="linkish" href="${escapeHtml(t.resultUrl)}" target="_blank" rel="noreferrer">Link</a>`
     : `<span class="empty">paste</span>`;
+  const pick =
+    mode === "ops"
+      ? sendable
+        ? `<input class="chk" data-id="${t.id}" type="checkbox" ${checked} />`
+        : ""
+      : "";
   const frozen =
     mode === "ops"
       ? `<div class="frozen">
           <div class="cell"><span class="pill line-${t.line}">${t.line}</span></div>
-          <div class="cell"><input class="chk" data-id="${t.id}" type="checkbox" ${checked} /></div>
+          <div class="cell">${pick}</div>
           <div class="cell name" title="${escapeHtml(t.name)}">${escapeHtml(t.name)}</div>
           <div class="cell">${timeCell(t)}</div>
         </div>`
@@ -1809,15 +1836,16 @@ function openTask(id) {
       <p class="status-hint" id="stHoursHint">= ${hoursFromShifts(t.shifts || 0)} h</p></div>`
         : `<div class="field"><label>Time</label><div>${t.shifts || 0} shifts · ${t.hours || 0} h</div></div>`
     }
-    <div class="field"><label>${isDesigner() ? "Paste result link here" : "Result link"}</label>
-      <input id="stResult" value="${escapeHtml(t.resultUrl || "")}" placeholder="https://drive.google.com/..." ${isDesigner() && mine || canOps() ? "" : "disabled"} />
+    <div class="field"><label>${canPasteResult(t) && !canOps() ? "Paste result link here" : "Result link"}</label>
+      <input id="stResult" value="${escapeHtml(t.resultUrl || "")}" placeholder="https://drive.google.com/..." ${canPasteResult(t) ? "" : "disabled"} />
     </div>
     <div class="field"><label>Status</label>
       <select id="stStatus" ${canEdit && !lockedStatus ? "" : "disabled"}>${statusOpts}</select>
     </div>
     </div>
     <div class="drawer-actions">
-      ${canOps() && t.resultUrl ? `<button class="btn green" id="exportOne">Send this to client</button>` : ""}
+      ${canOps() && isSendable(t) ? `<button class="btn green" id="exportOne">Send this to client</button>` : ""}
+      ${canOps() && t.studioStatus === "approve" && t.resultUrl ? `<button class="btn" id="copyOne">Copy Monday reply</button>` : ""}
       <button class="btn primary" id="saveTask">Save</button>
     </div>
   `;
@@ -1838,6 +1866,14 @@ function openTask(id) {
     const studioStatus = $("stStatus").value;
     if (studioStatus !== t.studioStatus && !canSetStatus(studioStatus)) {
       toast("This role cannot set " + (STATUS[studioStatus]?.label || studioStatus));
+      return;
+    }
+    if (studioStatus === "approve") {
+      toast("Senior Approval is set only when you Send to client");
+      return;
+    }
+    if (studioStatus === "done" && !resultUrl) {
+      toast("Paste the result link before Done");
       return;
     }
     const assigneeId = $("stPerson") ? $("stPerson").value : t.assigneeId;
@@ -1865,6 +1901,12 @@ function openTask(id) {
     await sendToClient([t.id]);
     openTask(t.id);
   });
+  $("copyOne")?.addEventListener("click", async () => {
+    const pack = mondayReply(t);
+    const ok = await copyText(pack);
+    showPaste("Paste into Monday", "Already Senior Approval. Copy again into External Weekly.", pack);
+    toast(ok ? "Copied Monday reply" : "Ready to copy");
+  });
 }
 
 function closeDrawer() {
@@ -1887,17 +1929,30 @@ async function updateTask(id, patch, opts = {}) {
   if (state.openId && $("drawerBg").classList.contains("show")) openTask(id);
 }
 async function importMonday() {
-  const out = await api("/api/import-monday", { month: state.month });
+  const out = await api("/api/import-monday", { month: state.month, role: me().role });
+  if (out.error || !out.state) {
+    toast(out.error || "Could not pull from Monday");
+    return;
+  }
   applyState(out.state);
   toast(out.added ? `Pulled ${out.added} new from Monday` : "Nothing new");
 }
 async function sendToClient(ids) {
-  const ready = state.db.tasks.filter((t) => ids.includes(t.id) && t.resultUrl);
-  if (!ready.length) {
-    toast("Need a result link first. You can send 2 of 10 without waiting.");
+  if (!canOps()) {
+    toast("Only Line Producer can send to the client");
     return;
   }
-  const out = await api("/api/export-monday", { ids: ready.map((t) => t.id) });
+  const picked = state.db.tasks.filter((t) => ids.includes(t.id));
+  const ready = picked.filter(isSendable);
+  if (!ready.length) {
+    toast("Send only works on Done projects that have a result link");
+    return;
+  }
+  const out = await api("/api/export-monday", { ids: ready.map((t) => t.id), role: me().role });
+  if (out.error || !out.state) {
+    toast(out.error || "Could not send");
+    return;
+  }
   applyState(out.state);
   const pack = (out.exported || []).map((row) => row.reply).join("\n\n");
   const ok = await copyText(pack);
@@ -1906,7 +1961,12 @@ async function sendToClient(ids) {
     "Monday API is not connected yet. Paste this into External Weekly — status on our board is already Senior Approval.",
     pack
   );
-  toast(ok ? `Copied ${out.exported.length} Monday replies` : `Ready to copy ${out.exported.length} replies`);
+  const skipped = picked.length - ready.length;
+  const copied = out.exported?.length || ready.length;
+  toast(
+    (ok ? `Copied ${copied} Monday replies` : `Ready to copy ${copied} replies`) +
+      (skipped ? ` · ${skipped} skipped (not Done)` : "")
+  );
 }
 async function exportMonday() {
   await sendToClient([...state.selected]);
@@ -1987,7 +2047,11 @@ $("pasteModal").addEventListener("click", (e) => {
 });
 $("emailCancel").onclick = () => $("emailModal").classList.remove("show");
 $("emailApply").onclick = async () => {
-  const out = await api("/api/parse-email", { text: $("emailText").value, month: state.month });
+  const out = await api("/api/parse-email", { text: $("emailText").value, month: state.month, role: me().role });
+  if (out.error || !out.state) {
+    toast(out.error || "Could not parse email");
+    return;
+  }
   applyState(out.state);
   $("emailModal").classList.remove("show");
   toast(`Email: ${out.added} new, ${out.updated} shifts updated`);

@@ -98,6 +98,22 @@ JOB_TITLES = {
     "manager": "Line Producer",
 }
 
+OPS_ROLES = {"manager", "finance"}
+STATUS_BY_ROLE = {
+    "designer": {"wip", "done"},
+    "teamlead": {"new", "wip", "revision", "done"},
+    "manager": {"new", "wip", "revision", "done"},
+    "finance": {"new", "wip", "revision", "done"},
+}
+
+
+def monday_reply(task: dict) -> str:
+    return f"{task.get('name') or ''}\ncheck it please\n{task.get('resultUrl') or ''}".strip()
+
+
+def is_sendable(task: dict) -> bool:
+    return task.get("studioStatus") == "done" and bool(str(task.get("resultUrl") or "").strip())
+
 
 def task_month(data: dict, db: dict) -> str:
     return data.get("month") or db.get("meta", {}).get("month") or "2026-10"
@@ -265,6 +281,9 @@ class Handler(SimpleHTTPRequestHandler):
                 self._json(200, db)
                 return
             if path == "/api/parse-email":
+                if data.get("role") not in OPS_ROLES:
+                    self._json(403, {"error": "only Line Producer can parse shift email"})
+                    return
                 rows = parse_email(data.get("text") or "")
                 added, updated = 0, 0
                 for row in rows:
@@ -324,6 +343,9 @@ class Handler(SimpleHTTPRequestHandler):
                 self._json(200, {"added": added, "updated": updated, "parsed": rows, "state": db})
                 return
             if path == "/api/import-monday":
+                if data.get("role") not in OPS_ROLES:
+                    self._json(403, {"error": "only Line Producer can pull from Monday"})
+                    return
                 incoming = data.get("tasks") or _monday_fixture()
                 added = 0
                 for item in incoming:
@@ -369,12 +391,13 @@ class Handler(SimpleHTTPRequestHandler):
                 self._json(200, {"added": added, "state": db})
                 return
             if path == "/api/export-monday":
+                if data.get("role") not in OPS_ROLES:
+                    self._json(403, {"error": "only Line Producer can send to the client"})
+                    return
                 ids = set(data.get("ids") or [])
                 exported = []
                 for task in db["tasks"]:
-                    if task["id"] not in ids:
-                        continue
-                    if not task.get("resultUrl"):
+                    if task["id"] not in ids or not is_sendable(task):
                         continue
                     task["studioStatus"] = "approve"
                     task["mondayStatus"] = "Senior Approval"
@@ -387,10 +410,20 @@ class Handler(SimpleHTTPRequestHandler):
                     exported.append(
                         {
                             "name": task["name"],
-                            "reply": f"check it please\n{task['resultUrl']}",
+                            "reply": monday_reply(task),
                             "mondayStatus": "Senior Approval",
                         }
                     )
+                if not exported:
+                    self._json(
+                        400,
+                        {
+                            "error": "Send only works on Done projects that have a result link",
+                            "exported": [],
+                            "state": db,
+                        },
+                    )
+                    return
                 db.setdefault("events", []).insert(
                     0,
                     {
@@ -409,12 +442,10 @@ class Handler(SimpleHTTPRequestHandler):
                     return
                 nxt = data.get("studioStatus")
                 role = data.get("role") or ""
-                allowed = {
-                    "designer": {"wip", "done"},
-                    "teamlead": {"new", "wip", "revision", "done"},
-                    "manager": {"new", "wip", "revision", "done", "approve"},
-                    "finance": {"new", "wip", "revision", "done", "approve"},
-                }
+                allowed = STATUS_BY_ROLE
+                if nxt == "approve" and nxt != task.get("studioStatus"):
+                    self._json(403, {"error": "Senior Approval is set only when you Send to client"})
+                    return
                 if (
                     nxt
                     and nxt != task.get("studioStatus")
@@ -422,6 +453,10 @@ class Handler(SimpleHTTPRequestHandler):
                     and nxt not in allowed[role]
                 ):
                     self._json(403, {"error": f"{role} cannot set {nxt}"})
+                    return
+                incoming_result = data["resultUrl"] if "resultUrl" in data else task.get("resultUrl")
+                if nxt == "done" and nxt != task.get("studioStatus") and not str(incoming_result or "").strip():
+                    self._json(400, {"error": "paste the result link before Done"})
                     return
                 if "shifts" in data:
                     if role not in {"manager", "finance"}:
