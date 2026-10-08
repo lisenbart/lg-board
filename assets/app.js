@@ -44,8 +44,8 @@ const FIN_GATE_KEY = "lg-fin-gate";
 const ACCOUNTS = [
   {
     email: "dmytro@lisenbart.games",
-    name: "Dmytro",
-    blurb: "Finance",
+    name: "Dmytro Lisenbart",
+    blurb: "Studio",
     lockRole: "finance",
   },
   {
@@ -202,9 +202,11 @@ function showLogin(accountEmail) {
   });
 }
 function visiblePeople() {
-  const people = state.db?.people || [];
-  if (isClientPreview() && !financeUnlocked()) return people.filter((p) => p.role !== "finance");
-  return people;
+  return state.db?.people || [];
+}
+function whoLabel(p) {
+  if (p?.role === "finance") return p.name || "Dmytro Lisenbart";
+  return `${p.name} · ${jobMeta(p).code} ${jobMeta(p).title}`;
 }
 
 function escapeHtml(s) {
@@ -545,17 +547,11 @@ function renderWho() {
     sel.innerHTML = visiblePeople()
       .map(
         (p) =>
-          `<option value="${p.id}" ${p.id === state.roleId ? "selected" : ""}>${escapeHtml(p.name)} · ${
-            jobMeta(p).code
-          } ${jobMeta(p).title}</option>`
+          `<option value="${p.id}" ${p.id === state.roleId ? "selected" : ""}>${escapeHtml(whoLabel(p))}</option>`
       )
       .join("");
-    const gate = $("finGateBtn");
-    if (gate) gate.hidden = financeUnlocked();
     return;
   }
-  const gate = $("finGateBtn");
-  if (gate) gate.hidden = true;
   const account = accountByEmail(state.session?.email);
   mail.hidden = false;
   mail.textContent = account?.email || "";
@@ -570,9 +566,7 @@ function renderWho() {
   sel.innerHTML = seats
     .map(
       (p) =>
-        `<option value="${p.id}" ${p.id === state.roleId ? "selected" : ""}>${escapeHtml(p.name)} · ${
-          jobMeta(p).code
-        } ${jobMeta(p).title}</option>`
+        `<option value="${p.id}" ${p.id === state.roleId ? "selected" : ""}>${escapeHtml(whoLabel(p))}</option>`
     )
     .join("");
 }
@@ -1191,7 +1185,7 @@ function renderGuide() {
         "finance",
         "FN",
         "Finance",
-        "Dmytro. Команда цей блок не відкриває.",
+        "Dmytro Lisenbart. Команда цей блок не відкриває.",
         [
           `Три вкладки, години ті самі що ${ui("Excel")} / ${ui("SP_MGX_check")}. Не черга тасків.`,
           `${ui("Client")} — totals DD / DX. ${ui("Create DD / DX")} пише Word + PDF лише в пісочницю, не в live October.`,
@@ -2642,6 +2636,11 @@ $("monthLabel").addEventListener("click", () => setMonth(calendarMonth()));
 
 $("who").addEventListener("change", (e) => {
   const next = person(e.target.value);
+  if (isClientPreview() && next?.role === "finance" && !financeUnlocked()) {
+    e.target.value = me().id;
+    requestFinance();
+    return;
+  }
   state.roleId = e.target.value;
   state.selected.clear();
   state.designerFilter = null;
@@ -2673,7 +2672,6 @@ $("signOut").addEventListener("click", () => {
   $("drawerBg").classList.remove("show");
   showLogin();
 });
-$("finGateBtn")?.addEventListener("click", requestFinance);
 $("finGateCancel")?.addEventListener("click", closeFinancePin);
 $("finGateOk")?.addEventListener("click", submitFinancePin);
 $("finGatePin")?.addEventListener("keydown", (e) => {
