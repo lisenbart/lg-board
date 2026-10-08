@@ -753,8 +753,11 @@ function parseBrief(t) {
 function clientSlotsHtml(t) {
   const parts = parseBrief(t);
   const work = workFolder(t);
-  const msg = parts.raw
-    ? `<div class="client-msg">${escapeHtml(parts.raw)}</div>`
+  const shown = parts.naming.length
+    ? parts.raw.replace(/\n*naming\s*:[\s\S]*$/i, "").trim()
+    : parts.raw;
+  const msg = shown
+    ? `<div class="client-msg">${escapeHtml(shown)}</div>`
     : `<div class="client-msg empty">No brief from Monday yet</div>`;
   const names = parts.naming.length
     ? `<ul class="naming">${parts.naming.map((n) => `<li>${escapeHtml(n)}</li>`).join("")}</ul>`
@@ -2135,9 +2138,9 @@ function openTask(id) {
     </div>
     ${isTeamLead() ? assignBlock : ""}
     ${briefBlock}
+    ${resultBlock}
     ${!isTeamLead() ? assignBlock : ""}
     ${timeBlock}
-    ${resultBlock}
     <div class="field"><label>Status</label>
       <select id="stStatus" ${canEdit && !lockedStatus ? "" : "disabled"}>${statusOpts}</select>
       <p class="status-hint" id="stDoneHint"></p>
