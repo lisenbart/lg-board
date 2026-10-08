@@ -725,64 +725,19 @@ function parseBrief(t) {
   const downloads = [
     ...raw.matchAll(/download\s*[-–—:]?\s*(\S+\.(?:mp4|mov|mkv))/gi),
   ].map((m) => m[1]);
-  const naming = [];
-  const pushName = (s) => {
-    const v = String(s || "")
-      .replace(/^[•\-–]\s*/, "")
-      .trim();
-    if (v && !naming.includes(v)) naming.push(v);
-  };
-  const afterName = raw.split(/\bnaming\s*:/i)[1] || "";
-  if (afterName) {
-    afterName.split(/\n/).forEach((line) => {
-      const s = line.trim();
-      if (!s || /^(thanks|hi)\b/i.test(s)) return;
-      if (s.includes("/") && /\d{3,4}\s*[x×]\s*\d{3,4}/i.test(s) && !/_EN_/i.test(s)) {
-        s.split("/").forEach(pushName);
-        return;
-      }
-      if (/\d{3,4}\s*[x×]\s*\d{3,4}/i.test(s) || /_EN_/i.test(s) || s.length > 12) pushName(s);
-    });
-  }
-  if (!naming.length) {
-    const deliver = raw.match(/deliver[^:\n]*:\s*([^\n]+)/i);
-    if (deliver) {
-      deliver[1]
-        .split(/[,/]/)
-        .map((x) => x.trim())
-        .filter((x) => /\d\s*[x×]\s*\d/.test(x))
-        .forEach(pushName);
-    }
-  }
-  const text = raw
-    .replace(/\bnaming\s*:[\s\S]*$/i, "")
-    .replace(/\bdeliver[^:\n]*:[^\n]*/gi, "")
-    .trim();
-  return { raw, text, fileUrl, downloads, naming };
-}
-function sizeChip(n) {
-  const m = String(n).match(/(\d{3,4})\s*[x×]\s*(\d{3,4})/i);
-  return m ? `${m[1]}×${m[2]}` : n;
+  return { raw, fileUrl, downloads };
 }
 function pinHtml(t) {
-  const parts = parseBrief(t);
-  const body = parts.text
-    ? `<div class="pin-body">${escapeHtml(parts.text)}</div>`
+  const raw = String(t?.brief || "").trim();
+  const body = raw
+    ? `<div class="pin-body">${escapeHtml(raw)}</div>`
     : `<div class="pin-body is-empty">No brief from Monday yet</div>`;
-  const deliver = parts.naming.length
-    ? `<div class="pin-deliver">
-        <span>Deliver</span>
-        <div class="size-chips">${parts.naming
-          .map((n) => `<span class="size-chip" title="${escapeHtml(n)}">${escapeHtml(sizeChip(n))}</span>`)
-          .join("")}</div>
-      </div>`
-    : "";
   const doc = t.docUrl
     ? `<a class="pin-link" href="${escapeHtml(t.docUrl)}" target="_blank" rel="noreferrer">Open brief doc</a>`
     : "";
   return `<article class="pin">
       <header class="pin-head">From client</header>
-      ${body}${deliver}
+      ${body}
       ${doc ? `<footer class="pin-foot">${doc}</footer>` : ""}
     </article>`;
 }
