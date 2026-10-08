@@ -316,12 +316,16 @@
         finance: ["#0073ea", "#0059b3"],
       }[job];
       const count = db.people.filter((p) => p.role === job).length;
+      const payOrder = Math.max(0, ...db.people.map((p) => Number(p.payOrder) || 0)) + 1;
+      const titles = { designer: "дизайнер", teamlead: "тімлід", manager: "менеджер" };
       const person = {
         id: pid,
         name: n === 1 ? labels[job] : `${labels[job]} ${n}`,
         role: job,
         color: palette[count % palette.length],
+        payOrder,
       };
+      if (titles[job]) person.jobTitle = titles[job];
       if (job === "manager") person.rateUsd = 5;
       else if (job === "designer" || job === "teamlead") person.rateUsd = 15;
       db.people.push(person);

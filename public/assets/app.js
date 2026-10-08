@@ -1478,7 +1478,7 @@ function renderTeam() {
   $("board").innerHTML = `
     <section class="group" style="padding:18px">
       <h2 style="margin:0 0 8px">Team names</h2>
-      <p style="color:#676879">Finance only. Rename a job title to a real name. Role stays for access. Unsaved names are kept if you add or delete someone.</p>
+      <p style="color:#676879">Finance only. Role (посада) never changes — only the display name. Hours stay on that person, not on the letters of the name, so a rename does not create a second Excel column. Add a designer or team lead → new EMPL column. Remove someone → the old column stays empty so neighbouring hours do not shift.</p>
       ${rows}
       <div class="team-add">
         <select id="addJob">${TEAM_JOBS.map((j) => `<option value="${j.id}">${j.label}</option>`).join("")}</select>

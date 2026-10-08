@@ -6,12 +6,14 @@ from datetime import datetime
 from pathlib import Path
 
 from openpyxl import load_workbook
+from openpyxl.comments import Comment
 from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
 
 ROOT = Path(__file__).resolve().parent
 XLSX_PATH = ROOT / "data" / "SP_MGX_check.xlsx"
 NAME_ID = re.compile(r"^([A-Z]{2}-[A-Z0-9]+-\d+(?:-\d+)?)", re.I)
+LG_ID = re.compile(r"lg-id:([A-Za-z0-9_-]+)")
 
 HEADER_FILL = PatternFill("solid", fgColor="D8D8D8")
 DX_FILL = PatternFill("solid", fgColor="9DC3E6")
@@ -86,19 +88,46 @@ def _id_key(name: str) -> str:
     return m.group(1).upper() if m else ""
 
 
+def _person_id_from_cell(cell) -> str:
+    note = getattr(cell.comment, "text", "") or ""
+    m = LG_ID.search(note)
+    return m.group(1) if m else ""
+
+
+def _stamp_person_header(cell, person: dict) -> None:
+    cell.value = person.get("name") or cell.value
+    cell.font = CALIBRI_BOLD
+    cell.alignment = CENTER
+    cell.comment = Comment(f"lg-id:{person['id']}", "LG")
+
+
+def _header_columns(ws) -> list[dict]:
+    cols = []
+    for col in range(6, 48):
+        cell = ws.cell(1, col)
+        raw = cell.value
+        pid = _person_id_from_cell(cell)
+        if (raw is None or str(raw).strip() == "") and not pid:
+            if cols:
+                break
+            continue
+        cols.append(
+            {
+                "col": col,
+                "name": str(raw or "").strip(),
+                "id": pid,
+            }
+        )
+    return cols
+
+
 def parse_workbook(path: Path, ym: str) -> dict:
     wb = load_workbook(path, data_only=False)
     ws = find_sheet(wb, ym)
     if ws is None:
         return {"people": [], "rows": [], "sheet": None}
-    people = []
-    for col in range(6, 20):
-        name = ws.cell(1, col).value
-        if name is None or str(name).strip() == "":
-            if people:
-                break
-            continue
-        people.append(str(name).strip())
+    headers = _header_columns(ws)
+    people = [h["name"] for h in headers if h["name"]]
     rows = []
     line = "DX"
     for r in range(2, ws.max_row + 1):
@@ -116,10 +145,12 @@ def parse_workbook(path: Path, ym: str) -> dict:
         hours_n = _hours_value(ws.cell(r, 4).value, shifts_n)
         deadline = ws.cell(r, 5).value
         assignee = ""
-        for i, _ in enumerate(people):
-            val = ws.cell(r, 6 + i).value
+        assignee_id = ""
+        for h in headers:
+            val = ws.cell(r, h["col"]).value
             if val not in (None, ""):
-                assignee = people[i]
+                assignee = h["name"]
+                assignee_id = h["id"]
                 hours_n = _hours_value(val, shifts_n)
                 break
         if isinstance(deadline, datetime):
@@ -135,6 +166,7 @@ def parse_workbook(path: Path, ym: str) -> dict:
                 "hours": hours_n,
                 "deadline": deadline_s,
                 "assigneeName": assignee,
+                "assigneeId": assignee_id,
             }
         )
     return {"people": people, "rows": rows, "sheet": ws.title}
@@ -153,7 +185,9 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
     for row in parsed.get("rows") or []:
         name = row["name"]
         assignee_id = ""
-        if row.get("assigneeName"):
+        if row.get("assigneeId") and row["assigneeId"] in {p["id"] for p in people}:
+            assignee_id = row["assigneeId"]
+        elif row.get("assigneeName"):
             person = by_name.get(row["assigneeName"].strip().lower())
             if person:
                 assignee_id = person["id"]
@@ -211,7 +245,11 @@ def tasks_for_finance(db: dict, ym: str) -> list[dict]:
     out = []
     for row in parsed.get("rows") or []:
         base = existing.get(row["name"]) or by_id.get(_id_key(row["name"])) or {}
-        person = by_name.get((row.get("assigneeName") or "").strip().lower())
+        person = None
+        if row.get("assigneeId"):
+            person = next((p for p in db.get("people") or [] if p.get("id") == row["assigneeId"]), None)
+        if person is None:
+            person = by_name.get((row.get("assigneeName") or "").strip().lower())
         task = dict(base)
         task["name"] = row["name"]
         task["line"] = row["line"]
@@ -231,30 +269,51 @@ def _style_range(ws, row: int, cols: int) -> None:
         cell.alignment = CENTER if c != 2 else Alignment(vertical="center")
 
 
+def _label_section_empl(ws, col: int, n: int) -> None:
+    for r in range(2, min((ws.max_row or 2) + 1, 80)):
+        a = str(ws.cell(r, 1).value or "").strip().upper()
+        if a in {"DX", "DD", "DS"}:
+            cell = ws.cell(r, col, f"EMPL {n}")
+            cell.fill = HEADER_FILL
+            cell.font = CALIBRI_BOLD
+            cell.alignment = CENTER
+            cell.border = THIN
+
+
 def _bind_people_columns(ws, people: list[dict]) -> list[tuple[int, dict | None]]:
-    """Map EMPL columns by the name already on the sheet, not by portal list order."""
+    """Bind EMPL columns to person id. The header name is only a label and can change."""
+    by_id = {p["id"]: p for p in people}
     by_name = {p["name"].strip().lower(): p for p in people}
     used = set()
     columns: list[tuple[int, dict | None]] = []
-    for col in range(6, 20):
-        raw = ws.cell(1, col).value
-        if raw is None or str(raw).strip() == "":
-            if columns:
-                break
-            continue
-        person = by_name.get(str(raw).strip().lower())
-        columns.append((col, person))
+    for h in _header_columns(ws):
+        col = h["col"]
+        cell = ws.cell(1, col)
+        person = by_id.get(h["id"]) if h.get("id") else None
+        if person and person["id"] in used:
+            person = None
+        if person is None and h.get("name"):
+            candidate = by_name.get(h["name"].strip().lower())
+            if candidate and candidate["id"] not in used:
+                person = candidate
         if person:
+            _stamp_person_header(cell, person)
             used.add(person["id"])
+            columns.append((col, person))
+        else:
+            columns.append((col, None))
     next_col = max((c for c, _ in columns), default=5) + 1
+    n = sum(1 for _, p in columns if p) + 1
     for person in people:
         if person["id"] in used:
             continue
-        ws.cell(1, next_col, person.get("name") or "")
-        ws.cell(1, next_col).font = CALIBRI_BOLD
-        ws.cell(1, next_col).alignment = CENTER
+        _stamp_person_header(ws.cell(1, next_col), person)
+        _label_section_empl(ws, next_col, n)
+        ws.column_dimensions[get_column_letter(next_col)].width = 13
         columns.append((next_col, person))
+        used.add(person["id"])
         next_col += 1
+        n += 1
     return columns
 
 
@@ -374,9 +433,7 @@ def write_month(db: dict, ym: str, path: Path | None = None) -> Path:
         ws = wb.create_sheet(sheet_name_for(ym), 0)
         ws.cell(1, 2, f"{y} PROJECT NAME")
         for i, person in enumerate(people):
-            cell = ws.cell(1, 6 + i, person.get("name") or f"EMPL {i + 1}")
-            cell.font = CALIBRI_BOLD
-            cell.alignment = CENTER
+            _stamp_person_header(ws.cell(1, 6 + i), person)
         labels = ["DX", "MGX", "SHIFTS", "HOURS", "DEADLINE"] + [f"EMPL {i + 1}" for i in range(len(people))]
         for c, label in enumerate(labels, 1):
             cell = ws.cell(2, c, label)

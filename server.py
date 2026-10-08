@@ -70,6 +70,23 @@ def sync_excel(db: dict, month: str | None = None, calculator: bool = False) -> 
         finance_io.write_month(db, ym, nbu_rate=fx)
 
 
+def next_pay_order(db: dict) -> int:
+    vals = []
+    for person in db.get("people") or []:
+        try:
+            vals.append(int(person.get("payOrder") or 0))
+        except (TypeError, ValueError):
+            vals.append(0)
+    return max(vals, default=0) + 1
+
+
+JOB_TITLES = {
+    "designer": "дизайнер",
+    "teamlead": "тімлід",
+    "manager": "менеджер",
+}
+
+
 def task_month(data: dict, db: dict) -> str:
     return data.get("month") or db.get("meta", {}).get("month") or "2026-10"
 
@@ -641,6 +658,12 @@ class Handler(SimpleHTTPRequestHandler):
                 if not updated and data.get("id"):
                     self._json(404, {"error": "not found"})
                     return
+                try:
+                    sync_excel(db, calculator=True)
+                except FileNotFoundError as e:
+                    save_db(db)
+                    self._json(500, {"error": str(e), "state": db})
+                    return
                 save_db(db)
                 self._json(200, {"people": updated, "state": db})
                 return
@@ -677,12 +700,22 @@ class Handler(SimpleHTTPRequestHandler):
                     "name": labels[job] if n == 1 else f"{labels[job]} {n}",
                     "role": job,
                     "color": palette[count % len(palette)],
+                    "payOrder": next_pay_order(db),
                 }
+                if job in JOB_TITLES:
+                    person["jobTitle"] = JOB_TITLES[job]
                 if job == "manager":
                     person["rateUsd"] = 5
                 elif job in {"designer", "teamlead"}:
                     person["rateUsd"] = 15
                 db["people"].append(person)
+                try:
+                    if job in {"designer", "teamlead", "manager"}:
+                        sync_excel(db, calculator=True)
+                except FileNotFoundError as e:
+                    save_db(db)
+                    self._json(500, {"error": str(e), "state": db})
+                    return
                 save_db(db)
                 self._json(200, {"person": person, "state": db})
                 return
@@ -732,7 +765,7 @@ class Handler(SimpleHTTPRequestHandler):
                     )
                 db["people"] = [p for p in db["people"] if p["id"] != pid]
                 try:
-                    sync_excel(db, calculator=bool(held))
+                    sync_excel(db, calculator=True)
                 except FileNotFoundError as e:
                     save_db(db)
                     self._json(500, {"error": str(e), "state": db})
