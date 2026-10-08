@@ -18,12 +18,33 @@ TOKEN_PATH = DATA / "secrets" / "google_drive_token.txt"
 FOLDER_MIME = "application/vnd.google-apps.folder"
 DOC_MIME = "application/vnd.google-apps.document"
 FOLDER_ID_RE = re.compile(r"/folders/([a-zA-Z0-9_-]+)")
+DRIVE_FOLDER_URL_RE = re.compile(
+    r"https://drive\.google\.com/drive/folders/[a-zA-Z0-9_-]+",
+    re.I,
+)
 API = "https://www.googleapis.com/drive/v3"
 UPLOAD = "https://www.googleapis.com/upload/drive/v3/files"
 
 
 class DriveError(RuntimeError):
     pass
+
+
+def client_folder_from_brief(brief: str) -> str:
+    m = DRIVE_FOLDER_URL_RE.search(brief or "")
+    return m.group(0) if m else ""
+
+
+def work_folder(task: dict) -> str:
+    """Where the performer puts files: client folder in the brief, else studio pack."""
+    return client_folder_from_brief(task.get("brief") or "") or str(task.get("folderUrl") or "").strip()
+
+
+def apply_work_folder(task: dict) -> str:
+    client = client_folder_from_brief(task.get("brief") or "")
+    if client:
+        task["folderUrl"] = client
+    return work_folder(task)
 
 
 def folder_id_from_url(url: str) -> str:
@@ -217,6 +238,7 @@ def ensure_task(db: dict, task: dict, ym: str | None = None) -> dict:
     name = (task.get("name") or "").strip()
     if not name:
         return {"ok": False, "error": "task has no name"}
+    apply_work_folder(task)
     if task.get("folderUrl") and task.get("docUrl"):
         return {
             "ok": True,
@@ -251,8 +273,10 @@ def ensure_task(db: dict, task: dict, ym: str | None = None) -> dict:
     folder_id = _mkdir(token, parent, name)
     doc_id = _create_doc(token, folder_id, name, task.get("brief") or "")
     pack = remember(name, folder_id, doc_id)
-    task["folderUrl"] = pack["folderUrl"]
     task["docUrl"] = pack["docUrl"]
+    if not client_folder_from_brief(task.get("brief") or ""):
+        task["folderUrl"] = pack["folderUrl"]
+    apply_work_folder(task)
     task.setdefault("activity", []).append(
         {
             "at": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),

@@ -486,9 +486,15 @@ class Handler(SimpleHTTPRequestHandler):
                     self._json(403, {"error": f"{role} cannot set {nxt}"})
                     return
                 incoming_result = data["resultUrl"] if "resultUrl" in data else task.get("resultUrl")
+                incoming_brief = data["brief"] if "brief" in data else task.get("brief")
+                incoming_folder = data["folderUrl"] if "folderUrl" in data else task.get("folderUrl")
                 if nxt == "done" and nxt != task.get("studioStatus") and not str(incoming_result or "").strip():
-                    self._json(400, {"error": "paste the result link before Done"})
-                    return
+                    auto = drive_io.work_folder({"brief": incoming_brief, "folderUrl": incoming_folder})
+                    if auto:
+                        data["resultUrl"] = auto
+                    else:
+                        self._json(400, {"error": "paste the result link before Done"})
+                        return
                 if "shifts" in data:
                     if role not in {"manager", "finance"}:
                         self._json(403, {"error": "only manager or finance can edit time"})
