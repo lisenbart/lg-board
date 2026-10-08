@@ -1156,7 +1156,7 @@ function renderGuide() {
           `Новий пак: ${ui("Pull from Monday")} або ${ui("Shift email")} (рядок як в Orit: NAME | 0.3 shifts).`,
           `Тека + бриф на Drive створюються самі, коли таск сідає. У картці ${ui("Open brief")} / ${ui("Open folder")} — без кнопки Create.`,
           `Години: поле ${ui("Shifts")} у рядку або в картці. 1 shift = 9 годин. Виконавця ставить TL.`,
-          `Рядок фарбується за статусом. Чіп біля назви: ${ui("Ready")} / ${ui("WIP")} / ${ui("Fix")} / ${ui("Send")} / ${ui("Appr.")} / ${ui("Closed")}. Дзвіночок — лише непрочитане.`,
+          `Рядок фарбується за статусом. Чіп біля назви: ${ui("Ready")} / ${ui("WIP")} / ${ui("Fix")} / ${ui("Done")} / ${ui("Appr.")} / ${ui("Closed")}. Дзвіночок — лише непрочитане.`,
           `${ui("Send to client")} лише з ${ui("Done")} + лінк результату. Копіює текст у External Weekly. ${ui("Senior Approval")} сам не виставляється.`,
           `${ui("Closed")} — клієнт прийняв, таск закінчено. Ставить LP після ${ui("Senior Approval")}, не з ${ui("Done")}.`,
         ])}
@@ -1302,9 +1302,6 @@ function bindTimeEdits() {
 function statusMark(t) {
   const key = t.studioStatus || "new";
   const title = (STATUS[key] || STATUS.new).label;
-  if (key === "done" && canOps() && isSendable(t)) {
-    return { cls: "send", label: "Send", title: "Done · send to client" };
-  }
   return (
     {
       new: { cls: "ready", label: "Ready", title },
