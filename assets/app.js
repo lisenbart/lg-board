@@ -691,6 +691,16 @@ function personCell(id) {
   if (!p) return `<span class="empty">unassigned</span>`;
   return `<span class="person"><span class="avatar" style="background:${p.color}">${initials(displayName(p))}</span>${escapeHtml(displayName(p))}${jobBadgeHtml(p)}</span>`;
 }
+function packLinksHtml(t) {
+  const brief = t.docUrl
+    ? `<a class="btn pack-brief" href="${escapeHtml(t.docUrl)}" target="_blank" rel="noreferrer">Open brief</a>`
+    : "";
+  const folder = t.folderUrl
+    ? `<a class="btn pack-folder" href="${escapeHtml(t.folderUrl)}" target="_blank" rel="noreferrer">Open folder</a>`
+    : "";
+  if (!brief && !folder) return "";
+  return `<div class="pack-links">${brief}${folder}</div>`;
+}
 function timeCell(t) {
   const hours = t.hours || hoursFromShifts(t.shifts || 0);
   if (canEditTime()) {
@@ -1819,14 +1829,13 @@ function openTask(id) {
       ${
         canOps() || canAssign()
           ? `<textarea class="brief-edit" id="stBrief" placeholder="Paste the Monday / Google Doc brief">${escapeHtml(t.brief || "")}</textarea>
-      <label style="margin-top:10px">Google Doc</label>
+      ${packLinksHtml(t)}
+      <label style="margin-top:10px">Brief Doc URL</label>
       <input id="stDoc" value="${escapeHtml(t.docUrl || "")}" placeholder="https://docs.google.com/document/..." />
-      <label style="margin-top:10px">Drive folder</label>
-      <input id="stFolder" value="${escapeHtml(t.folderUrl || "")}" placeholder="https://drive.google.com/drive/folders/..." />
-      ${sandboxDriveUrl() ? `<p class="status-hint"><a href="${escapeHtml(sandboxDriveUrl())}" target="_blank" rel="noreferrer">Open this month on Drive</a></p>` : ""}`
+      <label style="margin-top:10px">Project folder URL</label>
+      <input id="stFolder" value="${escapeHtml(t.folderUrl || "")}" placeholder="https://drive.google.com/drive/folders/..." />`
           : `<div class="brief">${escapeHtml(t.brief || "No brief yet")}</div>
-      ${t.docUrl ? `<p><a href="${escapeHtml(t.docUrl)}" target="_blank" rel="noreferrer">Open Google Doc</a></p>` : ""}
-      ${t.folderUrl ? `<p><a href="${escapeHtml(t.folderUrl)}" target="_blank" rel="noreferrer">Drive folder</a></p>` : ""}`
+      ${packLinksHtml(t)}`
       }
     </div>
     ${
