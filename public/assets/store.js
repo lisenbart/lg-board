@@ -252,6 +252,18 @@
           if (rate === null) return { error: "pay rate must be 0 or more" };
           db.meta.designerRateUsd = rate;
         }
+        if ("taxPct" in data) {
+          let rate = money(data.taxPct);
+          if (rate === null) return { error: "tax must be a number, 0–100%" };
+          if (rate > 1) rate = rate / 100;
+          if (rate > 1) return { error: "tax must be 0–100%" };
+          db.meta.taxPct = Math.round(rate * 1e6) / 1e6;
+        }
+        if ("nbuRate" in data) {
+          const rate = money(data.nbuRate);
+          if (rate === null || rate <= 0) return { error: "NBU rate must be more than 0" };
+          db.meta.nbuRate = rate;
+        }
       } catch {
         return { error: "rates must be numbers, 0 or more" };
       }

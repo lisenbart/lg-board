@@ -646,6 +646,12 @@ body.col-resizing * { cursor: col-resize !important; }
 .fin-person-rate {
   width: 72px; border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; text-align: right;
 }
+.fin-tax-line {
+  display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.fin-tax-in {
+  width: 64px; border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; text-align: right;
+}
 .fin-empty {
   background: #fff; border: 1px dashed var(--line); border-radius: 8px;
   padding: 28px 16px; text-align: center; color: var(--muted);

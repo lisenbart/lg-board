@@ -38,7 +38,7 @@ SOFFICE_BINS = [
     "/Applications/LibreOffice.app/Contents/MacOS/soffice",
 ]
 NBU_URL = "https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?valcode=USD&json"
-TAX_PCT = 0.05
+TAX_PCT = 0.06
 CLIENT_RATE = 35.0
 MANAGER_RATE = 5.0
 DESIGNER_RATE = 15.0
@@ -851,11 +851,19 @@ def write_month(db: dict, ym: str, nbu_rate: float | None = None, path: Path | N
     label_col = client_col + 1
     usd_col = client_col + 3
     uah_col = client_col + 2
+    tax_row = uah_row + 1
+    tax_col = usd_col + 1
+    tax_cell = ws.cell(tax_row, tax_col, tax)
+    tax_cell.number_format = "0.00%"
+    tax_cell.font = CALIBRI_BOLD
+    tax_cell.alignment = CENTER
+    ws.cell(uah_row, tax_col, "TAX").font = CALIBRI_BOLD
+    tax_ref = f"{get_column_letter(tax_col)}{tax_row}"
     rows = [
         (uah_row, "CLIENT IN", f"={get_column_letter(client_col)}{total_row}"),
-        (uah_row + 1, "STUDIO (TAX)", f"={get_column_letter(usd_col)}{uah_row}-{get_column_letter(usd_col)}{uah_row}*{tax:g}"),
+        (tax_row, "STUDIO (TAX)", f"={get_column_letter(usd_col)}{uah_row}-{get_column_letter(usd_col)}{uah_row}*{tax_ref}"),
         (uah_row + 2, "EMPL", f"={get_column_letter(total_empl_col)}{total_row}"),
-        (uah_row + 3, "STUDIO", f"={get_column_letter(usd_col)}{uah_row + 1}-{get_column_letter(usd_col)}{uah_row + 2}"),
+        (uah_row + 3, "STUDIO", f"={get_column_letter(usd_col)}{tax_row}-{get_column_letter(usd_col)}{uah_row + 2}"),
     ]
     for row, label, formula in rows:
         ws.cell(row, label_col, label).font = CALIBRI_BOLD
@@ -864,7 +872,7 @@ def write_month(db: dict, ym: str, nbu_rate: float | None = None, path: Path | N
 
     ws.column_dimensions["A"].width = 11
     ws.column_dimensions["B"].width = 72
-    for col in range(3, usd_col + 1):
+    for col in range(3, tax_col + 1):
         ws.column_dimensions[get_column_letter(col)].width = 14
     _write_employeers_sheet(wb, db)
     wb.save(path)

@@ -12,7 +12,7 @@
     "clientRateUsd": 35,
     "designerRateUsd": 15,
     "managerRateUsd": 5,
-    "taxPct": 0.05,
+    "taxPct": 0.06,
     "driveCalculator": "https://drive.google.com/file/d/1KNL8xAHUmTuZx3xe01XtlwxjYw_FThhA/view",
     "driveInvoiceMgx": "https://drive.google.com/drive/folders/1BugYUcLPzb47sc4fZMwYXG6FPigzsyP5"
   },

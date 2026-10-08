@@ -278,7 +278,12 @@ function nbuRate() {
 }
 function taxPct() {
   const n = Number(state.db?.meta?.taxPct);
-  return Number.isFinite(n) && n >= 0 ? n : 0.05;
+  return Number.isFinite(n) && n >= 0 ? n : 0.06;
+}
+function taxPercent(tax) {
+  const n = Number(tax);
+  if (!Number.isFinite(n) || n < 0) return 6;
+  return Math.round(n * 10000) / 100;
 }
 function formatCard(raw) {
   const digits = String(raw || "").replace(/\D/g, "");
@@ -1299,49 +1304,48 @@ function renderClient(fin) {
 }
 
 function renderStudio(fin) {
-  const taxPct = Math.round(fin.tax * 100);
-  if (!fin.tasks.length) {
-    return `<div class="fin-head">
-      <div>
-        <h2>Studio · ${escapeHtml(fin.month)}</h2>
-        <p>Same block as the calculator, bottom-right of the month sheet. Hours come from <code>SP_MGX_check</code>.</p>
-      </div>
-    </div>
-    <div class="fin-empty">No hours in ${escapeHtml(fin.month)} — nothing to split yet.</div>`;
-  }
+  const pct = taxPercent(fin.tax);
   const rows = [
     { key: "clientIn", label: "CLIENT IN", usd: fin.clientIn, note: `${hoursLabel(fin.totalHours)} × ${usd(fin.clientRate)}` },
-    { key: "afterTax", label: "STUDIO (TAX)", usd: fin.afterTax, note: `CLIENT IN − ${taxPct}%` },
+    { key: "afterTax", label: "STUDIO (TAX)", usd: fin.afterTax, note: "CLIENT IN − tax" },
     { key: "empl", label: "EMPL", usd: fin.empl, note: "LP $5 on all hours · TL/MD $15 on assigned" },
     { key: "studio", label: "STUDIO", usd: fin.studio, note: "STUDIO (TAX) − EMPL" },
   ];
   const body = rows
-    .map(
-      (row) => `<tr class="${row.key === "studio" ? "fin-studio-row" : ""}">
-        <td><b>${escapeHtml(row.label)}</b><div class="fin-legal">${escapeHtml(row.note)}</div></td>
+    .map((row) => {
+      const taxCtl =
+        row.key === "afterTax"
+          ? `<label class="fin-tax-line"><b>STUDIO (TAX)</b><input id="finTaxPct" class="fin-tax-in" type="number" min="0" max="100" step="0.1" value="${pct}" /><span>%</span></label>`
+          : `<b>${escapeHtml(row.label)}</b>`;
+      return `<tr class="${row.key === "studio" ? "fin-studio-row" : ""}" data-row="${row.key}">
+        <td>${taxCtl}<div class="fin-legal">${escapeHtml(row.note)}</div></td>
         <td class="num" data-uah-amt data-usd-amt="${row.usd}">${uah(row.usd * fin.fx)}</td>
         <td class="num" data-usd>${usd(row.usd)}</td>
-      </tr>`
-    )
+      </tr>`;
+    })
     .join("");
   const un = fin.unassignedProjects
     ? `<p class="fin-unassigned">Unassigned ${hoursLabel(fin.unassignedHours)} still sit in CLIENT IN and therefore in STUDIO, not in EMPL.</p>`
     : "";
+  const empty = !fin.tasks.length
+    ? `<div class="fin-empty" style="margin-bottom:12px">No hours in ${escapeHtml(fin.month)} — CLIENT IN is zero until the check file has shifts.</div>`
+    : "";
   return `
     <div class="fin-kpis">
-      <div class="kpi"><b>${usd(fin.clientIn)}</b><span>CLIENT IN</span></div>
-      <div class="kpi"><b>${usd(fin.afterTax)}</b><span>after ${taxPct}% tax</span></div>
-      <div class="kpi"><b>${usd(fin.empl)}</b><span>EMPL</span></div>
-      <div class="kpi"><b>${usd(fin.studio)}</b><span>STUDIO</span></div>
+      <div class="kpi"><b data-kpi="clientIn">${usd(fin.clientIn)}</b><span>CLIENT IN</span></div>
+      <div class="kpi"><b data-kpi="afterTax">${usd(fin.afterTax)}</b><span>after <span data-kpi-tax>${pct}</span>% tax</span></div>
+      <div class="kpi"><b data-kpi="empl">${usd(fin.empl)}</b><span>EMPL</span></div>
+      <div class="kpi"><b data-kpi="studio">${usd(fin.studio)}</b><span>STUDIO</span></div>
     </div>
     <section class="group fin-card">
       <div class="fin-rates">
         <label>NBU USD/UAH <input id="finNbu" type="number" min="0" step="0.01" value="${fin.fx}" /></label>
         <button type="button" class="btn" id="finSaveNbu">Use this rate</button>
       </div>
-      <p class="fin-calc-note">Calculator, bottom-right: CLIENT IN → STUDIO (TAX) → EMPL → STUDIO. Hours from <code>${escapeHtml(fin.hoursSource || "SP_MGX_check.xlsx")}</code>, not a second ledger.</p>
+      <p class="fin-calc-note">Calculator, bottom-right: CLIENT IN → STUDIO (TAX) → EMPL → STUDIO. Hours from <code>${escapeHtml(fin.hoursSource || "SP_MGX_check.xlsx")}</code>. Tax is saved into the calculator cell TAX.</p>
+      ${empty}
       <div class="fin-scroll">
-        <table class="fin-table">
+        <table class="fin-table" id="finStudioTable" data-client-in="${fin.clientIn}" data-empl="${fin.empl}">
           <thead><tr><th></th><th class="num">UAH</th><th class="num">USD</th></tr></thead>
           <tbody>${body}</tbody>
         </table>
@@ -1350,18 +1354,65 @@ function renderStudio(fin) {
     </section>`;
 }
 
-function bindStudioPay() {
-  $("finNbu")?.addEventListener("input", refreshStudioFx);
+function studioTaxFraction() {
+  const parsed = parseRate($("finTaxPct")?.value);
+  if (parsed === null || parsed === false) return taxPct();
+  return Math.min(parsed, 100) / 100;
 }
 
-function refreshStudioFx() {
+function bindStudioPay() {
+  $("finNbu")?.addEventListener("input", refreshStudioMoney);
+  $("finTaxPct")?.addEventListener("input", refreshStudioMoney);
+  $("finTaxPct")?.addEventListener("change", () => saveTaxPct({ silent: false }));
+}
+
+function refreshStudioMoney() {
   const root = $("board");
-  if (!root) return;
+  const table = $("finStudioTable");
+  if (!root || !table) return;
   const fx = employeePayFx();
-  root.querySelectorAll("[data-uah-amt]").forEach((el) => {
-    const usdAmt = Number(el.dataset.usdAmt) || 0;
-    el.textContent = uah(usdAmt * fx);
+  const tax = studioTaxFraction();
+  const clientIn = Number(table.dataset.clientIn) || 0;
+  const empl = Number(table.dataset.empl) || 0;
+  const afterTax = clientIn - clientIn * tax;
+  const studio = afterTax - empl;
+  const amounts = { clientIn, afterTax, empl, studio };
+  root.querySelectorAll("tr[data-row]").forEach((tr) => {
+    const usdAmt = amounts[tr.dataset.row];
+    const uahEl = tr.querySelector("[data-uah-amt]");
+    const usdEl = tr.querySelector("[data-usd]");
+    if (uahEl) {
+      uahEl.dataset.usdAmt = String(usdAmt);
+      uahEl.textContent = uah(usdAmt * fx);
+    }
+    if (usdEl) usdEl.textContent = usd(usdAmt);
   });
+  for (const [key, val] of Object.entries(amounts)) {
+    const el = root.querySelector(`[data-kpi="${key}"]`);
+    if (el) el.textContent = usd(val);
+  }
+  const taxEl = root.querySelector("[data-kpi-tax]");
+  if (taxEl) taxEl.textContent = String(taxPercent(tax));
+}
+
+async function saveTaxPct(opts = {}) {
+  const parsed = parseRate($("finTaxPct")?.value);
+  if (parsed === null || parsed === false || parsed > 100) {
+    toast("Tax must be 0–100%");
+    return;
+  }
+  const fraction = parsed / 100;
+  const out = await api("/api/meta/update", {
+    role: me().role,
+    month: state.month,
+    taxPct: fraction,
+  });
+  if (out.error || !out.state) {
+    toast(out.error || "Could not save tax");
+    return;
+  }
+  applyState(out.state);
+  if (!opts.silent) toast(`Tax ${taxPercent(fraction)}% · written into the calculator`);
 }
 
 function payCopy(row) {

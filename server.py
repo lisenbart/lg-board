@@ -59,6 +59,18 @@ def parse_money(val):
     return n
 
 
+def parse_tax(val):
+    """Store tax as a fraction (0.06 = 6%). 6 also means 6%."""
+    n = parse_money(val)
+    if n is None:
+        raise ValueError("tax must be a number, 0–100%")
+    if n > 1:
+        n = n / 100.0
+    if n > 1:
+        raise ValueError("tax must be 0–100%")
+    return round(n, 6)
+
+
 def sync_excel(db: dict, month: str | None = None, calculator: bool = False) -> None:
     """Write the month into SP_MGX_check.xlsx, then read hours back. Disk is the core."""
     ym = month or db.get("meta", {}).get("month") or "2026-10"
@@ -513,11 +525,11 @@ class Handler(SimpleHTTPRequestHandler):
                             return
                         meta["designerRateUsd"] = rate
                     if "taxPct" in data:
-                        rate = parse_money(data.get("taxPct"))
-                        if rate is None:
-                            self._json(400, {"error": "tax must be 0 or more"})
+                        try:
+                            meta["taxPct"] = parse_tax(data.get("taxPct"))
+                        except ValueError as e:
+                            self._json(400, {"error": str(e)})
                             return
-                        meta["taxPct"] = rate
                     if "nbuRate" in data:
                         rate = parse_money(data.get("nbuRate"))
                         if rate is None or rate <= 0:
@@ -527,6 +539,17 @@ class Handler(SimpleHTTPRequestHandler):
                 except (TypeError, ValueError):
                     self._json(400, {"error": "rates must be numbers, 0 or more"})
                     return
+                if "taxPct" in data:
+                    try:
+                        finance_io.write_month(
+                            db,
+                            data.get("month") or db.get("meta", {}).get("month") or "2026-10",
+                            nbu_rate=meta.get("nbuRate"),
+                        )
+                    except FileNotFoundError as e:
+                        save_db(db)
+                        self._json(500, {"error": str(e), "state": db})
+                        return
                 save_db(db)
                 self._json(200, {"meta": meta, "state": db})
                 return
@@ -613,7 +636,10 @@ class Handler(SimpleHTTPRequestHandler):
                         "ok": True,
                         "file": str(path_out),
                         "drive": drive,
-                        "message": "Wrote this month into SUPERPLAY_MGX_Calculator.xlsx. Hours = shifts × 9, client $35, tax 5%, then EMPL vs studio.",
+                        "message": (
+                            "Wrote this month into SUPERPLAY_MGX_Calculator.xlsx. "
+                            f"Hours = shifts × 9, client $35, tax {float(db.get('meta', {}).get('taxPct') or 0.06) * 100:g}%, then EMPL vs studio."
+                        ),
                         "state": db,
                     },
                 )
