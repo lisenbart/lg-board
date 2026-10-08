@@ -717,6 +717,80 @@ function packLinksHtml(t) {
   if (!brief && !folder) return "";
   return `<div class="pack-links">${brief}${folder}</div>`;
 }
+function parseBrief(t) {
+  const raw = String(t?.brief || "").trim();
+  const urls = raw.match(/https?:\/\/[^\s)<>"]+/gi) || [];
+  const fileUrl =
+    urls.find((u) => /\/file\//i.test(u) || /\.(mp4|mov|mkv)(\?|$)/i.test(u)) || "";
+  const downloads = [
+    ...raw.matchAll(/download\s*[-–—:]?\s*(\S+\.(?:mp4|mov|mkv))/gi),
+  ].map((m) => m[1]);
+  const naming = [];
+  const pushName = (s) => {
+    const v = String(s || "")
+      .replace(/^[•\-–]\s*/, "")
+      .trim();
+    if (v && !naming.includes(v)) naming.push(v);
+  };
+  const afterName = raw.split(/naming\s*:/i)[1] || "";
+  if (afterName) {
+    afterName.split(/\n/).forEach((line) => {
+      const s = line.trim();
+      if (!s || /^(thanks|hi)\b/i.test(s)) return;
+      if (s.includes("/") && /\d{3,4}\s*[x×]\s*\d{3,4}/i.test(s) && !/_EN_/i.test(s)) {
+        s.split("/").forEach(pushName);
+        return;
+      }
+      if (/\d{3,4}\s*[x×]\s*\d{3,4}/i.test(s) || /_EN_/i.test(s) || s.length > 12) pushName(s);
+    });
+  }
+  if (!naming.length) {
+    const deliver = raw.match(/deliver[^:\n]*:\s*([^\n]+)/i);
+    if (deliver) deliver[1].split(/[,/]/).map((x) => x.trim()).filter((x) => /\d\s*[x×]\s*\d/.test(x)).forEach(pushName);
+  }
+  return { raw, fileUrl, downloads, naming };
+}
+function clientSlotsHtml(t) {
+  const parts = parseBrief(t);
+  const work = workFolder(t);
+  const msg = parts.raw
+    ? `<div class="client-msg">${escapeHtml(parts.raw)}</div>`
+    : `<div class="client-msg empty">No brief from Monday yet</div>`;
+  const names = parts.naming.length
+    ? `<ul class="naming">${parts.naming.map((n) => `<li>${escapeHtml(n)}</li>`).join("")}</ul>`
+    : "";
+  const docBtn = t.docUrl
+    ? `<a class="btn pack-brief" href="${escapeHtml(t.docUrl)}" target="_blank" rel="noreferrer">Open brief doc</a>`
+    : "";
+  const videoBtn = parts.fileUrl
+    ? `<a class="btn pack-brief" href="${escapeHtml(parts.fileUrl)}" target="_blank" rel="noreferrer">Open video</a>`
+    : "";
+  const folderBtn = work
+    ? `<a class="btn pack-folder" href="${escapeHtml(work)}" target="_blank" rel="noreferrer">Open folder</a>`
+    : "";
+  const fileChips = parts.downloads
+    .map((f) => `<span class="file-chip">${escapeHtml(f)}</span>`)
+    .join("");
+  const sourceBits = videoBtn + folderBtn + (fileChips ? `<div class="file-row">${fileChips}</div>` : "");
+  const sourceBody = sourceBits
+    ? `${sourceBits}<p class="status-hint">Take this. Put the finished file in Result — not here.</p>`
+    : `<p class="status-hint">Folder + brief land with the task. Source video is the file named in the client note.</p>`;
+  const edit = canOps()
+    ? `<details class="brief-more"><summary>Edit brief text</summary>
+        <textarea class="brief-edit" id="stBrief" placeholder="Monday / email brief">${escapeHtml(t.brief || "")}</textarea>
+      </details>`
+    : "";
+  return `<div class="slot slot-client">
+      <div class="slot-kicker"><span class="slot-n">1</span> From client <em>pinned</em></div>
+      ${msg}${names}
+      ${docBtn ? `<div class="pack-links">${docBtn}</div>` : ""}
+      ${edit}
+    </div>
+    <div class="slot slot-source">
+      <div class="slot-kicker"><span class="slot-n">2</span> Source</div>
+      ${sourceBody}
+    </div>`;
+}
 function hasDriveDoc(t) {
   return Boolean(String(t?.docUrl || "").trim());
 }
@@ -1080,7 +1154,7 @@ function renderGuide() {
         ])}
         ${card("designer", "MD", "Motion design", "Маша, Сергій, Аліна, Олекса. Лише свої таски.", [
           `Дзвіночок ${ui("On you")} — тебе поставили. ${ui("Fix")} — ${ui("Need Fixing")}.`,
-          `Бриф на картці. ${ui("Open brief")} — Doc. ${ui("Open folder")} — тека, куди класти файл (не сирі URL).`,
+          `Картка: ${ui("1 From client")} (pin) → ${ui("2 Source")} (відео/тека) → ${ui("3 Result")} (лінк на файл).`,
           `Зробив → ${ui("Paste result link here")} (лінк на файл, не на теку). Поки лінка немає, ${ui("Done")} у статусі немає.`,
           `Потім статус ${ui("Done")} → ${ui("Save")}. Далі чекає LP. Правки: ${ui("Need Fixing")} → знову лінк і ${ui("Done")}.`,
         ])}
@@ -1997,7 +2071,6 @@ function openTask(id) {
   const performer = mine && (isDesigner() || isTeamLead());
   const canPaste = canPasteResult(t);
   const needResultUi = showResultField(t);
-  const pack = packLinksHtml(t);
   const statusOpts = statusChoices(t)
     .map((k) => {
       const selected = t.studioStatus === k ? "selected" : "";
@@ -2027,45 +2100,29 @@ function openTask(id) {
         }
       </div>`
     : `<div class="field"><label>Who works this</label><div>${personCell(t.assigneeId)}</div></div>`;
-  const driveNote =
-    pack
-      ? `<p class="status-hint">${
-          isDesigner() || performer
-            ? "Work in the folder. Paste the finished file link below — not the folder."
-            : "Open brief = the Doc. Open folder = where the file goes."
-        }</p>`
-      : `<p class="status-hint">Folder + brief are created automatically when the task lands.</p>`;
-  const briefBlock = `<div class="field">
-      <label>Brief</label>
-      ${
-        canOps()
-          ? `<textarea class="brief-edit" id="stBrief" placeholder="Monday / email brief — the text on this card">${escapeHtml(t.brief || "")}</textarea>`
-          : `<div class="brief">${escapeHtml(t.brief || "No brief yet")}</div>`
-      }
-      ${pack}
-      ${driveNote}
-    </div>`;
+  const briefBlock = clientSlotsHtml(t);
   const timeBlock = canEditTime()
     ? `<div class="field"><label>Shifts</label>
       <input id="stShifts" type="number" min="0" step="0.1" value="${t.shifts ?? ""}" />
       <p class="status-hint" id="stHoursHint">= ${hoursFromShifts(t.shifts || 0)} h · LP sets this. 1 shift = 9 h.</p></div>`
     : "";
   const resultBlock = needResultUi
-    ? canPaste
-      ? `<div class="field${performer ? " field-focus" : ""}">
-          <label>${performer ? "Paste result link here" : "Result"}</label>
+    ? `<div class="slot slot-result${performer ? " field-focus" : ""}">
+        <div class="slot-kicker"><span class="slot-n">3</span> Result</div>
+        ${
+          canPaste
+            ? `<label>${performer ? "Paste result link here" : "Result"}</label>
           <input id="stResult" value="${escapeHtml(t.resultUrl || "")}" placeholder="https://drive.google.com/..." />
           <p class="status-hint">${
             performer
               ? "Link to the finished file — not the work folder, not the brief."
               : "Designer pastes this. Required before Send to client."
-          }</p>
-        </div>`
-      : `<div class="field"><label>Result</label>${
-          t.resultUrl
-            ? `<a class="linkish" href="${escapeHtml(t.resultUrl)}" target="_blank" rel="noreferrer">Open result</a>`
-            : `<div class="empty">Waiting for ${escapeHtml(person(t.assigneeId)?.name || "designer")}</div>`
-        }</div>`
+          }</p>`
+            : t.resultUrl
+              ? `<a class="linkish" href="${escapeHtml(t.resultUrl)}" target="_blank" rel="noreferrer">Open result</a>`
+              : `<div class="empty">Waiting for ${escapeHtml(person(t.assigneeId)?.name || "designer")}</div>`
+        }
+      </div>`
     : "";
   const st = STATUS[t.studioStatus] || STATUS.new;
   $("drawer").innerHTML = `
