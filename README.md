@@ -8,7 +8,7 @@ The board is one month at a time. Hours and load follow the selected month — s
 
 One list, not Monday groups. Sorted by studio status:
 
-**Ready to Start → WIP → Need Fixing → Done → Senior Approval**
+**Ready to Start → WIP → Need Fixing → Done → Senior Approval → Closed**
 
 ## Access (sandbox)
 
@@ -44,8 +44,8 @@ Studio money never unlocks on the hosted link. Localhost is the studio sandbox.
 - **Shift email** — Orit format: `NAME | 0.3 shifts`. Hours = shift × 9.
 - **Briefs on the card** come from the live Google Docs in `Projects / 10_October / DD|DX` (read-only). Naming is the four filenames from those Docs, not invented sizes. **Open brief doc** opens that live Doc. **Open folder** is the Working folder from the brief. New tasks still get a sandbox pack under `_PORTAL_TEST` — live October is never written.
 - The task card is role-first. Brief text stays on the card; **Open brief** / **Open folder** open Drive — raw Doc/folder URL fields are not on the default card. **TL** sees assign first. **MD** sees paste-result then Done. **LP** sees hours and Send to client. Designer pastes the result link, then sets Done. Done is locked until that link is in the card — the work folder is not used as a stand-in. Assignment lives on the board; there is no Telegram copy step.
-- **Board scan** — the whole row is tinted by studio status (Ready / WIP / Fix / Done / Sent). A matching chip sits on the name. LP sees **Send** on Done rows that are ready to go. The bell still lists unread notices; opening a card marks those read. New kinds go in `notice_io.py` + `public/assets/notices.js`.
-- **Send to client** copies `check it please` + the result link for External Weekly. Status becomes Senior Approval. Superplay is not on this board, so this step stays until Monday API is connected.
+- **Board scan** — the whole row is tinted by studio status (Ready / WIP / Fix / Done / Appr. / Closed). A matching chip sits on the name. LP sees **Send** on Done rows that are ready to go. **Closed** is the last state: client accepted, hours stay, no more work. The bell still lists unread notices; opening a card marks those read. New kinds go in `notice_io.py` + `public/assets/notices.js`.
+- **Send to client** copies `check it please` + the result link for External Weekly. Status becomes Senior Approval. LP marks **Closed** after the client accepts — not from Done, and not instead of Send. Superplay is not on this board, so Send stays until Monday API is connected.
 - **Finance** (Dmytro only) — two inner tabs, same idea as the Excel tab mirroring `SP_MGX_check.xlsx`:
   - **Client** — totals by direction (DD / DX, and DS if that line has hours), not per task. One **Create DD / DX** writes Word + PDF only in the sandbox: `/workspace/data/invoices/10_October`. **Open folder** reveals that folder when the portal runs on your Mac; in this Preview it downloads `10_October.zip` instead (the sandbox disk is not Finder).
   - **Studio** — the calculator block from the bottom-right of the month sheet: CLIENT IN → STUDIO (TAX) → EMPL → STUDIO. Tax % sits on the STUDIO (TAX) row (now 6%). Changing it rewrites `SUPERPLAY_MGX_Calculator.xlsx` so the TAX cell and formulas match. Studio take is STUDIO (TAX) minus people pay. Same hours as `SP_MGX_check`.

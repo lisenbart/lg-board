@@ -108,8 +108,8 @@ OPS_ROLES = {"manager", "finance"}
 STATUS_BY_ROLE = {
     "designer": {"wip", "done"},
     "teamlead": {"new", "wip", "revision", "done"},
-    "manager": {"new", "wip", "revision", "done"},
-    "finance": {"new", "wip", "revision", "done"},
+    "manager": {"new", "wip", "revision", "done", "closed"},
+    "finance": {"new", "wip", "revision", "done", "closed"},
 }
 
 
@@ -497,6 +497,16 @@ class Handler(SimpleHTTPRequestHandler):
                     self._json(403, {"error": "Senior Approval is set only when you Send to client"})
                     return
                 if (
+                    nxt == "closed"
+                    and nxt != task.get("studioStatus")
+                    and task.get("studioStatus") != "approve"
+                ):
+                    self._json(
+                        403,
+                        {"error": "Closed is after Senior Approval, when the client accepts"},
+                    )
+                    return
+                if (
                     nxt
                     and nxt != task.get("studioStatus")
                     and role in allowed
@@ -526,6 +536,10 @@ class Handler(SimpleHTTPRequestHandler):
                 for key in ("studioStatus", "assigneeId", "resultUrl", "brief", "folderUrl", "docUrl"):
                     if key in data:
                         task[key] = data[key]
+                if task.get("studioStatus") == "closed":
+                    task["mondayStatus"] = "Closed"
+                elif nxt == "revision":
+                    task["mondayStatus"] = "Need Fixing"
                 note = data.get("note")
                 if note:
                     task.setdefault("activity", []).append({"at": utc_now(), "text": note})

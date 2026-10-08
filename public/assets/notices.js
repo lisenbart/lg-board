@@ -46,6 +46,15 @@
       skipActor: true,
       channels: ["portal"],
     },
+    "task.closed": {
+      label: "Closed",
+      title: "{name}",
+      detail: "Client accepted · Closed",
+      mark: "",
+      audience: { assignee: true, roles: ["teamlead"] },
+      skipActor: true,
+      channels: ["portal"],
+    },
   };
   const KEEP = 400;
   const MARK_LABEL = { new: "New", mine: "On you", fix: "Fix", send: "Send" };
@@ -179,6 +188,10 @@
       if (newS === "approve") {
         emit(db, "task.sent", { actorId, task });
         ack(db, actorId, { taskId: task.id, kinds: ["task.ready"] });
+      }
+      if (newS === "closed") {
+        emit(db, "task.closed", { actorId, task });
+        ack(db, actorId, { taskId: task.id, kinds: ["task.sent", "task.ready"] });
       }
     }
   }

@@ -4,6 +4,7 @@ const STATUS = {
   revision: { label: "Need Fixing", cls: "status-revision", order: 3 },
   done: { label: "Done", cls: "status-done", order: 4 },
   approve: { label: "Senior Approval", cls: "status-approve", order: 5 },
+  closed: { label: "Closed", cls: "status-closed", order: 6 },
 };
 
 const ROLE_LABEL = {
@@ -31,8 +32,8 @@ const NAME_WIDTH_DEFAULT = 520;
 const STATUS_BY_ROLE = {
   designer: ["wip", "done"],
   teamlead: ["new", "wip", "revision", "done"],
-  manager: ["new", "wip", "revision", "done"],
-  finance: ["new", "wip", "revision", "done"],
+  manager: ["new", "wip", "revision", "done", "closed"],
+  finance: ["new", "wip", "revision", "done", "closed"],
 };
 const LINES = ["DD", "DX", "DS"];
 
@@ -805,6 +806,9 @@ function cardJob(t) {
   const who = person(t.assigneeId);
   const name = who ? displayName(who) : "";
   if (role === "designer") {
+    if (t.studioStatus === "closed") {
+      return { tone: "ok", title: "Closed", body: "Client accepted. This task is finished." };
+    }
     if (t.studioStatus === "approve") {
       return { tone: "ok", title: "Sent to client", body: "LP already sent this. Nothing else on this card." };
     }
@@ -827,7 +831,7 @@ function cardJob(t) {
     if (!t.assigneeId) {
       return { tone: "do", title: "Your job", body: "Assign a designer. They see it in their queue after Save." };
     }
-    if (mine && t.studioStatus !== "done" && t.studioStatus !== "approve") {
+    if (mine && t.studioStatus !== "done" && t.studioStatus !== "approve" && t.studioStatus !== "closed") {
       if (t.studioStatus === "revision") {
         return { tone: "fix", title: "This is your work · Need Fixing", body: "Fix, paste the new result link, then Done." };
       }
@@ -839,6 +843,9 @@ function cardJob(t) {
     if (t.studioStatus === "done") {
       return { tone: "wait", title: "Waiting for LP", body: `${name || "Designer"} finished. You cannot Send to client — that is LP.` };
     }
+    if (t.studioStatus === "closed") {
+      return { tone: "ok", title: "Closed", body: "Client accepted. This task is finished." };
+    }
     if (t.studioStatus === "approve") {
       return { tone: "ok", title: "Sent to client", body: "Nothing else on this card." };
     }
@@ -847,8 +854,11 @@ function cardJob(t) {
     }
     return { tone: "wait", title: "Assigned", body: `${name || "They"} work this. Reassign here if the person is wrong.` };
   }
+  if (t.studioStatus === "closed") {
+    return { tone: "ok", title: "Closed", body: "Client accepted. Hours stay on this month." };
+  }
   if (t.studioStatus === "approve") {
-    return { tone: "ok", title: "Already sent", body: "Copy the Monday reply if External Weekly still needs it." };
+    return { tone: "ok", title: "Already sent", body: "Copy the Monday reply if External Weekly still needs it. Mark Closed when the client accepts." };
   }
   if (t.studioStatus === "done" && hasResult) {
     return { tone: "do", title: "Your job", body: "Result is in. Send to client — that sets Senior Approval." };
@@ -1139,14 +1149,16 @@ function renderGuide() {
         <li><span>3</span><b>MD</b> робить роботу → вставляє лінк → ${ui("Done")}</li>
         <li><span>4</span><b>LP</b> тисне ${ui("Send to client")}</li>
         <li><span>5</span>Статус стає ${ui("Senior Approval")}</li>
+        <li><span>6</span><b>LP</b> ставить ${ui("Closed")}, коли клієнт прийняв</li>
       </ol>
       <div class="guide-grid">
         ${card("manager", "LP", "Line Producer", "Анастасія. Бачить усе.", [
           `Новий пак: ${ui("Pull from Monday")} або ${ui("Shift email")} (рядок як в Orit: NAME | 0.3 shifts).`,
           `Тека + бриф на Drive створюються самі, коли таск сідає. У картці ${ui("Open brief")} / ${ui("Open folder")} — без кнопки Create.`,
           `Години: поле ${ui("Shifts")} у рядку або в картці. 1 shift = 9 годин. Виконавця ставить TL.`,
-          `Рядок фарбується за статусом. Чіп біля назви: ${ui("Ready")} / ${ui("WIP")} / ${ui("Fix")} / ${ui("Send")} / ${ui("Appr.")}. Дзвіночок — лише непрочитане.`,
+          `Рядок фарбується за статусом. Чіп біля назви: ${ui("Ready")} / ${ui("WIP")} / ${ui("Fix")} / ${ui("Send")} / ${ui("Appr.")} / ${ui("Closed")}. Дзвіночок — лише непрочитане.`,
           `${ui("Send to client")} лише з ${ui("Done")} + лінк результату. Копіює текст у External Weekly. ${ui("Senior Approval")} сам не виставляється.`,
+          `${ui("Closed")} — клієнт прийняв, таск закінчено. Ставить LP після ${ui("Senior Approval")}, не з ${ui("Done")}.`,
         ])}
         ${card("teamlead", "TL", "Team Lead", "Настя. Усі проєкти + свої як виконавця.", [
           `Дзвіночок ${ui("New")} — нові без людини. Картка каже ${ui("Assign a designer")} — це твоя робота, не URL і не Done.`,
@@ -1173,6 +1185,7 @@ function renderGuide() {
             <li>${ui("Done")} без вставленого лінка на результат — неможливо.</li>
             <li>${ui("Send to client")} лише з ${ui("Done")}. Не з ${ui("Ready to Start")} і не з ${ui("WIP")}.</li>
             <li>${ui("Senior Approval")} ставить тільки ${ui("Send to client")}, не руками зі списку статусів.</li>
+            <li>${ui("Closed")} ставить LP, коли клієнт прийняв. Не з ${ui("Done")} і не замість Send.</li>
           </ol>
         </div>
       </div>
@@ -1299,6 +1312,7 @@ function statusMark(t) {
       revision: { cls: "fix", label: "Fix", title },
       done: { cls: "done", label: "Done", title },
       approve: { cls: "appr", label: "Appr.", title },
+      closed: { cls: "closed", label: "Closed", title },
     }[key] || { cls: "ready", label: "Ready", title: STATUS.new.label }
   );
 }
@@ -1311,6 +1325,7 @@ function excelStatus(t) {
       revision: { cls: "fix", label: "Fix", title: "Need Fixing" },
       done: { cls: "done", label: "Done", title: "Done" },
       approve: { cls: "appr", label: "Appr.", title: "Senior Approval" },
+      closed: { cls: "closed", label: "Closed", title: "Closed" },
     }[key] || { cls: "ready", label: "Ready", title: "Ready to Start" }
   );
 }
@@ -2098,7 +2113,7 @@ function openTask(id) {
   state.openId = id;
   const mine = t.assigneeId === me().id;
   const canEdit = canOps() || canAssign() || mine;
-  const lockedStatus = t.studioStatus === "approve" && !canOps();
+  const lockedStatus = (t.studioStatus === "approve" || t.studioStatus === "closed") && !canOps();
   const job = cardJob(t);
   const performer = mine && (isDesigner() || isTeamLead());
   const canPaste = canPasteResult(t);
@@ -2168,6 +2183,7 @@ function openTask(id) {
     </div>
     <div class="drawer-actions">
       ${canOps() && isSendable(t) ? `<button class="btn green" id="exportOne">Send this to client</button>` : ""}
+      ${canOps() && t.studioStatus === "approve" ? `<button class="btn" id="closeOne">Mark Closed</button>` : ""}
       ${canOps() && t.studioStatus === "approve" && t.resultUrl ? `<button class="btn" id="copyOne">Copy Monday reply</button>` : ""}
       <button class="btn primary" id="saveTask">Save</button>
     </div>
@@ -2196,12 +2212,16 @@ function openTask(id) {
       opt.remove();
     }
     if (hint) {
-      if (performer && !hasResult && t.studioStatus !== "done" && t.studioStatus !== "approve") {
+      if (performer && !hasResult && t.studioStatus !== "done" && t.studioStatus !== "approve" && t.studioStatus !== "closed") {
         hint.textContent = "Done appears here after you paste the result link.";
       } else if (canOps() && t.studioStatus === "done") {
         hint.textContent = "Send to client — that sets Senior Approval.";
-      } else if (canOps() && t.studioStatus !== "approve" && t.studioStatus !== "new") {
-        hint.textContent = "Senior Approval is set only by Send to client.";
+      } else if (canOps() && t.studioStatus === "approve") {
+        hint.textContent = "Client accepted → Closed. Need Fixing if they bounce it.";
+      } else if (canOps() && t.studioStatus === "closed") {
+        hint.textContent = "Closed. Need Fixing only if the client reopens.";
+      } else if (canOps() && t.studioStatus !== "new") {
+        hint.textContent = "Senior Approval is set only by Send to client. Closed is after that.";
       } else if (isTeamLead() && t.assigneeId && t.assigneeId !== me().id) {
         hint.textContent = "Need Fixing sends it back to the designer.";
       } else {
@@ -2241,6 +2261,10 @@ function openTask(id) {
       toast("Senior Approval is set only when you Send to client");
       return;
     }
+    if (studioStatus === "closed" && t.studioStatus !== "closed" && t.studioStatus !== "approve") {
+      toast("Closed is after Senior Approval, when the client accepts");
+      return;
+    }
     if (studioStatus === "done" && !resultUrl) {
       toast("Paste the result link before Done");
       return;
@@ -2259,14 +2283,27 @@ function openTask(id) {
     const note =
       patch.shifts !== undefined && patch.shifts !== Number(t.shifts)
         ? `${me().name} set ${patch.shifts} shifts → ${hoursFromShifts(patch.shifts)} h`
-        : resultUrl && resultUrl !== t.resultUrl
-          ? `${me().name} pasted the result`
-          : `${me().name} updated status`;
+        : studioStatus === "closed" && t.studioStatus !== "closed"
+          ? `${me().name} marked Closed (client accepted)`
+          : resultUrl && resultUrl !== t.resultUrl
+            ? `${me().name} pasted the result`
+            : `${me().name} updated status`;
     updateTask(t.id, { ...patch, note }, { close: true });
   };
   $("exportOne")?.addEventListener("click", async () => {
     await sendToClient([t.id]);
     openTask(t.id);
+  });
+  $("closeOne")?.addEventListener("click", () => {
+    updateTask(
+      t.id,
+      {
+        studioStatus: "closed",
+        role: me().role,
+        note: `${me().name} marked Closed (client accepted)`,
+      },
+      { close: true }
+    );
   });
   fillDrivePackIfMissing(t);
   $("copyOne")?.addEventListener("click", async () => {

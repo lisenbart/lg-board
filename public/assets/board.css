@@ -254,6 +254,7 @@ a { color: var(--blue); }
 .notice-done { background: #e6f9ef; color: #037f4c; }
 .notice-send { background: #efe6fb; color: #6b21a8; }
 .notice-sent, .notice-appr { background: #e7f7ff; color: #0369a1; }
+.notice-closed { background: #eef0f5; color: #50535c; }
 .notice-none { background: #eef0f5; color: #676879; }
 .who select { border: 1px solid var(--line); border-radius: 16px; padding: 4px 8px; background: #fff; font-size: 12px; }
 #whoMail {
@@ -513,11 +514,13 @@ body.col-resizing * { cursor: col-resize !important; }
 .row.tone-revision, .row.tone-revision .frozen, .row.tone-revision .meta { background: #fdf3f6; }
 .row.tone-done, .row.tone-done .frozen, .row.tone-done .meta { background: #f1fbf6; }
 .row.tone-approve, .row.tone-approve .frozen, .row.tone-approve .meta { background: #f2fbff; }
+.row.tone-closed, .row.tone-closed .frozen, .row.tone-closed .meta { background: #f4f5f7; }
 .row.tone-new:hover, .row.tone-new:hover .frozen, .row.tone-new:hover .meta { background: #ffefd6; }
 .row.tone-wip:hover, .row.tone-wip:hover .frozen, .row.tone-wip:hover .meta { background: #e7f1ff; }
 .row.tone-revision:hover, .row.tone-revision:hover .frozen, .row.tone-revision:hover .meta { background: #fae6eb; }
 .row.tone-done:hover, .row.tone-done:hover .frozen, .row.tone-done:hover .meta { background: #e3f7ec; }
 .row.tone-approve:hover, .row.tone-approve:hover .frozen, .row.tone-approve:hover .meta { background: #e3f6ff; }
+.row.tone-closed:hover, .row.tone-closed:hover .frozen, .row.tone-closed:hover .meta { background: #eceef2; }
 .cell { padding: 2px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 400; }
 .name { font-weight: 400; }
 .pill {
@@ -579,7 +582,8 @@ body.col-resizing * { cursor: col-resize !important; }
 .drawer .meta .status-wip,
 .drawer .meta .status-revision,
 .drawer .meta .status-done,
-.drawer .meta .status-approve { width: auto; flex: 1; min-width: 120px; }
+.drawer .meta .status-approve,
+.drawer .meta .status-closed { width: auto; flex: 1; min-width: 120px; }
 .drawer-actions {
   display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
   margin-top: auto; padding-top: 16px; border-top: 1px solid #eceef5;
@@ -787,7 +791,8 @@ body.col-resizing * { cursor: col-resize !important; }
 .status-wip,
 .status-revision,
 .status-done,
-.status-approve {
+.status-approve,
+.status-closed {
   width: 100%;
   justify-content: center;
   font-weight: 400;
@@ -801,6 +806,7 @@ body.col-resizing * { cursor: col-resize !important; }
 .status-revision { background: #bb3354; }
 .status-done { background: #00c875; }
 .status-approve { background: #66ccff; }
+.status-closed { background: #7f818a; }
 .row.status-gap { box-shadow: inset 0 10px 0 var(--bg); }
 .line-DD { background: var(--green); color: #043; }
 .line-DX { background: var(--purple); }
@@ -844,6 +850,7 @@ body.col-resizing * { cursor: col-resize !important; }
 .xl-table td.xl-st.st-fix { background: #fde8ee; color: #9b2245; }
 .xl-table td.xl-st.st-done { background: #e6f9ef; color: #037f4c; }
 .xl-table td.xl-st.st-appr { background: #e7f7ff; color: #0369a1; }
+.xl-table td.xl-st.st-closed { background: #eef0f5; color: #50535c; }
 .xl-person { min-width: 72px; font-weight: 500; }
 .xl-num { font-variant-numeric: tabular-nums; }
 .xl-row { cursor: pointer; }

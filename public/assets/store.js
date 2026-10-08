@@ -7,8 +7,8 @@
   const STATUS_BY_ROLE = {
     designer: new Set(["wip", "done"]),
     teamlead: new Set(["new", "wip", "revision", "done"]),
-    manager: new Set(["new", "wip", "revision", "done"]),
-    finance: new Set(["new", "wip", "revision", "done"]),
+    manager: new Set(["new", "wip", "revision", "done", "closed"]),
+    finance: new Set(["new", "wip", "revision", "done", "closed"]),
   };
   const mondayReply = (task) =>
     `${task.name || ""}\ncheck it please\n${task.resultUrl || ""}`.trim();
@@ -260,6 +260,9 @@
       if (nxt === "approve" && nxt !== task.studioStatus) {
         return { error: "Senior Approval is set only when you Send to client" };
       }
+      if (nxt === "closed" && nxt !== task.studioStatus && task.studioStatus !== "approve") {
+        return { error: "Closed is after Senior Approval, when the client accepts" };
+      }
       if (nxt && nxt !== task.studioStatus && allowed[role] && !allowed[role].has(nxt)) {
         return { error: `${role} cannot set ${nxt}` };
       }
@@ -280,6 +283,8 @@
       for (const key of ["studioStatus", "assigneeId", "resultUrl", "brief", "folderUrl", "docUrl"]) {
         if (key in data) task[key] = data[key];
       }
+      if (task.studioStatus === "closed") task.mondayStatus = "Closed";
+      else if (nxt === "revision") task.mondayStatus = "Need Fixing";
       if (data.note) {
         task.activity = task.activity || [];
         task.activity.push({ at: now(), text: data.note });

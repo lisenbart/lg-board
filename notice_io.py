@@ -56,6 +56,15 @@ KINDS = {
         "skip_actor": True,
         "channels": ["portal"],
     },
+    "task.closed": {
+        "label": "Closed",
+        "title": "{name}",
+        "detail": "Client accepted · Closed",
+        "mark": "",
+        "audience": {"assignee": True, "roles": ["teamlead"]},
+        "skip_actor": True,
+        "channels": ["portal"],
+    },
 }
 
 KEEP = 400
@@ -237,6 +246,9 @@ def on_task_change(db: dict, task: dict, before: dict | None, actor_id: str = ""
         elif new_status == "approve":
             emit(db, "task.sent", actor_id=actor_id, task=task)
             ack(db, actor_id, task_id=task.get("id"), kinds=["task.ready"])
+        elif new_status == "closed":
+            emit(db, "task.closed", actor_id=actor_id, task=task)
+            ack(db, actor_id, task_id=task.get("id"), kinds=["task.sent", "task.ready"])
 
 
 def bootstrap(db: dict) -> int:
