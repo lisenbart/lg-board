@@ -9,6 +9,7 @@ Open **https://lisenbart.github.io/lg-board/** and switch **I am**:
 | Анастасія | LP Line Producer | Pipeline, hours, **Send to client** |
 | Настя | TL Team Lead | Assign people, own work, Excel picture |
 | Марія / Сергій / Аліна / Олекса | MD Motion design | Own queue only |
+| SuperPlay | Client | **Hours** — PROJECT NAME / SHIFTS / HOURS, MGX DX + MGX DD, TOTAL |
 | Dmytro Lisenbart | PIN | Client / Studio / Employeers (view) |
 
 Mechanics to walk through:

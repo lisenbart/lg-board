@@ -1,6 +1,6 @@
 /** Browser store so the client demo runs on Netlify / GitHub Pages without Python. */
 (function () {
-  const KEY = "lg-board-db-v5";
+  const KEY = "lg-board-db-v6";
   const EMAIL_LINE =
     /^\s*([A-Z]{2}-[A-Za-z0-9._-]+)\s*\|\s*([\d]+(?:[.,]\d+)?)\s*shifts?\s*$/i;
   const OPS_ROLES = new Set(["manager", "finance"]);
@@ -9,6 +9,7 @@
     teamlead: new Set(["new", "wip", "revision", "done"]),
     manager: new Set(["new", "wip", "revision", "done", "closed"]),
     finance: new Set(["new", "wip", "revision", "done", "closed"]),
+    client: new Set(),
   };
   const mondayReply = (task) =>
     `${task.name || ""}\ncheck it please\n${task.resultUrl || ""}`.trim();
@@ -424,6 +425,9 @@
       if (data.id === data.actorId) return { error: "you cannot delete yourself" };
       if (person.role === "finance" && db.people.filter((p) => p.role === "finance").length <= 1) {
         return { error: "keep at least one finance login" };
+      }
+      if (person.role === "client" && db.people.filter((p) => p.role === "client").length <= 1) {
+        return { error: "keep the SuperPlay hours login" };
       }
       const held = db.tasks.filter((t) => t.assigneeId === data.id);
       if (held.length && !("reassignTo" in data)) {
