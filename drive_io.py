@@ -17,9 +17,14 @@ TOKEN_PATH = DATA / "secrets" / "google_drive_token.txt"
 
 FOLDER_MIME = "application/vnd.google-apps.folder"
 DOC_MIME = "application/vnd.google-apps.document"
-FOLDER_ID_RE = re.compile(r"/folders/([a-zA-Z0-9_-]+)")
+FOLDER_ID_RE = re.compile(r"(?:/folders/|open\?id=)([a-zA-Z0-9_-]+)")
 DRIVE_FOLDER_URL_RE = re.compile(
-    r"https://drive\.google\.com/drive/folders/[a-zA-Z0-9_-]+",
+    r"https://drive\.google\.com/(?:drive/folders/|open\?id=)[a-zA-Z0-9_-]+",
+    re.I,
+)
+WORK_LABEL_RE = re.compile(
+    r"(?:working folder|pls work here|please work here|work here|pls work)[:\s]*\n*"
+    r"(https://drive\.google\.com/(?:drive/folders/|open\?id=)[a-zA-Z0-9_-]+)",
     re.I,
 )
 API = "https://www.googleapis.com/drive/v3"
@@ -30,13 +35,22 @@ class DriveError(RuntimeError):
     pass
 
 
+def normalize_folder_url(url: str) -> str:
+    fid = folder_id_from_url(url)
+    return folder_url(fid) if fid else ""
+
+
 def client_folder_from_brief(brief: str) -> str:
-    m = DRIVE_FOLDER_URL_RE.search(brief or "")
-    return m.group(0) if m else ""
+    """Working folder labeled in the brief — never the first source-asset URL."""
+    text = brief or ""
+    labeled = WORK_LABEL_RE.search(text)
+    if labeled:
+        return normalize_folder_url(labeled.group(1))
+    return ""
 
 
 def work_folder(task: dict) -> str:
-    """Where the performer puts files: client folder in the brief, else studio pack."""
+    """Where the performer puts files: labeled Working folder, else folderUrl."""
     return client_folder_from_brief(task.get("brief") or "") or str(task.get("folderUrl") or "").strip()
 
 

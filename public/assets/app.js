@@ -699,12 +699,24 @@ function personCell(id) {
   if (!p) return `<span class="empty">unassigned</span>`;
   return `<span class="person"><span class="avatar" style="background:${p.color}">${initials(displayName(p))}</span>${escapeHtml(displayName(p))}${jobBadgeHtml(p)}</span>`;
 }
+function normalizeDriveFolder(url) {
+  const raw = String(url || "");
+  const open = raw.match(/drive\.google\.com\/open\?id=([a-zA-Z0-9_-]+)/i);
+  if (open) return `https://drive.google.com/drive/folders/${open[1]}`;
+  const fold = raw.match(/https:\/\/drive\.google\.com\/drive\/folders\/[a-zA-Z0-9_-]+/i);
+  return fold ? fold[0] : "";
+}
 function driveFolderIn(text) {
-  const m = String(text || "").match(/https:\/\/drive\.google\.com\/drive\/folders\/[a-zA-Z0-9_-]+/i);
-  return m ? m[0] : "";
+  return normalizeDriveFolder(text);
+}
+function labeledWorkFolder(text) {
+  const m = String(text || "").match(
+    /(?:working folder|pls work here|please work here|work here|pls work)[:\s]*\n*(https:\/\/drive\.google\.com\/(?:drive\/folders\/|open\?id=)[a-zA-Z0-9_-]+)/i
+  );
+  return m ? normalizeDriveFolder(m[1]) : "";
 }
 function workFolder(t) {
-  return driveFolderIn(t?.brief) || String(t?.folderUrl || "").trim();
+  return labeledWorkFolder(t?.brief) || String(t?.folderUrl || "").trim();
 }
 function packLinksHtml(t) {
   const work = workFolder(t);
@@ -727,10 +739,16 @@ function parseBrief(t) {
   ].map((m) => m[1]);
   return { raw, fileUrl, downloads };
 }
+function linkifyBrief(text) {
+  return escapeHtml(text).replace(
+    /(https:\/\/[^\s<]+)/g,
+    '<a class="pin-link" href="$1" target="_blank" rel="noreferrer">$1</a>'
+  );
+}
 function pinHtml(t) {
   const raw = String(t?.brief || "").trim();
   const body = raw
-    ? `<div class="pin-body">${escapeHtml(raw)}</div>`
+    ? `<div class="pin-body">${linkifyBrief(raw)}</div>`
     : `<div class="pin-body is-empty">No brief from Monday yet</div>`;
   const doc = t.docUrl
     ? `<a class="pin-link" href="${escapeHtml(t.docUrl)}" target="_blank" rel="noreferrer">Open brief doc</a>`
