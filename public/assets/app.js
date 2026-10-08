@@ -1022,8 +1022,10 @@ function renderExcelSheet() {
         return `<td class="${mine ? "xl-fill" : ""}" ${style}>${h}</td>`;
       })
       .join("");
+    const mark = statusMark(t);
     return `<tr class="xl-row" data-id="${t.id}">
       <td class="xl-gutter line-${t.line}"></td>
+      <td class="xl-st st-${mark.cls}" title="${escapeHtml(mark.title)}">${escapeHtml(mark.label)}</td>
       <td class="xl-name" title="${escapeHtml(t.name)}">${escapeHtml(t.name)}</td>
       <td class="xl-num">${t.shifts ?? ""}</td>
       <td class="xl-num">${fmtHours(t.hours)}</td>
@@ -1037,7 +1039,7 @@ function renderExcelSheet() {
     const empl = people.map((_, i) => `<th>EMPL ${i + 1}</th>`).join("");
     return `<tbody>
       <tr class="xl-sec">
-        <th>${line}</th><th>MGX</th><th>SHIFTS</th><th>HOURS</th><th>DEADLINE</th>${empl}
+        <th>${line}</th><th></th><th>MGX</th><th>SHIFTS</th><th>HOURS</th><th>DEADLINE</th>${empl}
       </tr>
       ${rows.map(rowHtml).join("")}
     </tbody>`;
@@ -1052,6 +1054,7 @@ function renderExcelSheet() {
           <thead>
             <tr>
               <th></th>
+              <th class="xl-st-h"></th>
               <th class="xl-proj-h">${state.month.slice(0, 4)} PROJECT NAME</th>
               <th></th><th></th><th></th>
               ${nameHeads}
@@ -1062,6 +1065,7 @@ function renderExcelSheet() {
           ${tasks.some((t) => t.line === "DS") ? section("DS") : ""}
           <tfoot>
             <tr>
+              <td></td>
               <td></td>
               <td>total</td>
               <td class="xl-num"><b>${fmtHours(allShifts)}</b></td>
@@ -1284,16 +1288,24 @@ function bindTimeEdits() {
   });
 }
 
-function statusChip(t) {
+function statusMark(t) {
   const key = t.studioStatus || "new";
-  const send = canOps() && isSendable(t);
-  const spec = {
-    new: { cls: "ready", label: "Ready" },
-    wip: { cls: "wip", label: "WIP" },
-    revision: { cls: "fix", label: "Fix" },
-    done: send ? { cls: "send", label: "Send" } : { cls: "done", label: "Done" },
-    approve: { cls: "sent", label: "Sent" },
-  }[key] || { cls: "ready", label: "Ready" };
+  const title = (STATUS[key] || STATUS.new).label;
+  if (key === "done" && canOps() && isSendable(t)) {
+    return { cls: "send", label: "Send", title: "Done · send to client" };
+  }
+  return (
+    {
+      new: { cls: "ready", label: "Ready", title },
+      wip: { cls: "wip", label: "WIP", title },
+      revision: { cls: "fix", label: "Fix", title },
+      done: { cls: "done", label: "Done", title },
+      approve: { cls: "sent", label: "Sent", title },
+    }[key] || { cls: "ready", label: "Ready", title: STATUS.new.label }
+  );
+}
+function statusChip(t) {
+  const spec = statusMark(t);
   return `<span class="notice-chip notice-${spec.cls}">${spec.label}</span>`;
 }
 function rowHtml(t, mode, gap) {
