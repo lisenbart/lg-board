@@ -1272,11 +1272,13 @@ function renderBoard() {
       : `<div class="frozen"><div class="cell">Line</div><div class="cell">Project</div></div>`;
   const head = `<div class="cols ${mode}">
       ${frozenHead}
-      <div class="col-time cell">Time</div>
-      <div class="col-due cell">Due</div>
       <div class="meta">
-        <div class="cell">Status</div><div class="cell">Brief</div>
-        <div class="cell">Result</div><div class="cell">Assignee</div>
+        <div class="cell">Time</div>
+        <div class="cell">Status</div>
+        <div class="cell">Brief</div>
+        <div class="cell">Result</div>
+        <div class="cell">Assignee</div>
+        <div class="cell">Due</div>
       </div>
     </div>`;
 
@@ -1418,13 +1420,13 @@ function rowHtml(t, mode, gap) {
   return `
     <div class="row ${mode} tone-${escapeHtml(t.studioStatus || "new")}${gapCls} ${checked ? "selected" : ""}" data-id="${t.id}">
       ${frozen}
-      <div class="col-time">${timeCell(t)}</div>
-      <div class="col-due">${dueCell(t)}</div>
       <div class="meta">
+        <div class="cell">${timeCell(t)}</div>
         <div class="cell"><span class="pill ${st.cls}">${st.label}</span></div>
         <div class="cell">${brief}</div>
         <div class="cell">${result}</div>
         <div class="cell">${personCell(t.assigneeId)}</div>
+        <div class="cell">${dueCell(t)}</div>
       </div>
     </div>`;
 }
@@ -1448,7 +1450,7 @@ function savedNameWidth() {
 
 function applyNameWidth(group, px) {
   if (!group) return;
-  const max = Math.max(280, group.clientWidth - 420);
+  const max = Math.max(280, group.clientWidth - 500);
   const w = Math.round(Math.min(Math.max(240, px), max));
   group.style.setProperty("--name-width", `${w}px`);
   localStorage.setItem(NAME_WIDTH_KEY, String(w));
