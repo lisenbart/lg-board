@@ -175,19 +175,25 @@ def _nbu_from(db: dict, nbu: dict | None = None) -> dict:
     return fetch_nbu()
 
 
+def _by_pay_order(people: list[dict]) -> list[dict]:
+    return sorted(people, key=lambda p: (p.get("payOrder") or 99, p.get("name") or ""))
+
+
 def hours_people(db: dict) -> list[dict]:
-    people = db.get("people") or []
-    return [p for p in people if p.get("role") == "teamlead"] + [
-        p for p in people if p.get("role") == "designer"
-    ]
+    """Performers: team lead Настя and designers, $15/h on assigned hours."""
+    return _by_pay_order(
+        [p for p in db.get("people") or [] if p.get("role") in {"teamlead", "designer"}]
+    )
+
+
+def empl_people(db: dict) -> list[dict]:
+    """Calculator EMPL columns: manager $5 on every hour, then performers at $15."""
+    mgr = [p for p in db.get("people") or [] if p.get("role") == "manager"]
+    return _by_pay_order(mgr) + hours_people(db)
 
 
 def pay_people(db: dict) -> list[dict]:
-    return [
-        p
-        for p in db.get("people") or []
-        if p.get("role") in {"manager", "teamlead", "designer"}
-    ]
+    return empl_people(db)
 
 
 def _pay_row(person: dict, meta: dict | None = None) -> dict:
@@ -201,11 +207,13 @@ def _pay_row(person: dict, meta: dict | None = None) -> dict:
         "iban": person.get("iban") or "",
         "phone": person.get("phone") or "",
         "payOrder": person.get("payOrder") or 99,
+        "role": person.get("role") or "",
         "rate": person_rate(person, meta=meta),
         "projects": 0,
         "shifts": 0.0,
         "hours": 0.0,
         "payUsd": 0.0,
+        "allHours": person.get("role") == "manager",
     }
 
 
@@ -231,6 +239,8 @@ def snapshot(db: dict, month: str, nbu: dict | None = None) -> dict:
         lines[line]["bill"] += h * client_rate
         pid = t.get("assigneeId") or ""
         p = people.get(pid)
+        if p and p.get("role") == "manager":
+            continue
         if not p or p.get("id") not in pay:
             unassigned["projects"] += 1
             unassigned["shifts"] += sh
@@ -241,6 +251,16 @@ def snapshot(db: dict, month: str, nbu: dict | None = None) -> dict:
         row["shifts"] += sh
         row["hours"] += h
         row["payUsd"] += h * row["rate"]
+    total_hours = round(sum(hours_of(t, shift_hours) for t in tasks), 1)
+    total_shifts = round(sum(float(t.get("shifts") or 0) for t in tasks), 2)
+    for row in pay.values():
+        if row.get("role") != "manager":
+            continue
+        row["hours"] = total_hours
+        row["shifts"] = total_shifts
+        row["projects"] = len(tasks)
+        row["payUsd"] = total_hours * row["rate"]
+        row["allHours"] = True
     payroll = sorted(pay.values(), key=lambda r: (r.get("payOrder") or 99, r["name"]))
     for row in payroll:
         row["payUah"] = round(row["payUsd"] * fx, 2)
@@ -726,7 +746,7 @@ def write_month(db: dict, ym: str, nbu_rate: float | None = None, path: Path | N
     client_rate = float(meta.get("clientRateUsd") or CLIENT_RATE)
     tax = float(meta.get("taxPct") if meta.get("taxPct") is not None else TAX_PCT)
     fx = float(nbu_rate or (meta.get("nbuRate") or FALLBACK_NBU))
-    designers = hours_people(db)
+    crew = empl_people(db)
     tasks = [t for t in db.get("tasks") or [] if (t.get("month") or ym) == ym]
     by_line = {k: [] for k in ("DX", "DD", "DS")}
     for t in tasks:
@@ -741,14 +761,14 @@ def write_month(db: dict, ym: str, nbu_rate: float | None = None, path: Path | N
     if name in wb.sheetnames:
         del wb[name]
     ws = wb.create_sheet(name, 0)
-    n_empl = max(len(designers), 1)
+    n_empl = max(len(crew), 1)
     empl_start = 6
     total_empl_col = empl_start + n_empl
     client_col = total_empl_col + 1
     y, m = [int(x) for x in ym.split("-")]
     ws.cell(2, 2, datetime(y, m, 1).strftime("%Y %B").upper())
     ws.cell(2, 2).font = CALIBRI_BOLD
-    for i, person in enumerate(designers):
+    for i, person in enumerate(crew):
         cell = ws.cell(2, empl_start + i, person.get("name") or f"EMPL {i + 1}")
         cell.font = CALIBRI_BOLD
         cell.alignment = CENTER
@@ -771,10 +791,11 @@ def write_month(db: dict, ym: str, nbu_rate: float | None = None, path: Path | N
         ws.cell(row, 3, shifts if shifts not in (None, "") else None)
         ws.cell(row, 4, f"=C{row}*9")
         who = task.get("assigneeId") or ""
-        for i, person in enumerate(designers):
+        for i, person in enumerate(crew):
             cell = ws.cell(row, empl_start + i)
-            if person["id"] == who:
-                rate = person_rate(person, meta=meta)
+            rate = person_rate(person, meta=meta)
+            on_row = person.get("role") == "manager" or person["id"] == who
+            if on_row:
                 cell.value = f"=D{row}*{rate:g}"
                 raw = (person.get("color") or "92D050").replace("#", "")
                 cell.fill = PatternFill("solid", fgColor=raw[:6] or "92D050")

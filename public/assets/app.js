@@ -333,6 +333,7 @@ function financeSnapshot() {
   let unassignedProjects = 0;
   for (const t of tasks) {
     const p = t.assigneeId ? person(t.assigneeId) : null;
+    if (p?.role === "manager") continue;
     if (!p || !payMap[p.id]) {
       unassignedHours += hoursOf(t);
       unassignedShifts += Number(t.shifts) || 0;
@@ -347,9 +348,15 @@ function financeSnapshot() {
   const payroll = Object.values(payMap)
     .map((row) => {
       const payRate = personPayRate(row.person);
-      const payUsd = row.hours * payRate;
+      const allHours = row.person.role === "manager";
+      const hours = allHours ? totalHours : row.hours;
+      const payUsd = hours * payRate;
       return {
         ...row,
+        hours,
+        shifts: allHours ? totalShifts : row.shifts,
+        projects: allHours ? tasks.length : row.projects,
+        allHours,
         rate: payRate,
         payUsd,
         payUah: payUsd * fx,
@@ -1200,7 +1207,7 @@ function renderEmployees(fin) {
             <button type="button" class="btn ghost fin-copy" data-copy="${escapeHtml(copy.value)}">Copy ${copy.kind}</button>
           </div>`
         : `<span class="empty">—</span>`;
-      return `<tr class="fin-pay-row" data-hours="${row.hours}" data-fallback="${fallback}">
+      return `<tr class="fin-pay-row" data-hours="${row.hours}" data-fallback="${fallback}" data-all-hours="${row.allHours ? "1" : "0"}">
         <td>${personCell(row.person.id)}</td>
         <td class="num">${hoursLabel(row.hours)}</td>
         <td class="num"><input class="fin-person-rate" data-id="${row.person.id}" type="number" min="0" step="0.5" value="${row.rate}" /></td>
@@ -1217,7 +1224,6 @@ function renderEmployees(fin) {
         <td colspan="4"></td>
       </tr>`
     : "";
-  const emplHours = fin.totalHours - fin.unassignedHours;
   return `
     <section class="group fin-card">
       <div class="fin-rates">
@@ -1228,7 +1234,7 @@ function renderEmployees(fin) {
         <table class="fin-table">
           <thead><tr><th>Person</th><th class="num">Hours</th><th class="num">$/h</th><th class="num">Hours × $/h</th><th class="num">UAH</th><th>Card</th></tr></thead>
           <tbody>${payRows}${unRow}</tbody>
-          <tfoot><tr><td>EMPL</td><td class="num" data-empl-hours>${hoursLabel(emplHours)}</td><td></td><td class="num" data-empl-usd>${usd(fin.empl)}</td><td class="num" data-empl-uah>${uah(fin.emplUah)}</td><td></td></tr></tfoot>
+          <tfoot><tr><td>EMPL</td><td class="num" data-empl-hours></td><td></td><td class="num" data-empl-usd>${usd(fin.empl)}</td><td class="num" data-empl-uah>${uah(fin.emplUah)}</td><td></td></tr></tfoot>
         </table>
       </div>
     </section>`;

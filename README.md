@@ -47,7 +47,7 @@ Studio money never unlocks on the hosted link. Localhost is the studio sandbox.
 - **Send to client** copies `check it please` + the result link for External Weekly. Status becomes Senior Approval. Superplay is not on this board, so this step stays until Monday API is connected.
 - **Finance** (Dmytro only) — two inner tabs, same idea as the Excel tab mirroring `SP_MGX_check.xlsx`:
   - **Client** — totals by direction (DD / DX, and DS if that line has hours), not per task. One **Create DD / DX** writes Word + PDF only in the sandbox: `/workspace/data/invoices/10_October`. **Open folder** reveals that folder when the portal runs on your Mac; in this Preview it downloads `10_October.zip` instead (the sandbox disk is not Finder).
-  - **Employeers** — pay per person: hours × $/h (manager $5, everyone else $15). UAH = USD × NBU. Card/IBAN to copy. Changing $/h updates that row and the EMPL total. **Write into calculator** updates `SUPERPLAY_MGX_Calculator.xlsx` for this month.
+  - **Employeers** — same split as the MGX calculator. Manager (Анастасія) is $5 × every task hour this month. Team lead Настя is a performer at $15/h on her tasks, not a second finance line. Designers $15/h on assigned hours. UAH = USD × NBU. **Write into calculator** updates `SUPERPLAY_MGX_Calculator.xlsx`.
 - Files on Drive are the source. The portal is a monitor: a new task or an assign writes into `SP_MGX_check.xlsx`; **Refresh from file** reads the sheet back. Sandbox copy is in `_PORTAL_TEST`. The live studio workbook is not overwritten. No CSV export.
 - Test folders only in Drive [`_PORTAL_TEST`](https://drive.google.com/drive/folders/1HY7vcxR5Tmot5RNJyQ2ZeImD9J4BOuX8). Live `Projects / 10_October` is untouched.
 
