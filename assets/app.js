@@ -1232,7 +1232,7 @@ function renderGuide() {
           `Свої таски — як MD: ${ui("Paste result link here")}, потім ${ui("Done")}.`,
           `${ui("Excel")} — та сама картина, що ${ui("SP_MGX_check")}, з чіпами зліва. ${ui("Send to client")} і ${ui("Closed")} у TL немає — це LP.`,
         ])}
-        ${card("designer", "MD", "Motion design", "Маша, Сергій, Аліна, Олекса. Лише свої таски.", [
+        ${card("designer", "MD", "Motion design", "Марія, Сергій, Аліна, Олекса. Лише свої таски.", [
           `Дзвіночок ${ui("On you")} — тебе поставили. ${ui("Fix")} — ${ui("Need Fixing")}.`,
           `Картка: ${ui("From client")} → ${ui("Source")} → ${ui("Result")}. Бриф як у Monday, без вигаданих розмірів.`,
           `Зробив → ${ui("Paste result link here")} (лінк на файл, не на теку). Поки лінка немає, ${ui("Done")} у статусі немає.`,
