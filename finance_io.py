@@ -30,15 +30,9 @@ ICLOUD_MGX = (
 )
 W_T = re.compile(r"(<w:t(?:\s[^>]*)?>)(.*?)(</w:t>)", re.DOTALL)
 W_P = re.compile(r"<w:p[ >].*?</w:p>", re.DOTALL)
-CHROME_BINS = [
-    "/usr/local/bin/google-chrome",
-    "/usr/bin/google-chrome",
-    "/usr/bin/chromium",
-    "/usr/bin/chromium-browser",
-    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-]
 SOFFICE_BINS = [
     "/usr/bin/soffice",
+    "/usr/bin/libreoffice",
     "/usr/bin/lowriter",
     "/Applications/LibreOffice.app/Contents/MacOS/soffice",
 ]
@@ -274,17 +268,6 @@ def snapshot(db: dict, month: str, nbu: dict | None = None) -> dict:
     }
 
 
-PDF_HTML = """<!doctype html>
-<html><head><meta charset="utf-8">
-<style>
-@page { size: A4; margin: 16mm 18mm; }
-html, body { margin: 0; padding: 0; color: #000;
-  font-family: "Times New Roman", Times, serif; font-size: 10.5pt; }
-p { margin: 0.35em 0; }
-table { border-collapse: collapse; width: 100%; margin: 8px 0; }
-td, th { border: 1px solid #000; padding: 4px 6px; text-align: center; vertical-align: middle; }
-</style></head><body>__BODY__</body></html>
-"""
 INVOICE_NAME = re.compile(r"^invoice[A-Z]{2}_\d{4}\.\d{2}\.\d{2}\.(docx|pdf)$")
 
 
@@ -510,77 +493,79 @@ def _which(path: str) -> str | None:
     return found
 
 
+def _word_mac_pdf(src: Path, dest: Path) -> bytes:
+    if sys.platform != "darwin":
+        return b""
+    word = Path("/Applications/Microsoft Word.app")
+    if not word.exists():
+        return b""
+    script = (
+        f'set inFile to POSIX file "{src}"\n'
+        f'set outFile to POSIX file "{dest}"\n'
+        "tell application \"Microsoft Word\"\n"
+        "  open inFile\n"
+        "  save as active document file name outFile file format format PDF\n"
+        "  close active document saving no\n"
+        "end tell\n"
+    )
+    try:
+        subprocess.run(["osascript", "-e", script], check=True, timeout=60, capture_output=True)
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
+        return b""
+    if dest.exists() and dest.stat().st_size > 200:
+        return dest.read_bytes()
+    return b""
+
+
+def _soffice_pdf(src: Path, dest: Path, tmp_p: Path) -> bytes:
+    for binary in SOFFICE_BINS:
+        exe = _which(binary)
+        if not exe:
+            continue
+        profile = tmp_p / "lo-profile"
+        profile.mkdir(exist_ok=True)
+        try:
+            subprocess.run(
+                [
+                    exe,
+                    "--headless",
+                    "--norestore",
+                    "--nolockcheck",
+                    f"-env:UserInstallation={profile.as_uri()}",
+                    "--convert-to",
+                    "pdf:writer_pdf_Export",
+                    "--outdir",
+                    str(tmp_p),
+                    str(src),
+                ],
+                check=True,
+                timeout=90,
+                capture_output=True,
+            )
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
+            continue
+        produced = tmp_p / (src.stem + ".pdf")
+        if produced.exists() and produced.stat().st_size > 200:
+            data = produced.read_bytes()
+            dest.write_bytes(data)
+            return data
+    return b""
+
+
 def docx_to_pdf(docx_bytes: bytes, pdf_path: Path) -> bytes:
+    """Export the cloned Word form. Never rebuild as HTML — that changes the table."""
     pdf_path.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory() as tmp:
         tmp_p = Path(tmp)
         src = tmp_p / "invoice.docx"
         src.write_bytes(docx_bytes)
-        for binary in SOFFICE_BINS:
-            exe = _which(binary)
-            if not exe:
-                continue
-            try:
-                subprocess.run(
-                    [exe, "--headless", "--convert-to", "pdf", "--outdir", str(tmp_p), str(src)],
-                    check=True,
-                    timeout=60,
-                    capture_output=True,
-                )
-            except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
-                continue
-            produced = tmp_p / "invoice.pdf"
-            if produced.exists() and produced.stat().st_size > 200:
-                data = produced.read_bytes()
-                pdf_path.write_bytes(data)
-                return data
-        try:
-            import mammoth
-        except ImportError:
-            return b""
-        with src.open("rb") as fh:
-            html_body = mammoth.convert_to_html(fh).value
-        html = PDF_HTML.replace("__BODY__", html_body)
-        dest = tmp_p / "invoice.pdf"
-        try:
-            from weasyprint import HTML as WeasyHTML
-
-            WeasyHTML(string=html, base_url=str(tmp_p)).write_pdf(dest)
-        except Exception:
-            dest.unlink(missing_ok=True)
-        if dest.exists() and dest.stat().st_size > 200:
-            data = dest.read_bytes()
+        word_pdf = tmp_p / "invoice-word.pdf"
+        data = _word_mac_pdf(src, word_pdf)
+        if data:
             pdf_path.write_bytes(data)
             return data
-        chrome = next((p for p in (_which(b) for b in CHROME_BINS) if p), None)
-        if not chrome:
-            return b""
-        html_path = tmp_p / "invoice.html"
-        html_path.write_text(html, encoding="utf-8")
-        profile = tmp_p / "chrome-profile"
-        profile.mkdir(exist_ok=True)
-        try:
-            subprocess.run(
-                [
-                    chrome,
-                    "--headless=new",
-                    "--disable-gpu",
-                    "--no-sandbox",
-                    "--disable-dev-shm-usage",
-                    f"--user-data-dir={profile}",
-                    "--no-pdf-header-footer",
-                    f"--print-to-pdf={dest}",
-                    html_path.as_uri(),
-                ],
-                check=True,
-                timeout=45,
-                capture_output=True,
-            )
-        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
-            return b""
-        if dest.exists() and dest.stat().st_size > 200:
-            data = dest.read_bytes()
-            pdf_path.write_bytes(data)
+        data = _soffice_pdf(src, pdf_path, tmp_p)
+        if data:
             return data
     return b""
 

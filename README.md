@@ -51,11 +51,11 @@ Studio money never unlocks on the hosted link. Localhost is the studio sandbox.
 - Files on Drive are the source. The portal is a monitor: a new task or an assign writes into `SP_MGX_check.xlsx`; **Refresh from file** reads the sheet back. Sandbox copy is in `_PORTAL_TEST`. The live studio workbook is not overwritten. No CSV export.
 - Test folders only in Drive [`_PORTAL_TEST`](https://drive.google.com/drive/folders/1HY7vcxR5Tmot5RNJyQ2ZeImD9J4BOuX8). Live `Projects / 10_October` is untouched.
 
-Not in this slice: live Monday API, Playables board, client OAuth. Invoices clone the live PE Lisenbart / SuperPlay Ltd Word (not a rebuilt layout). If NBU is unreachable, type today's USD/UAH rate.
+Not in this slice: live Monday API, Playables board, client OAuth. Invoices clone the live PE Lisenbart / SuperPlay Ltd Word; the PDF is that same Word, not an HTML rebuild. If NBU is unreachable, type today's USD/UAH rate.
 
 ## Run locally
 
-Python 3. Needs `openpyxl` and `mammoth` (PDF via LibreOffice, or Chrome headless print of the cloned Word):
+Python 3. Needs `openpyxl`. PDF is the cloned Word exported by LibreOffice (`soffice --headless --convert-to pdf`) so the table matches the `.docx`. On a Mac with Microsoft Word, that export is used first.
 
 ```bash
 pip install -r requirements.txt
