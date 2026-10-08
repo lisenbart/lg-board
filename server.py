@@ -59,12 +59,15 @@ def parse_money(val):
     return n
 
 
-def sync_excel(db: dict, month: str | None = None) -> None:
+def sync_excel(db: dict, month: str | None = None, calculator: bool = False) -> None:
+    """Write the month into SP_MGX_check.xlsx, then read hours back. Disk is the core."""
     ym = month or db.get("meta", {}).get("month") or "2026-10"
-    try:
-        excel_io.write_month(db, ym)
-    except FileNotFoundError:
-        pass
+    excel_io.write_month(db, ym)
+    parsed = excel_io.parse_workbook(excel_io.XLSX_PATH, ym)
+    excel_io.apply_to_db(db, parsed, ym)
+    if calculator:
+        fx = (db.get("meta") or {}).get("nbuRate")
+        finance_io.write_month(db, ym, nbu_rate=fx)
 
 
 def task_month(data: dict, db: dict) -> str:
@@ -139,6 +142,18 @@ class Handler(SimpleHTTPRequestHandler):
             return
         if path == "/health":
             self._json(200, {"ok": True})
+            return
+        if path == "/api/finance/snapshot":
+            qs = parse_qs(urlparse(self.path).query)
+            month = (qs.get("month") or [""])[0] or load_db().get("meta", {}).get("month") or "2026-10"
+            with LOCK:
+                db = load_db()
+                try:
+                    snap = finance_io.snapshot(db, month)
+                except FileNotFoundError as e:
+                    self._json(409, {"error": str(e)})
+                    return
+            self._json(200, snap)
             return
         if path == "/api/nbu":
             qs = parse_qs(urlparse(self.path).query)
@@ -270,8 +285,13 @@ class Handler(SimpleHTTPRequestHandler):
                         "text": f"Parsed email: {added} new, {updated} shifts updated",
                     },
                 )
+                try:
+                    sync_excel(db, data.get("month"), calculator=True)
+                except FileNotFoundError as e:
+                    save_db(db)
+                    self._json(500, {"error": str(e), "state": db})
+                    return
                 save_db(db)
-                sync_excel(db, data.get("month"))
                 self._json(200, {"added": added, "updated": updated, "parsed": rows, "state": db})
                 return
             if path == "/api/import-monday":
@@ -310,8 +330,13 @@ class Handler(SimpleHTTPRequestHandler):
                 db.setdefault("events", []).insert(
                     0, {"at": utc_now(), "text": f"Monday import: {added} new tasks"}
                 )
+                try:
+                    sync_excel(db, data.get("month"), calculator=True)
+                except FileNotFoundError as e:
+                    save_db(db)
+                    self._json(500, {"error": str(e), "state": db})
+                    return
                 save_db(db)
-                sync_excel(db, data.get("month"))
                 self._json(200, {"added": added, "state": db})
                 return
             if path == "/api/export-monday":
@@ -389,8 +414,14 @@ class Handler(SimpleHTTPRequestHandler):
                 note = data.get("note")
                 if note:
                     task.setdefault("activity", []).append({"at": utc_now(), "text": note})
+                money = "assigneeId" in data or "shifts" in data
+                try:
+                    sync_excel(db, task.get("month"), calculator=money)
+                except FileNotFoundError as e:
+                    save_db(db)
+                    self._json(500, {"error": str(e), "state": db})
+                    return
                 save_db(db)
-                sync_excel(db, task.get("month"))
                 self._json(200, {"task": task, "state": db})
                 return
             if path == "/api/excel/pull":
@@ -428,7 +459,12 @@ class Handler(SimpleHTTPRequestHandler):
                 return
             if path == "/api/excel/save":
                 month = data.get("month") or db.get("meta", {}).get("month") or "2026-10"
-                excel_io.write_month(db, month)
+                try:
+                    sync_excel(db, month, calculator=True)
+                except FileNotFoundError as e:
+                    self._json(500, {"error": str(e)})
+                    return
+                save_db(db)
                 drive = db.get("meta", {}).get("driveSandboxExcel") or ""
                 self._json(
                     200,
@@ -436,7 +472,7 @@ class Handler(SimpleHTTPRequestHandler):
                         "ok": True,
                         "file": str(excel_io.XLSX_PATH),
                         "drive": drive,
-                        "message": "Updated the calculator in place. Hours stay = shifts × 9. Other months untouched.",
+                        "message": "Wrote SP_MGX_check.xlsx. Hours stay = shifts × 9. Other months untouched.",
                         "state": db,
                     },
                 )
@@ -489,7 +525,11 @@ class Handler(SimpleHTTPRequestHandler):
                         nbu = {"rate": float(data["nbuRate"]), "date": "", "source": "manual"}
                     except (TypeError, ValueError):
                         nbu = None
-                snap = finance_io.snapshot(db, month, nbu)
+                try:
+                    snap = finance_io.snapshot(db, month, nbu)
+                except FileNotFoundError as e:
+                    self._json(409, {"error": str(e)})
+                    return
                 if line in {"BOTH", "ALL", "MGX", "DD/DX", "DDDX"}:
                     rows = [
                         r
@@ -691,6 +731,12 @@ class Handler(SimpleHTTPRequestHandler):
                         }
                     )
                 db["people"] = [p for p in db["people"] if p["id"] != pid]
+                try:
+                    sync_excel(db, calculator=bool(held))
+                except FileNotFoundError as e:
+                    save_db(db)
+                    self._json(500, {"error": str(e), "state": db})
+                    return
                 save_db(db)
                 self._json(200, {"deleted": pid, "reassigned": len(held), "state": db})
                 return

@@ -67,6 +67,7 @@ const state = {
   finTab: "client",
   nbu: null,
   invoiceFolder: null,
+  excelMonth: null,
 };
 const $ = (id) => document.getElementById(id);
 
@@ -1096,6 +1097,18 @@ function bindSplitter(group) {
   handle.addEventListener("dblclick", () => applyNameWidth(group, NAME_WIDTH_DEFAULT));
 }
 
+function ensureExcelHours() {
+  if (state.excelMonth === state.month) return;
+  state.excelMonth = state.month;
+  api("/api/excel/pull", { month: state.month }).then((out) => {
+    if (out.error) {
+      toast(out.error);
+      return;
+    }
+    if (out.state) applyState(out.state);
+  });
+}
+
 function renderClose() {
   if (!isFinance()) {
     state.view = "board";
@@ -1103,6 +1116,7 @@ function renderClose() {
     return;
   }
   ensureNbu();
+  ensureExcelHours();
   const fin = financeSnapshot();
   const tabs = [
     { id: "client", label: "Client" },

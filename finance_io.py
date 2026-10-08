@@ -15,6 +15,7 @@ from pathlib import Path
 from urllib.request import urlopen, Request
 from urllib.error import URLError
 
+import excel_io
 from openpyxl import load_workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
@@ -224,7 +225,8 @@ def snapshot(db: dict, month: str, nbu: dict | None = None) -> dict:
     shift_hours = float(meta.get("shiftHours") or 9)
     nbu = _nbu_from(db, nbu)
     fx = float(nbu.get("rate") or FALLBACK_NBU)
-    tasks = [t for t in db.get("tasks") or [] if (t.get("month") or meta.get("month")) == month]
+    tasks = excel_io.tasks_for_finance(db, month)
+    hours_source = f"SP_MGX_check.xlsx / {excel_io.sheet_name_for(month)}"
     people = {p["id"]: p for p in db.get("people") or []}
     lines = {k: {"line": k, "projects": 0, "shifts": 0.0, "hours": 0.0, "bill": 0.0} for k in ("DD", "DX", "DS")}
     pay = {p["id"]: _pay_row(p, meta) for p in pay_people(db)}
@@ -283,6 +285,7 @@ def snapshot(db: dict, month: str, nbu: dict | None = None) -> dict:
     studio = round(after_tax - empl, 2)
     return {
         "month": month,
+        "hoursSource": hours_source,
         "clientRate": client_rate,
         "taxPct": tax,
         "nbu": nbu,

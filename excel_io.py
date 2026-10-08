@@ -51,37 +51,8 @@ def find_sheet(wb, ym: str):
 
 
 def designers(db: dict) -> list[dict]:
-    people = db.get("people") or []
-    return [p for p in people if p.get("role") == "teamlead"] + [
-        p for p in people if p.get("role") == "designer"
-    ]
-
-
-def ensure_people(db: dict, names: list[str]) -> None:
-    people = db.setdefault("people", [])
-    current = designers(db)
-    palette = ["#59BBFF", "#92D050", "#FFD966", "#C6B19B", "#B4A7D6", "#76D7C4", "#E67C73"]
-    for i, name in enumerate(names):
-        name = str(name or "").strip()
-        if not name:
-            continue
-        if i < len(current):
-            current[i]["name"] = name
-            continue
-        n = i + 1
-        pid = "designer" if n == 1 else f"designer{n}"
-        existing_ids = {p["id"] for p in people}
-        while pid in existing_ids:
-            n += 1
-            pid = f"designer{n}"
-        people.append(
-            {
-                "id": pid,
-                "name": name,
-                "role": "designer",
-                "color": palette[i % len(palette)],
-            }
-        )
+    people = [p for p in db.get("people") or [] if p.get("role") in {"teamlead", "designer"}]
+    return sorted(people, key=lambda p: (p.get("payOrder") or 99, p.get("name") or ""))
 
 
 def _as_shift(value) -> float:
@@ -170,10 +141,13 @@ def parse_workbook(path: Path, ym: str) -> dict:
 
 
 def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
-    ensure_people(db, parsed.get("people") or [])
     people = designers(db)
     by_name = {p["name"].strip().lower(): p for p in people}
-    existing = {str(t.get("name") or "").strip(): t for t in db.get("tasks") or []}
+    existing = {
+        str(t.get("name") or "").strip(): t
+        for t in db.get("tasks") or []
+        if (t.get("month") or ym) == ym
+    }
     added = 0
     updated = 0
     for row in parsed.get("rows") or []:
@@ -216,7 +190,37 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
             db.setdefault("tasks", []).append(task)
             existing[name] = task
             added += 1
-    return {"added": added, "updated": updated, "people": parsed.get("people") or []}
+    return {"added": added, "updated": updated, "people": parsed.get("people") or [], "sheet": parsed.get("sheet")}
+
+
+def tasks_for_finance(db: dict, ym: str) -> list[dict]:
+    """Hours and assignees for money: only what is written in SP_MGX_check.xlsx."""
+    if not XLSX_PATH.exists():
+        raise FileNotFoundError(f"SP_MGX_check.xlsx missing: {XLSX_PATH}")
+    parsed = parse_workbook(XLSX_PATH, ym)
+    if not parsed.get("sheet"):
+        raise FileNotFoundError(f"SP_MGX_check.xlsx has no {sheet_name_for(ym)} tab")
+    people = designers(db)
+    by_name = {p["name"].strip().lower(): p for p in people}
+    existing = {
+        str(t.get("name") or "").strip(): t
+        for t in db.get("tasks") or []
+        if (t.get("month") or ym) == ym
+    }
+    by_id = {_id_key(name): t for name, t in existing.items() if _id_key(name)}
+    out = []
+    for row in parsed.get("rows") or []:
+        base = existing.get(row["name"]) or by_id.get(_id_key(row["name"])) or {}
+        person = by_name.get((row.get("assigneeName") or "").strip().lower())
+        task = dict(base)
+        task["name"] = row["name"]
+        task["line"] = row["line"]
+        task["shifts"] = row["shifts"]
+        task["hours"] = row["hours"]
+        task["assigneeId"] = person["id"] if person else ""
+        task["month"] = ym
+        out.append(task)
+    return out
 
 
 def _style_range(ws, row: int, cols: int) -> None:
@@ -227,7 +231,34 @@ def _style_range(ws, row: int, cols: int) -> None:
         cell.alignment = CENTER if c != 2 else Alignment(vertical="center")
 
 
-def _write_task_row(ws, row: int, task: dict, people: list[dict]) -> None:
+def _bind_people_columns(ws, people: list[dict]) -> list[tuple[int, dict | None]]:
+    """Map EMPL columns by the name already on the sheet, not by portal list order."""
+    by_name = {p["name"].strip().lower(): p for p in people}
+    used = set()
+    columns: list[tuple[int, dict | None]] = []
+    for col in range(6, 20):
+        raw = ws.cell(1, col).value
+        if raw is None or str(raw).strip() == "":
+            if columns:
+                break
+            continue
+        person = by_name.get(str(raw).strip().lower())
+        columns.append((col, person))
+        if person:
+            used.add(person["id"])
+    next_col = max((c for c, _ in columns), default=5) + 1
+    for person in people:
+        if person["id"] in used:
+            continue
+        ws.cell(1, next_col, person.get("name") or "")
+        ws.cell(1, next_col).font = CALIBRI_BOLD
+        ws.cell(1, next_col).alignment = CENTER
+        columns.append((next_col, person))
+        next_col += 1
+    return columns
+
+
+def _write_task_row(ws, row: int, task: dict, columns: list[tuple[int, dict | None]]) -> None:
     shifts = task.get("shifts")
     ws.cell(row, 2, task.get("name") or "")
     ws.cell(row, 3, shifts if shifts not in (None, "") else None)
@@ -243,15 +274,17 @@ def _write_task_row(ws, row: int, task: dict, people: list[dict]) -> None:
         except ValueError:
             ws.cell(row, 5, deadline)
     who = task.get("assigneeId") or ""
-    for i, person in enumerate(people):
-        cell = ws.cell(row, 6 + i)
-        if person["id"] == who:
+    last_col = 5
+    for col, person in columns:
+        last_col = max(last_col, col)
+        cell = ws.cell(row, col)
+        if person and person["id"] == who:
             cell.value = f"=C{row}*9"
             cell.fill = _hex_fill(person.get("color") or "92D050")
         else:
             cell.value = None
             cell.fill = PatternFill(fill_type=None)
-    _style_range(ws, row, 5 + max(len(people), 1))
+    _style_range(ws, row, last_col)
     ws.cell(row, 2).alignment = Alignment(vertical="center")
     ws.cell(row, 4).alignment = CENTER
 
@@ -309,7 +342,7 @@ def _insert_in_section(ws, scan: dict, line: str) -> int:
     return insert_at
 
 
-def _refresh_total(ws, scan: dict, people: list[dict]) -> None:
+def _refresh_total(ws, scan: dict, columns: list[tuple[int, dict | None]]) -> None:
     total_row = scan.get("total_row")
     if not total_row:
         return
@@ -317,12 +350,13 @@ def _refresh_total(ws, scan: dict, people: list[dict]) -> None:
     ws.cell(total_row, 1, "total")
     ws.cell(total_row, 3, f"=SUM(C3:C{end})")
     ws.cell(total_row, 4, f"=SUM(D3:D{end})")
-    for i, _ in enumerate(people):
-        col = get_column_letter(6 + i)
-        ws.cell(total_row, 6 + i, f"=SUM({col}3:{col}{end})")
-    max_col = 5 + max(len(people), 1)
-    _style_range(ws, total_row, max_col)
-    for c in range(1, max_col + 1):
+    last_col = 5
+    for col, _ in columns:
+        last_col = max(last_col, col)
+        letter = get_column_letter(col)
+        ws.cell(total_row, col, f"=SUM({letter}3:{letter}{end})")
+    _style_range(ws, total_row, last_col)
+    for c in range(1, last_col + 1):
         ws.cell(total_row, c).fill = HEADER_FILL
         ws.cell(total_row, c).font = CALIBRI_BOLD
 
@@ -367,6 +401,7 @@ def write_month(db: dict, ym: str, path: Path | None = None) -> Path:
     scan = _scan_sheet(ws)
     if "DX" not in scan["headers"]:
         scan["headers"]["DX"] = 2
+    columns = _bind_people_columns(ws, people)
     id_index = {
         _id_key(item["name"]): item for item in scan["rows"].values() if _id_key(item["name"])
     }
@@ -378,7 +413,7 @@ def write_month(db: dict, ym: str, path: Path | None = None) -> Path:
             kid = _id_key(task.get("name") or "")
             found = id_index.get(kid) if kid else None
         if found:
-            _write_task_row(ws, found["row"], task, people)
+            _write_task_row(ws, found["row"], task, columns)
             continue
         line = (task.get("line") or "DD").upper()
         if line not in {"DX", "DD", "DS"}:
@@ -386,8 +421,8 @@ def write_month(db: dict, ym: str, path: Path | None = None) -> Path:
         if line not in scan["headers"]:
             line = "DD" if "DD" in scan["headers"] else next(iter(scan["headers"]), "DX")
         row = _insert_in_section(ws, scan, line)
-        _write_task_row(ws, row, task, people)
+        _write_task_row(ws, row, task, columns)
         scan["rows"][key] = {"row": row, "line": line, "name": task.get("name")}
-    _refresh_total(ws, scan, people)
+    _refresh_total(ws, scan, columns)
     wb.save(path)
     return path
