@@ -1815,10 +1815,9 @@ function openTask(id) {
   const statusOpts = statusChoices(t)
     .map((k) => {
       const selected = t.studioStatus === k ? "selected" : "";
+      if (k === "done" && k !== t.studioStatus && !String(t.resultUrl || "").trim()) return "";
       const roleBlock = k !== t.studioStatus && !canSetStatus(k);
-      const needResult = k === "done" && k !== t.studioStatus && !String(t.resultUrl || "").trim();
-      const disabled = roleBlock || needResult ? "disabled" : "";
-      return `<option value="${k}" ${selected} ${disabled}>${STATUS[k].label}</option>`;
+      return `<option value="${k}" ${selected} ${roleBlock ? "disabled" : ""}>${STATUS[k].label}</option>`;
     })
     .join("");
   $("drawer").innerHTML = `
@@ -1881,17 +1880,36 @@ function openTask(id) {
     ackNotices({ taskId: id });
   }
   const syncDoneOption = () => {
-    const opt = $("stStatus")?.querySelector('option[value="done"]');
+    const sel = $("stStatus");
     const hint = $("stDoneHint");
+    if (!sel) return;
     const hasResult = Boolean($("stResult")?.value.trim());
-    if (opt) {
-      opt.disabled = (!hasResult && t.studioStatus !== "done") || (!canSetStatus("done") && t.studioStatus !== "done");
-      if (opt.disabled && $("stStatus").value === "done") $("stStatus").value = t.studioStatus;
+    const allowDone = (hasResult || t.studioStatus === "done") && (canSetStatus("done") || t.studioStatus === "done");
+    let opt = sel.querySelector('option[value="done"]');
+    if (allowDone && !opt) {
+      opt = document.createElement("option");
+      opt.value = "done";
+      opt.textContent = STATUS.done.label;
+      sel.appendChild(opt);
     }
-    if (hint) hint.textContent = hasResult ? "" : "Paste the result link first.";
+    if (!allowDone && opt) {
+      if (sel.value === "done") sel.value = t.studioStatus;
+      opt.remove();
+    }
+    if (hint) {
+      hint.textContent = hasResult ? "" : "Done is locked until you paste the result link.";
+    }
   };
   $("stResult")?.addEventListener("input", syncDoneOption);
   $("stResult")?.addEventListener("change", syncDoneOption);
+  $("stResult")?.addEventListener("paste", () => setTimeout(syncDoneOption, 0));
+  $("stStatus")?.addEventListener("change", () => {
+    if ($("stStatus").value !== "done") return;
+    if ($("stResult").value.trim()) return;
+    $("stStatus").value = t.studioStatus;
+    toast("Paste the result link before Done");
+    syncDoneOption();
+  });
   syncDoneOption();
   $("stShifts")?.addEventListener("input", () => {
     const shifts = parseShifts($("stShifts").value);
