@@ -8,50 +8,104 @@
     "driveSandboxExcel": "https://drive.google.com/file/d/1ewWwcUWBW0iNG69ppskt5aWu7IiNzJap/view",
     "driveOctoberDD": "https://drive.google.com/drive/folders/1kPlSyHeetn6wF-yYYaHr7BxzmAQPfgel",
     "driveOctoberDX": "https://drive.google.com/drive/folders/13yLju8CXxsvhOnQ5H_X1Pg7udB6Ah7CH",
-    "shiftHours": 9
+    "shiftHours": 9,
+    "clientRateUsd": 35,
+    "designerRateUsd": 15,
+    "managerRateUsd": 5,
+    "taxPct": 0.06,
+    "driveCalculator": "https://drive.google.com/file/d/1KNL8xAHUmTuZx3xe01XtlwxjYw_FThhA/view",
+    "driveInvoiceMgx": "https://drive.google.com/drive/folders/1BugYUcLPzb47sc4fZMwYXG6FPigzsyP5",
+    "driveLiveOctober": "https://drive.google.com/drive/folders/173mZwMf2SAg2tKouzHc-xIqE_WadwIEH",
+    "driveLiveDD": "https://drive.google.com/drive/folders/1cbyetaLxF2IiB47HOPMP_ffxo4v8T90p",
+    "driveLiveDX": "https://drive.google.com/drive/folders/1ZdT3oxP5W-Fs8uKhcoTkEaMU1XRrxf1P",
+    "briefsFrom": "Projects/10_October live Docs — naming copied 1:1, no invented sizes"
   },
   "people": [
+    {
+      "id": "finance",
+      "name": "Dmytro",
+      "role": "finance",
+      "email": "dmytro@lisenbart.games",
+      "color": "#0073ea"
+    },
     {
       "id": "manager",
       "name": "Анастасія",
       "role": "manager",
+      "email": "anastasiia@lisenbart.games",
       "color": "#9d50dd",
-      "jobTitle": "Line Producer"
+      "payOrder": 1,
+      "jobTitle": "Line Producer",
+      "rateUsd": 5,
+      "legalName": "Анастасія Верлинська",
+      "bankCard": "4874070053093694",
+      "iban": "UA173220010000026202314266322"
     },
     {
       "id": "teamlead",
       "name": "Настя",
       "role": "teamlead",
       "color": "#59BBFF",
-      "jobTitle": "Team Lead"
+      "payOrder": 2,
+      "jobTitle": "Team Lead",
+      "rateUsd": 15,
+      "legalName": "Анастасія Сиченко",
+      "phone": "+380 99 550 5455",
+      "email": "cat44cat22@gmail.com",
+      "bank": "Monobank",
+      "bankCard": "4441114424460887"
     },
     {
       "id": "designer2",
       "name": "Маша",
       "role": "designer",
       "color": "#92D050",
-      "jobTitle": "Motion design"
+      "payOrder": 4,
+      "jobTitle": "Motion design",
+      "rateUsd": 15,
+      "legalName": "Терлецька Марія Максимівна",
+      "bank": "Monobank",
+      "iban": "UA683220010000026202353816766",
+      "taxId": "3781707605"
     },
     {
       "id": "designer3",
       "name": "Сергій",
       "role": "designer",
       "color": "#FFD966",
-      "jobTitle": "Motion design"
+      "payOrder": 3,
+      "jobTitle": "Motion design",
+      "rateUsd": 15,
+      "legalName": "Лащенко Сергій Олексійович",
+      "phone": "+380 93 763 1347",
+      "email": "lashenko285@gmail.com",
+      "bank": "Monobank",
+      "bankCard": "4441111039612886",
+      "iban": "UA433220010000026202353175173",
+      "taxId": "3276811970"
     },
     {
       "id": "designer4",
       "name": "Аліна",
       "role": "designer",
       "color": "#C6B19B",
-      "jobTitle": "Motion design"
+      "payOrder": 5,
+      "jobTitle": "Motion design",
+      "rateUsd": 15,
+      "legalName": "Аліна Колесник",
+      "iban": "UA193220010000026205327095598"
     },
     {
       "id": "designer5",
       "name": "Олекса",
       "role": "designer",
       "color": "#B4A7D6",
-      "jobTitle": "Motion design"
+      "payOrder": 6,
+      "jobTitle": "Motion design",
+      "rateUsd": 15,
+      "legalName": "Злотко Олексій",
+      "bankCard": "432345037851582",
+      "iban": "UA943077700000026208713943056"
     }
   ],
   "tasks": [
@@ -67,9 +121,9 @@
       "studioStatus": "done",
       "mondayStatus": "WIP",
       "assigneeId": "teamlead",
-      "brief": "Hi,\n\nPlease take this video\ndownload - HalloweenFireTrial_hook.mp4\nPlease combine Halloween Fire Trial gameplay with DD-VEO-059-001 hook.\nLength = 30s.\nKeep energy high in the first 3 seconds.\n\nThanks\n\nNaming:\nDD-AIV-202-004_SettAI_HalloweenFireTrial_DD-VEO-059-001_EN_30s_1080x1080\nDD-AIV-202-004_SettAI_HalloweenFireTrial_DD-VEO-059-001_EN_30s_1080x1350\nDD-AIV-202-004_SettAI_HalloweenFireTrial_DD-VEO-059-001_EN_30s_1080x1920\nDD-AIV-202-004_SettAI_HalloweenFireTrial_DD-VEO-059-001_EN_30s_1920x1080",
-      "folderUrl": "https://drive.google.com/drive/folders/1FoSMDTF2vBhyUUtHHQBttNULo1bs-CYU",
-      "docUrl": "https://docs.google.com/document/d/1dqLPaUmZ0CJjtx7JOvN7DfKRN79R9bV1zlVN2-z6tPI/edit",
+      "brief": "Please combine:\n\n1. DD-VEO-059-001_GravePumpkin + DD-AIV-HalloweenFireTrial\n2. Length = 30s\n3. Trim the last 8 seconds of the video\n4. Add a motion transition between the hook and the video\n\nWorking folder\nhttps://drive.google.com/drive/folders/1sLKC5XB9SsrNa1RACyz3g7yJ5nEmplJO\n\nThanks\n\nNaming:\nDD-AIV-202-004_SettAI_HalloweenFireTrial_DD-VEO-059-001_EN_30s_1080x1080\nDD-AIV-202-004_SettAI_HalloweenFireTrial_DD-VEO-059-001_EN_30s_1080x1350\nDD-AIV-202-004_SettAI_HalloweenFireTrial_DD-VEO-059-001_EN_30s_1080x1920\nDD-AIV-202-004_SettAI_HalloweenFireTrial_DD-VEO-059-001_EN_30s_1920x1080",
+      "folderUrl": "https://drive.google.com/drive/folders/1sLKC5XB9SsrNa1RACyz3g7yJ5nEmplJO",
+      "docUrl": "https://docs.google.com/document/d/1GW235f-1PlWduVfBbR-5T3gOta8qGyWWZhgypK43MFE/edit",
       "resultUrl": "https://drive.google.com/drive/folders/1FoSMDTF2vBhyUUtHHQBttNULo1bs-CYU",
       "source": "monday+email",
       "activity": [
@@ -83,7 +137,7 @@
         },
         {
           "at": "2026-10-07T09:20:00Z",
-          "text": "Настя pasted the result"
+          "text": "Designer pasted the result"
         }
       ],
       "month": "2026-10"
@@ -100,9 +154,9 @@
       "studioStatus": "done",
       "mondayStatus": "WIP",
       "assigneeId": "teamlead",
-      "brief": "Hi,\n\nPlease combine\n\n1. DD-VEO-059-001_GravePumpkin + DD-AIV-HalloweenDiamondBlast\n2. Length = 30s\n3. Trim last ±8 seconds of video\n4. Add a motion transition between the hook and the video\n\nThanks\n\nNaming:\n1080x1080 / 1080x1350 / 1080x1920 / 1920x1080",
-      "folderUrl": "https://drive.google.com/drive/folders/1aJX-A7np2alJOHLkTmav6gG9Gj8t5NsW",
-      "docUrl": "https://docs.google.com/document/d/1rs2waEdxsf2xKKWwn643oAnOLty72o9kElL7vRwRPNs/edit",
+      "brief": "Hi,\n\nPlease combine\n\n1. DD-VEO-059-001_GravePumpkin + DD-AIV-HalloweenDiamondBlast\n2. Length = 30s\n3. Trim last ±8 seconds of video\n4. Add a motion transition between the hook and the video\n\nThanks\n\nWorking folder\nhttps://drive.google.com/drive/folders/18pMlpl0eZLuxjtoETGBK-OZPrjQubSCk\n\nNaming:\nDD-AIV-239-002_SettAI_HalloweenDiamondBlast_DD-VEO-059-001_EN_30s_1080x1080\nDD-AIV-239-002_SettAI_HalloweenDiamondBlast_DD-VEO-059-001_EN_30s_1080x1350\nDD-AIV-239-002_SettAI_HalloweenDiamondBlast_DD-VEO-059-001_EN_30s_1080x1920\nDD-AIV-239-002_SettAI_HalloweenDiamondBlast_DD-VEO-059-001_EN_30s_1920x1080",
+      "folderUrl": "https://drive.google.com/drive/folders/18pMlpl0eZLuxjtoETGBK-OZPrjQubSCk",
+      "docUrl": "https://docs.google.com/document/d/1KkKLaZ0Kf2F-0rsC09zGoJockJ9p3rym1zOLtUwtUc8/edit",
       "resultUrl": "https://drive.google.com/drive/folders/1aJX-A7np2alJOHLkTmav6gG9Gj8t5NsW",
       "source": "monday+email",
       "activity": [
@@ -116,7 +170,7 @@
         },
         {
           "at": "2026-10-07T10:05:00Z",
-          "text": "Настя pasted the result — ready to send"
+          "text": "Designer pasted the result — ready to send"
         }
       ],
       "month": "2026-10"
@@ -133,9 +187,9 @@
       "studioStatus": "wip",
       "mondayStatus": "WIP",
       "assigneeId": "designer2",
-      "brief": "Hi,\n\nPlease take this video\ndownload - 2026-09-07T123147.705.mp4\nCut on 05:17s (don't show the peon's face) and fill the screen with coins (raining coins as a wiper)\n\nThanks\n\nNaming:\nDD-AIV-224-002_SettAI_HalloweenMario_DD-VEO-059-001_EN_30s_1920x1080\nDD-AIV-224-002_SettAI_HalloweenMario_DD-VEO-059-001_EN_30s_1080x1920\nDD-AIV-224-002_SettAI_HalloweenMario_DD-VEO-059-001_EN_30s_1080x1350\nDD-AIV-224-002_SettAI_HalloweenMario_DD-VEO-059-001_EN_30s_1080x1080",
-      "folderUrl": "",
-      "docUrl": "",
+      "brief": "Please combine:\n\n1. DD-VEO-059-001_GravePumpkin + DD-AIV-HalloweenMario\n2. Length = 30s\n3. Trim first ±8 seconds of video\n4. Add a motion transition between the hook and the video\n\nThanks\n\nWorking folder\nhttps://drive.google.com/drive/folders/1HdB-e1XMARbnvLO28er_PJDOz0zSXEQC\n\nNaming:\nDD-AIV-224-002_SettAI_HalloweenMario_DD-VEO-059-001_EN_30s_1080x1080\nDD-AIV-224-002_SettAI_HalloweenMario_DD-VEO-059-001_EN_30s_1080x1350\nDD-AIV-224-002_SettAI_HalloweenMario_DD-VEO-059-001_EN_30s_1080x1920\nDD-AIV-224-002_SettAI_HalloweenMario_DD-VEO-059-001_EN_30s_1920x1080",
+      "folderUrl": "https://drive.google.com/drive/folders/1HdB-e1XMARbnvLO28er_PJDOz0zSXEQC",
+      "docUrl": "https://docs.google.com/document/d/1cPl7H3wSEuCkL3X-U-Wxb0HVtvHElsrV8hzPwuhMkeI/edit",
       "resultUrl": "",
       "source": "monday+email",
       "activity": [
@@ -145,14 +199,14 @@
         },
         {
           "at": "2026-10-07T08:40:00Z",
-          "text": "Настя assigned Маша"
+          "text": "Team lead assigned Designer 2"
         }
       ],
       "month": "2026-10"
     },
     {
       "id": "t-dd-231-002",
-      "name": "DD-AIV-231-002_SettAI_SpookyJackpot_DD-VEO-059-001_EN_30s",
+      "name": "DD-AIV-231-002_SettAI_SpookyJackpot_DD-VEO-059-001_EN_60s",
       "line": "DD",
       "department": "MGX",
       "game": "SettAI",
@@ -162,9 +216,9 @@
       "studioStatus": "wip",
       "mondayStatus": "Ready to Start",
       "assigneeId": "designer3",
-      "brief": "Spooky Jackpot + DD-VEO-059-001 hook. 30s. Motion transition after hook.",
-      "folderUrl": "",
-      "docUrl": "",
+      "brief": "Please combine:\n\n1. DD-VEO-059-001_GravePumpkin + DD-AIV-SpookyJackpot\n2. Length = 60s\n3. Trim the first 9s of the video\n4. Add a motion transition between the hook and the video\n\nThanks\n\nWorking folder\nhttps://drive.google.com/drive/folders/1-wZSAsNW-NfxKG9SYlNbaFjO8uYh1hA4\n\nNaming:\nDD-AIV-231-002_SettAI_SpookyJackpot_DD-VEO-059-001_EN_60s_1080x1080\nDD-AIV-231-002_SettAI_SpookyJackpot_DD-VEO-059-001_EN_60s_1080x1350\nDD-AIV-231-002_SettAI_SpookyJackpot_DD-VEO-059-001_EN_60s_1080x1920\nDD-AIV-231-002_SettAI_SpookyJackpot_DD-VEO-059-001_EN_60s_1920x1080",
+      "folderUrl": "https://drive.google.com/drive/folders/1-wZSAsNW-NfxKG9SYlNbaFjO8uYh1hA4",
+      "docUrl": "https://docs.google.com/document/d/1jjuiHO7Y6xvQiGyUIcOST4Boyrnljt5xTc7nQGPRsz4/edit",
       "resultUrl": "",
       "source": "monday+email",
       "activity": [
@@ -187,9 +241,9 @@
       "studioStatus": "new",
       "mondayStatus": "Ready to Start",
       "assigneeId": "",
-      "brief": "Halloween Blast Treasure 30s + DD-VEO-059-001. Four sizes.",
-      "folderUrl": "",
-      "docUrl": "",
+      "brief": "Please combine\n\n1. DD-VEO-059-001_GravePumpkin + DD-AIV-Halloween Blast Treasure 30s\n2. Length = 30s\n3. Trim the first 9 seconds of the video\n4. Add a motion transition between the hook and the video\n\nThanks\n\nWorking Folder\nhttps://drive.google.com/drive/folders/1SwIt7qtsVbyyz60XOaVgRtSGx8AYJbV2\n\nNaming:\nDD-AIV-228-002_SettAI_HalloweenBlastTreasure_DD-VEO-059-001_EN_30s_1080x1080\nDD-AIV-228-002_SettAI_HalloweenBlastTreasure_DD-VEO-059-001_EN_30s_1080x1350\nDD-AIV-228-002_SettAI_HalloweenBlastTreasure_DD-VEO-059-001_EN_30s_1080x1920\nDD-AIV-228-002_SettAI_HalloweenBlastTreasure_DD-VEO-059-001_EN_30s_1920x1080",
+      "folderUrl": "https://drive.google.com/drive/folders/1SwIt7qtsVbyyz60XOaVgRtSGx8AYJbV2",
+      "docUrl": "https://docs.google.com/document/d/1ByB8z8es79ufM7GrWcER2WvCPCucwkPwfPCK3MgAT3E/edit",
       "resultUrl": "",
       "source": "monday+email",
       "activity": [
@@ -212,9 +266,9 @@
       "studioStatus": "new",
       "mondayStatus": "Ready to Start",
       "assigneeId": "",
-      "brief": "Halloween Trap 30s. Hook DD-VEO-059-001. Trim if needed.",
-      "folderUrl": "",
-      "docUrl": "",
+      "brief": "Please combine:\n\n1. DD-VEO-059-001_GravePumpkin + DD-AIV-HalloweenTrap\n2. Length = 30s\n3. Trim the end of the video to reach a total of 30 seconds\n4. Add a motion transition between the hook and the video\n\nThanks\n\nWorking folder\nhttps://drive.google.com/drive/folders/1dW3y_OUvasOSf8mBfeOde0ZAh9fyIKu_\n\nNaming:\nDD-AIV-225-002_SettAI_HalloweenTrap_DD-VEO-059-001_EN_30s_1080x1080\nDD-AIV-225-002_SettAI_HalloweenTrap_DD-VEO-059-001_EN_30s_1080x1350\nDD-AIV-225-002_SettAI_HalloweenTrap_DD-VEO-059-001_EN_30s_1080x1920\nDD-AIV-225-002_SettAI_HalloweenTrap_DD-VEO-059-001_EN_30s_1920x1080",
+      "folderUrl": "https://drive.google.com/drive/folders/1dW3y_OUvasOSf8mBfeOde0ZAh9fyIKu_",
+      "docUrl": "https://docs.google.com/document/d/1PJ5QwPsseC8R7kT70iepso-G31XKOl81L0xGzNEQyN8/edit",
       "resultUrl": "",
       "source": "monday+email",
       "activity": [
@@ -237,9 +291,9 @@
       "studioStatus": "new",
       "mondayStatus": "Ready to Start",
       "assigneeId": "",
-      "brief": "Halloween Monopoly 30s + GravePumpkin hook.",
-      "folderUrl": "",
-      "docUrl": "",
+      "brief": "Please combine:\n\n1. DD-VEO-059-001_GravePumpkin + DD-AIV-HalloweenMonopoly\n2. Length = 30s\n3. Don't trim anything\n4. Add a motion transition between the hook and the video\n\nThanks\n\nWorking folder\nhttps://drive.google.com/drive/folders/1fgI2xlNTcKMrP9542rCxNb-p1K0OpDOt\n\nNaming:\nDD-AIV-229-002_SettAI_HalloweenMonopoly_DD-VEO-059-001_EN_30s_1080x1080\nDD-AIV-229-002_SettAI_HalloweenMonopoly_DD-VEO-059-001_EN_30s_1080x1350\nDD-AIV-229-002_SettAI_HalloweenMonopoly_DD-VEO-059-001_EN_30s_1080x1920\nDD-AIV-229-002_SettAI_HalloweenMonopoly_DD-VEO-059-001_EN_30s_1920x1080",
+      "folderUrl": "https://drive.google.com/drive/folders/1fgI2xlNTcKMrP9542rCxNb-p1K0OpDOt",
+      "docUrl": "https://docs.google.com/document/d/1We3cvu10v2KXMxcEPWNmFL1ipcq8KpalrYUtn9BVYt8/edit",
       "resultUrl": "",
       "source": "monday",
       "activity": [
@@ -262,9 +316,9 @@
       "studioStatus": "new",
       "mondayStatus": "Ready to Start",
       "assigneeId": "",
-      "brief": "Blast Treasure short cut. Length 24s.",
-      "folderUrl": "",
-      "docUrl": "",
+      "brief": "Please combine\n\n1. DD-VEO-059-001_GravePumpkin + DD-AIV-HalloweenBlastTreasure 15s\n2. Length = 24s\n3. Connect without trimming\n4. Add a motion transition between the hook and the video\n\nThanks\n\nWorking folder\nhttps://drive.google.com/drive/folders/12ruVe_IxccG7JRmVkKCLuR6U5kRWPfY1\n\nNaming:\nDD-AIV-227-002_SettAI_HalloweenBlastTreasure_DD-VEO-059-001_EN_24s_1080x1080\nDD-AIV-227-002_SettAI_HalloweenBlastTreasure_DD-VEO-059-001_EN_24s_1080x1350\nDD-AIV-227-002_SettAI_HalloweenBlastTreasure_DD-VEO-059-001_EN_24s_1080x1920\nDD-AIV-227-002_SettAI_HalloweenBlastTreasure_DD-VEO-059-001_EN_24s_1920x1080",
+      "folderUrl": "https://drive.google.com/drive/folders/12ruVe_IxccG7JRmVkKCLuR6U5kRWPfY1",
+      "docUrl": "https://docs.google.com/document/d/1UPc-dba8ByjbqAn6mOcirS5_zER4foPxWQ7rgbghRx4/edit",
       "resultUrl": "",
       "source": "monday+email",
       "activity": [
@@ -287,9 +341,9 @@
       "studioStatus": "new",
       "mondayStatus": "Ready to Start",
       "assigneeId": "",
-      "brief": "Kingdom Build 60s. Keep logo placement per MGX tech specs.",
-      "folderUrl": "",
-      "docUrl": "",
+      "brief": "Please combine:\n\n1. DD-VEO-059-001_GravePumpkin + DD-AIV-HalloweenKindomBuild\n2. Length = 60s\n3. Trim first ±8 seconds of video\n4. Add a motion transition between the hook and the video\n\nWorking folder\nhttps://drive.google.com/drive/folders/1YhT8bBrTz3H_rnQiPxI82YZVu4raD7pN\n\nThanks\n\nNaming:\nDD-AIV-233-002_SettAI_HalloweenKindomBuild_DD-VEO-059-001_EN_60s_1080x1080\nDD-AIV-233-002_SettAI_HalloweenKindomBuild_DD-VEO-059-001_EN_60s_1080x1350\nDD-AIV-233-002_SettAI_HalloweenKindomBuild_DD-VEO-059-001_EN_60s_1080x1920\nDD-AIV-233-002_SettAI_HalloweenKindomBuild_DD-VEO-059-001_EN_60s_1920x1080",
+      "folderUrl": "https://drive.google.com/drive/folders/1YhT8bBrTz3H_rnQiPxI82YZVu4raD7pN",
+      "docUrl": "https://docs.google.com/document/d/1CXus4Oiw7R0uNX5d4R3CxvP5S99lQJOKcPN0_ZZj4iQ/edit",
       "resultUrl": "",
       "source": "monday+email",
       "activity": [
@@ -312,9 +366,9 @@
       "studioStatus": "new",
       "mondayStatus": "Ready to Start",
       "assigneeId": "",
-      "brief": "Witch's Potion 30s + DD-VEO-059-001.",
-      "folderUrl": "",
-      "docUrl": "",
+      "brief": "Please combine:\n\n1. DD-VEO-059-001_GravePumpkin + DD-AIV-WitchsPotion\n2. Length = 30s\n3. Trim end ±8s of the video\n4. Add a motion transition between the hook and the video\n\nThanks\n\nWorking folder\nhttps://drive.google.com/drive/folders/1_DbnhESYtGgBHGvud7NaT0vdGFAtefvn\n\nNaming:\nDD-AIV-235-002_SettAI_WitchsPotion_DD-VEO-059-001_EN_30s_1080x1080\nDD-AIV-235-002_SettAI_WitchsPotion_DD-VEO-059-001_EN_30s_1080x1350\nDD-AIV-235-002_SettAI_WitchsPotion_DD-VEO-059-001_EN_30s_1080x1920\nDD-AIV-235-002_SettAI_WitchsPotion_DD-VEO-059-001_EN_30s_1920x1080",
+      "folderUrl": "https://drive.google.com/drive/folders/1_DbnhESYtGgBHGvud7NaT0vdGFAtefvn",
+      "docUrl": "https://docs.google.com/document/d/1yB0LTJa8ys2KgHLcNZg3sfV1EgshZzqOo4IEvYF2vJo/edit",
       "resultUrl": "",
       "source": "monday+email",
       "activity": [
@@ -337,15 +391,15 @@
       "studioStatus": "wip",
       "mondayStatus": "WIP",
       "assigneeId": "teamlead",
-      "brief": "Halloween Save 60s, hook DX-VEO-055-001. Four sizes.",
-      "folderUrl": "",
-      "docUrl": "",
+      "brief": "brief\n\nX-HC-New UA EN HLWN - DX-VEO-055-001_TrickOrSweet + DX-AIV-HalloweenSave\n\n  - Cut video after FAIL at the end\n  - Total = 60s\n\npls work here:\nhttps://drive.google.com/drive/folders/1VM70Hvye1v2Z7pOtT4juuYwnh8ruHlVS\n\nnaming:\nDX-AIV-255-002_SettAI_HalloweenSave_DX-VEO-055-001_EN_60s_1080x1080\nDX-AIV-255-002_SettAI_HalloweenSave_DX-VEO-055-001_EN_60s_1080x1350\nDX-AIV-255-002_SettAI_HalloweenSave_DX-VEO-055-001_EN_60s_1080x1920\nDX-AIV-255-002_SettAI_HalloweenSave_DX-VEO-055-001_EN_60s_1920x1080",
+      "folderUrl": "https://drive.google.com/drive/folders/1VM70Hvye1v2Z7pOtT4juuYwnh8ruHlVS",
+      "docUrl": "https://docs.google.com/document/d/1NuvFcA2eGZDg3EzyoxLeV5mzXZUKLeoagOPbrrInlyU/edit",
       "resultUrl": "",
       "source": "monday",
       "activity": [
         {
           "at": "2026-10-05T11:00:00Z",
-          "text": "Настя assigned herself"
+          "text": "Team lead assigned Designer"
         }
       ],
       "month": "2026-10"
@@ -362,15 +416,15 @@
       "studioStatus": "done",
       "mondayStatus": "WIP",
       "assigneeId": "designer3",
-      "brief": "Halloween Skull 30s. Deliver link to Render folder.",
-      "folderUrl": "",
-      "docUrl": "",
+      "brief": "brief:\n\nDX-HC-New UA EN HLWN - DX-VEO-055-001_TrickOrSweet + DX-AIV-HalloweenSkull\n\n1. cut first 7s of video\n2. total length = 30s\n\nwork here\nhttps://drive.google.com/drive/folders/1kgXzGSMxG-6mJUGWi_sK3CSUFDpTTeMx\n\nnaming\nDX-AIV-215-002_SettAI_HalloweenSkull_DX-VEO-055-001_EN_30s_1080x1080\nDX-AIV-215-002_SettAI_HalloweenSkull_DX-VEO-055-001_EN_30s_1080x1350\nDX-AIV-215-002_SettAI_HalloweenSkull_DX-VEO-055-001_EN_30s_1080x1920\nDX-AIV-215-002_SettAI_HalloweenSkull_DX-VEO-055-001_EN_30s_1920x1080",
+      "folderUrl": "https://drive.google.com/drive/folders/1kgXzGSMxG-6mJUGWi_sK3CSUFDpTTeMx",
+      "docUrl": "https://docs.google.com/document/d/1sePr7bA54TXm43HxXy5oKCRboMA1A56pw5-1W2PqAVI/edit",
       "resultUrl": "https://drive.google.com/drive/folders/1ulNcDzMwA73xa4Nx9OPY2xtnwNUkUhZr",
       "source": "monday+email",
       "activity": [
         {
           "at": "2026-10-06T19:40:00Z",
-          "text": "Сергій pasted the result"
+          "text": "Designer 3 pasted the result"
         }
       ],
       "month": "2026-10"
@@ -387,9 +441,9 @@
       "studioStatus": "revision",
       "mondayStatus": "WIP",
       "assigneeId": "",
-      "brief": "Halloween Relax 30s. Visible in External Weekly WIP.",
-      "folderUrl": "",
-      "docUrl": "",
+      "brief": "brief:\n\nDX-HC-New UA EN HLWN - DX-VEO-055-001_TrickOrSweet + DX-AIV-HalloweenRelax\n\n1. Cut first 6s off video\n2. Total - 30s\n\npls work\nhttps://drive.google.com/drive/folders/1v5Yuazic-96C4yxvWzHszuxTHgCBYhYp\n\nnaming\nDX-AIV-222-003_SettAI_HalloweenRelax_DX-VEO-055-001_EN_30s_1080x1080\nDX-AIV-222-003_SettAI_HalloweenRelax_DX-VEO-055-001_EN_30s_1080x1350\nDX-AIV-222-003_SettAI_HalloweenRelax_DX-VEO-055-001_EN_30s_1080x1920\nDX-AIV-222-003_SettAI_HalloweenRelax_DX-VEO-055-001_EN_30s_1920x1080",
+      "folderUrl": "https://drive.google.com/drive/folders/1v5Yuazic-96C4yxvWzHszuxTHgCBYhYp",
+      "docUrl": "https://docs.google.com/document/d/1wIJN1-csBKuwtGkksDiDO63wYyrHG2Ok-ecI9-a9MQo/edit",
       "resultUrl": "",
       "source": "monday",
       "activity": [
@@ -412,15 +466,15 @@
       "studioStatus": "approve",
       "mondayStatus": "Senior Approval",
       "assigneeId": "designer2",
-      "brief": "Spirals 60s. Already sent to client for check.",
-      "folderUrl": "",
-      "docUrl": "",
+      "brief": "brief\n\nDX-HC-New UA EN HLWN - DX-VEO-055-001_TrickOrSweet + DX-AIV-Halloween_Spirals | Concept\n1. Remove endcard in order to add the hook\n2. length - 60s total\n\nhttps://drive.google.com/drive/folders/1_urZjArM8X07A_ZljzUGUlfUiMTyse31\n\nnaming\nDX-AIV-231-002_SettAI_Halloween_Spirals_DX-VEO-055-001_EN_60s_1080x1080\nDX-AIV-231-002_SettAI_Halloween_Spirals_DX-VEO-055-001_EN_60s_1080x1350\nDX-AIV-231-002_SettAI_Halloween_Spirals_DX-VEO-055-001_EN_60s_1080x1920\nDX-AIV-231-002_SettAI_Halloween_Spirals_DX-VEO-055-001_EN_60s_1920x1080",
+      "folderUrl": "https://drive.google.com/drive/folders/1_urZjArM8X07A_ZljzUGUlfUiMTyse31",
+      "docUrl": "https://docs.google.com/document/d/10sroFa2Gp3-vDzQPVrvX9jLBXovmaQZ4o48sHCFF6pw/edit",
       "resultUrl": "https://drive.google.com/drive/folders/1ebZZm5szIjdEimc8ojtNxIfBMYfhAYn8",
       "source": "monday+email",
       "activity": [
         {
           "at": "2026-10-05T17:16:00Z",
-          "text": "Маша pasted the result"
+          "text": "Designer 2 pasted the result"
         },
         {
           "at": "2026-10-06T11:00:00Z",
