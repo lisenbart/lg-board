@@ -8,14 +8,20 @@ const STATUS = {
 
 const ROLE_LABEL = {
   finance: "Finance",
-  manager: "Manager",
-  teamlead: "Team lead",
-  designer: "Designer",
+  manager: "Line Producer",
+  teamlead: "Team Lead",
+  designer: "Motion design",
+};
+const JOB_BADGE = {
+  finance: { code: "FN", title: "Finance" },
+  manager: { code: "LP", title: "Line Producer" },
+  teamlead: { code: "TL", title: "Team Lead" },
+  designer: { code: "MD", title: "Motion design" },
 };
 const TEAM_JOBS = [
-  { id: "designer", label: "Designer" },
-  { id: "teamlead", label: "Team lead" },
-  { id: "manager", label: "Manager" },
+  { id: "designer", label: "Motion design" },
+  { id: "teamlead", label: "Team Lead" },
+  { id: "manager", label: "Line Producer" },
   { id: "finance", label: "Finance" },
 ];
 
@@ -68,6 +74,9 @@ const state = {
   nbu: null,
   invoiceFolder: null,
   excelMonth: null,
+  finApi: null,
+  finApiMonth: null,
+  finApiLoading: null,
 };
 const $ = (id) => document.getElementById(id);
 
@@ -132,8 +141,8 @@ function showLogin(accountEmail) {
         .map(
           (p) =>
             `<button type="button" class="login-seat" data-seat="${p.id}">
-              <strong>${escapeHtml(p.name)}</strong>
-              <span>${escapeHtml(ROLE_LABEL[p.role] || p.role)}</span>
+              <strong>${escapeHtml(p.name)} ${jobBadgeHtml(p)}</strong>
+              <span>${escapeHtml(jobMeta(p).title)}</span>
             </button>`
         )
         .join("");
@@ -496,8 +505,8 @@ function renderWho() {
       .map(
         (p) =>
           `<option value="${p.id}" ${p.id === state.roleId ? "selected" : ""}>${escapeHtml(p.name)} · ${
-            ROLE_LABEL[p.role] || p.role
-          }</option>`
+            jobMeta(p).code
+          } ${jobMeta(p).title}</option>`
       )
       .join("");
     return;
@@ -517,8 +526,8 @@ function renderWho() {
     .map(
       (p) =>
         `<option value="${p.id}" ${p.id === state.roleId ? "selected" : ""}>${escapeHtml(p.name)} · ${
-          ROLE_LABEL[p.role] || p.role
-        }</option>`
+          jobMeta(p).code
+        } ${jobMeta(p).title}</option>`
     )
     .join("");
 }
@@ -554,7 +563,7 @@ function renderChrome() {
           ? "Your work plus every designer. Assign people. Ready to Start, WIP, Need Fixing, Done — not Senior Approval."
           : canOps() && !isFinance()
             ? "Full pipeline except Finance. Pull from Monday, assign, send Done work as Senior Approval."
-            : "Same hours as SP_MGX_check. Client invoices from the Word template. Employeers from the MGX calculator + NBU.";
+            : "Same hours as SP_MGX_check. Client invoices, Studio take (tax then EMPL), Employeers from the MGX calculator + NBU.";
   $("sideFoot").innerHTML = isFinance()
     ? "Drive sandbox: _PORTAL_TEST<br>Live October Projects stay untouched."
     : isDesigner()
@@ -597,7 +606,7 @@ function renderToolbar() {
   if (state.view === "close") {
     const fin = financeSnapshot();
     const drive = state.db?.meta?.driveCalculator || "";
-    if (state.finTab === "employees") {
+    if (state.finTab === "employees" || state.finTab === "studio") {
       $("toolbar").innerHTML = `
         <button class="btn" id="btnCalcSave">Write into calculator</button>
         <a class="btn" href="/api/finance/calculator">Download calculator</a>
@@ -679,10 +688,17 @@ function renderKpis() {
 function initials(name) {
   return (name || "?").slice(0, 1);
 }
+function jobMeta(p) {
+  return JOB_BADGE[p?.role] || { code: "?", title: ROLE_LABEL[p?.role] || p?.role || "" };
+}
+function jobBadgeHtml(p) {
+  const b = jobMeta(p);
+  return `<span class="job-badge job-${escapeHtml(b.code.toLowerCase())}" title="${escapeHtml(b.title)}">${escapeHtml(b.code)}</span>`;
+}
 function personCell(id) {
   const p = person(id);
   if (!p) return `<span class="empty">unassigned</span>`;
-  return `<span class="person"><span class="avatar" style="background:${p.color}">${initials(p.name)}</span>${escapeHtml(p.name)}</span>`;
+  return `<span class="person"><span class="avatar" style="background:${p.color}">${initials(displayName(p))}</span>${escapeHtml(displayName(p))}${jobBadgeHtml(p)}</span>`;
 }
 function timeCell(t) {
   const hours = t.hours || hoursFromShifts(t.shifts || 0);
@@ -1109,6 +1125,82 @@ function ensureExcelHours() {
   });
 }
 
+function financeFromApi(snap) {
+  const fx = Number(snap.nbu?.rate) || nbuRate();
+  const payroll = (snap.payroll || []).map((row) => {
+    const p = person(row.id) || {
+      id: row.id,
+      name: row.name,
+      role: row.role,
+      legalName: row.legalName,
+      jobTitle: row.jobTitle,
+      bankCard: row.bankCard,
+      iban: row.iban,
+      payOrder: row.payOrder,
+      rateUsd: row.rate,
+    };
+    return {
+      person: p,
+      projects: row.projects,
+      shifts: row.shifts,
+      hours: row.hours,
+      allHours: row.allHours,
+      rate: row.rate,
+      payUsd: row.payUsd,
+      payUah: row.payUah,
+    };
+  });
+  const un = snap.unassigned || {};
+  return {
+    month: monthLabel(snap.month || state.month),
+    ym: snap.month || state.month,
+    tasks: { length: snap.projects || 0 },
+    totalHours: snap.hours,
+    totalShifts: snap.shifts,
+    byLine: snap.byLine || [],
+    payroll,
+    unassignedHours: un.hours || 0,
+    unassignedShifts: un.shifts || 0,
+    unassignedProjects: un.projects || 0,
+    clientIn: snap.clientIn,
+    afterTax: snap.afterTax,
+    empl: snap.empl,
+    studio: snap.studio,
+    clientInUah: snap.clientInUah,
+    afterTaxUah: snap.afterTaxUah,
+    emplUah: snap.emplUah,
+    studioUah: snap.studioUah,
+    fx,
+    tax: snap.taxPct,
+    clientRate: snap.clientRate,
+    hoursSource: snap.hoursSource,
+    nbu: snap.nbu,
+  };
+}
+
+function ensureFinanceSnapshot() {
+  if (state.finApiMonth === state.month && state.finApi) return;
+  if (state.finApiLoading === state.month) return;
+  state.finApiLoading = state.month;
+  fetch(`/api/finance/snapshot?month=${encodeURIComponent(state.month)}`)
+    .then((r) => r.json())
+    .then((snap) => {
+      state.finApiLoading = null;
+      if (snap.error) {
+        state.finApiMonth = null;
+        toast(snap.error);
+        return;
+      }
+      state.finApi = snap;
+      state.finApiMonth = state.month;
+      if (state.view === "close") render();
+    })
+    .catch(() => {
+      state.finApiLoading = null;
+      state.finApiMonth = null;
+    });
+}
+
 function renderClose() {
   if (!isFinance()) {
     state.view = "board";
@@ -1117,20 +1209,23 @@ function renderClose() {
   }
   ensureNbu();
   ensureExcelHours();
-  const fin = financeSnapshot();
+  ensureFinanceSnapshot();
+  const fin =
+    state.finApi && state.finApiMonth === state.month ? financeFromApi(state.finApi) : financeSnapshot();
   const tabs = [
     { id: "client", label: "Client" },
+    { id: "studio", label: "Studio" },
     { id: "employees", label: "Employeers" },
   ];
+  const pane =
+    state.finTab === "employees" ? renderEmployees(fin) : state.finTab === "studio" ? renderStudio(fin) : renderClient(fin);
   const tabBar = `<div class="fin-tabs">${tabs
     .map(
       (t) =>
         `<button type="button" class="fin-tab ${state.finTab === t.id ? "active" : ""}" data-tab="${t.id}">${t.label}</button>`
     )
     .join("")}</div>`;
-  $("board").innerHTML = `<section class="fin">${tabBar}${
-    state.finTab === "employees" ? renderEmployees(fin) : renderClient(fin)
-  }</section>`;
+  $("board").innerHTML = `<section class="fin">${tabBar}${pane}</section>`;
   $("board").querySelectorAll(".fin-tab").forEach((el) => {
     el.addEventListener("click", () => {
       state.finTab = el.dataset.tab;
@@ -1140,6 +1235,7 @@ function renderClose() {
   $("finSaveNbu")?.addEventListener("click", saveNbuRate);
   $("btnCreateInvoices")?.addEventListener("click", createMonthInvoices);
   if (state.finTab === "employees") bindEmployeePay();
+  if (state.finTab === "studio") bindStudioPay();
   $("btnOpenFolder")?.addEventListener("click", openInvoiceFolder);
   $("board").querySelectorAll(".fin-copy").forEach((btn) => {
     btn.addEventListener("click", async (e) => {
@@ -1181,7 +1277,7 @@ function renderClient(fin) {
       <div class="kpi"><b>${fin.tasks.length}</b><span>projects this month</span></div>
       <div class="kpi"><b>${hoursLabel(fin.totalHours)}</b><span>hours × ${usd(fin.clientRate)}/h</span></div>
       <div class="kpi"><b>${usd(fin.clientIn)}</b><span>CLIENT IN</span></div>
-      <div class="kpi"><b>${usd(fin.afterTax)}</b><span>after ${Math.round(fin.tax * 100)}% tax</span></div>
+      <div class="kpi"><b>${usd(fin.studio)}</b><span>Studio take · see Studio</span></div>
     </div>
     <section class="group fin-card">
       <h3>By direction</h3>
@@ -1200,6 +1296,72 @@ function renderClient(fin) {
         </div>
       </div>
     </section>`;
+}
+
+function renderStudio(fin) {
+  const taxPct = Math.round(fin.tax * 100);
+  if (!fin.tasks.length) {
+    return `<div class="fin-head">
+      <div>
+        <h2>Studio · ${escapeHtml(fin.month)}</h2>
+        <p>Same block as the calculator, bottom-right of the month sheet. Hours come from <code>SP_MGX_check</code>.</p>
+      </div>
+    </div>
+    <div class="fin-empty">No hours in ${escapeHtml(fin.month)} — nothing to split yet.</div>`;
+  }
+  const rows = [
+    { key: "clientIn", label: "CLIENT IN", usd: fin.clientIn, note: `${hoursLabel(fin.totalHours)} × ${usd(fin.clientRate)}` },
+    { key: "afterTax", label: "STUDIO (TAX)", usd: fin.afterTax, note: `CLIENT IN − ${taxPct}%` },
+    { key: "empl", label: "EMPL", usd: fin.empl, note: "LP $5 on all hours · TL/MD $15 on assigned" },
+    { key: "studio", label: "STUDIO", usd: fin.studio, note: "STUDIO (TAX) − EMPL" },
+  ];
+  const body = rows
+    .map(
+      (row) => `<tr class="${row.key === "studio" ? "fin-studio-row" : ""}">
+        <td><b>${escapeHtml(row.label)}</b><div class="fin-legal">${escapeHtml(row.note)}</div></td>
+        <td class="num" data-uah-amt data-usd-amt="${row.usd}">${uah(row.usd * fin.fx)}</td>
+        <td class="num" data-usd>${usd(row.usd)}</td>
+      </tr>`
+    )
+    .join("");
+  const un = fin.unassignedProjects
+    ? `<p class="fin-unassigned">Unassigned ${hoursLabel(fin.unassignedHours)} still sit in CLIENT IN and therefore in STUDIO, not in EMPL.</p>`
+    : "";
+  return `
+    <div class="fin-kpis">
+      <div class="kpi"><b>${usd(fin.clientIn)}</b><span>CLIENT IN</span></div>
+      <div class="kpi"><b>${usd(fin.afterTax)}</b><span>after ${taxPct}% tax</span></div>
+      <div class="kpi"><b>${usd(fin.empl)}</b><span>EMPL</span></div>
+      <div class="kpi"><b>${usd(fin.studio)}</b><span>STUDIO</span></div>
+    </div>
+    <section class="group fin-card">
+      <div class="fin-rates">
+        <label>NBU USD/UAH <input id="finNbu" type="number" min="0" step="0.01" value="${fin.fx}" /></label>
+        <button type="button" class="btn" id="finSaveNbu">Use this rate</button>
+      </div>
+      <p class="fin-calc-note">Calculator, bottom-right: CLIENT IN → STUDIO (TAX) → EMPL → STUDIO. Hours from <code>${escapeHtml(fin.hoursSource || "SP_MGX_check.xlsx")}</code>, not a second ledger.</p>
+      <div class="fin-scroll">
+        <table class="fin-table">
+          <thead><tr><th></th><th class="num">UAH</th><th class="num">USD</th></tr></thead>
+          <tbody>${body}</tbody>
+        </table>
+      </div>
+      ${un}
+    </section>`;
+}
+
+function bindStudioPay() {
+  $("finNbu")?.addEventListener("input", refreshStudioFx);
+}
+
+function refreshStudioFx() {
+  const root = $("board");
+  if (!root) return;
+  const fx = employeePayFx();
+  root.querySelectorAll("[data-uah-amt]").forEach((el) => {
+    const usdAmt = Number(el.dataset.usdAmt) || 0;
+    el.textContent = uah(usdAmt * fx);
+  });
 }
 
 function payCopy(row) {
@@ -1221,8 +1383,14 @@ function renderEmployees(fin) {
             <button type="button" class="btn ghost fin-copy" data-copy="${escapeHtml(copy.value)}">Copy ${copy.kind}</button>
           </div>`
         : `<span class="empty">—</span>`;
+      const legal = String(row.person.legalName || "").trim();
+      const title = jobMeta(row.person).title;
+      const who = `<div class="fin-who">
+            ${personCell(row.person.id)}
+            <div class="fin-legal">${escapeHtml(title)}${legal ? ` · ${escapeHtml(legal)}` : ""}</div>
+          </div>`;
       return `<tr class="fin-pay-row" data-hours="${row.hours}" data-fallback="${fallback}" data-all-hours="${row.allHours ? "1" : "0"}">
-        <td>${personCell(row.person.id)}</td>
+        <td>${who}</td>
         <td class="num">${hoursLabel(row.hours)}</td>
         <td class="num"><input class="fin-person-rate" data-id="${row.person.id}" type="number" min="0" step="0.5" value="${row.rate}" /></td>
         <td class="num" data-usd>${usd(row.payUsd)}</td>
@@ -1468,7 +1636,7 @@ function renderTeam() {
       (p) => `
       <div class="team-row" data-id="${p.id}">
         <span class="person"><span class="avatar" style="background:${p.color}">${initials(displayName(p))}</span>${escapeHtml(displayName(p))}</span>
-        <span class="role-tag">${escapeHtml(ROLE_LABEL[p.role] || p.role)}</span>
+        <span class="job-mark">${jobBadgeHtml(p)}<span class="job-title">${escapeHtml(jobMeta(p).title)}</span></span>
         <input class="team-name" value="${escapeHtml(displayName(p))}" placeholder="Real name" />
         <button class="btn primary team-save" type="button">Save</button>
         <button class="btn ghost team-del" type="button">Delete</button>
@@ -1478,7 +1646,7 @@ function renderTeam() {
   $("board").innerHTML = `
     <section class="group" style="padding:18px">
       <h2 style="margin:0 0 8px">Team names</h2>
-      <p style="color:#676879">Finance only. Role (посада) never changes — only the display name. Hours stay on that person, not on the letters of the name, so a rename does not create a second Excel column. Add a designer or team lead → new EMPL column. Remove someone → the old column stays empty so neighbouring hours do not shift.</p>
+      <p style="color:#676879">Finance only. Посада never changes — LP Line Producer, TL Team Lead, MD Motion design. Only the display name can change. Hours stay on that person, not on the letters of the name. Add a person → new EMPL column. Remove someone → the old column stays empty so neighbouring hours do not shift.</p>
       ${rows}
       <div class="team-add">
         <select id="addJob">${TEAM_JOBS.map((j) => `<option value="${j.id}">${j.label}</option>`).join("")}</select>
@@ -1567,7 +1735,7 @@ function openDeletePerson(id) {
       `<option value="" disabled selected>Choose…</option>` +
       `<option value="__none__">Leave unassigned</option>` +
       others
-        .map((x) => `<option value="${x.id}">${escapeHtml(displayName(x))} · ${ROLE_LABEL[x.role] || x.role}</option>`)
+        .map((x) => `<option value="${x.id}">${escapeHtml(displayName(x))} · ${jobMeta(x).code} ${escapeHtml(jobMeta(x).title)}</option>`)
         .join("");
     $("delConfirm").disabled = true;
   } else {
@@ -1782,6 +1950,9 @@ async function resetDemo() {
 }
 function applyState(db) {
   state.db = db;
+  state.finApi = null;
+  state.finApiMonth = null;
+  state.finApiLoading = null;
   state.selected = new Set([...state.selected].filter((id) => db.tasks.some((t) => t.id === id)));
   render();
 }

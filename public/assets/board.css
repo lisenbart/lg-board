@@ -392,6 +392,23 @@ body.col-resizing * { cursor: col-resize !important; }
   color: #fff; font-size: 10px; font-weight: 500; margin-right: 6px;
 }
 .person { display: inline-flex; align-items: center; font-weight: 400; font-size: 13px; }
+.job-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  margin-left: 6px; min-width: 22px; padding: 1px 6px;
+  border-radius: 4px; font-size: 10px; font-weight: 600; letter-spacing: 0.04em;
+  line-height: 1.4; flex-shrink: 0;
+}
+.job-lp { background: #f3e8ff; color: #6b21a8; }
+.job-tl { background: #e0f2fe; color: #0369a1; }
+.job-md { background: #ecfccb; color: #3f6212; }
+.job-fn { background: #e0e7ff; color: #3730a3; }
+.job-mark { display: inline-flex; align-items: center; gap: 6px; }
+.job-title { font-size: 12px; color: var(--muted); }
+.fin-who { display: flex; flex-direction: column; gap: 2px; }
+.fin-legal { font-size: 11px; color: var(--muted); font-weight: 400; }
+.fin-calc-note { margin: 0 0 12px; font-size: 13px; color: var(--muted); }
+.fin-unassigned { margin: 10px 0 0; font-size: 12px; color: #b54708; }
+.fin-studio-row td { background: #f3faf6; font-weight: 500; }
 .linkish { color: var(--blue); font-size: 13px; font-weight: 400; }
 .empty { color: #c5c7d0; font-weight: 400; }
 .muted { color: var(--muted); }
@@ -430,7 +447,7 @@ body.col-resizing * { cursor: col-resize !important; }
 .field { margin: 12px 0; }
 .team-row {
   display: grid;
-  grid-template-columns: 180px 120px minmax(160px, 1fr) auto auto;
+  grid-template-columns: minmax(140px, 180px) minmax(150px, 200px) minmax(160px, 1fr) auto auto;
   gap: 10px;
   align-items: center;
   padding: 8px 0;

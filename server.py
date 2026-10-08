@@ -81,9 +81,9 @@ def next_pay_order(db: dict) -> int:
 
 
 JOB_TITLES = {
-    "designer": "дизайнер",
-    "teamlead": "тімлід",
-    "manager": "менеджер",
+    "designer": "Motion design",
+    "teamlead": "Team Lead",
+    "manager": "Line Producer",
 }
 
 

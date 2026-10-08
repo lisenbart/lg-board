@@ -317,7 +317,7 @@
       }[job];
       const count = db.people.filter((p) => p.role === job).length;
       const payOrder = Math.max(0, ...db.people.map((p) => Number(p.payOrder) || 0)) + 1;
-      const titles = { designer: "дизайнер", teamlead: "тімлід", manager: "менеджер" };
+      const titles = { designer: "Motion design", teamlead: "Team Lead", manager: "Line Producer" };
       const person = {
         id: pid,
         name: n === 1 ? labels[job] : `${labels[job]} ${n}`,
