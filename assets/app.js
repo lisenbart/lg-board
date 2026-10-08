@@ -1022,9 +1022,8 @@ function renderExcelSheet() {
         return `<td class="${mine ? "xl-fill" : ""}" ${style}>${h}</td>`;
       })
       .join("");
-    const mark = statusMark(t);
+    const mark = excelStatus(t);
     return `<tr class="xl-row" data-id="${t.id}">
-      <td class="xl-gutter line-${t.line}"></td>
       <td class="xl-st st-${mark.cls}" title="${escapeHtml(mark.title)}">${escapeHtml(mark.label)}</td>
       <td class="xl-name" title="${escapeHtml(t.name)}">${escapeHtml(t.name)}</td>
       <td class="xl-num">${t.shifts ?? ""}</td>
@@ -1039,7 +1038,7 @@ function renderExcelSheet() {
     const empl = people.map((_, i) => `<th>EMPL ${i + 1}</th>`).join("");
     return `<tbody>
       <tr class="xl-sec">
-        <th>${line}</th><th></th><th>MGX</th><th>SHIFTS</th><th>HOURS</th><th>DEADLINE</th>${empl}
+        <th class="xl-line">${line}</th><th>MGX</th><th>SHIFTS</th><th>HOURS</th><th>DEADLINE</th>${empl}
       </tr>
       ${rows.map(rowHtml).join("")}
     </tbody>`;
@@ -1053,7 +1052,6 @@ function renderExcelSheet() {
         <table class="xl-table">
           <thead>
             <tr>
-              <th></th>
               <th class="xl-st-h"></th>
               <th class="xl-proj-h">${state.month.slice(0, 4)} PROJECT NAME</th>
               <th></th><th></th><th></th>
@@ -1065,7 +1063,6 @@ function renderExcelSheet() {
           ${tasks.some((t) => t.line === "DS") ? section("DS") : ""}
           <tfoot>
             <tr>
-              <td></td>
               <td></td>
               <td>total</td>
               <td class="xl-num"><b>${fmtHours(allShifts)}</b></td>
@@ -1301,8 +1298,20 @@ function statusMark(t) {
       wip: { cls: "wip", label: "WIP", title },
       revision: { cls: "fix", label: "Fix", title },
       done: { cls: "done", label: "Done", title },
-      approve: { cls: "sent", label: "Sent", title },
+      approve: { cls: "appr", label: "Appr.", title },
     }[key] || { cls: "ready", label: "Ready", title: STATUS.new.label }
+  );
+}
+function excelStatus(t) {
+  const key = t.studioStatus || "new";
+  return (
+    {
+      new: { cls: "ready", label: "Ready", title: "Ready to Start" },
+      wip: { cls: "wip", label: "WIP", title: "WIP" },
+      revision: { cls: "fix", label: "Fix", title: "Need Fixing" },
+      done: { cls: "done", label: "Done", title: "Done" },
+      approve: { cls: "appr", label: "Appr.", title: "Senior Approval" },
+    }[key] || { cls: "ready", label: "Ready", title: "Ready to Start" }
   );
 }
 function statusChip(t) {
