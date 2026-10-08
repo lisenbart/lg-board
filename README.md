@@ -19,12 +19,13 @@ Three mailboxes. No Google password in the sandbox — click the account.
 | `dmytro@lisenbart.games` | Dmytro · Finance | Everything, including money and Team names |
 | `anastasiia@lisenbart.games` | Anastasiia · Manager | Everything except Finance |
 | `lisenbart.games@gmail.com` | Shared Drive mailbox | After login, pick **team lead** or a **designer** |
+| SuperPlay | Client | **Hours** only — tasks, shifts, hours for the month (the sheet invoices are based on). No pipeline, no rates. |
 
 Then:
 
 - **Team lead** — own work plus every designer. Assigns people. No Monday send, no Finance.
 - **Designer** — only their queue, plus a read-only Excel picture of the whole month.
-- **Client** — later, a separate login. Until then, share the GitHub Pages link with the crew for mechanics only.
+- **Client (SuperPlay)** — **Hours**: PROJECT NAME / SHIFTS / HOURS, sections MGX DX and MGX DD, TOTAL. Same list the invoices are based on. No studio queue, no people, no money.
 
 The shared Gmail cannot tell Настя from Марія, so the seat picker after that mailbox is required.
 
@@ -34,7 +35,7 @@ Share **https://lisenbart.github.io/lg-board/** — not the Cursor Preview URL.
 
 That pack is for walking the crew through queues, assign, Excel, and send-to-client. First names and LP / TL / MD badges are on. **Finance** is behind a PIN (Dmytro only on that link) — view Client / Studio / Employeers, no Word/PDF create. Studio sandbox still writes invoices.
 
-Do **not** put this on glowl.direct. Prefer a Lisenbart name. Later: `board.lisenbart.games` with the same three-mailbox login.
+Do **not** put this on glowl.direct. Prefer a Lisenbart name. Later: `board.lisenbart.games` with the same studio mailboxes plus SuperPlay Hours.
 
 Studio money never unlocks on the hosted link. Localhost is the studio sandbox.
 
@@ -77,3 +78,4 @@ Data: `data/db.json` (copied from `data/seed.json` on first start). **Reset demo
 3. **lisenbart.games@gmail.com** → Team lead — assign a designer.
 4. Same mailbox → a designer — own queue, Excel is the month picture.
 5. Back to Anastasiia: pick Done rows → **Send to client**.
+6. **SuperPlay** — Hours report for the month. Switch months with the arrows.

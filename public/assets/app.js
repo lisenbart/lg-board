@@ -12,12 +12,14 @@ const ROLE_LABEL = {
   manager: "Line Producer",
   teamlead: "Team Lead",
   designer: "Motion design",
+  client: "Client",
 };
 const JOB_BADGE = {
   finance: { code: "FN", title: "Finance" },
   manager: { code: "LP", title: "Line Producer" },
   teamlead: { code: "TL", title: "Team Lead" },
   designer: { code: "MD", title: "Motion design" },
+  client: { code: "SP", title: "Client" },
 };
 const TEAM_JOBS = [
   { id: "designer", label: "Motion design" },
@@ -34,6 +36,7 @@ const STATUS_BY_ROLE = {
   teamlead: ["new", "wip", "revision", "done"],
   manager: ["new", "wip", "revision", "done", "closed"],
   finance: ["new", "wip", "revision", "done", "closed"],
+  client: [],
 };
 const LINES = ["DD", "DX", "DS"];
 
@@ -59,6 +62,12 @@ const ACCOUNTS = [
     name: "Designers · Drive",
     blurb: "Team Lead / Motion design",
     lockRole: null,
+  },
+  {
+    email: "superplay@lg-board",
+    name: "SuperPlay",
+    blurb: "Hours report",
+    lockRole: "client",
   },
 ];
 
@@ -206,6 +215,7 @@ function visiblePeople() {
 }
 function whoLabel(p) {
   if (p?.role === "finance") return p.name || "Dmytro Lisenbart";
+  if (p?.role === "client") return p.name || "SuperPlay";
   return `${p.name} · ${jobMeta(p).code} ${jobMeta(p).title}`;
 }
 
@@ -260,6 +270,9 @@ function me() {
 function isFinance() {
   if (isClientPreview() && !financeUnlocked()) return false;
   return me().role === "finance";
+}
+function isClient() {
+  return me().role === "client";
 }
 function isDesigner() {
   return me().role === "designer";
@@ -595,28 +608,34 @@ function roleLine() {
   if (p.role === "teamlead") return `${b.code} ${b.title} · assign people · your own tasks like MD`;
   if (p.role === "manager") return `${b.code} ${b.title} · hours · Send to client after Done`;
   if (p.role === "finance") return `${b.code} ${b.title} · studio money`;
+  if (p.role === "client") return `Hours this month · the list invoices are based on`;
   return "";
 }
 
 function renderChrome() {
   $("financeNav").hidden = !isFinance();
+  if ($("inboxWrap")) $("inboxWrap").hidden = isClient();
   renderMonth();
   $("roleHint").textContent = roleLine();
   $("sideFoot").innerHTML = "";
 
   const tabs = [];
-  tabs.push({
-    id: "board",
-    label: isDesigner() ? "My projects" : isTeamLead() ? "All projects" : "Pipeline",
-  });
-  tabs.push({ id: "excel", label: "Excel" });
-  if (canOps()) tabs.push({ id: "ready", label: "Ready to send" });
-  if (isFinance()) {
-    tabs.push({ id: "close", label: "Finance" });
-    tabs.push({ id: "team", label: "Team" });
+  if (isClient()) {
+    tabs.push({ id: "report", label: "Hours" });
+  } else {
+    tabs.push({
+      id: "board",
+      label: isDesigner() ? "My projects" : isTeamLead() ? "All projects" : "Pipeline",
+    });
+    tabs.push({ id: "excel", label: "Excel" });
+    if (canOps()) tabs.push({ id: "ready", label: "Ready to send" });
+    if (isFinance()) {
+      tabs.push({ id: "close", label: "Finance" });
+      tabs.push({ id: "team", label: "Team" });
+    }
+    tabs.push({ id: "guide", label: "Як це працює" });
   }
-  tabs.push({ id: "guide", label: "Як це працює" });
-  if (!tabs.some((t) => t.id === state.view)) state.view = "board";
+  if (!tabs.some((t) => t.id === state.view)) state.view = isClient() ? "report" : "board";
   $("views").innerHTML = tabs
     .map(
       (t) =>
@@ -634,6 +653,11 @@ function renderChrome() {
 function renderToolbar() {
   if (state.view === "team" || state.view === "close" || state.view === "guide") {
     $("toolbar").innerHTML = "";
+    return;
+  }
+  if (state.view === "report") {
+    $("toolbar").innerHTML = `<input class="search" placeholder="Search project" />`;
+    $("toolbar").querySelector(".search")?.addEventListener("input", render);
     return;
   }
   if (state.view === "excel") {
@@ -678,7 +702,7 @@ function renderToolbar() {
 }
 
 function renderKpis() {
-  if (state.view === "close" || state.view === "team" || state.view === "guide") {
+  if (state.view === "close" || state.view === "team" || state.view === "guide" || state.view === "report") {
     $("kpis").innerHTML = "";
     return;
   }
@@ -943,7 +967,15 @@ function loadTone(hours, fair) {
 function renderLoad() {
   const box = $("load");
   if (!box) return;
-  if (isDesigner() || state.view === "close" || state.view === "team" || state.view === "excel" || state.view === "guide") {
+  if (
+    isClient() ||
+    isDesigner() ||
+    state.view === "close" ||
+    state.view === "team" ||
+    state.view === "excel" ||
+    state.view === "guide" ||
+    state.view === "report"
+  ) {
     box.hidden = true;
     box.innerHTML = "";
     return;
@@ -1059,6 +1091,109 @@ function dueCell(t) {
 function fmtHours(n) {
   if (n === "" || n == null || Number.isNaN(Number(n))) return "";
   return Number(n).toFixed(1).replace(".", ",");
+}
+
+function fmtReportNum(n, digits) {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return "";
+  const rounded = Math.round(x * 10 ** digits) / 10 ** digits;
+  return String(rounded);
+}
+
+function reportSections(tasks) {
+  const lines = ["DX", "DD"];
+  if (tasks.some((t) => t.line === "DS")) lines.push("DS");
+  return lines.map((line) => {
+    const rows = tasks
+      .filter((t) => t.line === line)
+      .slice()
+      .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    return {
+      line,
+      label: line === "DS" ? "Playables DS" : `MGX ${line}`,
+      rows,
+      shifts: rows.reduce((s, t) => s + (Number(t.shifts) || 0), 0),
+      hours: rows.reduce((s, t) => s + hoursOf(t), 0),
+    };
+  });
+}
+
+function renderClientReport() {
+  const q = (document.querySelector(".search")?.value || "").toLowerCase();
+  const all = monthTasks();
+  const tasks = all
+    .filter((t) => !q || String(t.name || "").toLowerCase().includes(q))
+    .slice()
+    .sort((a, b) => String(a.line).localeCompare(String(b.line)) || String(a.name).localeCompare(String(b.name)));
+  const year = String(state.month || "").slice(0, 4) || "2026";
+  if (!all.length) {
+    $("board").innerHTML = `<div class="sp-empty">No projects in ${escapeHtml(monthLabel(state.month))}.</div>`;
+    return;
+  }
+  if (!tasks.length) {
+    $("board").innerHTML = `<div class="sp-empty">No projects match.</div>`;
+    return;
+  }
+  const sections = reportSections(tasks);
+  const totalHours = sections.reduce((s, sec) => s + sec.hours, 0);
+  const totalShifts = sections.reduce((s, sec) => s + sec.shifts, 0);
+  const totalProjects = sections.reduce((s, sec) => s + sec.rows.length, 0);
+  const body = sections
+    .map((sec) => {
+      const rows = sec.rows
+        .map(
+          (t) => `<tr class="sp-row">
+            <td class="sp-name" title="${escapeHtml(t.name)}">${escapeHtml(t.name)}</td>
+            <td class="sp-num">${fmtReportNum(t.shifts, 3)}</td>
+            <td class="sp-num">${fmtReportNum(hoursOf(t), 1)}</td>
+            <td></td>
+          </tr>`
+        )
+        .join("");
+      return `<tr class="sp-sec">
+          <th>${escapeHtml(sec.label)}</th>
+          <th></th>
+          <th></th>
+          <th class="sp-num">${fmtReportNum(sec.hours, 1)}</th>
+        </tr>${rows}`;
+    })
+    .join("");
+  $("board").innerHTML = `
+    <section class="sp-report">
+      <header class="sp-head">
+        <h2>Hours report</h2>
+        <p>Every task billed in ${escapeHtml(monthLabel(state.month))}. PROJECT NAME / SHIFTS / HOURS — the same list the invoices are based on.</p>
+      </header>
+      <div class="sp-kpis">
+        <div class="kpi"><b>${totalProjects}</b><span>projects</span></div>
+        <div class="kpi"><b>${fmtReportNum(totalShifts, 1)}</b><span>shifts</span></div>
+        <div class="kpi"><b>${fmtReportNum(totalHours, 1)} h</b><span>hours</span></div>
+      </div>
+      <div class="sp-sheet">
+        <div class="sp-scroll">
+          <table class="sp-table">
+            <thead>
+              <tr>
+                <th class="sp-name">${escapeHtml(year)} PROJECT NAME</th>
+                <th>SHIFTS</th>
+                <th>HOURS</th>
+                <th class="sp-sum-h"></th>
+              </tr>
+            </thead>
+            <tbody>${body}</tbody>
+            <tfoot>
+              <tr class="sp-gap"><td colspan="4"></td></tr>
+              <tr class="sp-total">
+                <td>TOTAL</td>
+                <td></td>
+                <td class="sp-num">${fmtReportNum(totalHours, 1)}</td>
+                <td></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </section>`;
 }
 
 function renderExcelSheet() {
@@ -1238,6 +1373,17 @@ function renderGuide() {
           `Зробив → ${ui("Paste result link here")} (лінк на файл, не на теку). Поки лінка немає, ${ui("Done")} у статусі немає.`,
           `Потім ${ui("Done")} → ${ui("Save")}. Далі чекає LP. ${ui("Appr.")} — уже в клієнта. ${ui("Closed")} — прийнято, нічого не робити.`,
         ])}
+        ${card(
+          "client",
+          "SP",
+          "SuperPlay",
+          "Клієнт. Своя сторінка годин, без черги студії і без Finance.",
+          [
+            `Сидіння ${ui("SuperPlay")} відкриває ${ui("Hours")} — усі таски місяця як у ${ui("SP-LG_projects")}: ${ui("PROJECT NAME")} / ${ui("SHIFTS")} / ${ui("HOURS")}.`,
+            `Секції ${ui("MGX DX")} і ${ui("MGX DD")}, сума годин справа від заголовка, ${ui("TOTAL")} знизу. Це той самий список, на якому стоять інвойси.`,
+            `Місяць перемикається стрілками зверху. Імен виконавців, ставок і карток тут немає.`,
+          ]
+        )}
         ${finance}
       </div>
       <div class="guide-notes">
@@ -1277,6 +1423,10 @@ function renderBoard() {
   }
   if (state.view === "guide") {
     renderGuide();
+    return;
+  }
+  if (state.view === "report") {
+    renderClientReport();
     return;
   }
   const exec = isExecView();
@@ -2118,6 +2268,10 @@ function openDeletePerson(id) {
     toast("You cannot delete the person you are logged in as");
     return;
   }
+  if (p.role === "client" && (state.db.people || []).filter((x) => x.role === "client").length <= 1) {
+    toast("Keep the SuperPlay hours login");
+    return;
+  }
   const held = assignedTo(id);
   $("delTitle").textContent = `Delete ${displayName(p)}?`;
   $("delProjects").innerHTML = held.length
@@ -2129,7 +2283,7 @@ function openDeletePerson(id) {
   if (held.length) {
     $("delIntro").textContent = `${held.length} project${held.length === 1 ? "" : "s"} — choose who takes them.`;
     const others = state.db.people
-      .filter((x) => x.id !== id)
+      .filter((x) => x.id !== id && x.role !== "client")
       .sort((a, b) => {
         const ra = a.role === p.role ? 0 : 1;
         const rb = b.role === p.role ? 0 : 1;
@@ -2186,6 +2340,7 @@ async function confirmDeletePerson() {
 }
 
 function openTask(id) {
+  if (isClient()) return;
   const t = state.db.tasks.find((x) => x.id === id);
   if (!t) return;
   state.openId = id;
@@ -2621,6 +2776,7 @@ function render() {
     state.roleId = "manager";
     if (state.view === "close" || state.view === "team") state.view = "board";
   }
+  if (isClient() && state.view !== "report") state.view = "report";
   renderWho();
   renderChrome();
   renderInbox();
@@ -2644,7 +2800,7 @@ $("who").addEventListener("change", (e) => {
   state.roleId = e.target.value;
   state.selected.clear();
   state.designerFilter = null;
-  state.view = next?.role === "finance" ? "close" : "board";
+  state.view = next?.role === "finance" ? "close" : next?.role === "client" ? "report" : "board";
   setInboxOpen(false);
   if (state.session) writeSession({ ...state.session, seatId: e.target.value });
   render();

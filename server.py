@@ -110,6 +110,7 @@ STATUS_BY_ROLE = {
     "teamlead": {"new", "wip", "revision", "done"},
     "manager": {"new", "wip", "revision", "done", "closed"},
     "finance": {"new", "wip", "revision", "done", "closed"},
+    "client": set(),
 }
 
 
@@ -871,6 +872,11 @@ class Handler(SimpleHTTPRequestHandler):
                     1 for p in db["people"] if p.get("role") == "finance"
                 ) <= 1:
                     self._json(400, {"error": "keep at least one finance login"})
+                    return
+                if person.get("role") == "client" and sum(
+                    1 for p in db["people"] if p.get("role") == "client"
+                ) <= 1:
+                    self._json(400, {"error": "keep the SuperPlay hours login"})
                     return
                 held = [t for t in db["tasks"] if t.get("assigneeId") == pid]
                 if held and "reassignTo" not in data:

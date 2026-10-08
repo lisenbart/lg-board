@@ -106,6 +106,14 @@
       "legalName": "Злотко Олексій",
       "bankCard": "432345037851582",
       "iban": "UA943077700000026208713943056"
+    },
+    {
+      "id": "client",
+      "name": "SuperPlay",
+      "role": "client",
+      "email": "superplay@lg-board",
+      "color": "#323338",
+      "jobTitle": "Client"
     }
   ],
   "tasks": [
