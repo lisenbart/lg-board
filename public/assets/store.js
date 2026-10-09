@@ -116,6 +116,24 @@
     return window.LGNotices;
   }
 
+  function dropAndriy(db) {
+    const gone = new Set();
+    db.people = (db.people || []).filter((p) => {
+      const name = String(p.name || "").trim().toLowerCase();
+      if (p.id === "designer6" || name === "андрій") {
+        gone.add(p.id);
+        return false;
+      }
+      return true;
+    });
+    if (!gone.size) return false;
+    for (const task of db.tasks || []) {
+      if (gone.has(task.assigneeId)) task.assigneeId = "";
+      task.help = (task.help || []).filter((row) => !gone.has(row?.id));
+    }
+    return true;
+  }
+
   function migrate(db) {
     if (!db) return db;
     if (N()) N().ensure(db);
@@ -123,12 +141,12 @@
       db.notices = db.notices || [];
       db.noticeReads = db.noticeReads || {};
     }
+    dropAndriy(db);
     const crewTint = [
       { match: (p) => p.id === "teamlead" || p.name === "Настя", color: "#FFC15A" },
       { match: (p) => p.id === "designer3" || p.name === "Сергій", color: "#7EC4FF", avatarStar: true },
       { match: (p) => p.id === "designer4" || p.name === "Аліна", color: "#FF9EC8" },
       { match: (p) => p.id === "designer5" || p.name === "Олекса", color: "#FFB38A" },
-      { match: (p) => p.id === "designer6" || p.name === "Андрій", color: "#8ED1B5" },
     ];
     for (const p of db.people || []) {
       const tint = crewTint.find((row) => row.match(p));
@@ -149,8 +167,9 @@
     const existing = readDb();
     if (existing) {
       const had = Object.prototype.hasOwnProperty.call(existing, "notices");
+      const n = (existing.people || []).length;
       migrate(existing);
-      if (!had) writeDb(existing, true);
+      if (!had || (existing.people || []).length !== n) writeDb(existing, true);
       return existing;
     }
     return writeDb(migrate(await loadSeed()), true);

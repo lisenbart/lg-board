@@ -30,16 +30,8 @@ LIVE_PARENTS = {
 }
 
 MIRROR_MONTHS = ("2026-10", "2026-09")
-ANDRIY = {
-    "id": "designer6",
-    "name": "Андрій",
-    "role": "designer",
-    "color": "#8ED1B5",
-    "payOrder": 7,
-    "jobTitle": "Motion design",
-    "rateUsd": 15,
-    "aliases": ["Andriy", "Andrew", "Андрей"],
-}
+DROP_CREW_IDS = {"designer6"}
+DROP_CREW_NAMES = {"андрій", "andriy", "andrew", "андрей"}
 
 
 def utc_now() -> str:
@@ -78,6 +70,14 @@ def briefs_from(previous: dict) -> dict:
 
 
 def ensure_people(people: list[dict]) -> list[dict]:
+    kept: list[dict] = []
+    for person in people:
+        pid = str(person.get("id") or "")
+        name = " ".join(str(person.get("name") or "").split()).lower()
+        if pid in DROP_CREW_IDS or name in DROP_CREW_NAMES:
+            continue
+        kept.append(person)
+    people[:] = kept
     by_id = {p.get("id"): p for p in people}
     maria = by_id.get("designer2")
     if maria:
@@ -86,12 +86,6 @@ def ensure_people(people: list[dict]) -> list[dict]:
             if extra not in aliases:
                 aliases.append(extra)
         maria["aliases"] = aliases
-    if "designer6" not in by_id:
-        people.append(dict(ANDRIY))
-    else:
-        person = by_id["designer6"]
-        person.setdefault("aliases", list(ANDRIY["aliases"]))
-        person["color"] = person.get("color") or ANDRIY["color"]
     return people
 
 
@@ -135,6 +129,12 @@ def hydrate(previous: dict | None = None, xlsx: Path | None = None) -> dict:
         raise FileNotFoundError(f"live snapshot missing: {xlsx}")
     db = json.loads(json.dumps(previous))
     ensure_people(db.setdefault("people", []))
+    for task in db.get("tasks") or []:
+        if task.get("assigneeId") in DROP_CREW_IDS:
+            task["assigneeId"] = ""
+        task["help"] = [
+            row for row in (task.get("help") or []) if (row or {}).get("id") not in DROP_CREW_IDS
+        ]
     meta = db.setdefault("meta", {})
     meta.update(
         {
