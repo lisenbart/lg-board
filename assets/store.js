@@ -123,9 +123,10 @@
       db.noticeReads = db.noticeReads || {};
     }
     const crewTint = [
+      { match: (p) => p.id === "teamlead" || p.name === "Настя", color: "#FFC15A" },
       { match: (p) => p.id === "designer3" || p.name === "Сергій", color: "#7EC4FF", avatarStar: true },
-      { match: (p) => p.id === "designer4" || p.name === "Аліна", color: "#FFB38A" },
-      { match: (p) => p.id === "designer5" || p.name === "Олекса", color: "#FF9EC8" },
+      { match: (p) => p.id === "designer4" || p.name === "Аліна", color: "#FF9EC8" },
+      { match: (p) => p.id === "designer5" || p.name === "Олекса", color: "#FFB38A" },
     ];
     for (const p of db.people || []) {
       const tint = crewTint.find((row) => row.match(p));
