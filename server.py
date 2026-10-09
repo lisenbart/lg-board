@@ -599,6 +599,12 @@ class Handler(SimpleHTTPRequestHandler):
                         if not pid or hours <= 0:
                             continue
                         help_rows.append({"id": pid, "hours": hours})
+                    who = str(task.get("assigneeId") or "")
+                    given = sum(row["hours"] for row in help_rows if row["id"] != who)
+                    total = excel_io.client_hours(task)
+                    if given > total + 0.001:
+                        self._json(400, {"error": "help hours cannot exceed the client hours"})
+                        return
                     task["help"] = help_rows
                 excel_io.normalize_help(
                     task, {p["id"] for p in excel_io.designers(db)}

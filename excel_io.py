@@ -336,10 +336,10 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
             if person:
                 assignee_id = person["id"]
         shares = _resolved_shares(row, people, by_name)
-        share_ids = {s["id"] for s in shares}
         task = existing.get(name)
         keep = (task.get("assigneeId") or "") if task else ""
-        if keep and keep in share_ids:
+        people_ids = {p["id"] for p in people}
+        if keep and keep in people_ids:
             assignee_id = keep
         help_rows = [s for s in shares if s["id"] != assignee_id]
         if task:
@@ -398,10 +398,9 @@ def tasks_for_finance(db: dict, ym: str) -> list[dict]:
     for row in parsed.get("rows") or []:
         base = existing.get(row["name"]) or by_id.get(_id_key(row["name"])) or {}
         shares = _resolved_shares(row, people, by_name)
-        share_ids = {s["id"] for s in shares}
         keep = str(base.get("assigneeId") or "")
         person = None
-        if keep and keep in share_ids:
+        if keep:
             person = next((p for p in people if p.get("id") == keep), None)
         if person is None and row.get("assigneeId"):
             person = next((p for p in db.get("people") or [] if p.get("id") == row["assigneeId"]), None)

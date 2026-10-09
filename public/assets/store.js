@@ -384,6 +384,12 @@
           if (!pid || !Number.isFinite(hours) || hours <= 0) continue;
           helpRows.push({ id: pid, hours });
         }
+        const who = String(task.assigneeId || "");
+        const given = helpRows.reduce((s, row) => s + (row.id === who ? 0 : row.hours), 0);
+        const total = Number(task.hours) || hoursFromShift(task.shifts || 0) || 0;
+        if (given > total + 0.001) {
+          return { error: "help hours cannot exceed the client hours" };
+        }
         task.help = helpRows;
       }
       normalizeHelp(task, performerIds(db));
