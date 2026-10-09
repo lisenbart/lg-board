@@ -10,7 +10,7 @@ import tempfile
 from datetime import datetime, timezone
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlparse
 
 import drive_io
 import excel_io
@@ -223,9 +223,18 @@ def project_root(task: dict | None) -> str:
     return re.sub(r"[^A-Z0-9-]", "", raw) or "SHOT"
 
 
+def is_local_shot_url(url: str) -> bool:
+    u = str(url or "")
+    return "/api/comment-file" in u or u.startswith("/comments/")
+
+
+def comment_file_url(tid: str, name: str) -> str:
+    return f"/comments/{tid}/{name}"
+
+
 def is_shot_att(att: dict | None) -> bool:
     url = str((att or {}).get("url") or "")
-    return (att or {}).get("kind") == "image" or url.startswith("data:image") or "/api/comment-file" in url
+    return (att or {}).get("kind") == "image" or url.startswith("data:image") or is_local_shot_url(url)
 
 
 def count_shots(task: dict | None) -> int:
@@ -269,7 +278,7 @@ def relabel_first_shot(task: dict, root: str) -> None:
     ext = ext_from_url(old_name or found.get("url") or "")
     new_name = f"{root}_01.{ext}"
     url = str(found.get("url") or "")
-    if "/api/comment-file" in url and old_name:
+    if is_local_shot_url(url) and old_name:
         tid = str(task.get("id") or "")
         src = COMMENT_FILES / tid / old_name
         dest = COMMENT_FILES / tid / new_name
@@ -279,7 +288,7 @@ def relabel_first_shot(task: dict, root: str) -> None:
                 src.unlink()
             except OSError:
                 pass
-        found["url"] = f"/api/comment-file?task={tid}&name={new_name}"
+        found["url"] = comment_file_url(tid, new_name)
     found["name"] = new_name
 
 
@@ -304,7 +313,7 @@ def store_comment_images(task: dict, items: list | None, *, start: int, total: i
         index = start + n + 1
         name = shot_filename(root, index, IMAGE_EXT[mime], total)
         (folder / name).write_bytes(blob)
-        out.append({"url": f"/api/comment-file?task={tid}&name={name}", "kind": "image", "name": name})
+        out.append({"url": comment_file_url(tid, name), "kind": "image", "name": name})
         n += 1
     return out
 
@@ -425,6 +434,36 @@ class Handler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def _comment_file(self, task_id: str, name: str) -> None:
+        task_id = unquote(str(task_id or ""))
+        name = unquote(str(name or ""))
+        if not COMMENT_TASK_ID.match(task_id) or not COMMENT_FILE_NAME.match(name):
+            self.send_error(404, "note file missing")
+            return
+        fpath = (COMMENT_FILES / task_id / name).resolve()
+        root = COMMENT_FILES.resolve()
+        if root not in fpath.parents or not fpath.is_file():
+            self.send_error(404, "note file missing")
+            return
+        ctype = {
+            ".png": "image/png",
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".gif": "image/gif",
+            ".webp": "image/webp",
+        }.get(fpath.suffix.lower(), "application/octet-stream")
+        data = fpath.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", ctype)
+        self.send_header(
+            "Content-Disposition",
+            f'inline; filename="{name}"; filename*=UTF-8\'\'{quote(name)}',
+        )
+        self.send_header("Cache-Control", "private, max-age=86400")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
     def do_GET(self) -> None:
         path = urlparse(self.path).path
         if path == "/api/state":
@@ -433,31 +472,11 @@ class Handler(SimpleHTTPRequestHandler):
             return
         if path == "/api/comment-file":
             qs = parse_qs(urlparse(self.path).query)
-            task_id = (qs.get("task") or [""])[0]
-            name = (qs.get("name") or [""])[0]
-            if not COMMENT_TASK_ID.match(task_id) or not COMMENT_FILE_NAME.match(name):
-                self.send_error(404, "note file missing")
-                return
-            fpath = (COMMENT_FILES / task_id / name).resolve()
-            root = COMMENT_FILES.resolve()
-            if root not in fpath.parents or not fpath.is_file():
-                self.send_error(404, "note file missing")
-                return
-            ctype = {
-                ".png": "image/png",
-                ".jpg": "image/jpeg",
-                ".jpeg": "image/jpeg",
-                ".gif": "image/gif",
-                ".webp": "image/webp",
-            }.get(fpath.suffix.lower(), "application/octet-stream")
-            data = fpath.read_bytes()
-            self.send_response(200)
-            self.send_header("Content-Type", ctype)
-            self.send_header("Content-Disposition", f'inline; filename="{name}"')
-            self.send_header("Cache-Control", "private, max-age=86400")
-            self.send_header("Content-Length", str(len(data)))
-            self.end_headers()
-            self.wfile.write(data)
+            self._comment_file((qs.get("task") or [""])[0], (qs.get("name") or [""])[0])
+            return
+        parts = [p for p in path.split("/") if p]
+        if len(parts) == 3 and parts[0] == "comments":
+            self._comment_file(parts[1], parts[2])
             return
         if path == "/health":
             self._json(200, {"ok": True})
