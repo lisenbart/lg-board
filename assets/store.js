@@ -87,7 +87,34 @@
     }
     return urls;
   };
-  const inlineShots = (extra) => {
+  const isShotAtt = (att) => {
+    const url = String(att?.url || "");
+    return att?.kind === "image" || url.startsWith("data:image") || url.includes("/api/comment-file");
+  };
+  const countShots = (task) => {
+    let n = 0;
+    for (const row of task?.comments || []) {
+      for (const att of row.attachments || []) if (isShotAtt(att)) n += 1;
+    }
+    return n;
+  };
+  const shotFilename = (root, index, ext, total) => {
+    const e = String(ext || "png").toLowerCase().replace("jpeg", "jpg");
+    if (total <= 1) return `${root}.${e}`;
+    return `${root}_${String(index).padStart(2, "0")}.${e}`;
+  };
+  const extFromUrl = (url) => {
+    const m = String(url || "").match(/\.(png|jpe?g|gif|webp)(?:\?|$)/i);
+    return m ? m[1].toLowerCase().replace("jpeg", "jpg") : "png";
+  };
+  const extFromMime = (mime) => {
+    const m = String(mime || "").toLowerCase();
+    if (m.includes("jpeg") || m.includes("jpg")) return "jpg";
+    if (m.includes("gif")) return "gif";
+    if (m.includes("webp")) return "webp";
+    return "png";
+  };
+  const inlineShots = (extra, root, start, total) => {
     const out = [];
     for (const item of extra || []) {
       if (!item || typeof item !== "object") continue;
@@ -98,14 +125,34 @@
       const data = String(item.data || "");
       if (!data.startsWith("data:image")) continue;
       if (data.length > 8 * 1024 * 1024) continue;
-      out.push({ url: data, kind: "image" });
+      const index = start + out.length + 1;
+      const name = shotFilename(root, index, extFromMime(item.mime) || extFromUrl(data), total);
+      out.push({ url: data, kind: "image", name });
       if (out.length >= 8) break;
     }
     return out;
   };
-  const makeComment = (db, { actorId, body, source, mondayId, extra }) => {
+  const makeComment = (db, { actorId, body, source, mondayId, extra, task }) => {
     const text = String(body || "").trim();
-    const attachments = [...commentAttachments(text), ...inlineShots(extra)];
+    const root = commentKey(task || {}) || "SHOT";
+    const urlAtts = commentAttachments(text);
+    const fileItems = (extra || []).filter((item) => item && item.data);
+    const existing = countShots(task);
+    const total = existing + urlAtts.filter(isShotAtt).length + Math.min(fileItems.length, 8);
+    if (existing === 1 && total > 1) {
+      for (const row of task.comments || []) {
+        const att = (row.attachments || []).find(isShotAtt);
+        if (!att) continue;
+        if (!/_\d{2}\.[A-Za-z]+$/.test(String(att.name || ""))) {
+          att.name = shotFilename(root, 1, extFromUrl(att.name || att.url || ""), total);
+        }
+        break;
+      }
+    }
+    urlAtts.filter(isShotAtt).forEach((att, i) => {
+      att.name = shotFilename(root, existing + i + 1, extFromUrl(att.url), total);
+    });
+    const attachments = [...urlAtts, ...inlineShots(extra, root, existing + urlAtts.filter(isShotAtt).length, total)];
     if (!text && !attachments.length) return "paste client text or a screenshot";
     db.meta = db.meta || {};
     db.meta.commentSeq = (Number(db.meta.commentSeq) || 0) + 1;
@@ -515,6 +562,7 @@
         source: data.source || "manual",
         mondayId: data.mondayId || "",
         extra: data.attachments || [],
+        task,
       });
       if (typeof comment === "string") return { error: comment };
       task.comments = task.comments || [];
