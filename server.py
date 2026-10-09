@@ -114,6 +114,26 @@ JOB_TITLES = {
     "teamlead": "Team Lead",
     "manager": "Line Producer",
 }
+CREW_JOBS = {"designer", "teamlead"}
+
+
+def apply_person_job(db: dict, person: dict, job: str) -> str | None:
+    """MD ↔ TL only. Identity, Excel column, and $15 rate stay. Keep one Team Lead."""
+    nxt = str(job or "").strip()
+    if nxt not in CREW_JOBS:
+        return "only Motion design and Team Lead can switch"
+    if person.get("role") not in CREW_JOBS:
+        return "only Motion design and Team Lead can switch"
+    if person.get("role") == nxt:
+        return None
+    if person.get("role") == "teamlead" and nxt == "designer":
+        leads = sum(1 for p in db.get("people") or [] if p.get("role") == "teamlead" and p.get("id") != person.get("id"))
+        if leads < 1:
+            return "keep at least one Team Lead"
+    person["role"] = nxt
+    if nxt in JOB_TITLES:
+        person["jobTitle"] = JOB_TITLES[nxt]
+    return None
 
 OPS_ROLES = {"manager", "finance"}
 STATUS_BY_ROLE = {
@@ -851,6 +871,11 @@ class Handler(SimpleHTTPRequestHandler):
                             person.pop("rateUsd", None)
                         else:
                             person["rateUsd"] = rate
+                    if "job" in item and item.get("job") is not None:
+                        err = apply_person_job(db, person, item.get("job"))
+                        if err:
+                            self._json(400, {"error": err})
+                            return
                     for key in ("legalName", "bank", "bankCard", "iban", "phone"):
                         if key in item and item.get(key) is not None:
                             person[key] = str(item.get(key) or "").strip()
