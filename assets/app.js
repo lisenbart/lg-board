@@ -1400,20 +1400,6 @@ function renderGuide() {
       </header>
       <ol>${steps.map((s) => `<li>${s}</li>`).join("")}</ol>
     </article>`;
-  const finance = isClientPreview() && !financeUnlocked()
-    ? ""
-    : card(
-        "finance",
-        "FN",
-        "Finance",
-        "Dmytro Lisenbart. Команда цей блок не відкриває.",
-        [
-          `Три вкладки, години ті самі що ${ui("Excel")} / ${ui("SP_MGX_check")}. Не черга тасків.`,
-          `${ui("Client")} — totals DD / DX. ${ui("Create DD / DX")} пише Word + PDF лише в пісочницю, не в live October.`,
-          `${ui("Studio")} — CLIENT IN → STUDIO (TAX) → EMPL → STUDIO. Подат % і NBU.`,
-          `${ui("Employeers")} — LP $5 × усі години місяця. TL і MD $15/h на свої таски. UAH = USD × NBU.`,
-        ]
-      );
   const chip = (cls, label) => `<span class="notice-chip notice-${cls}">${label}</span>`;
   const statusCard = (cls, short, full, who, meaning) => `
     <article class="guide-status">
@@ -1496,14 +1482,13 @@ function renderGuide() {
           "client",
           "SP",
           "SuperPlay",
-          "Клієнт. Своя сторінка годин, без черги студії і без Finance.",
+          "Клієнт. Своя сторінка годин, без черги студії.",
           [
             `Сидіння ${ui("SuperPlay")} відкриває ${ui("Hours")} — усі таски місяця як у ${ui("SP-LG_projects")}: ${ui("PROJECT NAME")} / ${ui("SHIFTS")} / ${ui("HOURS")}.`,
             `Секції ${ui("MGX DX")} і ${ui("MGX DD")}, сума годин справа від заголовка, ${ui("TOTAL")} знизу. Це той самий список, на якому стоять інвойси.`,
             `Місяць перемикається стрілками зверху. Імен виконавців, ставок і карток тут немає.`,
           ]
         )}
-        ${finance}
       </div>
       <div class="guide-notes">
         <div>
