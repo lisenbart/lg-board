@@ -1692,8 +1692,13 @@ function bindSplitter(group) {
     handle.setPointerCapture(e.pointerId);
     group.classList.add("is-resizing");
     document.body.classList.add("col-resizing");
-    const seamX = (ev) => ev.clientX - group.getBoundingClientRect().left;
-    const onMove = (ev) => applyNameWidth(group, seamX(ev));
+    const startX = e.clientX;
+    const startLeft = group.getBoundingClientRect().left;
+    const startW = parseFloat(getComputedStyle(group).getPropertyValue("--name-width")) || NAME_WIDTH_DEFAULT;
+    const onMove = (ev) => {
+      const shift = group.getBoundingClientRect().left - startLeft;
+      applyNameWidth(group, startW + (ev.clientX - startX) - shift);
+    };
     const onUp = () => {
       group.classList.remove("is-resizing");
       document.body.classList.remove("col-resizing");
@@ -1704,7 +1709,6 @@ function bindSplitter(group) {
     handle.addEventListener("pointermove", onMove);
     handle.addEventListener("pointerup", onUp);
     handle.addEventListener("pointercancel", onUp);
-    applyNameWidth(group, seamX(e));
   });
   handle.addEventListener("dblclick", () => applyNameWidth(group, NAME_WIDTH_DEFAULT));
 }
