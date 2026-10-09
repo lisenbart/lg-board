@@ -449,6 +449,7 @@
         const item = { id: data.id };
         if ("name" in data) item.name = data.name;
         if ("rateUsd" in data) item.rateUsd = data.rateUsd;
+        if ("job" in data) item.job = data.job;
         return [item];
       })();
       const updated = [];
