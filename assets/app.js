@@ -928,23 +928,75 @@ function commentWhen(at) {
 }
 function shotSrc(a) {
   const url = String(a?.url || "");
-  if (url.startsWith("data:image")) return url;
+  if (url.startsWith("data:image") || url.includes("/api/comment-file")) return url;
   if (a?.kind === "image") return shotThumb(url) || url;
   return shotThumb(url);
+}
+function isShot(a) {
+  const url = String(a?.url || "");
+  return a?.kind === "image" || url.startsWith("data:image") || url.includes("/api/comment-file") || Boolean(shotThumb(url));
+}
+function closeShot() {
+  const box = $("shotBox");
+  if (!box) return;
+  box.hidden = true;
+  const img = box.querySelector("img");
+  if (img) img.removeAttribute("src");
+}
+function openShot(src) {
+  if (!src) return;
+  let box = $("shotBox");
+  if (!box) {
+    box = document.createElement("div");
+    box.id = "shotBox";
+    box.className = "shot-box";
+    box.hidden = true;
+    box.innerHTML = `<button type="button" class="shot-box-x" aria-label="Close">×</button><img alt="Screenshot">`;
+    document.body.appendChild(box);
+    box.querySelector(".shot-box-x").addEventListener("click", (e) => {
+      e.stopPropagation();
+      closeShot();
+    });
+    box.addEventListener("click", (e) => {
+      if (e.target === box) closeShot();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !box.hidden) closeShot();
+    });
+  }
+  box.querySelector("img").src = src;
+  box.hidden = false;
 }
 function notesShotsHtml(row) {
   const files = (row.attachments || []).filter((a) => a?.url);
   if (!files.length) return "";
   return `<div class="notes-shots">${files
-    .map((a) => {
-      const thumb = shotSrc(a);
-      const href = String(a.url || "").startsWith("data:") ? a.url : a.url;
-      return `<a class="notes-shot" href="${escapeHtml(href)}" target="_blank" rel="noreferrer">
-        ${thumb ? `<img src="${escapeHtml(thumb)}" alt="" />` : ""}
-        <span>${a.kind === "image" || thumb ? "Screenshot" : "Open link"}</span>
-      </a>`;
+    .map((a, i) => {
+      if (isShot(a)) {
+        return `<button type="button" class="notes-shot" data-comment="${escapeHtml(row.id || "")}" data-i="${i}">
+          <img alt="Screenshot" />
+        </button>`;
+      }
+      return `<a class="pin-link" href="${escapeHtml(a.url)}" target="_blank" rel="noreferrer">Open link</a>`;
     })
     .join("")}</div>`;
+}
+function bindNoteShots(t) {
+  $("drawer")?.querySelectorAll(".notes-shot").forEach((btn) => {
+    const comment = clientComments(t).find((row) => row.id === btn.dataset.comment);
+    const att = (comment?.attachments || [])[Number(btn.dataset.i)];
+    const src = shotSrc(att) || att?.url || "";
+    const img = btn.querySelector("img");
+    if (img && src) {
+      img.src = src;
+      img.addEventListener("error", () => btn.remove());
+    }
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      openShot(img?.currentSrc || img?.src || src);
+    });
+  });
 }
 function notesHtml(t) {
   const rows = clientComments(t);
@@ -2972,9 +3024,7 @@ function openTask(id) {
       openTask(t.id);
     });
   });
-  $("drawer")?.querySelectorAll(".notes-shot img").forEach((img) => {
-    img.addEventListener("error", () => img.remove());
-  });
+  bindNoteShots(t);
   const N = window.LGNotices;
   if (N && N.forPerson(state.db, me().id, true).some((n) => n.taskId === id)) {
     ackNotices({ taskId: id });
@@ -3149,6 +3199,7 @@ function openTask(id) {
 }
 
 function closeDrawer() {
+  closeShot();
   $("drawerBg").classList.remove("show");
   state.openId = null;
 }
