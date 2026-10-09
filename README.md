@@ -35,7 +35,7 @@ Share **https://lisenbart.github.io/lg-board/** — not the Cursor Preview URL.
 
 The pack is a **mirror**: people, hours, and money come from the live `SP_MGX_check.xlsx` (read-only snapshot). **Open folder** goes to the real October Drive project. Clicks in the portal stay in that browser’s buffer. **Reset to live** throws the buffer away and restores the snapshot. The live Excel and `Projects / 10_October` are never written.
 
-First names and LP / TL / MD badges are on. **Finance** is behind a PIN (Dmytro only on that link) — view Client / Studio / Employeers, no Word/PDF create.
+First names and LP / TL / MD badges are on. **Finance** is behind a PIN (Dmytro only). Client / Studio / Employeers and **Create DD / DX** are visible there. Word + PDF still write on the studio app (`python3 server.py`), not into live Drive. On the GitHub link the button is visible; the file is created when the Python app is running.
 
 Do **not** put this on glowl.direct. Prefer a Lisenbart name. Later: `board.lisenbart.games` with the same studio mailboxes plus SuperPlay Hours.
 
