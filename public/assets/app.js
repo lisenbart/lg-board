@@ -926,15 +926,22 @@ function commentWhen(at) {
   if (Number.isNaN(d.getTime())) return "";
   return d.toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 }
+function shotSrc(a) {
+  const url = String(a?.url || "");
+  if (url.startsWith("data:image")) return url;
+  if (a?.kind === "image") return shotThumb(url) || url;
+  return shotThumb(url);
+}
 function notesShotsHtml(row) {
   const files = (row.attachments || []).filter((a) => a?.url);
   if (!files.length) return "";
   return `<div class="notes-shots">${files
     .map((a) => {
-      const thumb = a.kind === "image" || shotThumb(a.url) ? shotThumb(a.url) : "";
-      return `<a class="notes-shot" href="${escapeHtml(a.url)}" target="_blank" rel="noreferrer">
+      const thumb = shotSrc(a);
+      const href = String(a.url || "").startsWith("data:") ? a.url : a.url;
+      return `<a class="notes-shot" href="${escapeHtml(href)}" target="_blank" rel="noreferrer">
         ${thumb ? `<img src="${escapeHtml(thumb)}" alt="" />` : ""}
-        <span>${a.kind === "image" ? "Screenshot" : "Open link"}</span>
+        <span>${a.kind === "image" || thumb ? "Screenshot" : "Open link"}</span>
       </a>`;
     })
     .join("")}</div>`;
@@ -961,10 +968,15 @@ function notesHtml(t) {
     )
     .join("");
   const composer = canWrite
-    ? `<div class="notes-compose">
-        <textarea id="stComment" rows="3" placeholder="Paste client text and screenshot links"></textarea>
-        <p class="io-hint">Brief stays as is. Paste from Monday — text plus Drive / image links.</p>
-        <button class="btn" type="button" id="addNote">Add note</button>
+    ? `<div class="notes-compose" id="stCommentBox">
+        <textarea id="stComment" rows="3" placeholder="Paste client text, or paste / drop a screenshot"></textarea>
+        <div class="notes-shots" id="stCommentShots"></div>
+        <p class="io-hint">Brief stays as is. Paste a screenshot (Ctrl+V) or attach a file. Links still work.</p>
+        <div class="notes-compose-actions">
+          <label class="btn ghost" for="stCommentFiles">Attach screenshot</label>
+          <input id="stCommentFiles" type="file" accept="image/*" multiple hidden />
+          <button class="btn" type="button" id="addNote">Add note</button>
+        </div>
       </div>`
     : "";
   return `<section class="notes${rows.length ? "" : " is-empty"}">
@@ -1399,7 +1411,7 @@ function renderExcelSheet() {
         return `<td class="${mine ? "xl-fill" : ""}" ${style}>${h}</td>`;
       })
       .join("");
-    const mark = excelStatus(t);
+    const mark = statusMark(t);
     return `<tr class="xl-row${t.studioStatus === "closed" ? " is-closed" : ""}" data-id="${t.id}">
       <td class="xl-st st-${mark.cls}" title="${escapeHtml(mark.title)}">${escapeHtml(mark.label)}</td>
       <td class="xl-name" title="${escapeHtml(t.name)}">${escapeHtml(t.name)}</td>
@@ -1548,10 +1560,10 @@ function renderGuide() {
       <div class="guide-grid">
         ${card("manager", "LP", "Line Producer", "Анастасія. Бачить усе.", [
           `Новий пак: ${ui("Pull from Monday")} або ${ui("Shift email")} (рядок як в Orit: NAME | 0.3 shifts).`,
-          `Бриф на картці — 1:1 як у Monday Doc. Не змінюється. ${ui("Client notes")} одразу під ним: встав текст і лінки на скріни з Monday.`,
+          `Бриф на картці — 1:1 як у Monday Doc. Не змінюється. ${ui("Client notes")} одразу під ним: встав текст і скрін (Ctrl+V) з Monday.`,
           `Години: ${ui("Shifts")} у рядку або в картці. 1 shift = 9 годин. Виконавця ставить TL.`,
           `Рядок фарбується за статусом. Чіп: ${ui("Ready")} / ${ui("WIP")} / ${ui("Fix")} / ${ui("Done")} / ${ui("Appr.")} / ${ui("Closed")}. Не ${ui("Send")}.`,
-          `${ui("Excel")} — той самий чіп у лівій колонці ${ui("DX")} / ${ui("DD")}. ${ui("Due")} = колонка ${ui("DEADLINE")} у файлі.`,
+          `${ui("Excel")} — години як у файлі. Чіп зліва той самий, що в пайплайні, не лише WIP/Closed. ${ui("Due")} = ${ui("DEADLINE")}.`,
           `${ui("Send to client")} лише з ${ui("Done")} + лінк файлу. Копіює текст у External Weekly. ${ui("Appr.")} сам не ставиться.`,
           `${ui("Mark Closed")} після ${ui("Appr.")}, коли клієнт прийняв. Темно-зелений штамп, білий напис — не той самий колір, що ${ui("Done")}. Якщо відбили — ${ui("Need Fixing")}.`,
           `${ui("Hours split")} на картці: клієнтські години не ростуть. 0.5h тому, хто відрендерив замість колеги. Who лишається власником ${ui("Done")}.`,
@@ -1561,7 +1573,7 @@ function renderGuide() {
           `Прочитай бриф, ${ui("Open brief")} якщо треба Doc. ${ui("Who works this")} → ${ui("Save")}. Людина одразу бачить таск у себе.`,
           `Свої таски — як MD: ${ui("Paste result link here")}, потім ${ui("Done")}.`,
           `${ui("Hours split")} — якщо хтось відрендерив чужий файл, постав 0.5h (або скільки чесно). Клієнту години ті самі.`,
-          `${ui("Excel")} — та сама картина, що ${ui("SP_MGX_check")}, з чіпами зліва. ${ui("Send to client")} і ${ui("Closed")} у TL немає — це LP.`,
+          `${ui("Excel")} — години як у ${ui("SP_MGX_check")}. Чіп зліва той самий, що в пайплайні: ${ui("WIP")} / ${ui("Fix")} / ${ui("Done")} / ${ui("Appr.")} / ${ui("Closed")}. ${ui("Send to client")} і ${ui("Closed")} у TL немає — це LP.`,
         ])}
         ${card("designer", "MD", "Motion design", "Марія, Сергій, Аліна, Олекса. Лише свої таски.", [
           `Дзвіночок ${ui("On you")} — тебе поставили. ${ui("Fix")} — ${ui("Need Fixing")}.`,
@@ -1734,13 +1746,7 @@ function statusMark(t) {
   );
 }
 function excelStatus(t) {
-  if ((t.studioStatus || "") === "closed") {
-    return { cls: "closed", label: "Closed", title: "Closed · green in SP_MGX_check" };
-  }
-  if ((t.studioStatus || "") === "new") {
-    return { cls: "ready", label: "Ready", title: "Ready to Start" };
-  }
-  return { cls: "wip", label: "WIP", title: "WIP · blue in SP_MGX_check" };
+  return statusMark(t);
 }
 function statusChip(t) {
   const spec = statusMark(t);
@@ -2838,15 +2844,62 @@ function openTask(id) {
     </div>
   `;
   $("closeDrawer").onclick = closeDrawer;
+  const pendingShots = [];
+  function fileToShot(file) {
+    return new Promise((resolve) => {
+      if (!file || !String(file.type || "").startsWith("image/")) {
+        resolve(null);
+        return;
+      }
+      if (file.size > 6 * 1024 * 1024) {
+        toast("Screenshot is over 6 MB");
+        resolve(null);
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => resolve({ mime: file.type || "image/png", data: String(reader.result || "") });
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(file);
+    });
+  }
+  function renderPendingShots() {
+    const box = $("stCommentShots");
+    if (!box) return;
+    box.innerHTML = pendingShots
+      .map(
+        (s, i) => `<button type="button" class="notes-pending" data-i="${i}" aria-label="Remove screenshot">
+          <img src="${s.data}" alt="" />
+        </button>`
+      )
+      .join("");
+    box.querySelectorAll(".notes-pending").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        pendingShots.splice(Number(btn.dataset.i), 1);
+        renderPendingShots();
+      });
+    });
+  }
+  async function addPendingFiles(files) {
+    for (const file of files || []) {
+      if (pendingShots.length >= 8) {
+        toast("Up to 8 screenshots on one note");
+        break;
+      }
+      const shot = await fileToShot(file);
+      if (shot) pendingShots.push(shot);
+    }
+    renderPendingShots();
+  }
   async function postClientNote({ reopen } = { reopen: true }) {
     const body = String($("stComment")?.value || "").trim();
-    if (!body) {
-      toast("Paste client text or a screenshot link");
+    if (!body && !pendingShots.length) {
+      toast("Paste client text or a screenshot");
       return false;
     }
     const out = await api("/api/tasks/comment", {
       id: t.id,
       body,
+      attachments: pendingShots.map((s) => ({ mime: s.mime, data: s.data })),
       actorId: me().id,
       role: me().role,
     });
@@ -2854,13 +2907,53 @@ function openTask(id) {
       toast(out.error || "Could not add note");
       return false;
     }
+    pendingShots.length = 0;
     applyState(out.state);
     toast("Note added");
     if (reopen) openTask(t.id);
-    else if ($("stComment")) $("stComment").value = "";
+    else {
+      if ($("stComment")) $("stComment").value = "";
+      renderPendingShots();
+    }
     return true;
   }
   $("addNote")?.addEventListener("click", () => postClientNote());
+  $("stCommentFiles")?.addEventListener("change", async (e) => {
+    await addPendingFiles([...e.target.files]);
+    e.target.value = "";
+  });
+  $("stComment")?.addEventListener("paste", async (e) => {
+    const files = [];
+    for (const item of e.clipboardData?.items || []) {
+      if (String(item.type || "").startsWith("image/")) {
+        const file = item.getAsFile();
+        if (file) files.push(file);
+      }
+    }
+    if (!files.length) return;
+    e.preventDefault();
+    const text = e.clipboardData.getData("text/plain");
+    if (text && $("stComment")) {
+      const el = $("stComment");
+      const start = el.selectionStart ?? el.value.length;
+      const end = el.selectionEnd ?? start;
+      el.value = el.value.slice(0, start) + text + el.value.slice(end);
+    }
+    await addPendingFiles(files);
+  });
+  const dropBox = $("stCommentBox");
+  if (dropBox) {
+    dropBox.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      dropBox.classList.add("is-drop");
+    });
+    dropBox.addEventListener("dragleave", () => dropBox.classList.remove("is-drop"));
+    dropBox.addEventListener("drop", async (e) => {
+      e.preventDefault();
+      dropBox.classList.remove("is-drop");
+      await addPendingFiles([...(e.dataTransfer?.files || [])]);
+    });
+  }
   $("drawer")?.querySelectorAll(".notes-del").forEach((btn) => {
     btn.addEventListener("click", async (e) => {
       e.preventDefault();
@@ -2955,7 +3048,7 @@ function openTask(id) {
     hint.textContent = `${hoursFromShifts(shifts)} h`;
   });
   $("saveTask").onclick = async () => {
-    if (canWriteNotes() && String($("stComment")?.value || "").trim()) {
+    if (canWriteNotes() && (String($("stComment")?.value || "").trim() || pendingShots.length)) {
       const ok = await postClientNote({ reopen: false });
       if (!ok) return;
     }

@@ -158,34 +158,108 @@ def monday_reply(task: dict) -> str:
 
 
 COMMENT_ROLES = {"manager", "finance", "teamlead"}
+COMMENT_FILES = DATA / "comments"
 URL_IN_TEXT = re.compile(r"https?://[^\s<>\"')\]]+", re.I)
 IMAGE_URL = re.compile(r"\.(?:png|jpe?g|gif|webp|bmp)(?:\?|$)", re.I)
+COMMENT_TASK_ID = re.compile(r"^[A-Za-z0-9_-]+$")
+COMMENT_FILE_NAME = re.compile(r"^c-\d+-\d+\.(png|jpg|jpeg|gif|webp)$", re.I)
+IMAGE_EXT = {
+    "image/png": "png",
+    "image/jpeg": "jpg",
+    "image/jpg": "jpg",
+    "image/gif": "gif",
+    "image/webp": "webp",
+}
+MAX_SHOT_BYTES = 6 * 1024 * 1024
+MAX_SHOTS = 8
 
 
 def comment_attachments(text: str, extra: list | None = None) -> list[dict]:
     urls: list[str] = []
     seen: set[str] = set()
-    for raw in list(URL_IN_TEXT.findall(text or "")) + [str(x or "") for x in (extra or [])]:
+    extra_urls = []
+    for item in extra or []:
+        if isinstance(item, str):
+            extra_urls.append(item)
+        elif isinstance(item, dict) and item.get("url") and not item.get("data"):
+            extra_urls.append(str(item.get("url") or ""))
+    for raw in list(URL_IN_TEXT.findall(text or "")) + extra_urls:
         url = raw.strip().rstrip(".,);]")
         if not url or url in seen:
             continue
         seen.add(url)
-        kind = "image" if (IMAGE_URL.search(url) or "/file/d/" in url or "/thumbnail?" in url) else "link"
+        kind = "image" if (IMAGE_URL.search(url) or url.startswith("data:image") or "/file/d/" in url or "/thumbnail?" in url) else "link"
         urls.append({"url": url, "kind": kind})
     return urls
 
 
-def make_comment(db: dict, *, actor_id: str, body: str, source: str = "manual", monday_id: str = "") -> dict | str:
+def decode_data_image(item: dict) -> tuple[str, bytes] | None:
+    mime = str((item or {}).get("mime") or "").split(";")[0].strip().lower()
+    raw = str((item or {}).get("data") or "").strip()
+    if not raw:
+        return None
+    if raw.startswith("data:") and "," in raw:
+        header, raw = raw.split(",", 1)
+        if "image/" in header and not mime:
+            mime = header.split(";")[0].replace("data:", "").strip().lower()
+    if mime not in IMAGE_EXT:
+        return None
+    try:
+        blob = base64.b64decode(raw, validate=False)
+    except Exception:
+        return None
+    if not blob or len(blob) > MAX_SHOT_BYTES:
+        return None
+    return mime, blob
+
+
+def store_comment_images(task_id: str, comment_id: str, items: list | None) -> list[dict]:
+    out: list[dict] = []
+    tid = str(task_id or "")
+    if not COMMENT_TASK_ID.match(tid):
+        return out
+    folder = COMMENT_FILES / tid
+    n = 0
+    for item in items or []:
+        if n >= MAX_SHOTS:
+            break
+        if not isinstance(item, dict) or not item.get("data"):
+            continue
+        decoded = decode_data_image(item)
+        if not decoded:
+            continue
+        mime, blob = decoded
+        folder.mkdir(parents=True, exist_ok=True)
+        name = f"{comment_id}-{n}.{IMAGE_EXT[mime]}"
+        (folder / name).write_bytes(blob)
+        out.append({"url": f"/api/comment-file?task={tid}&name={name}", "kind": "image"})
+        n += 1
+    return out
+
+
+def make_comment(
+    db: dict,
+    *,
+    actor_id: str,
+    body: str,
+    source: str = "manual",
+    monday_id: str = "",
+    extra: list | None = None,
+    task_id: str = "",
+) -> dict | str:
     text = str(body or "").strip()
-    attachments = comment_attachments(text)
-    if not text:
-        return "paste client text or a screenshot link"
-    src = source if source in {"manual", "monday"} else "manual"
+    attachments = comment_attachments(text, extra)
     seq = int((db.get("meta") or {}).get("commentSeq") or 0) + 1
+    comment_id = f"c-{seq}"
+    stored = store_comment_images(task_id, comment_id, extra)
+    attachments.extend(stored)
+    if not text and not attachments:
+        return "paste client text or a screenshot"
+    src = source if source in {"manual", "monday"} else "manual"
     db.setdefault("meta", {})["commentSeq"] = seq
     person = next((p for p in db.get("people") or [] if p.get("id") == actor_id), None)
     return {
-        "id": f"c-{seq}",
+        "id": comment_id,
         "at": utc_now(),
         "authorId": actor_id or "",
         "authorName": (person or {}).get("name") or "",
@@ -269,6 +343,33 @@ class Handler(SimpleHTTPRequestHandler):
         if path == "/api/state":
             with LOCK:
                 self._json(200, load_db())
+            return
+        if path == "/api/comment-file":
+            qs = parse_qs(urlparse(self.path).query)
+            task_id = (qs.get("task") or [""])[0]
+            name = (qs.get("name") or [""])[0]
+            if not COMMENT_TASK_ID.match(task_id) or not COMMENT_FILE_NAME.match(name):
+                self.send_error(404, "note file missing")
+                return
+            fpath = (COMMENT_FILES / task_id / name).resolve()
+            root = COMMENT_FILES.resolve()
+            if root not in fpath.parents or not fpath.is_file():
+                self.send_error(404, "note file missing")
+                return
+            ctype = {
+                ".png": "image/png",
+                ".jpg": "image/jpeg",
+                ".jpeg": "image/jpeg",
+                ".gif": "image/gif",
+                ".webp": "image/webp",
+            }.get(fpath.suffix.lower(), "application/octet-stream")
+            data = fpath.read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Cache-Control", "private, max-age=86400")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
             return
         if path == "/health":
             self._json(200, {"ok": True})
@@ -727,6 +828,8 @@ class Handler(SimpleHTTPRequestHandler):
                     body=data.get("body") or "",
                     source=str(data.get("source") or "manual"),
                     monday_id=str(data.get("mondayId") or ""),
+                    extra=data.get("attachments") or [],
+                    task_id=str(task.get("id") or ""),
                 )
                 if isinstance(comment, str):
                     self._json(400, {"error": comment})
