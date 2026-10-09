@@ -2226,6 +2226,10 @@ function downloadInvoiceZip() {
 }
 
 async function openInvoiceFolder() {
+  if (isClientPreview()) {
+    toast("Open folder needs the studio app. This GitHub link is a mirror and has no invoice disk.");
+    return;
+  }
   const res = await fetch("/api/finance/invoice/reveal", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
