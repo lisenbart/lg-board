@@ -448,7 +448,8 @@ html.studio-host.in-app .login-gate { display: none !important; }
 .gdot { width: 8px; height: 8px; border-radius: 2px; }
 .group-head h3 { margin: 0; font-size: 14px; font-weight: 500; }
 .count { color: var(--muted); font-size: 12px; font-weight: 400; }
-.cols, .row {
+.group.sheet .cols,
+.group.sheet .row {
   display: flex;
   flex-wrap: nowrap;
   align-items: stretch;
@@ -818,7 +819,7 @@ body.col-resizing * { cursor: col-resize !important; }
   border-radius: 4px; padding: 3px 8px; max-width: 100%;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.ops {
+.card-ops {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px 12px;
