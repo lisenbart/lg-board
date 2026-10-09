@@ -8,7 +8,7 @@ Open **https://lisenbart.github.io/lg-board/** and switch **I am**:
 | --- | --- | --- |
 | Анастасія | LP Line Producer | Pipeline, hours, **Send to client** |
 | Настя | TL Team Lead | Assign people, own work, Excel picture |
-| Марія / Сергій / Аліна / Олекса | MD Motion design | Own queue only |
+| Марія / Сергій / Аліна / Олекса | MD Motion design | Own queue, plus tasks they helped render |
 | SuperPlay | Client | **Hours** — PROJECT NAME / SHIFTS / HOURS, MGX DX + MGX DD, TOTAL |
 | Dmytro Lisenbart | PIN | Client / Studio / Employeers (view) |
 
@@ -16,7 +16,7 @@ Mechanics to walk through:
 
 1. Projects land from Monday (demo pull until API access) and from the Orit shift email.
 2. Team lead assigns a person — that is the same assignment the Excel tab shows (`SP_MGX_check` picture).
-3. Open a card: the top banner is that seat’s next step (TL assign, MD paste result, LP send). Brief is the text on the card; **Open brief** / **Open folder** are Drive buttons, not URL fields.
+3. Open a card: the top banner is that seat’s next step (TL assign, MD paste result, LP send). Brief is the text on the card; **Open brief** / **Open folder** are Drive buttons, not URL fields. **Hours split** (TL / LP) moves studio pay to a helper — client SHIFTS / HOURS stay. Demo: HalloweenMario, Марія Who, Сергій +0.5h.
 4. Designer pastes the result link, then sets Done. Done is locked until the link is there.
 5. Line Producer picks Done rows → **Send to client** copies `check it please` + the link for External Weekly. Status becomes Senior Approval (**Appr.**).
 6. When the client accepts, LP marks **Closed**. That is the finished state — not Done, not Appr.
