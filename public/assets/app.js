@@ -1733,6 +1733,14 @@ function statusButtonDisabled(task, key, opts) {
   if (on) return opts.locked;
   if (key === "approve") return true;
   if (key === "closed") return !(canOps() && task.studioStatus === "approve");
+  if (
+    key === "done" &&
+    isTeamLead() &&
+    String(task.assigneeId || "") !== String(me().id) &&
+    !on
+  ) {
+    return true;
+  }
   return !canSetStatus(key);
 }
 
@@ -2808,8 +2816,9 @@ function openTask(id) {
       toast("Paste the result link before Done");
       return;
     }
-    const assigneeId = $("stPerson") ? $("stPerson").value : t.assigneeId;
-    const patch = { studioStatus, assigneeId, role: me().role };
+    const assigneeId = canAssign() && $("stPerson") ? $("stPerson").value : t.assigneeId;
+    const patch = { studioStatus, role: me().role };
+    if (canAssign()) patch.assigneeId = assigneeId;
     if (canEditHelp()) {
       const help = readHelpFromCard(assigneeId);
       const total = patch.shifts !== undefined ? hoursFromShifts(patch.shifts) : hoursOf(t);

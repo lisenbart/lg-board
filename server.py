@@ -503,7 +503,35 @@ class Handler(SimpleHTTPRequestHandler):
                 }
                 nxt = data.get("studioStatus")
                 role = data.get("role") or ""
+                actor = str(data.get("actorId") or "")
                 allowed = STATUS_BY_ROLE
+                if role not in allowed:
+                    self._json(403, {"error": "unknown role"})
+                    return
+                if role == "client":
+                    self._json(403, {"error": "client cannot edit tasks"})
+                    return
+                if role == "designer":
+                    if actor != str(task.get("assigneeId") or ""):
+                        self._json(403, {"error": "you can only edit your own tasks"})
+                        return
+                    for locked in ("brief", "folderUrl", "docUrl", "assigneeId"):
+                        data.pop(locked, None)
+                if (
+                    "assigneeId" in data
+                    and str(data.get("assigneeId") or "") != str(task.get("assigneeId") or "")
+                    and role not in {"teamlead", "manager", "finance"}
+                ):
+                    self._json(403, {"error": "only TL or LP can assign"})
+                    return
+                if (
+                    role == "teamlead"
+                    and nxt == "done"
+                    and nxt != task.get("studioStatus")
+                    and actor != str(task.get("assigneeId") or "")
+                ):
+                    self._json(403, {"error": "TL can Done only their own work"})
+                    return
                 if nxt == "approve" and nxt != task.get("studioStatus"):
                     self._json(403, {"error": "Senior Approval is set only when you Send to client"})
                     return
