@@ -780,11 +780,8 @@ function initials(name) {
   return (name || "?").slice(0, 1);
 }
 function avatarHtml(p, name) {
-  const label = escapeHtml(initials(name || displayName(p)));
-  const star = p?.avatarStar
-    ? `<span class="avatar-star" aria-hidden="true">🌟</span>`
-    : "";
-  return `<span class="avatar${p?.avatarStar ? " has-star" : ""}" style="background:${p?.color || "#c5c7d0"}">${label}${star}</span>`;
+  const inner = p?.avatarStar ? "🌟" : escapeHtml(initials(name || displayName(p)));
+  return `<span class="avatar${p?.avatarStar ? " is-star" : ""}" style="background:${p?.color || "#c5c7d0"}">${inner}</span>`;
 }
 function jobMeta(p) {
   return JOB_BADGE[p?.role] || { code: "?", title: ROLE_LABEL[p?.role] || p?.role || "" };
