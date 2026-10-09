@@ -89,7 +89,7 @@
   };
   const isShotAtt = (att) => {
     const url = String(att?.url || "");
-    return att?.kind === "image" || url.startsWith("data:image") || url.includes("/api/comment-file");
+    return att?.kind === "image" || url.startsWith("data:image") || url.includes("/api/comment-file") || url.startsWith("/comments/");
   };
   const countShots = (task) => {
     let n = 0;

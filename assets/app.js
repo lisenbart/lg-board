@@ -926,15 +926,19 @@ function commentWhen(at) {
   if (Number.isNaN(d.getTime())) return "";
   return d.toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 }
+function isLocalShotUrl(url) {
+  const u = String(url || "");
+  return u.includes("/api/comment-file") || u.startsWith("/comments/");
+}
 function shotSrc(a) {
   const url = String(a?.url || "");
-  if (url.startsWith("data:image") || url.includes("/api/comment-file")) return url;
+  if (url.startsWith("data:image") || isLocalShotUrl(url)) return url;
   if (a?.kind === "image") return shotThumb(url) || url;
   return shotThumb(url);
 }
 function isShot(a) {
   const url = String(a?.url || "");
-  return a?.kind === "image" || url.startsWith("data:image") || url.includes("/api/comment-file") || Boolean(shotThumb(url));
+  return a?.kind === "image" || url.startsWith("data:image") || isLocalShotUrl(url) || Boolean(shotThumb(url));
 }
 function closeShot() {
   const box = $("shotBox");
@@ -968,6 +972,85 @@ function shotFileName(t, att) {
   if (total <= 1) return `${root}.${ext}`;
   return `${root}_${String(index).padStart(2, "0")}.${ext}`;
 }
+function mimeFromName(name) {
+  const ext = String(name || "").split(".").pop().toLowerCase();
+  return { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp" }[ext] || "image/png";
+}
+function safeShotName(name) {
+  return String(name || "screenshot.png").replace(/[/\\?%*:|"<>]/g, "-") || "screenshot.png";
+}
+function dataToBlob(src) {
+  const comma = src.indexOf(",");
+  if (comma < 0) throw new Error("bad image");
+  const header = src.slice(0, comma);
+  const body = src.slice(comma + 1);
+  const mime = (header.match(/data:([^;]+)/i) || [, "image/png"])[1];
+  if (/;base64/i.test(header)) {
+    const bin = atob(body);
+    const arr = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    return new Blob([arr], { type: mime });
+  }
+  return new Blob([decodeURIComponent(body)], { type: mime });
+}
+function triggerNamedDownload(blob, file) {
+  const objectUrl = URL.createObjectURL(new File([blob], file, { type: blob.type || mimeFromName(file) }));
+  const a = document.createElement("a");
+  a.href = objectUrl;
+  a.download = file;
+  a.rel = "noopener";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 4000);
+}
+function saveShot(src, name) {
+  const file = safeShotName(name);
+  const startPicker = (blob) => {
+    const picker = window.showSaveFilePicker;
+    if (typeof picker !== "function") {
+      triggerNamedDownload(blob, file);
+      return;
+    }
+    const ext = "." + (file.split(".").pop() || "png").toLowerCase();
+    picker({
+      suggestedName: file,
+      types: [{ description: "Screenshot", accept: { [blob.type || mimeFromName(file)]: [ext] } }],
+    })
+      .then(async (handle) => {
+        const writable = await handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+      })
+      .catch((err) => {
+        if (err && err.name === "AbortError") return;
+        triggerNamedDownload(blob, file);
+      });
+  };
+  if (String(src).startsWith("data:")) {
+    try {
+      startPicker(dataToBlob(src));
+      return;
+    } catch {
+      /* fall through */
+    }
+  }
+  const a = document.createElement("a");
+  a.href = src;
+  a.download = file;
+  a.rel = "noopener";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+function bindShotSave(el, src, name) {
+  if (!el) return;
+  el.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    saveShot(src, name);
+  });
+}
 function openShot(src, name) {
   if (!src) return;
   let box = $("shotBox");
@@ -976,7 +1059,7 @@ function openShot(src, name) {
     box.id = "shotBox";
     box.className = "shot-box";
     box.hidden = true;
-    box.innerHTML = `<button type="button" class="shot-box-x" aria-label="Close">×</button><a class="shot-box-dl" download>Download</a><img alt="Screenshot">`;
+    box.innerHTML = `<button type="button" class="shot-box-x" aria-label="Close">×</button><a class="shot-box-dl" href="#" download>Download</a><img alt="Screenshot">`;
     document.body.appendChild(box);
     box.querySelector(".shot-box-x").addEventListener("click", (e) => {
       e.stopPropagation();
@@ -988,11 +1071,26 @@ function openShot(src, name) {
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && !box.hidden) closeShot();
     });
+    const img = box.querySelector("img");
+    const dl = box.querySelector(".shot-box-dl");
+    img.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      saveShot(box.dataset.src, box.dataset.file);
+    });
+    dl.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      saveShot(box.dataset.src, box.dataset.file);
+    });
   }
-  const file = name || "screenshot.png";
+  const file = safeShotName(name);
   const img = box.querySelector("img");
   const dl = box.querySelector(".shot-box-dl");
+  box.dataset.src = src;
+  box.dataset.file = file;
   img.alt = file;
+  img.title = `Save as ${file}`;
   img.src = src;
   if (dl) {
     dl.href = src;
@@ -1025,8 +1123,11 @@ function bindNoteShots(t) {
     if (img && src) {
       img.src = src;
       img.alt = file;
+      img.title = `Save as ${file}`;
       img.addEventListener("error", () => btn.remove());
+      bindShotSave(img, src, file);
     }
+    bindShotSave(btn, src, file);
     btn.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
