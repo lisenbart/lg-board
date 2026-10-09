@@ -248,11 +248,20 @@ def ensure_task(db: dict, task: dict, ym: str | None = None) -> dict:
     """Idempotent: project folder named as the task + Google Doc with the brief.
 
     Writes only under _PORTAL_TEST. Live Projects / 10_October is never a parent.
+    Mirror mode never creates Drive files — clicks stay in the portal buffer.
     """
     name = (task.get("name") or "").strip()
     if not name:
         return {"ok": False, "error": "task has no name"}
     apply_work_folder(task)
+    if (db.get("meta") or {}).get("mode") == "mirror":
+        return {
+            "ok": True,
+            "created": False,
+            "skipped": "mirror",
+            "folderUrl": task.get("folderUrl") or "",
+            "docUrl": task.get("docUrl") or "",
+        }
     if task.get("folderUrl") and task.get("docUrl"):
         return {
             "ok": True,
@@ -284,6 +293,10 @@ def ensure_task(db: dict, task: dict, ym: str | None = None) -> dict:
 
     sandbox_root_id(db)
     parent = line_parent_id(db, ym, task.get("line") or "DD", token)
+    import mirror_io
+
+    if mirror_io.is_live_id(parent):
+        raise DriveError("refusing to write into the live October Drive folder")
     folder_id = _mkdir(token, parent, name)
     doc_id = _create_doc(token, folder_id, name, task.get("brief") or "")
     pack = remember(name, folder_id, doc_id)

@@ -15,6 +15,7 @@ from urllib.parse import parse_qs, urlparse
 import drive_io
 import excel_io
 import finance_io
+import mirror_io
 import notice_io
 
 ROOT = Path(__file__).resolve().parent
@@ -38,17 +39,27 @@ def utc_now() -> str:
 def load_db() -> dict:
     DATA.mkdir(exist_ok=True)
     if not DB_PATH.exists():
-        seed = json.loads(SEED_PATH.read_text(encoding="utf-8"))
-        notice_io.ensure(seed)
-        DB_PATH.write_text(json.dumps(seed, ensure_ascii=False, indent=2), encoding="utf-8")
-        return seed
+        db = json.loads(SEED_PATH.read_text(encoding="utf-8"))
+        notice_io.ensure(db)
+        if (db.get("meta") or {}).get("mode") == "mirror":
+            mirror_io.restore_buffer_xlsx()
+        save_db(db, origin=True)
+        return db
     db = json.loads(DB_PATH.read_text(encoding="utf-8"))
     if notice_io.ensure(db):
         save_db(db)
+    meta = db.get("meta") or {}
+    if meta.get("mode") == "mirror" and not meta.get("bufferDirty") and mirror_io.ORIGIN_XLSX.exists():
+        mirror_io.restore_buffer_xlsx()
     return db
 
 
-def save_db(db: dict) -> None:
+def save_db(db: dict, origin: bool = False) -> None:
+    meta = db.setdefault("meta", {})
+    if origin:
+        meta["bufferDirty"] = False
+    elif meta.get("mode") == "mirror":
+        meta["bufferDirty"] = True
     DB_PATH.write_text(json.dumps(db, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
@@ -283,9 +294,8 @@ class Handler(SimpleHTTPRequestHandler):
         with LOCK:
             db = load_db()
             if path == "/api/reset":
-                db = json.loads(SEED_PATH.read_text(encoding="utf-8"))
-                notice_io.ensure(db)
-                save_db(db)
+                db = mirror_io.restore()
+                save_db(db, origin=True)
                 self._json(200, db)
                 return
             if path == "/api/parse-email":
@@ -631,7 +641,7 @@ class Handler(SimpleHTTPRequestHandler):
                         "ok": True,
                         "file": str(excel_io.XLSX_PATH),
                         "drive": drive,
-                        "message": "Wrote SP_MGX_check.xlsx. Hours stay = shifts × 9. Other months untouched.",
+                        "message": "Wrote the portal buffer only. Live Drive SP_MGX_check.xlsx was not changed.",
                         "state": db,
                     },
                 )

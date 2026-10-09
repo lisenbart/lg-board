@@ -1,6 +1,6 @@
 /** Browser store so the client demo runs on Netlify / GitHub Pages without Python. */
 (function () {
-  const KEY = "lg-board-db-v6";
+  const KEY = "lg-board-db-v7";
   const EMAIL_LINE =
     /^\s*([A-Z]{2}-[A-Za-z0-9._-]+)\s*\|\s*([\d]+(?:[.,]\d+)?)\s*shifts?\s*$/i;
   const OPS_ROLES = new Set(["manager", "finance"]);
@@ -74,7 +74,8 @@
     return null;
   }
 
-  function writeDb(db) {
+  function writeDb(db, origin) {
+    if (db && db.meta) db.meta.bufferDirty = !origin;
     localStorage.setItem(KEY, JSON.stringify(db));
     return db;
   }
@@ -127,12 +128,19 @@
       { match: (p) => p.id === "designer3" || p.name === "Сергій", color: "#7EC4FF", avatarStar: true },
       { match: (p) => p.id === "designer4" || p.name === "Аліна", color: "#FF9EC8" },
       { match: (p) => p.id === "designer5" || p.name === "Олекса", color: "#FFB38A" },
+      { match: (p) => p.id === "designer6" || p.name === "Андрій", color: "#8ED1B5" },
     ];
     for (const p of db.people || []) {
       const tint = crewTint.find((row) => row.match(p));
-      if (!tint) continue;
-      p.color = tint.color;
-      if (tint.avatarStar) p.avatarStar = true;
+      if (tint) {
+        p.color = tint.color;
+        if (tint.avatarStar) p.avatarStar = true;
+      }
+      if (p.id === "designer2" || p.name === "Марія") {
+        const aliases = new Set(p.aliases || []);
+        ["Маша", "Мария", "Masha"].forEach((a) => aliases.add(a));
+        p.aliases = [...aliases];
+      }
     }
     return db;
   }
@@ -142,10 +150,10 @@
     if (existing) {
       const had = Object.prototype.hasOwnProperty.call(existing, "notices");
       migrate(existing);
-      if (!had) writeDb(existing);
+      if (!had) writeDb(existing, true);
       return existing;
     }
-    return writeDb(migrate(await loadSeed()));
+    return writeDb(migrate(await loadSeed()), true);
   }
 
   async function localApi(path, payload) {
@@ -155,7 +163,8 @@
     if (path === "/api/state") return clone(db);
 
     if (path === "/api/reset") {
-      db = writeDb(migrate(await loadSeed()));
+      seedCache = null;
+      db = writeDb(migrate(await loadSeed()), true);
       return clone(db);
     }
 

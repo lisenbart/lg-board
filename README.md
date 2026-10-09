@@ -33,17 +33,18 @@ The shared Gmail cannot tell Настя from Марія, so the seat picker afte
 
 Share **https://lisenbart.github.io/lg-board/** — not the Cursor Preview URL.
 
-That pack is for walking the crew through queues, assign, Excel, and send-to-client. First names and LP / TL / MD badges are on. **Finance** is behind a PIN (Dmytro only on that link) — view Client / Studio / Employeers, no Word/PDF create. Studio sandbox still writes invoices.
+The pack is a **mirror**: people, hours, and money come from the live `SP_MGX_check.xlsx` (read-only snapshot). **Open folder** goes to the real October Drive project. Clicks in the portal stay in that browser’s buffer. **Reset to live** throws the buffer away and restores the snapshot. The live Excel and `Projects / 10_October` are never written.
+
+First names and LP / TL / MD badges are on. **Finance** is behind a PIN (Dmytro only on that link) — view Client / Studio / Employeers, no Word/PDF create.
 
 Do **not** put this on glowl.direct. Prefer a Lisenbart name. Later: `board.lisenbart.games` with the same studio mailboxes plus SuperPlay Hours.
-
-Studio money never unlocks on the hosted link. Localhost is the studio sandbox.
 
 ## What the sandbox does
 
 - **Pull from Monday** — demo import until Superplay grants board access.
 - **Shift email** — Orit format: `NAME | 0.3 shifts`. Hours = shift × 9.
-- **Briefs on the card** come from the live Google Docs in `Projects / 10_October / DD|DX` (read-only). Naming is the four filenames from those Docs, not invented sizes. **Open brief doc** opens that live Doc. **Open folder** is the Working folder from the brief. New tasks still get a sandbox pack under `_PORTAL_TEST` — live October is never written.
+- **Mirror week.** The board is hydrated from the live `SP_MGX_check.xlsx`. Status starts as WIP when Excel already has a person. Clicks (assign, Done, hours split, tax) write only `data/db.json` and a local xlsx buffer. **Reset to live** copies the snapshot back. `_PORTAL_TEST` is not used while `meta.mode` is `mirror`. Live `Projects / 10_October` is never a write parent.
+- **Briefs on the card** come from the live Google Docs in `Projects / 10_October / DD|DX` (read-only) where we already had the text. **Open folder** is the live October project folder. Naming is the four filenames from those Docs, not invented sizes.
 - The task card is role-first. Brief text stays on the card; **Open brief** / **Open folder** open Drive — raw Doc/folder URL fields are not on the default card. **TL** sees assign first. **MD** sees paste-result then Done. **LP** sees hours and Send to client. Designer pastes the result link, then sets Done. Done is locked until that link is in the card — the work folder is not used as a stand-in. Assignment lives on the board; there is no Telegram copy step.
 - **Hours split** is studio pay only. SuperPlay still sees one SHIFTS / HOURS number. If someone renders because a PC cannot, TL or LP puts 0.5h (or whatever is fair) on the helper. Who stays the owner of Done. Heavy AE cleanup / lost sources is still inside the original hours — that does not add client time.
 - **Board scan** — the whole row is tinted by studio status (Ready / WIP / Fix / Done / Appr. / Closed). A matching chip sits on the name. **Send to client** is the LP button on Done rows, not a status chip. **Closed** is the last state: client accepted, hours stay, no more work. The bell still lists unread notices; opening a card marks those read. New kinds go in `notice_io.py` + `public/assets/notices.js`.

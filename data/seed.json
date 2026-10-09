@@ -18,7 +18,12 @@
     "driveLiveOctober": "https://drive.google.com/drive/folders/173mZwMf2SAg2tKouzHc-xIqE_WadwIEH",
     "driveLiveDD": "https://drive.google.com/drive/folders/1cbyetaLxF2IiB47HOPMP_ffxo4v8T90p",
     "driveLiveDX": "https://drive.google.com/drive/folders/1ZdT3oxP5W-Fs8uKhcoTkEaMU1XRrxf1P",
-    "briefsFrom": "Projects/10_October live Docs — naming copied 1:1, no invented sizes"
+    "briefsFrom": "Live October folders + copied brief text where we already had the Doc",
+    "mode": "mirror",
+    "bufferDirty": false,
+    "driveLiveExcel": "https://drive.google.com/file/d/1SvRLe-Txl-F9MTfuDb08GBCh6XywNlzE/view",
+    "mirrorAt": "2026-10-09T14:05:57Z",
+    "mirrorSource": "SP_MGX_check.xlsx · live Drive · read only"
   },
   "people": [
     {
@@ -66,7 +71,12 @@
       "legalName": "Терлецька Марія Максимівна",
       "bank": "Monobank",
       "iban": "UA683220010000026202353816766",
-      "taxId": "3781707605"
+      "taxId": "3781707605",
+      "aliases": [
+        "Маша",
+        "Мария",
+        "Masha"
+      ]
     },
     {
       "id": "designer3",
@@ -115,336 +125,181 @@
       "email": "superplay@lg-board",
       "color": "#323338",
       "jobTitle": "Client"
+    },
+    {
+      "id": "designer6",
+      "name": "Андрій",
+      "role": "designer",
+      "color": "#8ED1B5",
+      "payOrder": 7,
+      "jobTitle": "Motion design",
+      "rateUsd": 15,
+      "aliases": [
+        "Andriy",
+        "Andrew",
+        "Андрей"
+      ]
     }
   ],
   "tasks": [
     {
-      "id": "t-dd-202-004",
-      "name": "DD-AIV-202-004_SettAI_HalloweenFireTrial_DD-VEO-059-001_EN_30s",
-      "line": "DD",
-      "department": "MGX",
-      "game": "SettAI",
-      "shifts": 0.3,
-      "hours": 2.7,
-      "deadline": "2026-10-07",
-      "studioStatus": "done",
-      "mondayStatus": "WIP",
-      "assigneeId": "teamlead",
-      "brief": "Please combine:\n\n1. DD-VEO-059-001_GravePumpkin + DD-AIV-HalloweenFireTrial\n2. Length = 30s\n3. Trim the last 8 seconds of the video\n4. Add a motion transition between the hook and the video\n\nWorking folder\nhttps://drive.google.com/drive/folders/1sLKC5XB9SsrNa1RACyz3g7yJ5nEmplJO\n\nThanks\n\nNaming:\nDD-AIV-202-004_SettAI_HalloweenFireTrial_DD-VEO-059-001_EN_30s_1080x1080\nDD-AIV-202-004_SettAI_HalloweenFireTrial_DD-VEO-059-001_EN_30s_1080x1350\nDD-AIV-202-004_SettAI_HalloweenFireTrial_DD-VEO-059-001_EN_30s_1080x1920\nDD-AIV-202-004_SettAI_HalloweenFireTrial_DD-VEO-059-001_EN_30s_1920x1080",
-      "folderUrl": "https://drive.google.com/drive/folders/1sLKC5XB9SsrNa1RACyz3g7yJ5nEmplJO",
-      "docUrl": "https://docs.google.com/document/d/1GW235f-1PlWduVfBbR-5T3gOta8qGyWWZhgypK43MFE/edit",
-      "resultUrl": "https://drive.google.com/drive/folders/1FoSMDTF2vBhyUUtHHQBttNULo1bs-CYU",
-      "source": "monday+email",
-      "activity": [
-        {
-          "at": "2026-10-06T13:36:00Z",
-          "text": "Orit email: 0.3 shifts"
-        },
-        {
-          "at": "2026-10-06T14:10:00Z",
-          "text": "Pulled from Monday, brief in Doc"
-        },
-        {
-          "at": "2026-10-07T09:20:00Z",
-          "text": "Designer pasted the result"
-        }
-      ],
-      "month": "2026-10"
-    },
-    {
-      "id": "t-dd-239-002",
-      "name": "DD-AIV-239-002_SettAI_HalloweenDiamondBlast_DD-VEO-059-001_EN_30s",
-      "line": "DD",
-      "department": "MGX",
-      "game": "SettAI",
-      "shifts": 0.3,
-      "hours": 2.7,
-      "deadline": "2026-10-07",
-      "studioStatus": "done",
-      "mondayStatus": "WIP",
-      "assigneeId": "teamlead",
-      "brief": "Hi,\n\nPlease combine\n\n1. DD-VEO-059-001_GravePumpkin + DD-AIV-HalloweenDiamondBlast\n2. Length = 30s\n3. Trim last ±8 seconds of video\n4. Add a motion transition between the hook and the video\n\nThanks\n\nWorking folder\nhttps://drive.google.com/drive/folders/18pMlpl0eZLuxjtoETGBK-OZPrjQubSCk\n\nNaming:\nDD-AIV-239-002_SettAI_HalloweenDiamondBlast_DD-VEO-059-001_EN_30s_1080x1080\nDD-AIV-239-002_SettAI_HalloweenDiamondBlast_DD-VEO-059-001_EN_30s_1080x1350\nDD-AIV-239-002_SettAI_HalloweenDiamondBlast_DD-VEO-059-001_EN_30s_1080x1920\nDD-AIV-239-002_SettAI_HalloweenDiamondBlast_DD-VEO-059-001_EN_30s_1920x1080",
-      "folderUrl": "https://drive.google.com/drive/folders/18pMlpl0eZLuxjtoETGBK-OZPrjQubSCk",
-      "docUrl": "https://docs.google.com/document/d/1KkKLaZ0Kf2F-0rsC09zGoJockJ9p3rym1zOLtUwtUc8/edit",
-      "resultUrl": "https://drive.google.com/drive/folders/1aJX-A7np2alJOHLkTmav6gG9Gj8t5NsW",
-      "source": "monday+email",
-      "activity": [
-        {
-          "at": "2026-10-06T13:36:00Z",
-          "text": "Orit email: 0.3 shifts"
-        },
-        {
-          "at": "2026-10-06T14:12:00Z",
-          "text": "Folder and brief created in _PORTAL_TEST"
-        },
-        {
-          "at": "2026-10-07T10:05:00Z",
-          "text": "Designer pasted the result — ready to send"
-        }
-      ],
-      "month": "2026-10"
-    },
-    {
-      "id": "t-dd-224-002",
-      "name": "DD-AIV-224-002_SettAI_HalloweenMario_DD-VEO-059-001_EN_30s",
-      "line": "DD",
-      "department": "MGX",
-      "game": "SettAI",
-      "shifts": 0.3,
-      "hours": 2.7,
-      "deadline": "2026-10-07",
-      "studioStatus": "wip",
-      "mondayStatus": "WIP",
-      "assigneeId": "designer2",
-      "help": [{ "id": "designer3", "hours": 0.5 }],
-      "brief": "Please combine:\n\n1. DD-VEO-059-001_GravePumpkin + DD-AIV-HalloweenMario\n2. Length = 30s\n3. Trim first ±8 seconds of video\n4. Add a motion transition between the hook and the video\n\nThanks\n\nWorking folder\nhttps://drive.google.com/drive/folders/1HdB-e1XMARbnvLO28er_PJDOz0zSXEQC\n\nNaming:\nDD-AIV-224-002_SettAI_HalloweenMario_DD-VEO-059-001_EN_30s_1080x1080\nDD-AIV-224-002_SettAI_HalloweenMario_DD-VEO-059-001_EN_30s_1080x1350\nDD-AIV-224-002_SettAI_HalloweenMario_DD-VEO-059-001_EN_30s_1080x1920\nDD-AIV-224-002_SettAI_HalloweenMario_DD-VEO-059-001_EN_30s_1920x1080",
-      "folderUrl": "https://drive.google.com/drive/folders/1HdB-e1XMARbnvLO28er_PJDOz0zSXEQC",
-      "docUrl": "https://docs.google.com/document/d/1cPl7H3wSEuCkL3X-U-Wxb0HVtvHElsrV8hzPwuhMkeI/edit",
-      "resultUrl": "",
-      "source": "monday+email",
-      "activity": [
-        {
-          "at": "2026-10-06T13:36:00Z",
-          "text": "Orit email: 0.3 shifts"
-        },
-        {
-          "at": "2026-10-07T08:40:00Z",
-          "text": "Team lead assigned Designer 2"
-        },
-        {
-          "at": "2026-10-07T16:20:00Z",
-          "text": "Hours split: Марія keeps the rest · Сергій 0.5h"
-        }
-      ],
-      "month": "2026-10"
-    },
-    {
-      "id": "t-dd-231-002",
-      "name": "DD-AIV-231-002_SettAI_SpookyJackpot_DD-VEO-059-001_EN_60s",
-      "line": "DD",
-      "department": "MGX",
-      "game": "SettAI",
-      "shifts": 0.3,
-      "hours": 2.7,
-      "deadline": "2026-10-07",
-      "studioStatus": "wip",
-      "mondayStatus": "Ready to Start",
-      "assigneeId": "designer3",
-      "brief": "Please combine:\n\n1. DD-VEO-059-001_GravePumpkin + DD-AIV-SpookyJackpot\n2. Length = 60s\n3. Trim the first 9s of the video\n4. Add a motion transition between the hook and the video\n\nThanks\n\nWorking folder\nhttps://drive.google.com/drive/folders/1-wZSAsNW-NfxKG9SYlNbaFjO8uYh1hA4\n\nNaming:\nDD-AIV-231-002_SettAI_SpookyJackpot_DD-VEO-059-001_EN_60s_1080x1080\nDD-AIV-231-002_SettAI_SpookyJackpot_DD-VEO-059-001_EN_60s_1080x1350\nDD-AIV-231-002_SettAI_SpookyJackpot_DD-VEO-059-001_EN_60s_1080x1920\nDD-AIV-231-002_SettAI_SpookyJackpot_DD-VEO-059-001_EN_60s_1920x1080",
-      "folderUrl": "https://drive.google.com/drive/folders/1-wZSAsNW-NfxKG9SYlNbaFjO8uYh1hA4",
-      "docUrl": "https://docs.google.com/document/d/1jjuiHO7Y6xvQiGyUIcOST4Boyrnljt5xTc7nQGPRsz4/edit",
-      "resultUrl": "",
-      "source": "monday+email",
-      "activity": [
-        {
-          "at": "2026-10-06T13:36:00Z",
-          "text": "Orit email: 0.3 shifts"
-        }
-      ],
-      "month": "2026-10"
-    },
-    {
-      "id": "t-dd-228-002",
-      "name": "DD-AIV-228-002_SettAI_HalloweenBlastTreasure_DD-VEO-059-001_EN_30s",
-      "line": "DD",
-      "department": "MGX",
-      "game": "SettAI",
-      "shifts": 0.3,
-      "hours": 2.7,
-      "deadline": "2026-10-07",
-      "studioStatus": "new",
-      "mondayStatus": "Ready to Start",
-      "assigneeId": "",
-      "brief": "Please combine\n\n1. DD-VEO-059-001_GravePumpkin + DD-AIV-Halloween Blast Treasure 30s\n2. Length = 30s\n3. Trim the first 9 seconds of the video\n4. Add a motion transition between the hook and the video\n\nThanks\n\nWorking Folder\nhttps://drive.google.com/drive/folders/1SwIt7qtsVbyyz60XOaVgRtSGx8AYJbV2\n\nNaming:\nDD-AIV-228-002_SettAI_HalloweenBlastTreasure_DD-VEO-059-001_EN_30s_1080x1080\nDD-AIV-228-002_SettAI_HalloweenBlastTreasure_DD-VEO-059-001_EN_30s_1080x1350\nDD-AIV-228-002_SettAI_HalloweenBlastTreasure_DD-VEO-059-001_EN_30s_1080x1920\nDD-AIV-228-002_SettAI_HalloweenBlastTreasure_DD-VEO-059-001_EN_30s_1920x1080",
-      "folderUrl": "https://drive.google.com/drive/folders/1SwIt7qtsVbyyz60XOaVgRtSGx8AYJbV2",
-      "docUrl": "https://docs.google.com/document/d/1ByB8z8es79ufM7GrWcER2WvCPCucwkPwfPCK3MgAT3E/edit",
-      "resultUrl": "",
-      "source": "monday+email",
-      "activity": [
-        {
-          "at": "2026-10-06T13:36:00Z",
-          "text": "Orit email: 0.3 shifts"
-        }
-      ],
-      "month": "2026-10"
-    },
-    {
-      "id": "t-dd-225-002",
-      "name": "DD-AIV-225-002_SettAI_HalloweenTrap_DD-VEO-059-001_EN_30s",
-      "line": "DD",
-      "department": "MGX",
-      "game": "SettAI",
-      "shifts": 0.3,
-      "hours": 2.7,
-      "deadline": "2026-10-07",
-      "studioStatus": "new",
-      "mondayStatus": "Ready to Start",
-      "assigneeId": "",
-      "brief": "Please combine:\n\n1. DD-VEO-059-001_GravePumpkin + DD-AIV-HalloweenTrap\n2. Length = 30s\n3. Trim the end of the video to reach a total of 30 seconds\n4. Add a motion transition between the hook and the video\n\nThanks\n\nWorking folder\nhttps://drive.google.com/drive/folders/1dW3y_OUvasOSf8mBfeOde0ZAh9fyIKu_\n\nNaming:\nDD-AIV-225-002_SettAI_HalloweenTrap_DD-VEO-059-001_EN_30s_1080x1080\nDD-AIV-225-002_SettAI_HalloweenTrap_DD-VEO-059-001_EN_30s_1080x1350\nDD-AIV-225-002_SettAI_HalloweenTrap_DD-VEO-059-001_EN_30s_1080x1920\nDD-AIV-225-002_SettAI_HalloweenTrap_DD-VEO-059-001_EN_30s_1920x1080",
-      "folderUrl": "https://drive.google.com/drive/folders/1dW3y_OUvasOSf8mBfeOde0ZAh9fyIKu_",
-      "docUrl": "https://docs.google.com/document/d/1PJ5QwPsseC8R7kT70iepso-G31XKOl81L0xGzNEQyN8/edit",
-      "resultUrl": "",
-      "source": "monday+email",
-      "activity": [
-        {
-          "at": "2026-10-06T13:36:00Z",
-          "text": "Orit email: 0.3 shifts"
-        }
-      ],
-      "month": "2026-10"
-    },
-    {
-      "id": "t-dd-229-002",
-      "name": "DD-AIV-229-002_SettAI_HalloweenMonopoly_DD-VEO-059-001_EN_30s",
-      "line": "DD",
-      "department": "MGX",
-      "game": "SettAI",
-      "shifts": 0.3,
-      "hours": 2.7,
-      "deadline": "2026-10-07",
-      "studioStatus": "new",
-      "mondayStatus": "Ready to Start",
-      "assigneeId": "",
-      "brief": "Please combine:\n\n1. DD-VEO-059-001_GravePumpkin + DD-AIV-HalloweenMonopoly\n2. Length = 30s\n3. Don't trim anything\n4. Add a motion transition between the hook and the video\n\nThanks\n\nWorking folder\nhttps://drive.google.com/drive/folders/1fgI2xlNTcKMrP9542rCxNb-p1K0OpDOt\n\nNaming:\nDD-AIV-229-002_SettAI_HalloweenMonopoly_DD-VEO-059-001_EN_30s_1080x1080\nDD-AIV-229-002_SettAI_HalloweenMonopoly_DD-VEO-059-001_EN_30s_1080x1350\nDD-AIV-229-002_SettAI_HalloweenMonopoly_DD-VEO-059-001_EN_30s_1080x1920\nDD-AIV-229-002_SettAI_HalloweenMonopoly_DD-VEO-059-001_EN_30s_1920x1080",
-      "folderUrl": "https://drive.google.com/drive/folders/1fgI2xlNTcKMrP9542rCxNb-p1K0OpDOt",
-      "docUrl": "https://docs.google.com/document/d/1We3cvu10v2KXMxcEPWNmFL1ipcq8KpalrYUtn9BVYt8/edit",
-      "resultUrl": "",
-      "source": "monday",
-      "activity": [
-        {
-          "at": "2026-10-06T12:00:00Z",
-          "text": "Appeared on Monday External Weekly"
-        }
-      ],
-      "month": "2026-10"
-    },
-    {
-      "id": "t-dd-227-002",
-      "name": "DD-AIV-227-002_SettAI_HalloweenBlastTreasure_DD-VEO-059-001_EN_24s",
-      "line": "DD",
-      "department": "MGX",
-      "game": "SettAI",
-      "shifts": 0.3,
-      "hours": 2.7,
-      "deadline": "2026-10-07",
-      "studioStatus": "new",
-      "mondayStatus": "Ready to Start",
-      "assigneeId": "",
-      "brief": "Please combine\n\n1. DD-VEO-059-001_GravePumpkin + DD-AIV-HalloweenBlastTreasure 15s\n2. Length = 24s\n3. Connect without trimming\n4. Add a motion transition between the hook and the video\n\nThanks\n\nWorking folder\nhttps://drive.google.com/drive/folders/12ruVe_IxccG7JRmVkKCLuR6U5kRWPfY1\n\nNaming:\nDD-AIV-227-002_SettAI_HalloweenBlastTreasure_DD-VEO-059-001_EN_24s_1080x1080\nDD-AIV-227-002_SettAI_HalloweenBlastTreasure_DD-VEO-059-001_EN_24s_1080x1350\nDD-AIV-227-002_SettAI_HalloweenBlastTreasure_DD-VEO-059-001_EN_24s_1080x1920\nDD-AIV-227-002_SettAI_HalloweenBlastTreasure_DD-VEO-059-001_EN_24s_1920x1080",
-      "folderUrl": "https://drive.google.com/drive/folders/12ruVe_IxccG7JRmVkKCLuR6U5kRWPfY1",
-      "docUrl": "https://docs.google.com/document/d/1UPc-dba8ByjbqAn6mOcirS5_zER4foPxWQ7rgbghRx4/edit",
-      "resultUrl": "",
-      "source": "monday+email",
-      "activity": [
-        {
-          "at": "2026-10-06T13:36:00Z",
-          "text": "Orit email: 0.3 shifts"
-        }
-      ],
-      "month": "2026-10"
-    },
-    {
-      "id": "t-dd-233-002",
-      "name": "DD-AIV-233-002_SettAI_HalloweenKindomBuild_DD-VEO-059-001_EN_60s",
-      "line": "DD",
-      "department": "MGX",
-      "game": "SettAI",
-      "shifts": 0.3,
-      "hours": 2.7,
-      "deadline": "2026-10-07",
-      "studioStatus": "new",
-      "mondayStatus": "Ready to Start",
-      "assigneeId": "",
-      "brief": "Please combine:\n\n1. DD-VEO-059-001_GravePumpkin + DD-AIV-HalloweenKindomBuild\n2. Length = 60s\n3. Trim first ±8 seconds of video\n4. Add a motion transition between the hook and the video\n\nWorking folder\nhttps://drive.google.com/drive/folders/1YhT8bBrTz3H_rnQiPxI82YZVu4raD7pN\n\nThanks\n\nNaming:\nDD-AIV-233-002_SettAI_HalloweenKindomBuild_DD-VEO-059-001_EN_60s_1080x1080\nDD-AIV-233-002_SettAI_HalloweenKindomBuild_DD-VEO-059-001_EN_60s_1080x1350\nDD-AIV-233-002_SettAI_HalloweenKindomBuild_DD-VEO-059-001_EN_60s_1080x1920\nDD-AIV-233-002_SettAI_HalloweenKindomBuild_DD-VEO-059-001_EN_60s_1920x1080",
-      "folderUrl": "https://drive.google.com/drive/folders/1YhT8bBrTz3H_rnQiPxI82YZVu4raD7pN",
-      "docUrl": "https://docs.google.com/document/d/1CXus4Oiw7R0uNX5d4R3CxvP5S99lQJOKcPN0_ZZj4iQ/edit",
-      "resultUrl": "",
-      "source": "monday+email",
-      "activity": [
-        {
-          "at": "2026-10-06T13:36:00Z",
-          "text": "Orit email: 0.3 shifts"
-        }
-      ],
-      "month": "2026-10"
-    },
-    {
-      "id": "t-dd-235-002",
-      "name": "DD-AIV-235-002_SettAI_WitchsPotion_DD-VEO-059-001_EN_30s",
-      "line": "DD",
-      "department": "MGX",
-      "game": "SettAI",
-      "shifts": 0.3,
-      "hours": 2.7,
-      "deadline": "2026-10-07",
-      "studioStatus": "new",
-      "mondayStatus": "Ready to Start",
-      "assigneeId": "",
-      "brief": "Please combine:\n\n1. DD-VEO-059-001_GravePumpkin + DD-AIV-WitchsPotion\n2. Length = 30s\n3. Trim end ±8s of the video\n4. Add a motion transition between the hook and the video\n\nThanks\n\nWorking folder\nhttps://drive.google.com/drive/folders/1_DbnhESYtGgBHGvud7NaT0vdGFAtefvn\n\nNaming:\nDD-AIV-235-002_SettAI_WitchsPotion_DD-VEO-059-001_EN_30s_1080x1080\nDD-AIV-235-002_SettAI_WitchsPotion_DD-VEO-059-001_EN_30s_1080x1350\nDD-AIV-235-002_SettAI_WitchsPotion_DD-VEO-059-001_EN_30s_1080x1920\nDD-AIV-235-002_SettAI_WitchsPotion_DD-VEO-059-001_EN_30s_1920x1080",
-      "folderUrl": "https://drive.google.com/drive/folders/1_DbnhESYtGgBHGvud7NaT0vdGFAtefvn",
-      "docUrl": "https://docs.google.com/document/d/1yB0LTJa8ys2KgHLcNZg3sfV1EgshZzqOo4IEvYF2vJo/edit",
-      "resultUrl": "",
-      "source": "monday+email",
-      "activity": [
-        {
-          "at": "2026-10-06T13:36:00Z",
-          "text": "Orit email: 0.3 shifts"
-        }
-      ],
-      "month": "2026-10"
-    },
-    {
-      "id": "t-dx-0225-002",
-      "name": "DX-AIV-0225-002_SettAI_HalloweenSave_DX-VEO-055-001_EN_60s",
+      "id": "t-xl-0",
+      "name": "DX-AIV-0225-002_SettAI_HalloweenSave_DX-VEO-055-001_EN_60",
       "line": "DX",
       "department": "MGX",
       "game": "SettAI",
       "shifts": 0.3,
       "hours": 2.7,
       "deadline": "",
+      "month": "2026-10",
       "studioStatus": "wip",
       "mondayStatus": "WIP",
-      "assigneeId": "teamlead",
+      "assigneeId": "designer2",
+      "help": [],
       "brief": "brief\n\nX-HC-New UA EN HLWN - DX-VEO-055-001_TrickOrSweet + DX-AIV-HalloweenSave\n\n  - Cut video after FAIL at the end\n  - Total = 60s\n\npls work here:\nhttps://drive.google.com/drive/folders/1VM70Hvye1v2Z7pOtT4juuYwnh8ruHlVS\n\nnaming:\nDX-AIV-255-002_SettAI_HalloweenSave_DX-VEO-055-001_EN_60s_1080x1080\nDX-AIV-255-002_SettAI_HalloweenSave_DX-VEO-055-001_EN_60s_1080x1350\nDX-AIV-255-002_SettAI_HalloweenSave_DX-VEO-055-001_EN_60s_1080x1920\nDX-AIV-255-002_SettAI_HalloweenSave_DX-VEO-055-001_EN_60s_1920x1080",
       "folderUrl": "https://drive.google.com/drive/folders/1VM70Hvye1v2Z7pOtT4juuYwnh8ruHlVS",
       "docUrl": "https://docs.google.com/document/d/1NuvFcA2eGZDg3EzyoxLeV5mzXZUKLeoagOPbrrInlyU/edit",
       "resultUrl": "",
-      "source": "monday",
+      "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-05T11:00:00Z",
-          "text": "Team lead assigned Designer"
+          "at": "2026-10-09T14:05:57Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
         }
-      ],
-      "month": "2026-10"
+      ]
     },
     {
-      "id": "t-dx-0215-002",
-      "name": "DX-AIV-0215-002_SettAI_HalloweenSkull_DX-VEO-055-001_EN_30s",
+      "id": "t-xl-1",
+      "name": "DX-AIV-0197-005_SettAI_Halloween_Match2_DX-VEO-003-001_EN_60s",
       "line": "DX",
       "department": "MGX",
       "game": "SettAI",
       "shifts": 0.3,
       "hours": 2.7,
       "deadline": "",
-      "studioStatus": "done",
+      "month": "2026-10",
+      "studioStatus": "wip",
       "mondayStatus": "WIP",
-      "assigneeId": "designer3",
+      "assigneeId": "designer2",
+      "help": [],
+      "brief": "DX-HC-New UA EN HLWN - DX-VEO-055-001_TrickOrSweet + DX-AIV-0197-001_SettAI_Halloween_Match2_EN_59s\n\n- cut first 6 seconds of video\n- total = 60s\n\npls work here\nhttps://drive.google.com/drive/folders/1PjJysIs2QaeQ4VS_n5KBPTO1kDJUU3i2\n\nNaming:\nDX-AIV-197-005_SettAI_Halloween_Match2_DX-VEO-055-001_EN_60s_1080x1080\nDX-AIV-197-005_SettAI_Halloween_Match2_DX-VEO-055-001_EN_60s_1080x1350\nDX-AIV-197-005_SettAI_Halloween_Match2_DX-VEO-055-001_EN_60s_1080x1920\nDX-AIV-197-005_SettAI_Halloween_Match2_DX-VEO-055-001_EN_60s_1920x1080",
+      "folderUrl": "https://drive.google.com/drive/folders/1PjJysIs2QaeQ4VS_n5KBPTO1kDJUU3i2",
+      "docUrl": "https://docs.google.com/document/d/1l7mERQoGHw1J1qoHvnjJUzN1FB2ZDAZEBkysSzj6qtw/edit",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:57Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-2",
+      "name": "DX-AIV-0213-002_SettAI_SavePeonHalloween_DX-VEO-055-001_EN_30s",
+      "line": "DX",
+      "department": "MGX",
+      "game": "SettAI",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "",
+      "month": "2026-10",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "teamlead",
+      "help": [],
+      "brief": "DX-HC-New UA EN HLWN - DX-VEO-055-001_TrickOrSweet + DX-AIV-SavePeonHalloween\n\n1. Cut end of video\n2. total = 30s\n\npls work here\nhttps://drive.google.com/drive/folders/1DCNRqZMfnnaZNjaR09GqJZJNcEXCB-lM\n\nNaming:\nDX-AIV-213-002_SettAI_SavePeonHalloween_DX-VEO-055-001_EN_30s_1080x1080\nDX-AIV-213-002_SettAI_SavePeonHalloween_DX-VEO-055-001_EN_30s_1080x1350\nDX-AIV-213-002_SettAI_SavePeonHalloween_DX-VEO-055-001_EN_30s_1080x1920\nDX-AIV-213-002_SettAI_SavePeonHalloween_DX-VEO-055-001_EN_30s_1920x1080",
+      "folderUrl": "https://drive.google.com/drive/folders/1DCNRqZMfnnaZNjaR09GqJZJNcEXCB-lM",
+      "docUrl": "https://docs.google.com/document/d/1MxvtP7e6jwyelIdh1QhuziMMzDyZF8KWlWMw6bVJrhk/edit",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:57Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-3",
+      "name": "DX-AIV-0215-002_SettAI_HallweenSkull_DX-VEO-055-001_EN_30s",
+      "line": "DX",
+      "department": "MGX",
+      "game": "SettAI",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "",
+      "month": "2026-10",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "teamlead",
+      "help": [],
       "brief": "brief:\n\nDX-HC-New UA EN HLWN - DX-VEO-055-001_TrickOrSweet + DX-AIV-HalloweenSkull\n\n1. cut first 7s of video\n2. total length = 30s\n\nwork here\nhttps://drive.google.com/drive/folders/1kgXzGSMxG-6mJUGWi_sK3CSUFDpTTeMx\n\nnaming\nDX-AIV-215-002_SettAI_HalloweenSkull_DX-VEO-055-001_EN_30s_1080x1080\nDX-AIV-215-002_SettAI_HalloweenSkull_DX-VEO-055-001_EN_30s_1080x1350\nDX-AIV-215-002_SettAI_HalloweenSkull_DX-VEO-055-001_EN_30s_1080x1920\nDX-AIV-215-002_SettAI_HalloweenSkull_DX-VEO-055-001_EN_30s_1920x1080",
       "folderUrl": "https://drive.google.com/drive/folders/1kgXzGSMxG-6mJUGWi_sK3CSUFDpTTeMx",
       "docUrl": "https://docs.google.com/document/d/1sePr7bA54TXm43HxXy5oKCRboMA1A56pw5-1W2PqAVI/edit",
-      "resultUrl": "https://drive.google.com/drive/folders/1ulNcDzMwA73xa4Nx9OPY2xtnwNUkUhZr",
-      "source": "monday+email",
+      "resultUrl": "",
+      "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-06T19:40:00Z",
-          "text": "Designer 3 pasted the result"
+          "at": "2026-10-09T14:05:57Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
         }
-      ],
-      "month": "2026-10"
+      ]
     },
     {
-      "id": "t-dx-0222-003",
+      "id": "t-xl-4",
+      "name": "DX-AIV-216-002_SettAI_HalloweenCircle_DX-VEO-055-001_EN_60s",
+      "line": "DX",
+      "department": "MGX",
+      "game": "SettAI",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "",
+      "month": "2026-10",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "teamlead",
+      "help": [],
+      "brief": "DX-HC-New UA EN HLWN - DX-VEO-055-001_TrickOrSweet + DX-AIV-HalloweenCircle\n\n1. Cut end of video 6 seconds early and add the hook\n2. total = 60s\n\nwork here\nhttps://drive.google.com/drive/folders/1QqnBA4A3NxLx8hYmbe9sV1UIWm00Vh8f\n\nNaming:\nDX-AIV-216-002_SettAI_HalloweenCircle_DX-VEO-055-001_EN_60s_1080x1080\nDX-AIV-216-002_SettAI_HalloweenCircle_DX-VEO-055-001_EN_60s_1080x1350\nDX-AIV-216-002_SettAI_HalloweenCircle_DX-VEO-055-001_EN_60s_1080x1920\nDX-AIV-216-002_SettAI_HalloweenCircle_DX-VEO-055-001_EN_60s_1920x1080",
+      "folderUrl": "https://drive.google.com/drive/folders/1QqnBA4A3NxLx8hYmbe9sV1UIWm00Vh8f",
+      "docUrl": "https://docs.google.com/document/d/17qvBCY_lkdPgVH3dUibSb2_YSZyRjLNMVWXGJK-gmn4/edit",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:57Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-5",
+      "name": "DX-AIV-0218-002_SettAI_PuzzleHalloween_DX-VEO-055-001_EN_30s",
+      "line": "DX",
+      "department": "MGX",
+      "game": "SettAI",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "",
+      "month": "2026-10",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "teamlead",
+      "help": [],
+      "brief": "DX-HC-New UA EN HLWN - DX-VEO-055-001_TrickOrSweet + DX-AIV-PuzzleHalloween\n\n1. DX-AIV-0218-001_SettAI_PuzzleHalloween\n2. cut ending of video\n3. total = 30s\n\npls work here\nhttps://drive.google.com/drive/folders/1gBbMAQlpuJgI_NMLwLp4uoFzmrZ_8V93\n\nNaming:\nDX-AIV-218-002_SettAI_PuzzleHalloween_DX-VEO-055-001_EN_30s_1080x1080\nDX-AIV-218-002_SettAI_PuzzleHalloween_DX-VEO-055-001_EN_30s_1080x1350\nDX-AIV-218-002_SettAI_PuzzleHalloween_DX-VEO-055-001_EN_30s_1080x1920\nDX-AIV-218-002_SettAI_PuzzleHalloween_DX-VEO-055-001_EN_30s_1920x1080",
+      "folderUrl": "https://drive.google.com/drive/folders/1gBbMAQlpuJgI_NMLwLp4uoFzmrZ_8V93",
+      "docUrl": "https://docs.google.com/document/d/1teYLBN1zT0uoHIF8C469GkvtEZQ2ka1F6O8yuuA36Zg/edit",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:57Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-6",
       "name": "DX-AIV-0222-003_SettAI_HalloweenRelax_DX-VEO-055-001_EN_30s",
       "line": "DX",
       "department": "MGX",
@@ -452,24 +307,51 @@
       "shifts": 0.3,
       "hours": 2.7,
       "deadline": "",
-      "studioStatus": "revision",
+      "month": "2026-10",
+      "studioStatus": "wip",
       "mondayStatus": "WIP",
-      "assigneeId": "",
+      "assigneeId": "teamlead",
+      "help": [],
       "brief": "brief:\n\nDX-HC-New UA EN HLWN - DX-VEO-055-001_TrickOrSweet + DX-AIV-HalloweenRelax\n\n1. Cut first 6s off video\n2. Total - 30s\n\npls work\nhttps://drive.google.com/drive/folders/1v5Yuazic-96C4yxvWzHszuxTHgCBYhYp\n\nnaming\nDX-AIV-222-003_SettAI_HalloweenRelax_DX-VEO-055-001_EN_30s_1080x1080\nDX-AIV-222-003_SettAI_HalloweenRelax_DX-VEO-055-001_EN_30s_1080x1350\nDX-AIV-222-003_SettAI_HalloweenRelax_DX-VEO-055-001_EN_30s_1080x1920\nDX-AIV-222-003_SettAI_HalloweenRelax_DX-VEO-055-001_EN_30s_1920x1080",
       "folderUrl": "https://drive.google.com/drive/folders/1v5Yuazic-96C4yxvWzHszuxTHgCBYhYp",
       "docUrl": "https://docs.google.com/document/d/1wIJN1-csBKuwtGkksDiDO63wYyrHG2Ok-ecI9-a9MQo/edit",
       "resultUrl": "",
-      "source": "monday",
+      "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-06T18:00:00Z",
-          "text": "On Monday: WIP"
+          "at": "2026-10-09T14:05:57Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
         }
-      ],
-      "month": "2026-10"
+      ]
     },
     {
-      "id": "t-dx-231-002",
+      "id": "t-xl-7",
+      "name": "DX-AIV-0230-002_SettAI_HalloweenTower_ DX-VEO-055-001 _EN_60s",
+      "line": "DX",
+      "department": "MGX",
+      "game": "SettAI",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "",
+      "month": "2026-10",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "designer2",
+      "help": [],
+      "brief": "DX-HC-New UA EN HLWN - DX-VEO-055-001_TrickOrSweet + DX-AIV-HalloweenTower\n\n1. cut end 6seconds of video and add the hook\n2. Add logo to the final frame\n3. total = 60s\n\npls work here\nhttps://drive.google.com/drive/folders/1OeHcqfUqv4iwJuXCFROmYxU9HE1acFSw\n\nNaming:\nDX-AIV-230-002_SettAI_HalloweenTower_DX-VEO-055-001_EN_60s_1080x1080\nDX-AIV-230-002_SettAI_HalloweenTower_DX-VEO-055-001_EN_60s_1080x1350\nDX-AIV-230-002_SettAI_HalloweenTower_DX-VEO-055-001_EN_60s_1080x1920\nDX-AIV-230-002_SettAI_HalloweenTower_DX-VEO-055-001_EN_60s_1920x1080",
+      "folderUrl": "https://drive.google.com/drive/folders/1OeHcqfUqv4iwJuXCFROmYxU9HE1acFSw",
+      "docUrl": "https://docs.google.com/document/d/1nDgVtJoqWeSKz4I3mcgpVmfJYInTEIxGJs6kKcm0t7M/edit",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:57Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-8",
       "name": "DX-AIV-231-002_SettAI_Halloween_Spirals_DX-VEO-055-001_EN_60s",
       "line": "DX",
       "department": "MGX",
@@ -477,35 +359,1335 @@
       "shifts": 0.3,
       "hours": 2.7,
       "deadline": "",
-      "studioStatus": "approve",
-      "mondayStatus": "Senior Approval",
+      "month": "2026-10",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
       "assigneeId": "designer2",
+      "help": [],
       "brief": "brief\n\nDX-HC-New UA EN HLWN - DX-VEO-055-001_TrickOrSweet + DX-AIV-Halloween_Spirals | Concept\n1. Remove endcard in order to add the hook\n2. length - 60s total\n\nhttps://drive.google.com/drive/folders/1_urZjArM8X07A_ZljzUGUlfUiMTyse31\n\nnaming\nDX-AIV-231-002_SettAI_Halloween_Spirals_DX-VEO-055-001_EN_60s_1080x1080\nDX-AIV-231-002_SettAI_Halloween_Spirals_DX-VEO-055-001_EN_60s_1080x1350\nDX-AIV-231-002_SettAI_Halloween_Spirals_DX-VEO-055-001_EN_60s_1080x1920\nDX-AIV-231-002_SettAI_Halloween_Spirals_DX-VEO-055-001_EN_60s_1920x1080",
-      "folderUrl": "https://drive.google.com/drive/folders/1_urZjArM8X07A_ZljzUGUlfUiMTyse31",
+      "folderUrl": "https://drive.google.com/drive/folders/1JAoByiIcek_UxVCQ5UHiKxIcE7DxObhd",
       "docUrl": "https://docs.google.com/document/d/10sroFa2Gp3-vDzQPVrvX9jLBXovmaQZ4o48sHCFF6pw/edit",
-      "resultUrl": "https://drive.google.com/drive/folders/1ebZZm5szIjdEimc8ojtNxIfBMYfhAYn8",
-      "source": "monday+email",
+      "resultUrl": "",
+      "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-05T17:16:00Z",
-          "text": "Designer 2 pasted the result"
-        },
+          "at": "2026-10-09T14:05:57Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-9",
+      "name": "DX-AIV-0406-002_SettAI_InteractiveHalloween_DX-VEO-055-001_EN_60s",
+      "line": "DX",
+      "department": "MGX",
+      "game": "SettAI",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "",
+      "month": "2026-10",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "designer2",
+      "help": [],
+      "brief": "DX-HC-New UA EN HLWN - DX-VEO-055-001_TrickOrSweet + DX-AIV-InteractiveHalloween\n\n1. cut last 6 seconds\n2. total = 60s\n\nwork here\nhttps://drive.google.com/drive/folders/1kIT95u8WISMorVmAFV9-4bnFAEITFetn\n\nNaming:\nDX-AIV-406-002_SettAI_InteractiveHalloween_DX-VEO-055-001_EN_60s_1080x1080\nDX-AIV-406-002_SettAI_InteractiveHalloween_DX-VEO-055-001_EN_60s_1080x1350\nDX-AIV-406-002_SettAI_InteractiveHalloween_DX-VEO-055-001_EN_60s_1080x1920\nDX-AIV-406-002_SettAI_InteractiveHalloween_DX-VEO-055-001_EN_60s_1920x1080",
+      "folderUrl": "https://drive.google.com/drive/folders/1kIT95u8WISMorVmAFV9-4bnFAEITFetn",
+      "docUrl": "https://docs.google.com/document/d/1BQryGFMqe6Vz1LlyFIFoOSRTNjiI20EYWEJpXLZbztk/edit",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
         {
-          "at": "2026-10-06T11:00:00Z",
-          "text": "Sent to Monday: check it please + Senior Approval"
+          "at": "2026-10-09T14:05:57Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-10",
+      "name": "DX-AIV-0407-002_SettAI_GraveEscape_DX-VEO-055-001_EN_60s",
+      "line": "DX",
+      "department": "MGX",
+      "game": "SettAI",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "",
+      "month": "2026-10",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "designer2",
+      "help": [],
+      "brief": "DX-HC-New UA EN HLWN - DX-VEO-055-001_TrickOrSweet + DX-AIV-GraveyardEscape\n\n- cut first 6 sec of video\n- total length = 60s\n\nwork here\nhttps://drive.google.com/drive/folders/1xbB0fbK-wCqlUeSlKgWRpl8KF-Sh6I7L\n\nNaming:\nDX-AIV-407-002_SettAI_GraveyardEscape_DX-VEO-055-001_EN_60s_1080x1080\nDX-AIV-407-002_SettAI_GraveyardEscape_DX-VEO-055-001_EN_60s_1080x1350\nDX-AIV-407-002_SettAI_GraveyardEscape_DX-VEO-055-001_EN_60s_1080x1920\nDX-AIV-407-002_SettAI_GraveyardEscape_DX-VEO-055-001_EN_60s_1920x1080",
+      "folderUrl": "https://drive.google.com/drive/folders/1xbB0fbK-wCqlUeSlKgWRpl8KF-Sh6I7L",
+      "docUrl": "https://docs.google.com/document/d/1NEPTgEuFrL6A4F5vQW9OcRtK3dIB4Wd8ehcV_231Fs8/edit",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:57Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-11",
+      "name": "DD-AIV-202-004_SettAI_HalloweenFireTrial_DD-VEO-059-001_EN_30s",
+      "line": "DD",
+      "department": "MGX",
+      "game": "SettAI",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "2026-10-07",
+      "month": "2026-10",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "designer2",
+      "help": [],
+      "brief": "Please combine:\n\n1. DD-VEO-059-001_GravePumpkin + DD-AIV-HalloweenFireTrial\n2. Length = 30s\n3. Trim the last 8 seconds of the video\n4. Add a motion transition between the hook and the video\n\nWorking folder\nhttps://drive.google.com/drive/folders/1sLKC5XB9SsrNa1RACyz3g7yJ5nEmplJO\n\nThanks\n\nNaming:\nDD-AIV-202-004_SettAI_HalloweenFireTrial_DD-VEO-059-001_EN_30s_1080x1080\nDD-AIV-202-004_SettAI_HalloweenFireTrial_DD-VEO-059-001_EN_30s_1080x1350\nDD-AIV-202-004_SettAI_HalloweenFireTrial_DD-VEO-059-001_EN_30s_1080x1920\nDD-AIV-202-004_SettAI_HalloweenFireTrial_DD-VEO-059-001_EN_30s_1920x1080",
+      "folderUrl": "https://drive.google.com/drive/folders/1sLKC5XB9SsrNa1RACyz3g7yJ5nEmplJO",
+      "docUrl": "https://docs.google.com/document/d/1GW235f-1PlWduVfBbR-5T3gOta8qGyWWZhgypK43MFE/edit",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:57Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-12",
+      "name": "DD-AIV-224-002_SettAI_HalloweenMario_DD-VEO-059-001_EN_30s",
+      "line": "DD",
+      "department": "MGX",
+      "game": "SettAI",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "2026-10-07",
+      "month": "2026-10",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "designer4",
+      "help": [],
+      "brief": "Please combine:\n\n1. DD-VEO-059-001_GravePumpkin + DD-AIV-HalloweenMario\n2. Length = 30s\n3. Trim first ±8 seconds of video\n4. Add a motion transition between the hook and the video\n\nThanks\n\nWorking folder\nhttps://drive.google.com/drive/folders/1HdB-e1XMARbnvLO28er_PJDOz0zSXEQC\n\nNaming:\nDD-AIV-224-002_SettAI_HalloweenMario_DD-VEO-059-001_EN_30s_1080x1080\nDD-AIV-224-002_SettAI_HalloweenMario_DD-VEO-059-001_EN_30s_1080x1350\nDD-AIV-224-002_SettAI_HalloweenMario_DD-VEO-059-001_EN_30s_1080x1920\nDD-AIV-224-002_SettAI_HalloweenMario_DD-VEO-059-001_EN_30s_1920x1080",
+      "folderUrl": "https://drive.google.com/drive/folders/1HdB-e1XMARbnvLO28er_PJDOz0zSXEQC",
+      "docUrl": "https://docs.google.com/document/d/1cPl7H3wSEuCkL3X-U-Wxb0HVtvHElsrV8hzPwuhMkeI/edit",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:57Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-13",
+      "name": "DD-AIV-225-002_SettAI_HalloweenTrap_DD-VEO-059-001_EN_30s",
+      "line": "DD",
+      "department": "MGX",
+      "game": "SettAI",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "2026-10-07",
+      "month": "2026-10",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "designer4",
+      "help": [],
+      "brief": "Please combine:\n\n1. DD-VEO-059-001_GravePumpkin + DD-AIV-HalloweenTrap\n2. Length = 30s\n3. Trim the end of the video to reach a total of 30 seconds\n4. Add a motion transition between the hook and the video\n\nThanks\n\nWorking folder\nhttps://drive.google.com/drive/folders/1dW3y_OUvasOSf8mBfeOde0ZAh9fyIKu_\n\nNaming:\nDD-AIV-225-002_SettAI_HalloweenTrap_DD-VEO-059-001_EN_30s_1080x1080\nDD-AIV-225-002_SettAI_HalloweenTrap_DD-VEO-059-001_EN_30s_1080x1350\nDD-AIV-225-002_SettAI_HalloweenTrap_DD-VEO-059-001_EN_30s_1080x1920\nDD-AIV-225-002_SettAI_HalloweenTrap_DD-VEO-059-001_EN_30s_1920x1080",
+      "folderUrl": "https://drive.google.com/drive/folders/1dW3y_OUvasOSf8mBfeOde0ZAh9fyIKu_",
+      "docUrl": "https://docs.google.com/document/d/1PJ5QwPsseC8R7kT70iepso-G31XKOl81L0xGzNEQyN8/edit",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:57Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-14",
+      "name": "DD-AIV-228-002_SettAI_HalloweenBlastTreasure_DD-VEO-059-001_EN_30s",
+      "line": "DD",
+      "department": "MGX",
+      "game": "SettAI",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "2026-10-07",
+      "month": "2026-10",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "designer5",
+      "help": [],
+      "brief": "Please combine\n\n1. DD-VEO-059-001_GravePumpkin + DD-AIV-Halloween Blast Treasure 30s\n2. Length = 30s\n3. Trim the first 9 seconds of the video\n4. Add a motion transition between the hook and the video\n\nThanks\n\nWorking Folder\nhttps://drive.google.com/drive/folders/1SwIt7qtsVbyyz60XOaVgRtSGx8AYJbV2\n\nNaming:\nDD-AIV-228-002_SettAI_HalloweenBlastTreasure_DD-VEO-059-001_EN_30s_1080x1080\nDD-AIV-228-002_SettAI_HalloweenBlastTreasure_DD-VEO-059-001_EN_30s_1080x1350\nDD-AIV-228-002_SettAI_HalloweenBlastTreasure_DD-VEO-059-001_EN_30s_1080x1920\nDD-AIV-228-002_SettAI_HalloweenBlastTreasure_DD-VEO-059-001_EN_30s_1920x1080",
+      "folderUrl": "https://drive.google.com/drive/folders/1SwIt7qtsVbyyz60XOaVgRtSGx8AYJbV2",
+      "docUrl": "https://docs.google.com/document/d/1ByB8z8es79ufM7GrWcER2WvCPCucwkPwfPCK3MgAT3E/edit",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:57Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-15",
+      "name": "DD-AIV-229-002_SettAI_HalloweenMonopoly_DD-VEO-059-001_EN_30s",
+      "line": "DD",
+      "department": "MGX",
+      "game": "SettAI",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "2026-10-07",
+      "month": "2026-10",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "designer5",
+      "help": [],
+      "brief": "Please combine:\n\n1. DD-VEO-059-001_GravePumpkin + DD-AIV-HalloweenMonopoly\n2. Length = 30s\n3. Don't trim anything\n4. Add a motion transition between the hook and the video\n\nThanks\n\nWorking folder\nhttps://drive.google.com/drive/folders/1fgI2xlNTcKMrP9542rCxNb-p1K0OpDOt\n\nNaming:\nDD-AIV-229-002_SettAI_HalloweenMonopoly_DD-VEO-059-001_EN_30s_1080x1080\nDD-AIV-229-002_SettAI_HalloweenMonopoly_DD-VEO-059-001_EN_30s_1080x1350\nDD-AIV-229-002_SettAI_HalloweenMonopoly_DD-VEO-059-001_EN_30s_1080x1920\nDD-AIV-229-002_SettAI_HalloweenMonopoly_DD-VEO-059-001_EN_30s_1920x1080",
+      "folderUrl": "https://drive.google.com/drive/folders/1fgI2xlNTcKMrP9542rCxNb-p1K0OpDOt",
+      "docUrl": "https://docs.google.com/document/d/1We3cvu10v2KXMxcEPWNmFL1ipcq8KpalrYUtn9BVYt8/edit",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:57Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-16",
+      "name": "DD-AIV-231-002_SettAI_SpookyJackpot_DD-VEO-059-001_EN_30s",
+      "line": "DD",
+      "department": "MGX",
+      "game": "SettAI",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "2026-10-07",
+      "month": "2026-10",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "teamlead",
+      "help": [],
+      "brief": "Please combine:\n\n1. DD-VEO-059-001_GravePumpkin + DD-AIV-SpookyJackpot\n2. Length = 60s\n3. Trim the first 9s of the video\n4. Add a motion transition between the hook and the video\n\nThanks\n\nWorking folder\nhttps://drive.google.com/drive/folders/1-wZSAsNW-NfxKG9SYlNbaFjO8uYh1hA4\n\nNaming:\nDD-AIV-231-002_SettAI_SpookyJackpot_DD-VEO-059-001_EN_60s_1080x1080\nDD-AIV-231-002_SettAI_SpookyJackpot_DD-VEO-059-001_EN_60s_1080x1350\nDD-AIV-231-002_SettAI_SpookyJackpot_DD-VEO-059-001_EN_60s_1080x1920\nDD-AIV-231-002_SettAI_SpookyJackpot_DD-VEO-059-001_EN_60s_1920x1080",
+      "folderUrl": "https://drive.google.com/drive/folders/1-wZSAsNW-NfxKG9SYlNbaFjO8uYh1hA4",
+      "docUrl": "https://docs.google.com/document/d/1jjuiHO7Y6xvQiGyUIcOST4Boyrnljt5xTc7nQGPRsz4/edit",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:57Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-17",
+      "name": "DD-AIV-227-002_SettAI_HalloweenBlastTreasure_DD-VEO-059-001_EN_24s",
+      "line": "DD",
+      "department": "MGX",
+      "game": "SettAI",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "2026-10-07",
+      "month": "2026-10",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "designer2",
+      "help": [],
+      "brief": "Please combine\n\n1. DD-VEO-059-001_GravePumpkin + DD-AIV-HalloweenBlastTreasure 15s\n2. Length = 24s\n3. Connect without trimming\n4. Add a motion transition between the hook and the video\n\nThanks\n\nWorking folder\nhttps://drive.google.com/drive/folders/12ruVe_IxccG7JRmVkKCLuR6U5kRWPfY1\n\nNaming:\nDD-AIV-227-002_SettAI_HalloweenBlastTreasure_DD-VEO-059-001_EN_24s_1080x1080\nDD-AIV-227-002_SettAI_HalloweenBlastTreasure_DD-VEO-059-001_EN_24s_1080x1350\nDD-AIV-227-002_SettAI_HalloweenBlastTreasure_DD-VEO-059-001_EN_24s_1080x1920\nDD-AIV-227-002_SettAI_HalloweenBlastTreasure_DD-VEO-059-001_EN_24s_1920x1080",
+      "folderUrl": "https://drive.google.com/drive/folders/12ruVe_IxccG7JRmVkKCLuR6U5kRWPfY1",
+      "docUrl": "https://docs.google.com/document/d/1UPc-dba8ByjbqAn6mOcirS5_zER4foPxWQ7rgbghRx4/edit",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:57Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-18",
+      "name": "DD-AIV-233-002_SettAI_HalloweenKindomBuild_DD-VEO-059-001_EN_60s",
+      "line": "DD",
+      "department": "MGX",
+      "game": "SettAI",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "2026-10-07",
+      "month": "2026-10",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "designer2",
+      "help": [],
+      "brief": "Please combine:\n\n1. DD-VEO-059-001_GravePumpkin + DD-AIV-HalloweenKindomBuild\n2. Length = 60s\n3. Trim first ±8 seconds of video\n4. Add a motion transition between the hook and the video\n\nWorking folder\nhttps://drive.google.com/drive/folders/1YhT8bBrTz3H_rnQiPxI82YZVu4raD7pN\n\nThanks\n\nNaming:\nDD-AIV-233-002_SettAI_HalloweenKindomBuild_DD-VEO-059-001_EN_60s_1080x1080\nDD-AIV-233-002_SettAI_HalloweenKindomBuild_DD-VEO-059-001_EN_60s_1080x1350\nDD-AIV-233-002_SettAI_HalloweenKindomBuild_DD-VEO-059-001_EN_60s_1080x1920\nDD-AIV-233-002_SettAI_HalloweenKindomBuild_DD-VEO-059-001_EN_60s_1920x1080",
+      "folderUrl": "https://drive.google.com/drive/folders/1YhT8bBrTz3H_rnQiPxI82YZVu4raD7pN",
+      "docUrl": "https://docs.google.com/document/d/1CXus4Oiw7R0uNX5d4R3CxvP5S99lQJOKcPN0_ZZj4iQ/edit",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:57Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-19",
+      "name": "DD-AIV-235-002_SettAI_WitchsPotion_DD-VEO-059-001_EN_30s",
+      "line": "DD",
+      "department": "MGX",
+      "game": "SettAI",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "2026-10-07",
+      "month": "2026-10",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "designer2",
+      "help": [],
+      "brief": "Please combine:\n\n1. DD-VEO-059-001_GravePumpkin + DD-AIV-WitchsPotion\n2. Length = 30s\n3. Trim end ±8s of the video\n4. Add a motion transition between the hook and the video\n\nThanks\n\nWorking folder\nhttps://drive.google.com/drive/folders/1_DbnhESYtGgBHGvud7NaT0vdGFAtefvn\n\nNaming:\nDD-AIV-235-002_SettAI_WitchsPotion_DD-VEO-059-001_EN_30s_1080x1080\nDD-AIV-235-002_SettAI_WitchsPotion_DD-VEO-059-001_EN_30s_1080x1350\nDD-AIV-235-002_SettAI_WitchsPotion_DD-VEO-059-001_EN_30s_1080x1920\nDD-AIV-235-002_SettAI_WitchsPotion_DD-VEO-059-001_EN_30s_1920x1080",
+      "folderUrl": "https://drive.google.com/drive/folders/1_DbnhESYtGgBHGvud7NaT0vdGFAtefvn",
+      "docUrl": "https://docs.google.com/document/d/1yB0LTJa8ys2KgHLcNZg3sfV1EgshZzqOo4IEvYF2vJo/edit",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:57Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-20",
+      "name": "DD-AIV-239-002_SettAI_HalloweenDiamondBlast_DD-VEO-059-001_EN_30s",
+      "line": "DD",
+      "department": "MGX",
+      "game": "SettAI",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "2026-10-07",
+      "month": "2026-10",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "teamlead",
+      "help": [],
+      "brief": "Hi,\n\nPlease combine\n\n1. DD-VEO-059-001_GravePumpkin + DD-AIV-HalloweenDiamondBlast\n2. Length = 30s\n3. Trim last ±8 seconds of video\n4. Add a motion transition between the hook and the video\n\nThanks\n\nWorking folder\nhttps://drive.google.com/drive/folders/18pMlpl0eZLuxjtoETGBK-OZPrjQubSCk\n\nNaming:\nDD-AIV-239-002_SettAI_HalloweenDiamondBlast_DD-VEO-059-001_EN_30s_1080x1080\nDD-AIV-239-002_SettAI_HalloweenDiamondBlast_DD-VEO-059-001_EN_30s_1080x1350\nDD-AIV-239-002_SettAI_HalloweenDiamondBlast_DD-VEO-059-001_EN_30s_1080x1920\nDD-AIV-239-002_SettAI_HalloweenDiamondBlast_DD-VEO-059-001_EN_30s_1920x1080",
+      "folderUrl": "https://drive.google.com/drive/folders/18pMlpl0eZLuxjtoETGBK-OZPrjQubSCk",
+      "docUrl": "https://docs.google.com/document/d/1KkKLaZ0Kf2F-0rsC09zGoJockJ9p3rym1zOLtUwtUc8/edit",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:57Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-21",
+      "name": "DX-AIV-0222-002_SettAI_HalloweenRelax_DX-H-124-001_EN_30s- HC",
+      "line": "DX",
+      "department": "MGX",
+      "game": "SettAI",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "2026-08-28",
+      "month": "2026-09",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "designer2",
+      "help": [],
+      "brief": "",
+      "folderUrl": "",
+      "docUrl": "",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:58Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-22",
+      "name": "DX-V-153-005_WinningCircle_DX-H-124-001_EN_30s HC",
+      "line": "DX",
+      "department": "MGX",
+      "game": "",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "2026-08-28",
+      "month": "2026-09",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "teamlead",
+      "help": [],
+      "brief": "",
+      "folderUrl": "",
+      "docUrl": "",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:58Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-23",
+      "name": "DX-V-026-014_Trail_Treasure_DX-H-124-001",
+      "line": "DX",
+      "department": "MGX",
+      "game": "",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "2026-08-28",
+      "month": "2026-09",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "designer2",
+      "help": [],
+      "brief": "",
+      "folderUrl": "",
+      "docUrl": "",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:58Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-24",
+      "name": "DX-V-144-006_Split_Rally_DX-VEO-053-001",
+      "line": "DX",
+      "department": "MGX",
+      "game": "",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "2026-08-28",
+      "month": "2026-09",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "teamlead",
+      "help": [],
+      "brief": "",
+      "folderUrl": "",
+      "docUrl": "",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:58Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-25",
+      "name": "DX-V-107-018_RollBack_DX-H-054-001",
+      "line": "DX",
+      "department": "MGX",
+      "game": "",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "2026-08-28",
+      "month": "2026-09",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "designer2",
+      "help": [],
+      "brief": "",
+      "folderUrl": "",
+      "docUrl": "",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:58Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-26",
+      "name": "DX-AIV-0139-003_SettAI_MakeYourMove_DX-H-101-002_EN_60s| Comp/MGX",
+      "line": "DX",
+      "department": "MGX",
+      "game": "SettAI",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "2026-09-07",
+      "month": "2026-09",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "designer5",
+      "help": [],
+      "brief": "",
+      "folderUrl": "",
+      "docUrl": "",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:58Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-27",
+      "name": "DX-V-135-032_ASODreams_UA_DX-VEO-063-001_EN_30s",
+      "line": "DX",
+      "department": "MGX",
+      "game": "",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "2026-09-29",
+      "month": "2026-09",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "designer2",
+      "help": [],
+      "brief": "",
+      "folderUrl": "",
+      "docUrl": "",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:58Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-28",
+      "name": "DX-V-135-033_ASODreams_UA_DX-VEO-062-001_EN_30",
+      "line": "DX",
+      "department": "MGX",
+      "game": "",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "2026-09-29",
+      "month": "2026-09",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "designer2",
+      "help": [],
+      "brief": "",
+      "folderUrl": "",
+      "docUrl": "",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:58Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-29",
+      "name": "DX-V-135-034_ASODreams_UA_DX-VEO-061-001_EN_30",
+      "line": "DX",
+      "department": "MGX",
+      "game": "",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "2026-09-29",
+      "month": "2026-09",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "designer2",
+      "help": [],
+      "brief": "",
+      "folderUrl": "",
+      "docUrl": "",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:58Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-30",
+      "name": "DX-V-135-035_ASODreams_UA_DX-VEO-060-001_EN_30",
+      "line": "DX",
+      "department": "MGX",
+      "game": "",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "2026-09-30",
+      "month": "2026-09",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "designer2",
+      "help": [],
+      "brief": "",
+      "folderUrl": "",
+      "docUrl": "",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:58Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-31",
+      "name": "DX-V-135-036_ASODreams_UA_DX-VEO-059-001_EN_30s",
+      "line": "DX",
+      "department": "MGX",
+      "game": "",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "2026-09-30",
+      "month": "2026-09",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "designer2",
+      "help": [],
+      "brief": "",
+      "folderUrl": "",
+      "docUrl": "",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:58Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-32",
+      "name": "DX-UGC-118-013_FamilyHoliday_V3_DX-VEO-064-001_EN_45s",
+      "line": "DX",
+      "department": "MGX",
+      "game": "",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "2026-09-29",
+      "month": "2026-09",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "designer4",
+      "help": [],
+      "brief": "",
+      "folderUrl": "",
+      "docUrl": "",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:58Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-33",
+      "name": "DX-UGC-118-014_FamilyHoliday_V3_DX-VEO-063-001_EN_45s",
+      "line": "DX",
+      "department": "MGX",
+      "game": "",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "2026-09-29",
+      "month": "2026-09",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "designer4",
+      "help": [],
+      "brief": "",
+      "folderUrl": "",
+      "docUrl": "",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:58Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-34",
+      "name": "DX-UGC-118-015_FamilyHoliday_V3_DX-VEO-062-001_EN_45",
+      "line": "DX",
+      "department": "MGX",
+      "game": "",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "2026-09-29",
+      "month": "2026-09",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "designer4",
+      "help": [],
+      "brief": "",
+      "folderUrl": "",
+      "docUrl": "",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:58Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-35",
+      "name": "DX-UGC-118-016_FamilyHoliday_V3_DX-VEO-061-001_EN_45s",
+      "line": "DX",
+      "department": "MGX",
+      "game": "",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "2026-09-30",
+      "month": "2026-09",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "designer2",
+      "help": [],
+      "brief": "",
+      "folderUrl": "",
+      "docUrl": "",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:58Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-36",
+      "name": "DX-UGC-118-017_FamilyHoliday_V3_DX-VEO-060-001_EN_45s",
+      "line": "DX",
+      "department": "MGX",
+      "game": "",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "2026-09-29",
+      "month": "2026-09",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "designer5",
+      "help": [],
+      "brief": "",
+      "folderUrl": "",
+      "docUrl": "",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:58Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-37",
+      "name": "DX-UGC-118-018_FamilyHoliday_V3_DX-VEO-059-001_EN_45s",
+      "line": "DX",
+      "department": "MGX",
+      "game": "",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "2026-09-29",
+      "month": "2026-09",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "designer5",
+      "help": [],
+      "brief": "",
+      "folderUrl": "",
+      "docUrl": "",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:58Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-38",
+      "name": "DX-UGC-118-019_FamilyHoliday_V3_DX-VEO-058-001_EN_45s",
+      "line": "DX",
+      "department": "MGX",
+      "game": "",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "2026-09-30",
+      "month": "2026-09",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "designer5",
+      "help": [],
+      "brief": "",
+      "folderUrl": "",
+      "docUrl": "",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:58Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-39",
+      "name": "DD-V-311-005_NipponJA_NoStoreButton",
+      "line": "DD",
+      "department": "MGX",
+      "game": "",
+      "shifts": 0.5,
+      "hours": 4.5,
+      "deadline": "2026-08-25",
+      "month": "2026-09",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "designer3",
+      "help": [],
+      "brief": "",
+      "folderUrl": "",
+      "docUrl": "",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:58Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-40",
+      "name": "DD-V-223-058_FirstPlace_NoStoreButton_JA",
+      "line": "DD",
+      "department": "MGX",
+      "game": "",
+      "shifts": 0.5,
+      "hours": 4.5,
+      "deadline": "2026-08-25",
+      "month": "2026-09",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "designer4",
+      "help": [],
+      "brief": "",
+      "folderUrl": "",
+      "docUrl": "",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:58Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-41",
+      "name": "DD-V-276-005_JapanStyle_NoStoreButton_JA",
+      "line": "DD",
+      "department": "MGX",
+      "game": "",
+      "shifts": 0.5,
+      "hours": 4.5,
+      "deadline": "2026-08-25",
+      "month": "2026-09",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "designer3",
+      "help": [],
+      "brief": "",
+      "folderUrl": "",
+      "docUrl": "",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:58Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-42",
+      "name": "DD-V-294-002_LavaQuest_NoStoreButton",
+      "line": "DD",
+      "department": "MGX",
+      "game": "",
+      "shifts": 0.5,
+      "hours": 4.5,
+      "deadline": "2026-08-25",
+      "month": "2026-09",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "designer5",
+      "help": [],
+      "brief": "",
+      "folderUrl": "",
+      "docUrl": "",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:58Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-43",
+      "name": "DD-V-333-001_StoreVid2026",
+      "line": "DD",
+      "department": "MGX",
+      "game": "",
+      "shifts": 1.0,
+      "hours": 9.0,
+      "deadline": "2026-08-28",
+      "month": "2026-09",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "designer4",
+      "help": [],
+      "brief": "",
+      "folderUrl": "",
+      "docUrl": "",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:58Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-44",
+      "name": "DD-V-039-008_GoogleFairy_DD-H-313-001",
+      "line": "DD",
+      "department": "MGX",
+      "game": "",
+      "shifts": 0.5,
+      "hours": 4.5,
+      "deadline": "2026-09-02",
+      "month": "2026-09",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "teamlead",
+      "help": [],
+      "brief": "",
+      "folderUrl": "",
+      "docUrl": "",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:58Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-45",
+      "name": "DD-V-281-017_MegaTrail_DD-H-313-001_UA_EN",
+      "line": "DD",
+      "department": "MGX",
+      "game": "",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "2026-09-02",
+      "month": "2026-09",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "teamlead",
+      "help": [],
+      "brief": "",
+      "folderUrl": "",
+      "docUrl": "",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:58Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-46",
+      "name": "DD-V-144-044_SimpleStealBlastPirate_DD-H-313-001",
+      "line": "DD",
+      "department": "MGX",
+      "game": "",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "2026-09-02",
+      "month": "2026-09",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "designer2",
+      "help": [],
+      "brief": "",
+      "folderUrl": "",
+      "docUrl": "",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:58Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-47",
+      "name": "DD-V-295-002_FindPeon_DD-H-313-001_UA_EN_30s | Comp/MGX",
+      "line": "DD",
+      "department": "MGX",
+      "game": "",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "2026-09-03",
+      "month": "2026-09",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "designer2",
+      "help": [],
+      "brief": "",
+      "folderUrl": "",
+      "docUrl": "",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:58Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-48",
+      "name": "DD-V-236-003_MergeDreams_DD-H-313-001_UA_EN_30s_1920x1080 | Comp/MGX",
+      "line": "DD",
+      "department": "MGX",
+      "game": "",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "2026-09-03",
+      "month": "2026-09",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "teamlead",
+      "help": [],
+      "brief": "",
+      "folderUrl": "",
+      "docUrl": "",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:58Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-49",
+      "name": "DD-V-199-001_SocialStoreVideo",
+      "line": "DD",
+      "department": "MGX",
+      "game": "",
+      "shifts": 0.8,
+      "hours": 7.2,
+      "deadline": "2026-09-07",
+      "month": "2026-09",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "designer4",
+      "help": [],
+      "brief": "",
+      "folderUrl": "",
+      "docUrl": "",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:58Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-50",
+      "name": "DD-V-191-001_PetBlast_Elephant",
+      "line": "DD",
+      "department": "MGX",
+      "game": "",
+      "shifts": 1.5,
+      "hours": 13.5,
+      "deadline": "2026-09-07",
+      "month": "2026-09",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "designer5",
+      "help": [],
+      "brief": "",
+      "folderUrl": "",
+      "docUrl": "",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:58Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-51",
+      "name": "DD-V-334-001_AroundTheWorld_30s",
+      "line": "DD",
+      "department": "MGX",
+      "game": "",
+      "shifts": 1.5,
+      "hours": 13.5,
+      "deadline": "2026-09-12",
+      "month": "2026-09",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "teamlead",
+      "help": [
+        {
+          "id": "designer3",
+          "hours": 0.5
         }
       ],
-      "month": "2026-10"
+      "brief": "",
+      "folderUrl": "",
+      "docUrl": "",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:58Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-52",
+      "name": "DD-V-327-001_FriendsSet_30s",
+      "line": "DD",
+      "department": "MGX",
+      "game": "",
+      "shifts": 1.5,
+      "hours": 13.5,
+      "deadline": "2026-09-12",
+      "month": "2026-09",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "teamlead",
+      "help": [],
+      "brief": "",
+      "folderUrl": "",
+      "docUrl": "",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:58Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-53",
+      "name": "DD-V-213-001_Album_Summer_EN_30s",
+      "line": "DD",
+      "department": "MGX",
+      "game": "",
+      "shifts": 1.5,
+      "hours": 13.5,
+      "deadline": "2026-09-12",
+      "month": "2026-09",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "designer3",
+      "help": [],
+      "brief": "",
+      "folderUrl": "",
+      "docUrl": "",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:58Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-54",
+      "name": "DD-V-189-001_Album_Retro_EN_30s",
+      "line": "DD",
+      "department": "MGX",
+      "game": "",
+      "shifts": 1.5,
+      "hours": 13.5,
+      "deadline": "2026-09-12",
+      "month": "2026-09",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "designer3",
+      "help": [],
+      "brief": "",
+      "folderUrl": "",
+      "docUrl": "",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:58Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-55",
+      "name": "DD-V-184-001_Album_WinterWonders_EN_30s",
+      "line": "DD",
+      "department": "MGX",
+      "game": "",
+      "shifts": 1.5,
+      "hours": 13.5,
+      "deadline": "2026-09-12",
+      "month": "2026-09",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "designer3",
+      "help": [],
+      "brief": "",
+      "folderUrl": "",
+      "docUrl": "",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:58Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-56",
+      "name": "DD-B-017-001_Hey_PlayNow",
+      "line": "DD",
+      "department": "MGX",
+      "game": "",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "2026-09-15",
+      "month": "2026-09",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "teamlead",
+      "help": [],
+      "brief": "",
+      "folderUrl": "",
+      "docUrl": "",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:58Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-57",
+      "name": "DD-SS-046-002_Summer_NewFresh | Design",
+      "line": "DD",
+      "department": "MGX",
+      "game": "",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "",
+      "month": "2026-09",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "designer4",
+      "help": [],
+      "brief": "",
+      "folderUrl": "",
+      "docUrl": "",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:58Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-58",
+      "name": "DD-SS-045-001_NewFresh_2026-LOC",
+      "line": "DD",
+      "department": "MGX",
+      "game": "",
+      "shifts": 0.3,
+      "hours": 2.7,
+      "deadline": "2026-09-28",
+      "month": "2026-09",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "designer4",
+      "help": [],
+      "brief": "",
+      "folderUrl": "",
+      "docUrl": "",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-09T14:05:58Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
     }
   ],
   "events": [
     {
-      "at": "2026-10-06T13:36:00Z",
-      "text": "Orit sent the October HC pack — 10 DD tasks at 0.3 shift"
-    },
-    {
-      "at": "2026-10-07T10:05:00Z",
-      "text": "3 tasks ready to send to Monday one by one, without waiting for the rest"
+      "at": "2026-10-09T14:05:58Z",
+      "text": "Mirror snapshot from live SP_MGX_check.xlsx. Clicks stay in the portal buffer."
     }
-  ]
+  ],
+  "notices": [],
+  "noticeReads": {}
 }

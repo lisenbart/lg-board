@@ -161,9 +161,50 @@ def _norm_name(name: str) -> str:
     return " ".join(str(name or "").strip().split()).lower()
 
 
+def people_by_name(people: list[dict]) -> dict:
+    """Map visible names and aliases (Маша → Марія) to the crew record."""
+    out: dict = {}
+    for person in people or []:
+        keys = [person.get("name"), *(person.get("aliases") or [])]
+        for key in keys:
+            n = _norm_name(key)
+            if n:
+                out[n] = person
+    return out
+
+
 def _id_key(name: str) -> str:
     m = NAME_ID.match(str(name or "").strip())
     return m.group(1).upper() if m else ""
+
+
+def _deadline_iso(value, ym: str) -> str:
+    """Studio dates are day-first. Excel often stores 07/10 as 10 July."""
+    y = m = 0
+    try:
+        y, m = [int(x) for x in str(ym or "").split("-")[:2]]
+    except (TypeError, ValueError):
+        pass
+    if isinstance(value, datetime):
+        dt = value
+        if m and dt.month != m and dt.day == m:
+            try:
+                dt = dt.replace(year=y or dt.year, month=m, day=dt.month)
+            except ValueError:
+                pass
+        return dt.strftime("%Y-%m-%d")
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d.%m.%Y", "%d/%m", "%d.%m"):
+        try:
+            dt = datetime.strptime(text, fmt)
+            if fmt in {"%d/%m", "%d.%m"}:
+                dt = dt.replace(year=y or datetime.utcnow().year)
+            return dt.strftime("%Y-%m-%d")
+        except ValueError:
+            continue
+    return text
 
 
 def _person_id_from_cell(cell) -> str:
@@ -237,10 +278,7 @@ def parse_workbook(path: Path, ym: str) -> dict:
             primary = max(shares, key=lambda s: (s["hours"], s["name"]))
             assignee = primary.get("name") or ""
             assignee_id = primary.get("id") or ""
-        if isinstance(deadline, datetime):
-            deadline_s = deadline.strftime("%Y-%m-%d")
-        else:
-            deadline_s = str(deadline or "").strip()
+        deadline_s = _deadline_iso(deadline, ym)
         prefix = name.split("-", 1)[0].upper()
         rows.append(
             {
@@ -264,7 +302,7 @@ def _resolved_shares(row: dict, people: list[dict], by_name: dict) -> list[dict]
     for share in row.get("shares") or row.get("help") or []:
         pid = str(share.get("id") or "").strip()
         if not pid or pid not in ids:
-            person = by_name.get((share.get("name") or "").strip().lower())
+            person = by_name.get(_norm_name(share.get("name") or ""))
             pid = person["id"] if person else ""
         hours = round_hours(share.get("hours"))
         if not pid or pid not in ids or hours <= 0 or pid in seen:
@@ -280,7 +318,7 @@ def _help_from_row(row: dict, people: list[dict], by_name: dict, assignee_id: st
 
 def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
     people = designers(db)
-    by_name = {p["name"].strip().lower(): p for p in people}
+    by_name = people_by_name(people)
     existing = {
         str(t.get("name") or "").strip(): t
         for t in db.get("tasks") or []
@@ -294,7 +332,7 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
         if row.get("assigneeId") and row["assigneeId"] in {p["id"] for p in people}:
             assignee_id = row["assigneeId"]
         elif row.get("assigneeName"):
-            person = by_name.get(row["assigneeName"].strip().lower())
+            person = by_name.get(_norm_name(row["assigneeName"]))
             if person:
                 assignee_id = person["id"]
         shares = _resolved_shares(row, people, by_name)
@@ -349,7 +387,7 @@ def tasks_for_finance(db: dict, ym: str) -> list[dict]:
     if not parsed.get("sheet"):
         raise FileNotFoundError(f"SP_MGX_check.xlsx has no {sheet_name_for(ym)} tab")
     people = designers(db)
-    by_name = {p["name"].strip().lower(): p for p in people}
+    by_name = people_by_name(people)
     existing = {
         str(t.get("name") or "").strip(): t
         for t in db.get("tasks") or []
@@ -368,7 +406,7 @@ def tasks_for_finance(db: dict, ym: str) -> list[dict]:
         if person is None and row.get("assigneeId"):
             person = next((p for p in db.get("people") or [] if p.get("id") == row["assigneeId"]), None)
         if person is None:
-            person = by_name.get((row.get("assigneeName") or "").strip().lower())
+            person = by_name.get(_norm_name(row.get("assigneeName") or ""))
         assignee_id = person["id"] if person else ""
         task = dict(base)
         task["name"] = row["name"]
@@ -404,7 +442,7 @@ def _label_section_empl(ws, col: int, n: int) -> None:
 def _bind_people_columns(ws, people: list[dict]) -> list[tuple[int, dict | None]]:
     """Bind EMPL columns to person id. The header name is only a label and can change."""
     by_id = {p["id"]: p for p in people}
-    by_name = {p["name"].strip().lower(): p for p in people}
+    by_name = people_by_name(people)
     used = set()
     columns: list[tuple[int, dict | None]] = []
     for h in _header_columns(ws):

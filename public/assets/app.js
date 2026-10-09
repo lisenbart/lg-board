@@ -659,7 +659,25 @@ function renderChrome() {
   $("financeNav").hidden = !isFinance();
   if ($("inboxWrap")) $("inboxWrap").hidden = isClient();
   renderMonth();
-  $("roleHint").textContent = roleLine();
+  const meta = state.db?.meta || {};
+  const brand = $("brandMode");
+  if (brand) {
+    if (meta.mode === "mirror") {
+      brand.textContent = meta.bufferDirty
+        ? "Mirror · clicks in this browser"
+        : "Mirror · live snapshot";
+    } else {
+      brand.textContent = "";
+    }
+  }
+  const hint = roleLine();
+  if (meta.mode === "mirror") {
+    $("roleHint").textContent = meta.bufferDirty
+      ? `${hint} · Reset to live throws away clicks here. Core Excel / October Drive stay untouched.`
+      : `${hint} · live people, hours, money. Clicks stay in a buffer.`;
+  } else {
+    $("roleHint").textContent = hint;
+  }
   $("sideFoot").innerHTML = "";
 
   const tabs = [];
@@ -710,7 +728,7 @@ function renderToolbar() {
     return;
   }
   if (state.view === "excel") {
-    const drive = state.db?.meta?.driveSandboxExcel || "";
+    const drive = state.db?.meta?.driveLiveExcel || state.db?.meta?.driveSandboxExcel || "";
     $("toolbar").innerHTML = `
       ${isDesigner() || isClientPreview() ? "" : `<button class="btn" id="btnExcelPull">Refresh from file</button>`}
       ${drive ? `<a class="btn" href="${escapeHtml(drive)}" target="_blank" rel="noreferrer">Open on Drive</a>` : ""}
@@ -740,7 +758,7 @@ function renderToolbar() {
       ${drive ? `<a class="btn" href="${escapeHtml(drive)}" target="_blank" rel="noreferrer">Open Drive</a>` : ""}
       <button class="btn green" id="btnExport" ${n ? "" : "disabled"}>Send to client (${n})</button>
       <input class="search" placeholder="Search project" />
-      <button class="btn ghost" id="btnReset">Reset demo</button>
+      <button class="btn ghost" id="btnReset">Reset to live</button>
     `;
   }
   $("toolbar").querySelector(".search")?.addEventListener("input", render);
@@ -2906,11 +2924,18 @@ async function exportMonday() {
   await sendToClient([...state.selected]);
 }
 async function resetDemo() {
+  if (
+    !confirm(
+      "Discard clicks in this browser and restore the live snapshot?\n\nThe real SP_MGX_check.xlsx and Projects / 10_October are not changed."
+    )
+  ) {
+    return;
+  }
   const out = await api("/api/reset", {});
   state.month = out.meta?.month || "2026-10";
   localStorage.setItem(MONTH_KEY, state.month);
   applyState(out);
-  toast("Demo reset");
+  toast("Restored live snapshot · core files untouched");
 }
 function applyState(db) {
   state.db = db;
