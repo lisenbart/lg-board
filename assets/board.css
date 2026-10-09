@@ -436,8 +436,10 @@ html.studio-host.in-app .login-gate { display: none !important; }
 }
 .group.sheet {
   --name-width: 412px;
+  --meta-width: 640px;
   position: relative;
-  min-width: calc(var(--name-width) + 630px);
+  width: max(100%, calc(var(--name-width) + var(--meta-width)));
+  min-width: max(100%, calc(var(--name-width) + var(--meta-width)));
 }
 .group-head {
   display: flex; align-items: center; gap: 8px; padding: 8px 12px;
@@ -452,6 +454,8 @@ html.studio-host.in-app .login-gate { display: none !important; }
   align-items: stretch;
   gap: 0;
   padding: 0;
+  width: 100%;
+  min-width: calc(var(--name-width) + var(--meta-width));
   white-space: nowrap;
 }
 .cols {
@@ -465,14 +469,19 @@ html.studio-host.in-app .login-gate { display: none !important; }
   cursor: pointer;
 }
 .frozen {
+  box-sizing: border-box;
   flex: 0 0 var(--name-width);
+  flex-shrink: 0;
   width: var(--name-width);
-  min-width: 0;
+  min-width: var(--name-width);
+  max-width: var(--name-width);
+  overflow: hidden;
   display: grid;
   align-items: center;
   padding: 0 10px 0 8px;
   background: #fff;
 }
+.frozen > .cell { min-width: 0; }
 .cols.ops .frozen, .row.ops .frozen { grid-template-columns: 52px 36px minmax(0, 1fr); }
 .cols.exec .frozen, .row.exec .frozen { grid-template-columns: 52px minmax(0, 1fr); }
 .due {
@@ -512,7 +521,10 @@ html.studio-host.in-app .login-gate { display: none !important; }
 }
 .time-edit small { color: var(--muted); font-size: 11px; white-space: nowrap; font-weight: 400; }
 .meta {
-  flex: 0 0 auto;
+  flex: 0 0 var(--meta-width);
+  width: var(--meta-width);
+  min-width: var(--meta-width);
+  max-width: var(--meta-width);
   display: grid;
   align-items: center;
   padding: 0 12px 0 14px;
@@ -528,7 +540,7 @@ html.studio-host.in-app .login-gate { display: none !important; }
   bottom: 0;
   left: var(--name-width);
   width: 12px;
-  margin-left: -6px;
+  transform: translateX(-50%);
   cursor: col-resize;
   z-index: 6;
   touch-action: none;
@@ -554,6 +566,8 @@ body.col-resizing {
   user-select: none;
 }
 body.col-resizing * { cursor: col-resize !important; }
+.group.is-resizing .row,
+.group.is-resizing .cols { pointer-events: none; }
 .row:hover, .row:hover .frozen, .row:hover .meta { background: #f7f8fc; }
 .chk {
   appearance: none;
@@ -1219,7 +1233,7 @@ body.col-resizing * { cursor: col-resize !important; }
   .sidebar { display: none; }
   .top-end { width: 100%; justify-content: flex-end; }
   .team-row { grid-template-columns: 1fr; }
-  .group.sheet { min-width: calc(var(--name-width) + 630px); }
+  .group.sheet { --meta-width: 608px; }
   .cols.ops .meta, .row.ops .meta,
   .cols.exec .meta, .row.exec .meta {
     grid-template-columns: 108px 140px 56px 64px 140px 72px;
