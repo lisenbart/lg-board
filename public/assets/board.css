@@ -739,6 +739,109 @@ body.col-resizing * { cursor: col-resize !important; }
 .pin-actions .btn { text-decoration: none; }
 .pin-link { font-size: 12px; font-weight: 500; text-decoration: none; }
 .pin-link:hover { text-decoration: underline; }
+.notes {
+  border: 1.5px solid #e39aab;
+  border-radius: 10px;
+  overflow: hidden;
+  margin: 0 0 12px;
+  background: #fff;
+}
+.notes.is-empty { border-color: #d5d9e6; }
+.notes-head {
+  padding: 8px 14px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #9b2245;
+  background: #fde8ee;
+  border-bottom: 1.5px solid #e39aab;
+}
+.notes.is-empty .notes-head {
+  color: var(--muted);
+  background: #f6f7fb;
+  border-bottom-color: #d5d9e6;
+}
+.notes-empty {
+  margin: 0;
+  padding: 10px 14px;
+  font-size: 12px;
+  color: #c5c7d0;
+}
+.notes-item {
+  padding: 10px 14px 12px;
+  border-bottom: 1px solid #f0d6dc;
+}
+.notes-item:last-of-type { border-bottom: 0; }
+.notes-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.notes-meta strong { color: var(--ink); font-size: 12px; }
+.notes-meta span { margin-right: auto; }
+.notes-del {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  padding: 0 2px;
+  border-radius: 4px;
+}
+.notes-del:hover { background: #fde8ee; color: #9b2245; }
+.notes-body {
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.notes-body a { word-break: break-all; }
+.notes-shots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.notes-shot {
+  display: grid;
+  gap: 4px;
+  width: 120px;
+  text-decoration: none;
+  color: var(--blue);
+  font-size: 11px;
+  font-weight: 500;
+}
+.notes-shot img {
+  width: 120px;
+  height: 80px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid #eceef5;
+  background: #f6f7fb;
+}
+.notes-compose {
+  padding: 10px 14px 12px;
+  border-top: 1px solid #eceef5;
+  background: #fbfbfd;
+}
+.notes-compose textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.45;
+  resize: vertical;
+  min-height: 72px;
+}
+.notes-compose .btn { margin-top: 8px; }
+.notice-note { background: #fde8ee; color: #9b2245; }
 .who-block {
   border: 1.5px solid #b8bfd0;
   border-radius: 10px;

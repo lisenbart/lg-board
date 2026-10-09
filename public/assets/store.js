@@ -54,6 +54,56 @@
   };
   const taskMonth = (data, db) =>
     data?.month || db?.meta?.month || "2026-10";
+  const COMMENT_ROLES = new Set(["manager", "finance", "teamlead"]);
+  const URL_IN_TEXT = /https?:\/\/[^\s<>"'\)\]]+/gi;
+  const IMAGE_URL = /\.(?:png|jpe?g|gif|webp|bmp)(?:\?|$)/i;
+  const commentKey = (task) => {
+    const m = String(task?.name || "").match(/^([A-Z]{2}-[A-Z0-9]+-\d+(?:-\d+)?)/i);
+    return (m ? m[1].toUpperCase() : "") || String(task?.id || "");
+  };
+  const commentsByKey = (db) => {
+    const out = {};
+    for (const task of db.tasks || []) {
+      if (task.comments?.length) out[commentKey(task)] = task.comments;
+    }
+    return out;
+  };
+  const applyComments = (db, kept) => {
+    if (!kept) return;
+    for (const task of db.tasks || []) {
+      const rows = kept[commentKey(task)];
+      if (rows) task.comments = rows;
+    }
+  };
+  const commentAttachments = (text) => {
+    const urls = [];
+    const seen = new Set();
+    for (const raw of String(text || "").match(URL_IN_TEXT) || []) {
+      const url = raw.replace(/[.,);]+$/, "");
+      if (!url || seen.has(url)) continue;
+      seen.add(url);
+      const kind = IMAGE_URL.test(url) || url.includes("/file/d/") || url.includes("/thumbnail?") ? "image" : "link";
+      urls.push({ url, kind });
+    }
+    return urls;
+  };
+  const makeComment = (db, { actorId, body, source, mondayId }) => {
+    const text = String(body || "").trim();
+    if (!text) return "paste client text or a screenshot link";
+    db.meta = db.meta || {};
+    db.meta.commentSeq = (Number(db.meta.commentSeq) || 0) + 1;
+    const person = (db.people || []).find((p) => p.id === actorId);
+    return {
+      id: `c-${db.meta.commentSeq}`,
+      at: now(),
+      authorId: actorId || "",
+      authorName: person?.name || "",
+      body: text,
+      attachments: commentAttachments(text),
+      source: source === "monday" ? "monday" : "manual",
+      mondayId: String(mondayId || ""),
+    };
+  };
 
   let seedCache = null;
   async function loadSeed() {
@@ -182,8 +232,11 @@
     if (path === "/api/state") return clone(db);
 
     if (path === "/api/reset") {
+      const kept = commentsByKey(db);
       seedCache = null;
       db = writeDb(migrate(await loadSeed()), true);
+      applyComments(db, kept);
+      writeDb(db, true);
       return clone(db);
     }
 
@@ -365,6 +418,7 @@
       if (nxt && nxt !== task.studioStatus && allowed[role] && !allowed[role].has(nxt)) {
         return { error: `${role} cannot set ${nxt}` };
       }
+      delete data.comments;
       const statusAfter = "studioStatus" in data ? data.studioStatus : task.studioStatus;
       const resultAfter = "resultUrl" in data ? data.resultUrl : task.resultUrl;
       if (statusAfter === "done" && !String(resultAfter || "").trim()) {
@@ -421,6 +475,36 @@
       if (N()) N().onTaskChange(db, task, before, data.actorId);
       writeDb(db);
       return { task: clone(task), state: clone(db) };
+    }
+
+    if (path === "/api/tasks/comment") {
+      if (!COMMENT_ROLES.has(data.role)) return { error: "only LP or TL can add client notes" };
+      const task = db.tasks.find((t) => t.id === data.id);
+      if (!task) return { error: "not found" };
+      const briefBefore = task.brief;
+      const deleteId = String(data.deleteId || "").trim();
+      if (deleteId) {
+        const rows = task.comments || [];
+        const found = rows.find((row) => row.id === deleteId);
+        if (!found) return { error: "note not found" };
+        if (found.source === "monday") return { error: "Monday notes stay until the Monday sync" };
+        task.comments = rows.filter((row) => row.id !== deleteId);
+        writeDb(db);
+        return { task: clone(task), state: clone(db) };
+      }
+      const comment = makeComment(db, {
+        actorId: data.actorId || "",
+        body: data.body || "",
+        source: data.source || "manual",
+        mondayId: data.mondayId || "",
+      });
+      if (typeof comment === "string") return { error: comment };
+      task.comments = task.comments || [];
+      task.comments.push(comment);
+      if (task.brief !== briefBefore) task.brief = briefBefore;
+      if (N()) N().emit(db, "task.comment", { actorId: data.actorId || "", task });
+      writeDb(db);
+      return { comment: clone(comment), task: clone(task), state: clone(db) };
     }
 
     if (path === "/api/meta/update") {

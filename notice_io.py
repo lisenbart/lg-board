@@ -38,6 +38,15 @@ KINDS = {
         "skip_actor": True,
         "channels": ["portal"],
     },
+    "task.comment": {
+        "label": "Client notes",
+        "title": "{name}",
+        "detail": "New note under the brief",
+        "mark": "note",
+        "audience": {"assignee": True},
+        "skip_actor": True,
+        "channels": ["portal"],
+    },
     "task.ready": {
         "label": "Ready to send",
         "title": "{name}",

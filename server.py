@@ -157,6 +157,45 @@ def monday_reply(task: dict) -> str:
     return f"{task.get('name') or ''}\ncheck it please\n{task.get('resultUrl') or ''}".strip()
 
 
+COMMENT_ROLES = {"manager", "finance", "teamlead"}
+URL_IN_TEXT = re.compile(r"https?://[^\s<>\"')\]]+", re.I)
+IMAGE_URL = re.compile(r"\.(?:png|jpe?g|gif|webp|bmp)(?:\?|$)", re.I)
+
+
+def comment_attachments(text: str, extra: list | None = None) -> list[dict]:
+    urls: list[str] = []
+    seen: set[str] = set()
+    for raw in list(URL_IN_TEXT.findall(text or "")) + [str(x or "") for x in (extra or [])]:
+        url = raw.strip().rstrip(".,);]")
+        if not url or url in seen:
+            continue
+        seen.add(url)
+        kind = "image" if (IMAGE_URL.search(url) or "/file/d/" in url or "/thumbnail?" in url) else "link"
+        urls.append({"url": url, "kind": kind})
+    return urls
+
+
+def make_comment(db: dict, *, actor_id: str, body: str, source: str = "manual", monday_id: str = "") -> dict | str:
+    text = str(body or "").strip()
+    attachments = comment_attachments(text)
+    if not text:
+        return "paste client text or a screenshot link"
+    src = source if source in {"manual", "monday"} else "manual"
+    seq = int((db.get("meta") or {}).get("commentSeq") or 0) + 1
+    db.setdefault("meta", {})["commentSeq"] = seq
+    person = next((p for p in db.get("people") or [] if p.get("id") == actor_id), None)
+    return {
+        "id": f"c-{seq}",
+        "at": utc_now(),
+        "authorId": actor_id or "",
+        "authorName": (person or {}).get("name") or "",
+        "body": text,
+        "attachments": attachments,
+        "source": src,
+        "mondayId": str(monday_id or ""),
+    }
+
+
 def is_sendable(task: dict) -> bool:
     return task.get("studioStatus") == "done" and bool(str(task.get("resultUrl") or "").strip())
 
@@ -322,7 +361,7 @@ class Handler(SimpleHTTPRequestHandler):
         with LOCK:
             db = load_db()
             if path == "/api/reset":
-                db = mirror_io.restore()
+                db = mirror_io.restore(carry_from=db)
                 save_db(db, origin=True)
                 self._json(200, db)
                 return
@@ -609,6 +648,7 @@ class Handler(SimpleHTTPRequestHandler):
                         self._json(400, {"error": "deadline must be a date"})
                         return
                     task["deadline"] = raw[:10] if raw else ""
+                data.pop("comments", None)
                 for key in ("studioStatus", "assigneeId", "resultUrl", "brief", "folderUrl", "docUrl"):
                     if key in data:
                         task[key] = data[key]
@@ -654,6 +694,54 @@ class Handler(SimpleHTTPRequestHandler):
                     return
                 save_db(db)
                 self._json(200, {"task": task, "state": db})
+                return
+            if path == "/api/tasks/comment":
+                role = data.get("role") or ""
+                if role not in COMMENT_ROLES:
+                    self._json(403, {"error": "only LP or TL can add client notes"})
+                    return
+                data.pop("brief", None)
+                data.pop("comments", None)
+                task = next((t for t in db["tasks"] if t["id"] == data.get("id")), None)
+                if not task:
+                    self._json(404, {"error": "not found"})
+                    return
+                brief_before = task.get("brief")
+                delete_id = str(data.get("deleteId") or "").strip()
+                if delete_id:
+                    rows = list(task.get("comments") or [])
+                    found = next((row for row in rows if row.get("id") == delete_id), None)
+                    if not found:
+                        self._json(404, {"error": "note not found"})
+                        return
+                    if found.get("source") == "monday":
+                        self._json(400, {"error": "Monday notes stay until the Monday sync"})
+                        return
+                    task["comments"] = [row for row in rows if row.get("id") != delete_id]
+                    save_db(db)
+                    self._json(200, {"task": task, "state": db})
+                    return
+                comment = make_comment(
+                    db,
+                    actor_id=str(data.get("actorId") or ""),
+                    body=data.get("body") or "",
+                    source=str(data.get("source") or "manual"),
+                    monday_id=str(data.get("mondayId") or ""),
+                )
+                if isinstance(comment, str):
+                    self._json(400, {"error": comment})
+                    return
+                task.setdefault("comments", []).append(comment)
+                if task.get("brief") != brief_before:
+                    task["brief"] = brief_before
+                notice_io.emit(
+                    db,
+                    "task.comment",
+                    actor_id=str(data.get("actorId") or ""),
+                    task=task,
+                )
+                save_db(db)
+                self._json(200, {"comment": comment, "task": task, "state": db})
                 return
             if path == "/api/excel/pull":
                 month = data.get("month") or db.get("meta", {}).get("month") or "2026-10"

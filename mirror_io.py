@@ -89,6 +89,27 @@ def ensure_people(people: list[dict]) -> list[dict]:
     return people
 
 
+def comments_by_key(source: dict) -> dict:
+    out = {}
+    for task in source.get("tasks") or []:
+        rows = task.get("comments") or []
+        if not rows:
+            continue
+        key = excel_io._id_key(task.get("name") or "") or str(task.get("id") or "")
+        if key:
+            out[key] = rows
+    return out
+
+
+def apply_comments(db: dict, kept: dict) -> None:
+    if not kept:
+        return
+    for task in db.get("tasks") or []:
+        key = excel_io._id_key(task.get("name") or "") or str(task.get("id") or "")
+        if key in kept:
+            task["comments"] = kept[key]
+
+
 def attach_live(task: dict, briefs: dict, folders: dict) -> None:
     key = excel_io._id_key(task.get("name") or "")
     pack = briefs.get(key) or {}
@@ -148,6 +169,7 @@ def hydrate(previous: dict | None = None, xlsx: Path | None = None) -> dict:
         }
     )
     briefs = briefs_from(previous)
+    kept_comments = comments_by_key(previous)
     folders = folder_map()
     keep_other = [
         t
@@ -161,6 +183,7 @@ def hydrate(previous: dict | None = None, xlsx: Path | None = None) -> dict:
     for task in db.get("tasks") or []:
         attach_live(task, briefs, folders)
     db["tasks"] = (db.get("tasks") or []) + keep_other
+    apply_comments(db, kept_comments)
     db["notices"] = []
     db["noticeReads"] = {}
     db["events"] = [
@@ -185,11 +208,13 @@ def write_seeds(db: dict) -> None:
     PUBLIC_SEED.write_text(blob, encoding="utf-8")
 
 
-def restore() -> dict:
+def restore(carry_from: dict | None = None) -> dict:
     """Throw away the click buffer and return to the live snapshot."""
     restore_buffer_xlsx()
     previous = load_json(SEED_PATH) if SEED_PATH.exists() else {}
     db = hydrate(previous, ORIGIN_XLSX)
+    if carry_from:
+        apply_comments(db, comments_by_key(carry_from))
     db.setdefault("meta", {})["bufferDirty"] = False
     write_seeds(db)
     return db
