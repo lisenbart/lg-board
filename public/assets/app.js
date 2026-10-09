@@ -30,6 +30,7 @@ const TEAM_JOBS = [
 
 const NAME_WIDTH_KEY = "lg-name-width";
 const NAME_WIDTH_DEFAULT = 412;
+const NAME_WIDTH_MIN = 240;
 
 const STATUS_BY_ROLE = {
   designer: ["wip", "done"],
@@ -1664,13 +1665,19 @@ function savedNameWidth() {
   const n = Number(localStorage.getItem(NAME_WIDTH_KEY));
   if (!Number.isFinite(n)) return NAME_WIDTH_DEFAULT;
   const w = n === 520 ? NAME_WIDTH_DEFAULT : n;
-  return w >= 240 ? w : NAME_WIDTH_DEFAULT;
+  return w >= NAME_WIDTH_MIN ? w : NAME_WIDTH_DEFAULT;
+}
+
+function nameWidthMax(group) {
+  const board = group?.closest(".board");
+  const visible = board?.clientWidth || group?.clientWidth || 0;
+  return Math.max(NAME_WIDTH_MIN, visible - 280);
 }
 
 function applyNameWidth(group, px) {
   if (!group) return;
-  const max = Math.max(280, group.clientWidth - 500);
-  const w = Math.round(Math.min(Math.max(240, px), max));
+  const max = nameWidthMax(group);
+  const w = Math.round(Math.min(Math.max(NAME_WIDTH_MIN, px), max));
   group.style.setProperty("--name-width", `${w}px`);
   localStorage.setItem(NAME_WIDTH_KEY, String(w));
 }
@@ -1683,19 +1690,21 @@ function bindSplitter(group) {
     e.preventDefault();
     e.stopPropagation();
     handle.setPointerCapture(e.pointerId);
-    const startX = e.clientX;
-    const startW = parseFloat(getComputedStyle(group).getPropertyValue("--name-width")) || NAME_WIDTH_DEFAULT;
     group.classList.add("is-resizing");
     document.body.classList.add("col-resizing");
-    const onMove = (ev) => applyNameWidth(group, startW + (ev.clientX - startX));
+    const seamX = (ev) => ev.clientX - group.getBoundingClientRect().left;
+    const onMove = (ev) => applyNameWidth(group, seamX(ev));
     const onUp = () => {
       group.classList.remove("is-resizing");
       document.body.classList.remove("col-resizing");
       handle.removeEventListener("pointermove", onMove);
       handle.removeEventListener("pointerup", onUp);
+      handle.removeEventListener("pointercancel", onUp);
     };
     handle.addEventListener("pointermove", onMove);
     handle.addEventListener("pointerup", onUp);
+    handle.addEventListener("pointercancel", onUp);
+    applyNameWidth(group, seamX(e));
   });
   handle.addEventListener("dblclick", () => applyNameWidth(group, NAME_WIDTH_DEFAULT));
 }
