@@ -1741,6 +1741,7 @@ function statusButtonDisabled(task, key, opts) {
   ) {
     return true;
   }
+  if (key === "done" && !on && !hasResultLink(task, opts.typedResult)) return true;
   return !canSetStatus(key);
 }
 
@@ -1778,6 +1779,13 @@ function paintStatusButtons(key) {
 
 function canSetStatus(next) {
   return (STATUS_BY_ROLE[me().role] || []).includes(next);
+}
+
+function hasResultLink(task, typedResult) {
+  const typed =
+    typedResult !== undefined ? String(typedResult || "").trim() : "";
+  const saved = String(task?.resultUrl || "").trim();
+  return Boolean(typed || saved);
 }
 
 function savedNameWidth() {
@@ -2733,7 +2741,6 @@ function openTask(id) {
       <button class="btn primary" id="saveTask">Save</button>
     </div>
   `;
-  $("drawerBg").classList.add("show");
   $("closeDrawer").onclick = closeDrawer;
   const N = window.LGNotices;
   if (N && N.forPerson(state.db, me().id, true).some((n) => n.taskId === id)) {
@@ -2741,7 +2748,16 @@ function openTask(id) {
   }
   const syncDoneOption = () => {
     const hint = $("stDoneHint");
-    const hasResult = Boolean(($("stResult")?.value || t.resultUrl || "").trim());
+    const typed = $("stResult")?.value || "";
+    const hasResult = hasResultLink(t, typed);
+    const doneBtn = $("drawer")?.querySelector('.status-btn[data-status="done"]');
+    if (doneBtn && t.studioStatus !== "done") {
+      doneBtn.disabled = statusButtonDisabled(t, "done", {
+        canEdit,
+        locked: lockedStatus,
+        typedResult: typed,
+      });
+    }
     if (hint) {
       if (performer && !hasResult && t.studioStatus !== "done" && t.studioStatus !== "approve" && t.studioStatus !== "closed") {
         hint.textContent = "Paste the result link, then tap Done.";
@@ -2787,6 +2803,7 @@ function openTask(id) {
     });
   });
   syncDoneOption();
+  $("drawerBg").classList.add("show");
   $("stShifts")?.addEventListener("input", () => {
     const shifts = parseShifts($("stShifts").value);
     const hint = $("stHoursHint");
