@@ -2360,11 +2360,32 @@ function displayName(p) {
   return draft !== undefined ? draft : p.name;
 }
 
+function crewJobSelect(p) {
+  if (p.role !== "designer" && p.role !== "teamlead") {
+    return `<span class="job-mark">${jobBadgeHtml(p)}<span class="job-title">${escapeHtml(jobMeta(p).title)}</span></span>`;
+  }
+  return `<span class="job-mark">${jobBadgeHtml(p)}
+    <select class="team-job" aria-label="Role">
+      <option value="designer" ${p.role === "designer" ? "selected" : ""}>Motion design</option>
+      <option value="teamlead" ${p.role === "teamlead" ? "selected" : ""}>Team Lead</option>
+    </select>
+  </span>`;
+}
+
+function teamRowPayload(row) {
+  const id = row?.dataset.id;
+  const name = String(row?.querySelector(".team-name")?.value || "").trim();
+  const job = row?.querySelector(".team-job")?.value || "";
+  const payload = { id, name };
+  if (job) payload.job = job;
+  return payload;
+}
+
 async function flushTeamNames() {
   captureTeamDrafts();
-  const people = (state.db.people || [])
-    .map((p) => ({ id: p.id, name: String(displayName(p) || "").trim() }))
-    .filter((p) => p.name);
+  const people = [...($("board")?.querySelectorAll(".team-row") || [])]
+    .map((row) => teamRowPayload(row))
+    .filter((p) => p.id && p.name);
   if (!people.length) return { state: state.db };
   const out = await api("/api/people/update", { people, role: me().role });
   if (out.error || !out.state) return out;
@@ -2384,7 +2405,7 @@ function renderTeam() {
       (p) => `
       <div class="team-row" data-id="${p.id}">
         <span class="person">${avatarHtml(p)}${escapeHtml(displayName(p))}</span>
-        <span class="job-mark">${jobBadgeHtml(p)}<span class="job-title">${escapeHtml(jobMeta(p).title)}</span></span>
+        ${crewJobSelect(p)}
         <input class="team-name" value="${escapeHtml(displayName(p))}" placeholder="Real name" />
         <button class="btn primary team-save" type="button">Save</button>
         <button class="btn ghost team-del" type="button">Delete</button>
@@ -2394,6 +2415,7 @@ function renderTeam() {
   $("board").innerHTML = `
     <section class="group" style="padding:18px">
       <h2 style="margin:0 0 12px">Team names</h2>
+      <p class="team-hint">Motion design and Team Lead can switch. Pay stays $15/h on their hours. Keep at least one Team Lead.</p>
       ${rows}
       <div class="team-add">
         <select id="addJob">${TEAM_JOBS.map((j) => `<option value="${j.id}">${j.label}</option>`).join("")}</select>
@@ -2409,12 +2431,12 @@ function renderTeam() {
   $("board").querySelectorAll(".team-save").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const row = btn.closest(".team-row");
-      const name = row.querySelector(".team-name").value.trim();
-      if (!name) {
+      const payload = teamRowPayload(row);
+      if (!payload.name) {
         toast("Name cannot be empty");
         return;
       }
-      const out = await api("/api/people/update", { id: row.dataset.id, name, role: me().role });
+      const out = await api("/api/people/update", { ...payload, role: me().role });
       if (out.error || !out.state) {
         toast(out.error || "Could not save");
         return;

@@ -469,6 +469,21 @@
             person.rateUsd = n;
           }
         }
+        if ("job" in item && item.job != null) {
+          const nxt = String(item.job || "").trim();
+          const crew = new Set(["designer", "teamlead"]);
+          if (!crew.has(nxt) || !crew.has(person.role)) {
+            return { error: "only Motion design and Team Lead can switch" };
+          }
+          if (person.role !== nxt) {
+            if (person.role === "teamlead" && nxt === "designer") {
+              const others = db.people.filter((p) => p.role === "teamlead" && p.id !== person.id).length;
+              if (others < 1) return { error: "keep at least one Team Lead" };
+            }
+            person.role = nxt;
+            person.jobTitle = nxt === "teamlead" ? "Team Lead" : "Motion design";
+          }
+        }
         updated.push(clone(person));
       }
       if (!updated.length && data.id) return { error: "not found" };
