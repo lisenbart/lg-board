@@ -1415,28 +1415,58 @@ function renderGuide() {
         ]
       );
   const chip = (cls, label) => `<span class="notice-chip notice-${cls}">${label}</span>`;
+  const statusCard = (cls, short, full, who, meaning) => `
+    <article class="guide-status">
+      ${chip(cls, short)}
+      <strong>${escapeHtml(full)}</strong>
+      <p>${meaning}</p>
+      <small>${who}</small>
+    </article>`;
+  const pipeStep = (n, badge, who, title, body, cls, short) => `
+    <li class="guide-pipe-step">
+      <span class="guide-pipe-n">${n}</span>
+      <div class="guide-pipe-body">
+        <header>
+          <span class="job-badge job-${escapeHtml(badge.toLowerCase())}">${escapeHtml(badge)}</span>
+          <b>${escapeHtml(who)}</b>
+          <span>${escapeHtml(title)}</span>
+        </header>
+        <p>${body}</p>
+      </div>
+      <div class="guide-pipe-out">
+        <small>статус стає</small>
+        ${chip(cls, short)}
+      </div>
+    </li>`;
   $("board").innerHTML = `
     <section class="guide">
       <div class="guide-intro">
         <h2>Як працює LG Board</h2>
         <p>Monday лишається у клієнта. Тут — черга студії, години і здача. Чіп біля назви — статус проєкту. ${ui("Send to client")} — кнопка LP, не бейдж. Підписи кнопок англійською — як на екрані.</p>
       </div>
-      <div class="guide-chips">
-        ${chip("ready", "Ready")} чекати старту
-        ${chip("wip", "WIP")} в роботі
-        ${chip("fix", "Fix")} правки
-        ${chip("done", "Done")} дизайнер здав
-        ${chip("appr", "Appr.")} у клієнта
-        ${chip("closed", "Closed")} прийнято
+      <div class="guide-block">
+        <h3>Статуси</h3>
+        <p class="guide-lead">Один чіп на проєкт. Читай зверху вниз: що означає і хто з ним працює.</p>
+        <div class="guide-status-grid">
+          ${statusCard("ready", "Ready", "Ready to Start", "Хто: TL ставить виконавця", "Таск щойно зайшов з Monday або з листа. Людини ще немає — чекає старту.")}
+          ${statusCard("wip", "WIP", "WIP", "Хто: MD робить роботу", "Виконавець уже стоїть. Робота йде. Файл ще не зданий.")}
+          ${statusCard("fix", "Fix", "Need Fixing", "Хто: MD править", "Клієнт або LP відбили. Не Done — треба правка, потім знову здати.")}
+          ${statusCard("done", "Done", "Done", "Хто: MD здав, далі LP", "Дизайнер вставив лінк результату і натиснув Done. Без лінка цей статус не ставиться.")}
+          ${statusCard("appr", "Appr.", "Senior Approval", "Хто: чекаємо клієнта", "LP натиснув Send to client. Текст для Monday скопійовано. Ще не Closed.")}
+          ${statusCard("closed", "Closed", "Closed", "Хто: LP після відповіді клієнта", "Клієнт прийняв. Години лишаються, роботи більше немає.")}
+        </div>
       </div>
-      <ol class="guide-flow">
-        <li><span>1</span><b>LP</b> забирає таски з Monday / листа</li>
-        <li><span>2</span><b>TL</b> ставить виконавця</li>
-        <li><span>3</span><b>MD</b> вставляє лінк результату → ${ui("Done")}</li>
-        <li><span>4</span><b>LP</b> тисне ${ui("Send to client")}</li>
-        <li><span>5</span>чіп стає ${ui("Appr.")} (${ui("Senior Approval")})</li>
-        <li><span>6</span><b>LP</b> ${ui("Mark Closed")}, коли клієнт прийняв</li>
-      </ol>
+      <div class="guide-block">
+        <h3>Пайплайн</h3>
+        <p class="guide-lead">П’ять кроків підряд. Кожен крок змінює чіп справа.</p>
+        <ol class="guide-pipe">
+          ${pipeStep("1", "LP", "Line Producer", "Таск заходить", `${ui("Pull from Monday")} або ${ui("Shift email")} (рядок як в Orit: NAME | 0.3 shifts).`, "ready", "Ready")}
+          ${pipeStep("2", "TL", "Team Lead", "Ставить виконавця", `${ui("Who works this")} → ${ui("Save")}. Людина одразу бачить таск у своїй черзі.`, "wip", "WIP")}
+          ${pipeStep("3", "MD", "Motion design", "Здає файл", `${ui("Paste result link here")}, потім ${ui("Done")}. Лінк на файл, не на теку. Поки лінка немає — ${ui("Done")} недоступний.`, "done", "Done")}
+          ${pipeStep("4", "LP", "Line Producer", "Відправляє клієнту", `${ui("Send to client")} лише з ${ui("Done")} + лінк. Копіює текст для External Weekly. ${ui("Appr.")} руками зі списку не ставиться.`, "appr", "Appr.")}
+          ${pipeStep("5", "LP", "Line Producer", "Клієнт прийняв", `${ui("Mark Closed")} після ${ui("Appr.")}. Якщо відбили — ${ui("Need Fixing")}, чіп ${chip("fix", "Fix")}, MD знову крок 3.`, "closed", "Closed")}
+        </ol>
+      </div>
       <div class="guide-grid">
         ${card("manager", "LP", "Line Producer", "Анастасія. Бачить усе.", [
           `Новий пак: ${ui("Pull from Monday")} або ${ui("Shift email")} (рядок як в Orit: NAME | 0.3 shifts).`,
