@@ -307,7 +307,36 @@
       const before = { studioStatus: task.studioStatus, assigneeId: task.assigneeId };
       const nxt = data.studioStatus;
       const role = data.role || "";
+      const actor = String(data.actorId || "");
       const allowed = STATUS_BY_ROLE;
+      if (!(role in allowed)) return { error: "unknown role" };
+      if (role === "client") return { error: "client cannot edit tasks" };
+      if (role === "designer") {
+        if (actor !== String(task.assigneeId || "")) {
+          return { error: "you can only edit your own tasks" };
+        }
+        delete data.brief;
+        delete data.folderUrl;
+        delete data.docUrl;
+        delete data.assigneeId;
+      }
+      if (
+        "assigneeId" in data &&
+        String(data.assigneeId || "") !== String(task.assigneeId || "") &&
+        role !== "teamlead" &&
+        role !== "manager" &&
+        role !== "finance"
+      ) {
+        return { error: "only TL or LP can assign" };
+      }
+      if (
+        role === "teamlead" &&
+        nxt === "done" &&
+        nxt !== task.studioStatus &&
+        actor !== String(task.assigneeId || "")
+      ) {
+        return { error: "TL can Done only their own work" };
+      }
       if (nxt === "approve" && nxt !== task.studioStatus) {
         return { error: "Senior Approval is set only when you Send to client" };
       }
