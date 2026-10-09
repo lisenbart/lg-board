@@ -1,6 +1,6 @@
 /** Browser store so the client demo runs on Netlify / GitHub Pages without Python. */
 (function () {
-  const KEY = "lg-board-db-v7";
+  const KEY = "lg-board-db-v8";
   const EMAIL_LINE =
     /^\s*([A-Z]{2}-[A-Za-z0-9._-]+)\s*\|\s*([\d]+(?:[.,]\d+)?)\s*shifts?\s*$/i;
   const OPS_ROLES = new Set(["manager", "finance"]);

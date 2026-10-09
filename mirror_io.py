@@ -113,7 +113,11 @@ def attach_live(task: dict, briefs: dict, folders: dict) -> None:
     name = task.get("name") or ""
     if "SettAI" in name or "Halloween" in name:
         task["game"] = task.get("game") or "SettAI"
-    if task.get("assigneeId"):
+    excel_status = task.get("excelStatus") or ""
+    if excel_status == "closed" or task.get("studioStatus") == "closed":
+        task["studioStatus"] = "closed"
+        task["mondayStatus"] = "Closed"
+    elif task.get("assigneeId") or excel_status == "wip":
         task["studioStatus"] = "wip"
         task["mondayStatus"] = "WIP"
     else:

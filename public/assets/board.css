@@ -1068,11 +1068,11 @@ body.col-resizing * { cursor: col-resize !important; }
   font-size: 10px; font-weight: 600; letter-spacing: 0.02em;
 }
 .xl-table td.xl-st.st-ready { background: #fff3d6; color: #9a6700; }
-.xl-table td.xl-st.st-wip { background: #e0f0ff; color: #0059b3; }
-.xl-table td.xl-st.st-fix { background: #fde8ee; color: #9b2245; }
-.xl-table td.xl-st.st-done { background: #e6f9ef; color: #037f4c; }
-.xl-table td.xl-st.st-appr { background: #e7f7ff; color: #0369a1; }
-.xl-table td.xl-st.st-closed { background: #037f4c; color: #fff; }
+.xl-table td.xl-st.st-wip { background: #59BBFF; color: #083358; }
+.xl-table td.xl-st.st-fix { background: #59BBFF; color: #083358; }
+.xl-table td.xl-st.st-done { background: #59BBFF; color: #083358; }
+.xl-table td.xl-st.st-appr { background: #59BBFF; color: #083358; }
+.xl-table td.xl-st.st-closed { background: #92D050; color: #1d4a12; }
 .xl-person { min-width: 72px; font-weight: 500; }
 .xl-num { font-variant-numeric: tabular-nums; }
 .xl-row { cursor: pointer; }
@@ -1081,8 +1081,8 @@ body.col-resizing * { cursor: col-resize !important; }
 .xl-row.is-closed td { color: #6d7080; }
 .xl-row.is-closed td.xl-name { background: #f4f5f7; color: #8a8d99; }
 .xl-row.is-closed td.xl-st.st-closed {
-  background: #d5e8dc;
-  color: #4d6f5c;
+  background: #92D050;
+  color: #1d4a12;
 }
 .xl-row.is-closed td.xl-fill {
   filter: saturate(0.35);

@@ -22,7 +22,7 @@
     "mode": "mirror",
     "bufferDirty": false,
     "driveLiveExcel": "https://drive.google.com/file/d/1SvRLe-Txl-F9MTfuDb08GBCh6XywNlzE/view",
-    "mirrorAt": "2026-10-09T14:05:57Z",
+    "mirrorAt": "2026-10-09T16:46:40Z",
     "mirrorSource": "SP_MGX_check.xlsx · live Drive · read only"
   },
   "people": [
@@ -152,8 +152,9 @@
       "hours": 2.7,
       "deadline": "",
       "month": "2026-10",
-      "studioStatus": "wip",
-      "mondayStatus": "WIP",
+      "excelStatus": "closed",
+      "studioStatus": "closed",
+      "mondayStatus": "Closed",
       "assigneeId": "designer2",
       "help": [],
       "brief": "brief\n\nX-HC-New UA EN HLWN - DX-VEO-055-001_TrickOrSweet + DX-AIV-HalloweenSave\n\n  - Cut video after FAIL at the end\n  - Total = 60s\n\npls work here:\nhttps://drive.google.com/drive/folders/1VM70Hvye1v2Z7pOtT4juuYwnh8ruHlVS\n\nnaming:\nDX-AIV-255-002_SettAI_HalloweenSave_DX-VEO-055-001_EN_60s_1080x1080\nDX-AIV-255-002_SettAI_HalloweenSave_DX-VEO-055-001_EN_60s_1080x1350\nDX-AIV-255-002_SettAI_HalloweenSave_DX-VEO-055-001_EN_60s_1080x1920\nDX-AIV-255-002_SettAI_HalloweenSave_DX-VEO-055-001_EN_60s_1920x1080",
@@ -163,7 +164,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:57Z",
+          "at": "2026-10-09T16:46:40Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -178,8 +179,9 @@
       "hours": 2.7,
       "deadline": "",
       "month": "2026-10",
-      "studioStatus": "wip",
-      "mondayStatus": "WIP",
+      "excelStatus": "closed",
+      "studioStatus": "closed",
+      "mondayStatus": "Closed",
       "assigneeId": "designer2",
       "help": [],
       "brief": "DX-HC-New UA EN HLWN - DX-VEO-055-001_TrickOrSweet + DX-AIV-0197-001_SettAI_Halloween_Match2_EN_59s\n\n- cut first 6 seconds of video\n- total = 60s\n\npls work here\nhttps://drive.google.com/drive/folders/1PjJysIs2QaeQ4VS_n5KBPTO1kDJUU3i2\n\nNaming:\nDX-AIV-197-005_SettAI_Halloween_Match2_DX-VEO-055-001_EN_60s_1080x1080\nDX-AIV-197-005_SettAI_Halloween_Match2_DX-VEO-055-001_EN_60s_1080x1350\nDX-AIV-197-005_SettAI_Halloween_Match2_DX-VEO-055-001_EN_60s_1080x1920\nDX-AIV-197-005_SettAI_Halloween_Match2_DX-VEO-055-001_EN_60s_1920x1080",
@@ -189,7 +191,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:57Z",
+          "at": "2026-10-09T16:46:40Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -204,8 +206,9 @@
       "hours": 2.7,
       "deadline": "",
       "month": "2026-10",
-      "studioStatus": "wip",
-      "mondayStatus": "WIP",
+      "excelStatus": "closed",
+      "studioStatus": "closed",
+      "mondayStatus": "Closed",
       "assigneeId": "teamlead",
       "help": [],
       "brief": "DX-HC-New UA EN HLWN - DX-VEO-055-001_TrickOrSweet + DX-AIV-SavePeonHalloween\n\n1. Cut end of video\n2. total = 30s\n\npls work here\nhttps://drive.google.com/drive/folders/1DCNRqZMfnnaZNjaR09GqJZJNcEXCB-lM\n\nNaming:\nDX-AIV-213-002_SettAI_SavePeonHalloween_DX-VEO-055-001_EN_30s_1080x1080\nDX-AIV-213-002_SettAI_SavePeonHalloween_DX-VEO-055-001_EN_30s_1080x1350\nDX-AIV-213-002_SettAI_SavePeonHalloween_DX-VEO-055-001_EN_30s_1080x1920\nDX-AIV-213-002_SettAI_SavePeonHalloween_DX-VEO-055-001_EN_30s_1920x1080",
@@ -215,7 +218,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:57Z",
+          "at": "2026-10-09T16:46:40Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -230,8 +233,9 @@
       "hours": 2.7,
       "deadline": "",
       "month": "2026-10",
-      "studioStatus": "wip",
-      "mondayStatus": "WIP",
+      "excelStatus": "closed",
+      "studioStatus": "closed",
+      "mondayStatus": "Closed",
       "assigneeId": "teamlead",
       "help": [],
       "brief": "brief:\n\nDX-HC-New UA EN HLWN - DX-VEO-055-001_TrickOrSweet + DX-AIV-HalloweenSkull\n\n1. cut first 7s of video\n2. total length = 30s\n\nwork here\nhttps://drive.google.com/drive/folders/1kgXzGSMxG-6mJUGWi_sK3CSUFDpTTeMx\n\nnaming\nDX-AIV-215-002_SettAI_HalloweenSkull_DX-VEO-055-001_EN_30s_1080x1080\nDX-AIV-215-002_SettAI_HalloweenSkull_DX-VEO-055-001_EN_30s_1080x1350\nDX-AIV-215-002_SettAI_HalloweenSkull_DX-VEO-055-001_EN_30s_1080x1920\nDX-AIV-215-002_SettAI_HalloweenSkull_DX-VEO-055-001_EN_30s_1920x1080",
@@ -241,7 +245,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:57Z",
+          "at": "2026-10-09T16:46:40Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -256,8 +260,9 @@
       "hours": 2.7,
       "deadline": "",
       "month": "2026-10",
-      "studioStatus": "wip",
-      "mondayStatus": "WIP",
+      "excelStatus": "closed",
+      "studioStatus": "closed",
+      "mondayStatus": "Closed",
       "assigneeId": "teamlead",
       "help": [],
       "brief": "DX-HC-New UA EN HLWN - DX-VEO-055-001_TrickOrSweet + DX-AIV-HalloweenCircle\n\n1. Cut end of video 6 seconds early and add the hook\n2. total = 60s\n\nwork here\nhttps://drive.google.com/drive/folders/1QqnBA4A3NxLx8hYmbe9sV1UIWm00Vh8f\n\nNaming:\nDX-AIV-216-002_SettAI_HalloweenCircle_DX-VEO-055-001_EN_60s_1080x1080\nDX-AIV-216-002_SettAI_HalloweenCircle_DX-VEO-055-001_EN_60s_1080x1350\nDX-AIV-216-002_SettAI_HalloweenCircle_DX-VEO-055-001_EN_60s_1080x1920\nDX-AIV-216-002_SettAI_HalloweenCircle_DX-VEO-055-001_EN_60s_1920x1080",
@@ -267,7 +272,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:57Z",
+          "at": "2026-10-09T16:46:40Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -282,8 +287,9 @@
       "hours": 2.7,
       "deadline": "",
       "month": "2026-10",
-      "studioStatus": "wip",
-      "mondayStatus": "WIP",
+      "excelStatus": "closed",
+      "studioStatus": "closed",
+      "mondayStatus": "Closed",
       "assigneeId": "teamlead",
       "help": [],
       "brief": "DX-HC-New UA EN HLWN - DX-VEO-055-001_TrickOrSweet + DX-AIV-PuzzleHalloween\n\n1. DX-AIV-0218-001_SettAI_PuzzleHalloween\n2. cut ending of video\n3. total = 30s\n\npls work here\nhttps://drive.google.com/drive/folders/1gBbMAQlpuJgI_NMLwLp4uoFzmrZ_8V93\n\nNaming:\nDX-AIV-218-002_SettAI_PuzzleHalloween_DX-VEO-055-001_EN_30s_1080x1080\nDX-AIV-218-002_SettAI_PuzzleHalloween_DX-VEO-055-001_EN_30s_1080x1350\nDX-AIV-218-002_SettAI_PuzzleHalloween_DX-VEO-055-001_EN_30s_1080x1920\nDX-AIV-218-002_SettAI_PuzzleHalloween_DX-VEO-055-001_EN_30s_1920x1080",
@@ -293,7 +299,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:57Z",
+          "at": "2026-10-09T16:46:40Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -308,6 +314,7 @@
       "hours": 2.7,
       "deadline": "",
       "month": "2026-10",
+      "excelStatus": "wip",
       "studioStatus": "wip",
       "mondayStatus": "WIP",
       "assigneeId": "teamlead",
@@ -319,7 +326,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:57Z",
+          "at": "2026-10-09T16:46:40Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -334,6 +341,7 @@
       "hours": 2.7,
       "deadline": "",
       "month": "2026-10",
+      "excelStatus": "wip",
       "studioStatus": "wip",
       "mondayStatus": "WIP",
       "assigneeId": "designer2",
@@ -345,7 +353,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:57Z",
+          "at": "2026-10-09T16:46:40Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -360,8 +368,9 @@
       "hours": 2.7,
       "deadline": "",
       "month": "2026-10",
-      "studioStatus": "wip",
-      "mondayStatus": "WIP",
+      "excelStatus": "closed",
+      "studioStatus": "closed",
+      "mondayStatus": "Closed",
       "assigneeId": "designer2",
       "help": [],
       "brief": "brief\n\nDX-HC-New UA EN HLWN - DX-VEO-055-001_TrickOrSweet + DX-AIV-Halloween_Spirals | Concept\n1. Remove endcard in order to add the hook\n2. length - 60s total\n\nhttps://drive.google.com/drive/folders/1_urZjArM8X07A_ZljzUGUlfUiMTyse31\n\nnaming\nDX-AIV-231-002_SettAI_Halloween_Spirals_DX-VEO-055-001_EN_60s_1080x1080\nDX-AIV-231-002_SettAI_Halloween_Spirals_DX-VEO-055-001_EN_60s_1080x1350\nDX-AIV-231-002_SettAI_Halloween_Spirals_DX-VEO-055-001_EN_60s_1080x1920\nDX-AIV-231-002_SettAI_Halloween_Spirals_DX-VEO-055-001_EN_60s_1920x1080",
@@ -371,7 +380,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:57Z",
+          "at": "2026-10-09T16:46:40Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -386,8 +395,9 @@
       "hours": 2.7,
       "deadline": "",
       "month": "2026-10",
-      "studioStatus": "wip",
-      "mondayStatus": "WIP",
+      "excelStatus": "closed",
+      "studioStatus": "closed",
+      "mondayStatus": "Closed",
       "assigneeId": "designer2",
       "help": [],
       "brief": "DX-HC-New UA EN HLWN - DX-VEO-055-001_TrickOrSweet + DX-AIV-InteractiveHalloween\n\n1. cut last 6 seconds\n2. total = 60s\n\nwork here\nhttps://drive.google.com/drive/folders/1kIT95u8WISMorVmAFV9-4bnFAEITFetn\n\nNaming:\nDX-AIV-406-002_SettAI_InteractiveHalloween_DX-VEO-055-001_EN_60s_1080x1080\nDX-AIV-406-002_SettAI_InteractiveHalloween_DX-VEO-055-001_EN_60s_1080x1350\nDX-AIV-406-002_SettAI_InteractiveHalloween_DX-VEO-055-001_EN_60s_1080x1920\nDX-AIV-406-002_SettAI_InteractiveHalloween_DX-VEO-055-001_EN_60s_1920x1080",
@@ -397,7 +407,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:57Z",
+          "at": "2026-10-09T16:46:40Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -412,8 +422,9 @@
       "hours": 2.7,
       "deadline": "",
       "month": "2026-10",
-      "studioStatus": "wip",
-      "mondayStatus": "WIP",
+      "excelStatus": "closed",
+      "studioStatus": "closed",
+      "mondayStatus": "Closed",
       "assigneeId": "designer2",
       "help": [],
       "brief": "DX-HC-New UA EN HLWN - DX-VEO-055-001_TrickOrSweet + DX-AIV-GraveyardEscape\n\n- cut first 6 sec of video\n- total length = 60s\n\nwork here\nhttps://drive.google.com/drive/folders/1xbB0fbK-wCqlUeSlKgWRpl8KF-Sh6I7L\n\nNaming:\nDX-AIV-407-002_SettAI_GraveyardEscape_DX-VEO-055-001_EN_60s_1080x1080\nDX-AIV-407-002_SettAI_GraveyardEscape_DX-VEO-055-001_EN_60s_1080x1350\nDX-AIV-407-002_SettAI_GraveyardEscape_DX-VEO-055-001_EN_60s_1080x1920\nDX-AIV-407-002_SettAI_GraveyardEscape_DX-VEO-055-001_EN_60s_1920x1080",
@@ -423,7 +434,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:57Z",
+          "at": "2026-10-09T16:46:40Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -438,6 +449,7 @@
       "hours": 2.7,
       "deadline": "2026-10-07",
       "month": "2026-10",
+      "excelStatus": "wip",
       "studioStatus": "wip",
       "mondayStatus": "WIP",
       "assigneeId": "designer2",
@@ -449,7 +461,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:57Z",
+          "at": "2026-10-09T16:46:40Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -464,6 +476,7 @@
       "hours": 2.7,
       "deadline": "2026-10-07",
       "month": "2026-10",
+      "excelStatus": "wip",
       "studioStatus": "wip",
       "mondayStatus": "WIP",
       "assigneeId": "designer4",
@@ -475,7 +488,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:57Z",
+          "at": "2026-10-09T16:46:40Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -490,6 +503,7 @@
       "hours": 2.7,
       "deadline": "2026-10-07",
       "month": "2026-10",
+      "excelStatus": "wip",
       "studioStatus": "wip",
       "mondayStatus": "WIP",
       "assigneeId": "designer4",
@@ -501,7 +515,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:57Z",
+          "at": "2026-10-09T16:46:40Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -516,6 +530,7 @@
       "hours": 2.7,
       "deadline": "2026-10-07",
       "month": "2026-10",
+      "excelStatus": "wip",
       "studioStatus": "wip",
       "mondayStatus": "WIP",
       "assigneeId": "designer5",
@@ -527,7 +542,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:57Z",
+          "at": "2026-10-09T16:46:40Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -542,6 +557,7 @@
       "hours": 2.7,
       "deadline": "2026-10-07",
       "month": "2026-10",
+      "excelStatus": "wip",
       "studioStatus": "wip",
       "mondayStatus": "WIP",
       "assigneeId": "designer5",
@@ -553,7 +569,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:57Z",
+          "at": "2026-10-09T16:46:40Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -568,6 +584,7 @@
       "hours": 2.7,
       "deadline": "2026-10-07",
       "month": "2026-10",
+      "excelStatus": "wip",
       "studioStatus": "wip",
       "mondayStatus": "WIP",
       "assigneeId": "teamlead",
@@ -579,7 +596,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:57Z",
+          "at": "2026-10-09T16:46:40Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -594,8 +611,9 @@
       "hours": 2.7,
       "deadline": "2026-10-07",
       "month": "2026-10",
-      "studioStatus": "wip",
-      "mondayStatus": "WIP",
+      "excelStatus": "closed",
+      "studioStatus": "closed",
+      "mondayStatus": "Closed",
       "assigneeId": "designer2",
       "help": [],
       "brief": "Please combine\n\n1. DD-VEO-059-001_GravePumpkin + DD-AIV-HalloweenBlastTreasure 15s\n2. Length = 24s\n3. Connect without trimming\n4. Add a motion transition between the hook and the video\n\nThanks\n\nWorking folder\nhttps://drive.google.com/drive/folders/12ruVe_IxccG7JRmVkKCLuR6U5kRWPfY1\n\nNaming:\nDD-AIV-227-002_SettAI_HalloweenBlastTreasure_DD-VEO-059-001_EN_24s_1080x1080\nDD-AIV-227-002_SettAI_HalloweenBlastTreasure_DD-VEO-059-001_EN_24s_1080x1350\nDD-AIV-227-002_SettAI_HalloweenBlastTreasure_DD-VEO-059-001_EN_24s_1080x1920\nDD-AIV-227-002_SettAI_HalloweenBlastTreasure_DD-VEO-059-001_EN_24s_1920x1080",
@@ -605,7 +623,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:57Z",
+          "at": "2026-10-09T16:46:40Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -620,8 +638,9 @@
       "hours": 2.7,
       "deadline": "2026-10-07",
       "month": "2026-10",
-      "studioStatus": "wip",
-      "mondayStatus": "WIP",
+      "excelStatus": "closed",
+      "studioStatus": "closed",
+      "mondayStatus": "Closed",
       "assigneeId": "designer2",
       "help": [],
       "brief": "Please combine:\n\n1. DD-VEO-059-001_GravePumpkin + DD-AIV-HalloweenKindomBuild\n2. Length = 60s\n3. Trim first ±8 seconds of video\n4. Add a motion transition between the hook and the video\n\nWorking folder\nhttps://drive.google.com/drive/folders/1YhT8bBrTz3H_rnQiPxI82YZVu4raD7pN\n\nThanks\n\nNaming:\nDD-AIV-233-002_SettAI_HalloweenKindomBuild_DD-VEO-059-001_EN_60s_1080x1080\nDD-AIV-233-002_SettAI_HalloweenKindomBuild_DD-VEO-059-001_EN_60s_1080x1350\nDD-AIV-233-002_SettAI_HalloweenKindomBuild_DD-VEO-059-001_EN_60s_1080x1920\nDD-AIV-233-002_SettAI_HalloweenKindomBuild_DD-VEO-059-001_EN_60s_1920x1080",
@@ -631,7 +650,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:57Z",
+          "at": "2026-10-09T16:46:40Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -646,8 +665,9 @@
       "hours": 2.7,
       "deadline": "2026-10-07",
       "month": "2026-10",
-      "studioStatus": "wip",
-      "mondayStatus": "WIP",
+      "excelStatus": "closed",
+      "studioStatus": "closed",
+      "mondayStatus": "Closed",
       "assigneeId": "designer2",
       "help": [],
       "brief": "Please combine:\n\n1. DD-VEO-059-001_GravePumpkin + DD-AIV-WitchsPotion\n2. Length = 30s\n3. Trim end ±8s of the video\n4. Add a motion transition between the hook and the video\n\nThanks\n\nWorking folder\nhttps://drive.google.com/drive/folders/1_DbnhESYtGgBHGvud7NaT0vdGFAtefvn\n\nNaming:\nDD-AIV-235-002_SettAI_WitchsPotion_DD-VEO-059-001_EN_30s_1080x1080\nDD-AIV-235-002_SettAI_WitchsPotion_DD-VEO-059-001_EN_30s_1080x1350\nDD-AIV-235-002_SettAI_WitchsPotion_DD-VEO-059-001_EN_30s_1080x1920\nDD-AIV-235-002_SettAI_WitchsPotion_DD-VEO-059-001_EN_30s_1920x1080",
@@ -657,7 +677,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:57Z",
+          "at": "2026-10-09T16:46:40Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -672,6 +692,7 @@
       "hours": 2.7,
       "deadline": "2026-10-07",
       "month": "2026-10",
+      "excelStatus": "wip",
       "studioStatus": "wip",
       "mondayStatus": "WIP",
       "assigneeId": "teamlead",
@@ -683,7 +704,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:57Z",
+          "at": "2026-10-09T16:46:40Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -698,8 +719,9 @@
       "hours": 2.7,
       "deadline": "2026-08-28",
       "month": "2026-09",
-      "studioStatus": "wip",
-      "mondayStatus": "WIP",
+      "excelStatus": "closed",
+      "studioStatus": "closed",
+      "mondayStatus": "Closed",
       "assigneeId": "designer2",
       "help": [],
       "brief": "",
@@ -709,7 +731,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:58Z",
+          "at": "2026-10-09T16:46:41Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -724,8 +746,9 @@
       "hours": 2.7,
       "deadline": "2026-08-28",
       "month": "2026-09",
-      "studioStatus": "wip",
-      "mondayStatus": "WIP",
+      "excelStatus": "closed",
+      "studioStatus": "closed",
+      "mondayStatus": "Closed",
       "assigneeId": "teamlead",
       "help": [],
       "brief": "",
@@ -735,7 +758,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:58Z",
+          "at": "2026-10-09T16:46:41Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -750,8 +773,9 @@
       "hours": 2.7,
       "deadline": "2026-08-28",
       "month": "2026-09",
-      "studioStatus": "wip",
-      "mondayStatus": "WIP",
+      "excelStatus": "closed",
+      "studioStatus": "closed",
+      "mondayStatus": "Closed",
       "assigneeId": "designer2",
       "help": [],
       "brief": "",
@@ -761,7 +785,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:58Z",
+          "at": "2026-10-09T16:46:41Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -776,8 +800,9 @@
       "hours": 2.7,
       "deadline": "2026-08-28",
       "month": "2026-09",
-      "studioStatus": "wip",
-      "mondayStatus": "WIP",
+      "excelStatus": "closed",
+      "studioStatus": "closed",
+      "mondayStatus": "Closed",
       "assigneeId": "teamlead",
       "help": [],
       "brief": "",
@@ -787,7 +812,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:58Z",
+          "at": "2026-10-09T16:46:41Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -802,8 +827,9 @@
       "hours": 2.7,
       "deadline": "2026-08-28",
       "month": "2026-09",
-      "studioStatus": "wip",
-      "mondayStatus": "WIP",
+      "excelStatus": "closed",
+      "studioStatus": "closed",
+      "mondayStatus": "Closed",
       "assigneeId": "designer2",
       "help": [],
       "brief": "",
@@ -813,7 +839,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:58Z",
+          "at": "2026-10-09T16:46:41Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -828,8 +854,9 @@
       "hours": 2.7,
       "deadline": "2026-09-07",
       "month": "2026-09",
-      "studioStatus": "wip",
-      "mondayStatus": "WIP",
+      "excelStatus": "closed",
+      "studioStatus": "closed",
+      "mondayStatus": "Closed",
       "assigneeId": "designer5",
       "help": [],
       "brief": "",
@@ -839,7 +866,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:58Z",
+          "at": "2026-10-09T16:46:41Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -854,8 +881,9 @@
       "hours": 2.7,
       "deadline": "2026-09-29",
       "month": "2026-09",
-      "studioStatus": "wip",
-      "mondayStatus": "WIP",
+      "excelStatus": "closed",
+      "studioStatus": "closed",
+      "mondayStatus": "Closed",
       "assigneeId": "designer2",
       "help": [],
       "brief": "",
@@ -865,7 +893,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:58Z",
+          "at": "2026-10-09T16:46:41Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -880,8 +908,9 @@
       "hours": 2.7,
       "deadline": "2026-09-29",
       "month": "2026-09",
-      "studioStatus": "wip",
-      "mondayStatus": "WIP",
+      "excelStatus": "closed",
+      "studioStatus": "closed",
+      "mondayStatus": "Closed",
       "assigneeId": "designer2",
       "help": [],
       "brief": "",
@@ -891,7 +920,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:58Z",
+          "at": "2026-10-09T16:46:41Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -906,8 +935,9 @@
       "hours": 2.7,
       "deadline": "2026-09-29",
       "month": "2026-09",
-      "studioStatus": "wip",
-      "mondayStatus": "WIP",
+      "excelStatus": "closed",
+      "studioStatus": "closed",
+      "mondayStatus": "Closed",
       "assigneeId": "designer2",
       "help": [],
       "brief": "",
@@ -917,7 +947,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:58Z",
+          "at": "2026-10-09T16:46:41Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -932,8 +962,9 @@
       "hours": 2.7,
       "deadline": "2026-09-30",
       "month": "2026-09",
-      "studioStatus": "wip",
-      "mondayStatus": "WIP",
+      "excelStatus": "closed",
+      "studioStatus": "closed",
+      "mondayStatus": "Closed",
       "assigneeId": "designer2",
       "help": [],
       "brief": "",
@@ -943,7 +974,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:58Z",
+          "at": "2026-10-09T16:46:41Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -958,8 +989,9 @@
       "hours": 2.7,
       "deadline": "2026-09-30",
       "month": "2026-09",
-      "studioStatus": "wip",
-      "mondayStatus": "WIP",
+      "excelStatus": "closed",
+      "studioStatus": "closed",
+      "mondayStatus": "Closed",
       "assigneeId": "designer2",
       "help": [],
       "brief": "",
@@ -969,7 +1001,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:58Z",
+          "at": "2026-10-09T16:46:41Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -984,8 +1016,9 @@
       "hours": 2.7,
       "deadline": "2026-09-29",
       "month": "2026-09",
-      "studioStatus": "wip",
-      "mondayStatus": "WIP",
+      "excelStatus": "closed",
+      "studioStatus": "closed",
+      "mondayStatus": "Closed",
       "assigneeId": "designer4",
       "help": [],
       "brief": "",
@@ -995,7 +1028,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:58Z",
+          "at": "2026-10-09T16:46:41Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -1010,8 +1043,9 @@
       "hours": 2.7,
       "deadline": "2026-09-29",
       "month": "2026-09",
-      "studioStatus": "wip",
-      "mondayStatus": "WIP",
+      "excelStatus": "closed",
+      "studioStatus": "closed",
+      "mondayStatus": "Closed",
       "assigneeId": "designer4",
       "help": [],
       "brief": "",
@@ -1021,7 +1055,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:58Z",
+          "at": "2026-10-09T16:46:41Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -1036,8 +1070,9 @@
       "hours": 2.7,
       "deadline": "2026-09-29",
       "month": "2026-09",
-      "studioStatus": "wip",
-      "mondayStatus": "WIP",
+      "excelStatus": "closed",
+      "studioStatus": "closed",
+      "mondayStatus": "Closed",
       "assigneeId": "designer4",
       "help": [],
       "brief": "",
@@ -1047,7 +1082,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:58Z",
+          "at": "2026-10-09T16:46:41Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -1062,8 +1097,9 @@
       "hours": 2.7,
       "deadline": "2026-09-30",
       "month": "2026-09",
-      "studioStatus": "wip",
-      "mondayStatus": "WIP",
+      "excelStatus": "closed",
+      "studioStatus": "closed",
+      "mondayStatus": "Closed",
       "assigneeId": "designer2",
       "help": [],
       "brief": "",
@@ -1073,7 +1109,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:58Z",
+          "at": "2026-10-09T16:46:41Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -1088,8 +1124,9 @@
       "hours": 2.7,
       "deadline": "2026-09-29",
       "month": "2026-09",
-      "studioStatus": "wip",
-      "mondayStatus": "WIP",
+      "excelStatus": "closed",
+      "studioStatus": "closed",
+      "mondayStatus": "Closed",
       "assigneeId": "designer5",
       "help": [],
       "brief": "",
@@ -1099,7 +1136,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:58Z",
+          "at": "2026-10-09T16:46:41Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -1114,8 +1151,9 @@
       "hours": 2.7,
       "deadline": "2026-09-29",
       "month": "2026-09",
-      "studioStatus": "wip",
-      "mondayStatus": "WIP",
+      "excelStatus": "closed",
+      "studioStatus": "closed",
+      "mondayStatus": "Closed",
       "assigneeId": "designer5",
       "help": [],
       "brief": "",
@@ -1125,7 +1163,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:58Z",
+          "at": "2026-10-09T16:46:41Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -1140,8 +1178,9 @@
       "hours": 2.7,
       "deadline": "2026-09-30",
       "month": "2026-09",
-      "studioStatus": "wip",
-      "mondayStatus": "WIP",
+      "excelStatus": "closed",
+      "studioStatus": "closed",
+      "mondayStatus": "Closed",
       "assigneeId": "designer5",
       "help": [],
       "brief": "",
@@ -1151,7 +1190,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:58Z",
+          "at": "2026-10-09T16:46:41Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -1166,8 +1205,9 @@
       "hours": 4.5,
       "deadline": "2026-08-25",
       "month": "2026-09",
-      "studioStatus": "wip",
-      "mondayStatus": "WIP",
+      "excelStatus": "closed",
+      "studioStatus": "closed",
+      "mondayStatus": "Closed",
       "assigneeId": "designer3",
       "help": [],
       "brief": "",
@@ -1177,7 +1217,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:58Z",
+          "at": "2026-10-09T16:46:41Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -1192,8 +1232,9 @@
       "hours": 4.5,
       "deadline": "2026-08-25",
       "month": "2026-09",
-      "studioStatus": "wip",
-      "mondayStatus": "WIP",
+      "excelStatus": "closed",
+      "studioStatus": "closed",
+      "mondayStatus": "Closed",
       "assigneeId": "designer4",
       "help": [],
       "brief": "",
@@ -1203,7 +1244,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:58Z",
+          "at": "2026-10-09T16:46:41Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -1218,8 +1259,9 @@
       "hours": 4.5,
       "deadline": "2026-08-25",
       "month": "2026-09",
-      "studioStatus": "wip",
-      "mondayStatus": "WIP",
+      "excelStatus": "closed",
+      "studioStatus": "closed",
+      "mondayStatus": "Closed",
       "assigneeId": "designer3",
       "help": [],
       "brief": "",
@@ -1229,7 +1271,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:58Z",
+          "at": "2026-10-09T16:46:41Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -1244,8 +1286,9 @@
       "hours": 4.5,
       "deadline": "2026-08-25",
       "month": "2026-09",
-      "studioStatus": "wip",
-      "mondayStatus": "WIP",
+      "excelStatus": "closed",
+      "studioStatus": "closed",
+      "mondayStatus": "Closed",
       "assigneeId": "designer5",
       "help": [],
       "brief": "",
@@ -1255,7 +1298,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:58Z",
+          "at": "2026-10-09T16:46:41Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -1270,8 +1313,9 @@
       "hours": 9.0,
       "deadline": "2026-08-28",
       "month": "2026-09",
-      "studioStatus": "wip",
-      "mondayStatus": "WIP",
+      "excelStatus": "closed",
+      "studioStatus": "closed",
+      "mondayStatus": "Closed",
       "assigneeId": "designer4",
       "help": [],
       "brief": "",
@@ -1281,7 +1325,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:58Z",
+          "at": "2026-10-09T16:46:41Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -1296,8 +1340,9 @@
       "hours": 4.5,
       "deadline": "2026-09-02",
       "month": "2026-09",
-      "studioStatus": "wip",
-      "mondayStatus": "WIP",
+      "excelStatus": "closed",
+      "studioStatus": "closed",
+      "mondayStatus": "Closed",
       "assigneeId": "teamlead",
       "help": [],
       "brief": "",
@@ -1307,7 +1352,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:58Z",
+          "at": "2026-10-09T16:46:41Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -1322,8 +1367,9 @@
       "hours": 2.7,
       "deadline": "2026-09-02",
       "month": "2026-09",
-      "studioStatus": "wip",
-      "mondayStatus": "WIP",
+      "excelStatus": "closed",
+      "studioStatus": "closed",
+      "mondayStatus": "Closed",
       "assigneeId": "teamlead",
       "help": [],
       "brief": "",
@@ -1333,7 +1379,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:58Z",
+          "at": "2026-10-09T16:46:41Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -1348,8 +1394,9 @@
       "hours": 2.7,
       "deadline": "2026-09-02",
       "month": "2026-09",
-      "studioStatus": "wip",
-      "mondayStatus": "WIP",
+      "excelStatus": "closed",
+      "studioStatus": "closed",
+      "mondayStatus": "Closed",
       "assigneeId": "designer2",
       "help": [],
       "brief": "",
@@ -1359,7 +1406,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:58Z",
+          "at": "2026-10-09T16:46:41Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -1374,8 +1421,9 @@
       "hours": 2.7,
       "deadline": "2026-09-03",
       "month": "2026-09",
-      "studioStatus": "wip",
-      "mondayStatus": "WIP",
+      "excelStatus": "closed",
+      "studioStatus": "closed",
+      "mondayStatus": "Closed",
       "assigneeId": "designer2",
       "help": [],
       "brief": "",
@@ -1385,7 +1433,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:58Z",
+          "at": "2026-10-09T16:46:41Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -1400,8 +1448,9 @@
       "hours": 2.7,
       "deadline": "2026-09-03",
       "month": "2026-09",
-      "studioStatus": "wip",
-      "mondayStatus": "WIP",
+      "excelStatus": "closed",
+      "studioStatus": "closed",
+      "mondayStatus": "Closed",
       "assigneeId": "teamlead",
       "help": [],
       "brief": "",
@@ -1411,7 +1460,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:58Z",
+          "at": "2026-10-09T16:46:41Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -1426,8 +1475,9 @@
       "hours": 7.2,
       "deadline": "2026-09-07",
       "month": "2026-09",
-      "studioStatus": "wip",
-      "mondayStatus": "WIP",
+      "excelStatus": "closed",
+      "studioStatus": "closed",
+      "mondayStatus": "Closed",
       "assigneeId": "designer4",
       "help": [],
       "brief": "",
@@ -1437,7 +1487,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:58Z",
+          "at": "2026-10-09T16:46:41Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -1452,8 +1502,9 @@
       "hours": 13.5,
       "deadline": "2026-09-07",
       "month": "2026-09",
-      "studioStatus": "wip",
-      "mondayStatus": "WIP",
+      "excelStatus": "closed",
+      "studioStatus": "closed",
+      "mondayStatus": "Closed",
       "assigneeId": "designer5",
       "help": [],
       "brief": "",
@@ -1463,7 +1514,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:58Z",
+          "at": "2026-10-09T16:46:41Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -1478,8 +1529,9 @@
       "hours": 13.5,
       "deadline": "2026-09-12",
       "month": "2026-09",
-      "studioStatus": "wip",
-      "mondayStatus": "WIP",
+      "excelStatus": "closed",
+      "studioStatus": "closed",
+      "mondayStatus": "Closed",
       "assigneeId": "teamlead",
       "help": [
         {
@@ -1494,7 +1546,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:58Z",
+          "at": "2026-10-09T16:46:41Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -1509,8 +1561,9 @@
       "hours": 13.5,
       "deadline": "2026-09-12",
       "month": "2026-09",
-      "studioStatus": "wip",
-      "mondayStatus": "WIP",
+      "excelStatus": "closed",
+      "studioStatus": "closed",
+      "mondayStatus": "Closed",
       "assigneeId": "teamlead",
       "help": [],
       "brief": "",
@@ -1520,7 +1573,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:58Z",
+          "at": "2026-10-09T16:46:41Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -1535,8 +1588,9 @@
       "hours": 13.5,
       "deadline": "2026-09-12",
       "month": "2026-09",
-      "studioStatus": "wip",
-      "mondayStatus": "WIP",
+      "excelStatus": "closed",
+      "studioStatus": "closed",
+      "mondayStatus": "Closed",
       "assigneeId": "designer3",
       "help": [],
       "brief": "",
@@ -1546,7 +1600,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:58Z",
+          "at": "2026-10-09T16:46:41Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -1561,8 +1615,9 @@
       "hours": 13.5,
       "deadline": "2026-09-12",
       "month": "2026-09",
-      "studioStatus": "wip",
-      "mondayStatus": "WIP",
+      "excelStatus": "closed",
+      "studioStatus": "closed",
+      "mondayStatus": "Closed",
       "assigneeId": "designer3",
       "help": [],
       "brief": "",
@@ -1572,7 +1627,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:58Z",
+          "at": "2026-10-09T16:46:41Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -1587,8 +1642,9 @@
       "hours": 13.5,
       "deadline": "2026-09-12",
       "month": "2026-09",
-      "studioStatus": "wip",
-      "mondayStatus": "WIP",
+      "excelStatus": "closed",
+      "studioStatus": "closed",
+      "mondayStatus": "Closed",
       "assigneeId": "designer3",
       "help": [],
       "brief": "",
@@ -1598,7 +1654,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:58Z",
+          "at": "2026-10-09T16:46:41Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -1613,8 +1669,9 @@
       "hours": 2.7,
       "deadline": "2026-09-15",
       "month": "2026-09",
-      "studioStatus": "wip",
-      "mondayStatus": "WIP",
+      "excelStatus": "closed",
+      "studioStatus": "closed",
+      "mondayStatus": "Closed",
       "assigneeId": "teamlead",
       "help": [],
       "brief": "",
@@ -1624,7 +1681,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:58Z",
+          "at": "2026-10-09T16:46:41Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -1639,8 +1696,9 @@
       "hours": 2.7,
       "deadline": "",
       "month": "2026-09",
-      "studioStatus": "wip",
-      "mondayStatus": "WIP",
+      "excelStatus": "closed",
+      "studioStatus": "closed",
+      "mondayStatus": "Closed",
       "assigneeId": "designer4",
       "help": [],
       "brief": "",
@@ -1650,7 +1708,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:58Z",
+          "at": "2026-10-09T16:46:41Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -1665,8 +1723,9 @@
       "hours": 2.7,
       "deadline": "2026-09-28",
       "month": "2026-09",
-      "studioStatus": "wip",
-      "mondayStatus": "WIP",
+      "excelStatus": "closed",
+      "studioStatus": "closed",
+      "mondayStatus": "Closed",
       "assigneeId": "designer4",
       "help": [],
       "brief": "",
@@ -1676,7 +1735,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T14:05:58Z",
+          "at": "2026-10-09T16:46:41Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -1684,7 +1743,7 @@
   ],
   "events": [
     {
-      "at": "2026-10-09T14:05:58Z",
+      "at": "2026-10-09T16:46:41Z",
       "text": "Mirror snapshot from live SP_MGX_check.xlsx. Clicks stay in the portal buffer."
     }
   ],

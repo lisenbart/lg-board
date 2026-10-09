@@ -19,6 +19,8 @@ HEADER_FILL = PatternFill("solid", fgColor="D8D8D8")
 DX_FILL = PatternFill("solid", fgColor="9DC3E6")
 DD_FILL = PatternFill("solid", fgColor="BFBFBF")
 DS_FILL = PatternFill("solid", fgColor="C6B19B")
+WIP_FILL = PatternFill("solid", fgColor="59BBFF")
+CLOSED_FILL = PatternFill("solid", fgColor="92D050")
 THIN = Border(
     left=Side(style="hair", color="B4B4B4"),
     right=Side(style="hair", color="B4B4B4"),
@@ -30,6 +32,44 @@ CALIBRI_BOLD = Font(name="Calibri", size=11, bold=True)
 CENTER = Alignment(horizontal="center", vertical="center")
 
 LINE_FILL = {"DX": DX_FILL, "DD": DD_FILL, "DS": DS_FILL}
+
+
+def _cell_fill_hex(cell) -> str:
+    fill = getattr(cell, "fill", None)
+    if not fill or fill.patternType in (None, "none"):
+        return ""
+    color = fill.fgColor
+    if not color or color.type != "rgb" or not color.rgb:
+        return ""
+    raw = str(color.rgb).replace("#", "").upper()
+    if raw in {"00000000", "FFFFFFFF"}:
+        return ""
+    if len(raw) == 8:
+        raw = raw[2:]
+    return raw if len(raw) == 6 else ""
+
+
+def status_from_line_fill(hex_color: str) -> str:
+    """Left DX/DD cell: green = Closed, blue = WIP. Same marks as SP_MGX_check."""
+    raw = str(hex_color or "").replace("#", "").upper()
+    if len(raw) == 8:
+        raw = raw[2:]
+    if len(raw) != 6:
+        return ""
+    r, g, b = int(raw[0:2], 16), int(raw[2:4], 16), int(raw[4:6], 16)
+    if g >= 150 and g > b + 20 and g >= r:
+        return "closed"
+    if b >= 150 and b > r + 20:
+        return "wip"
+    return ""
+
+
+def line_fill_for_status(status: str) -> PatternFill | None:
+    if status == "closed":
+        return CLOSED_FILL
+    if status in {"wip", "revision", "done", "approve", "new"}:
+        return WIP_FILL
+    return None
 
 
 def _hex_fill(color: str) -> PatternFill:
@@ -280,6 +320,7 @@ def parse_workbook(path: Path, ym: str) -> dict:
             assignee_id = primary.get("id") or ""
         deadline_s = _deadline_iso(deadline, ym)
         prefix = name.split("-", 1)[0].upper()
+        excel_status = status_from_line_fill(_cell_fill_hex(ws.cell(r, 1)))
         rows.append(
             {
                 "name": name,
@@ -290,6 +331,7 @@ def parse_workbook(path: Path, ym: str) -> dict:
                 "assigneeName": assignee,
                 "assigneeId": assignee_id,
                 "shares": shares,
+                "excelStatus": excel_status,
             }
         )
     return {"people": people, "rows": rows, "sheet": ws.title}
@@ -342,6 +384,7 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
         if keep and keep in people_ids:
             assignee_id = keep
         help_rows = [s for s in shares if s["id"] != assignee_id]
+        excel_status = row.get("excelStatus") or ""
         if task:
             task["shifts"] = row["shifts"]
             task["hours"] = row["hours"]
@@ -350,6 +393,15 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
             task["assigneeId"] = assignee_id
             task["help"] = help_rows
             task["month"] = ym
+            if excel_status:
+                task["excelStatus"] = excel_status
+            current = task.get("studioStatus") or ""
+            if excel_status == "closed":
+                task["studioStatus"] = "closed"
+                task["mondayStatus"] = "Closed"
+            elif excel_status == "wip" and current in {"", "new", "closed"}:
+                task["studioStatus"] = "wip"
+                task["mondayStatus"] = "WIP"
             updated += 1
         else:
             task = {
@@ -362,8 +414,9 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
                 "hours": row["hours"],
                 "deadline": row.get("deadline") or "",
                 "month": ym,
-                "studioStatus": "new",
-                "mondayStatus": "Ready to Start",
+                "excelStatus": excel_status,
+                "studioStatus": "closed" if excel_status == "closed" else ("wip" if assignee_id or excel_status == "wip" else "new"),
+                "mondayStatus": "Closed" if excel_status == "closed" else ("WIP" if assignee_id or excel_status == "wip" else "Ready to Start"),
                 "assigneeId": assignee_id,
                 "help": help_rows,
                 "brief": "",
@@ -505,6 +558,9 @@ def _write_task_row(ws, row: int, task: dict, columns: list[tuple[int, dict | No
             cell.value = None
             cell.fill = PatternFill(fill_type=None)
     _style_range(ws, row, last_col)
+    mark = line_fill_for_status(task.get("studioStatus") or "")
+    if mark is not None:
+        ws.cell(row, 1).fill = mark
     ws.cell(row, 2).alignment = Alignment(vertical="center")
     ws.cell(row, 4).alignment = CENTER
 
