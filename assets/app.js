@@ -636,19 +636,24 @@ function renderChrome() {
     tabs.push({ id: "guide", label: "Як це працює" });
   }
   if (!tabs.some((t) => t.id === state.view)) state.view = isClient() ? "report" : "board";
-  $("views").innerHTML = tabs
-    .map(
-      (t) =>
-        `<button class="view-tab ${state.view === t.id ? "active" : ""}" data-view="${t.id}">${t.label}</button>`
-    )
-    .join("");
-  $("views").querySelectorAll(".view-tab").forEach((el) => {
-    el.addEventListener("click", () => {
-      state.view = el.dataset.view;
-      render();
+  if (tabs.length <= 1) {
+    $("views").innerHTML = "";
+    $("views").hidden = true;
+  } else {
+    $("views").hidden = false;
+    $("views").innerHTML = tabs
+      .map(
+        (t) =>
+          `<button type="button" class="view-tab ${state.view === t.id ? "active" : ""}" data-view="${t.id}" role="tab" aria-selected="${state.view === t.id ? "true" : "false"}">${t.label}</button>`
+      )
+      .join("");
+    $("views").querySelectorAll(".view-tab").forEach((el) => {
+      el.addEventListener("click", () => {
+        state.view = el.dataset.view;
+        render();
+      });
     });
-  });
-}
+  }
 
 function renderToolbar() {
   if (state.view === "team" || state.view === "close" || state.view === "guide") {
@@ -1801,10 +1806,10 @@ function renderClose() {
   ];
   const pane =
     state.finTab === "employees" ? renderEmployees(fin) : state.finTab === "studio" ? renderStudio(fin) : renderClient(fin);
-  const tabBar = `<div class="fin-tabs">${tabs
+  const tabBar = `<div class="fin-tabs" role="tablist">${tabs
     .map(
       (t) =>
-        `<button type="button" class="fin-tab ${state.finTab === t.id ? "active" : ""}" data-tab="${t.id}">${t.label}</button>`
+        `<button type="button" class="fin-tab ${state.finTab === t.id ? "active" : ""}" data-tab="${t.id}" role="tab" aria-selected="${state.finTab === t.id ? "true" : "false"}">${t.label}</button>`
     )
     .join("")}</div>`;
   $("board").innerHTML = `<section class="fin">${tabBar}${pane}</section>`;
