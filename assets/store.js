@@ -82,14 +82,31 @@
       const url = raw.replace(/[.,);]+$/, "");
       if (!url || seen.has(url)) continue;
       seen.add(url);
-      const kind = IMAGE_URL.test(url) || url.includes("/file/d/") || url.includes("/thumbnail?") ? "image" : "link";
+      const kind = IMAGE_URL.test(url) || url.startsWith("data:image") || url.includes("/file/d/") || url.includes("/thumbnail?") ? "image" : "link";
       urls.push({ url, kind });
     }
     return urls;
   };
-  const makeComment = (db, { actorId, body, source, mondayId }) => {
+  const inlineShots = (extra) => {
+    const out = [];
+    for (const item of extra || []) {
+      if (!item || typeof item !== "object") continue;
+      if (item.url && !item.data) {
+        out.push({ url: String(item.url), kind: item.kind || "image" });
+        continue;
+      }
+      const data = String(item.data || "");
+      if (!data.startsWith("data:image")) continue;
+      if (data.length > 8 * 1024 * 1024) continue;
+      out.push({ url: data, kind: "image" });
+      if (out.length >= 8) break;
+    }
+    return out;
+  };
+  const makeComment = (db, { actorId, body, source, mondayId, extra }) => {
     const text = String(body || "").trim();
-    if (!text) return "paste client text or a screenshot link";
+    const attachments = [...commentAttachments(text), ...inlineShots(extra)];
+    if (!text && !attachments.length) return "paste client text or a screenshot";
     db.meta = db.meta || {};
     db.meta.commentSeq = (Number(db.meta.commentSeq) || 0) + 1;
     const person = (db.people || []).find((p) => p.id === actorId);
@@ -99,7 +116,7 @@
       authorId: actorId || "",
       authorName: person?.name || "",
       body: text,
-      attachments: commentAttachments(text),
+      attachments,
       source: source === "monday" ? "monday" : "manual",
       mondayId: String(mondayId || ""),
     };
@@ -497,6 +514,7 @@
         body: data.body || "",
         source: data.source || "manual",
         mondayId: data.mondayId || "",
+        extra: data.attachments || [],
       });
       if (typeof comment === "string") return { error: comment };
       task.comments = task.comments || [];
