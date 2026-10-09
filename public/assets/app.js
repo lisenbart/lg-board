@@ -793,33 +793,34 @@ function pinHtml(t) {
   const body = raw
     ? `<div class="pin-body">${linkifyBrief(raw)}</div>`
     : `<div class="pin-body is-empty">No brief from Monday yet</div>`;
-  const doc = t.docUrl
-    ? `<a class="pin-link" href="${escapeHtml(t.docUrl)}" target="_blank" rel="noreferrer">Open brief doc</a>`
-    : "";
-  return `<article class="pin">
-      <header class="pin-head">From client</header>
-      ${body}
-      ${doc ? `<footer class="pin-foot">${doc}</footer>` : ""}
-    </article>`;
-}
-function sourceHtml(t) {
-  const parts = parseBrief(t);
   const work = workFolder(t);
-  const videoBtn = parts.fileUrl
-    ? `<a class="btn pack-brief" href="${escapeHtml(parts.fileUrl)}" target="_blank" rel="noreferrer">Open video</a>`
+  const briefBtn = t.docUrl
+    ? `<a class="btn pack-brief" href="${escapeHtml(t.docUrl)}" target="_blank" rel="noreferrer">Open brief</a>`
     : "";
   const folderBtn = work
     ? `<a class="btn pack-folder" href="${escapeHtml(work)}" target="_blank" rel="noreferrer">Open folder</a>`
     : "";
+  const actions = briefBtn || folderBtn
+    ? `<footer class="pin-actions">${briefBtn}${folderBtn}</footer>`
+    : "";
+  return `<article class="pin">
+      <header class="pin-head">Brief</header>
+      ${body}
+      ${actions}
+    </article>`;
+}
+function sourceHtml(t) {
+  const parts = parseBrief(t);
+  const videoBtn = parts.fileUrl
+    ? `<a class="btn pack-brief" href="${escapeHtml(parts.fileUrl)}" target="_blank" rel="noreferrer">Open video</a>`
+    : "";
   const files = parts.downloads
     .map((f) => `<span class="file-chip">${escapeHtml(f)}</span>`)
     .join("");
-  const actions = videoBtn || folderBtn || files
-    ? `${videoBtn}${folderBtn}${files ? `<div class="file-row">${files}</div>` : ""}`
-    : `<p class="io-empty">Folder lands with the task</p>`;
+  if (!videoBtn && !files) return "";
   return `<section class="io io-source">
       <h3>Source</h3>
-      ${actions}
+      ${videoBtn}${files ? `<div class="file-row">${files}</div>` : ""}
     </section>`;
 }
 function resultHtml(t, performer, canPaste) {
@@ -1369,7 +1370,7 @@ function renderGuide() {
         ])}
         ${card("designer", "MD", "Motion design", "Марія, Сергій, Аліна, Олекса. Лише свої таски.", [
           `Дзвіночок ${ui("On you")} — тебе поставили. ${ui("Fix")} — ${ui("Need Fixing")}.`,
-          `Картка: ${ui("From client")} → ${ui("Source")} → ${ui("Result")}. Бриф як у Monday, без вигаданих розмірів.`,
+          `Картка: ${ui("Brief")} → ${ui("Source")} → ${ui("Result")}. Бриф як у Monday, без вигаданих розмірів.`,
           `Зробив → ${ui("Paste result link here")} (лінк на файл, не на теку). Поки лінка немає, ${ui("Done")} у статусі немає.`,
           `Потім ${ui("Done")} → ${ui("Save")}. Далі чекає LP. ${ui("Appr.")} — уже в клієнта. ${ui("Closed")} — прийнято, нічого не робити.`,
         ])}
@@ -1603,6 +1604,50 @@ function statusChoices(task) {
   const keys = [...(STATUS_BY_ROLE[me().role] || STATUS_BY_ROLE.manager)];
   if (task?.studioStatus && !keys.includes(task.studioStatus)) keys.unshift(task.studioStatus);
   return keys;
+}
+
+const STATUS_KEYS = ["new", "wip", "revision", "done", "approve", "closed"];
+
+function statusButtonDisabled(task, key, opts) {
+  const on = (task.studioStatus || "new") === key;
+  if (opts.locked && !on) return true;
+  if (!opts.canEdit && !on) return true;
+  if (on) return opts.locked;
+  if (key === "approve") return true;
+  if (key === "closed") return !(canOps() && task.studioStatus === "approve");
+  return !canSetStatus(key);
+}
+
+function statusButtonsHtml(t, canEdit, lockedStatus) {
+  const current = t.studioStatus || "new";
+  const opts = { canEdit, locked: lockedStatus };
+  const buttons = STATUS_KEYS.map((key) => {
+    const mark = statusMark({ studioStatus: key });
+    const on = current === key;
+    const disabled = statusButtonDisabled(t, key, opts);
+    return `<button type="button" class="status-btn st-${mark.cls} ${on ? "is-on" : "is-off"}" data-status="${key}" aria-pressed="${on ? "true" : "false"}" ${disabled ? "disabled" : ""} title="${escapeHtml(STATUS[key].label)}">${escapeHtml(mark.label)}</button>`;
+  }).join("");
+  return `<div class="status-btns" role="group" aria-label="Status">${buttons}</div>
+    <input type="hidden" id="stStatus" value="${escapeHtml(current)}" />
+    <p class="status-hint" id="stDoneHint"></p>`;
+}
+
+function paintStatusButtons(key) {
+  const input = $("stStatus");
+  if (input) input.value = key;
+  $("drawer")
+    ?.querySelectorAll(".status-btn")
+    .forEach((btn) => {
+      const on = btn.dataset.status === key;
+      btn.classList.toggle("is-on", on);
+      btn.classList.toggle("is-off", !on);
+      btn.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+  const pill = $("stMetaStatus");
+  if (pill && STATUS[key]) {
+    pill.className = `pill ${STATUS[key].cls}`;
+    pill.textContent = STATUS[key].label;
+  }
 }
 
 function canSetStatus(next) {
@@ -2350,14 +2395,6 @@ function openTask(id) {
   const job = cardJob(t);
   const performer = mine && (isDesigner() || isTeamLead());
   const canPaste = canPasteResult(t);
-  const statusOpts = statusChoices(t)
-    .map((k) => {
-      const selected = t.studioStatus === k ? "selected" : "";
-      if (k === "done" && k !== t.studioStatus && !String(t.resultUrl || "").trim()) return "";
-      const roleBlock = k !== t.studioStatus && !canSetStatus(k);
-      return `<option value="${k}" ${selected} ${roleBlock ? "disabled" : ""}>${STATUS[k].label}</option>`;
-    })
-    .join("");
   const assignHero = isTeamLead() && !t.assigneeId;
   const assignSelect = canAssign()
     ? `<select id="stPerson">
@@ -2376,12 +2413,10 @@ function openTask(id) {
         ${assignSelect}
       </div>`
     : "";
-  const opsWho =
-    isDesigner()
-      ? ""
-      : canAssign() && !assignHero
-        ? `<div class="ops-item"><label>Assignee</label>${assignSelect}</div>`
-        : `<div class="ops-item"><label>Assignee</label>${personCell(t.assigneeId)}</div>`;
+  const showAssignee = !isDesigner() && !assignHero;
+  const whoAssign = showAssignee
+    ? `<div class="who-assign"><label>Assignee</label>${canAssign() ? assignSelect : personCell(t.assigneeId)}</div>`
+    : "";
   const opsTime = canEditTime()
     ? `<div class="ops-item"><label>Shifts</label>
         <input id="stShifts" type="number" min="0" step="0.1" value="${t.shifts ?? ""}" />
@@ -2390,17 +2425,22 @@ function openTask(id) {
         <input id="stDeadline" type="date" value="${parseDeadlineIso(t.deadline)}" />
         <p class="status-hint">Same as Excel DEADLINE</p></div>`
     : "";
-  const opsStatus = `<div class="ops-item ops-status"><label>Status</label>
-      <select id="stStatus" ${canEdit && !lockedStatus ? "" : "disabled"}>${statusOpts}</select>
-      <p class="status-hint" id="stDoneHint"></p>
-    </div>`;
+  const whoBlock = `<section class="who-block">
+      ${whoAssign}
+      <div class="who-status">
+        <label>Status</label>
+        ${statusButtonsHtml(t, canEdit, lockedStatus)}
+      </div>
+    </section>`;
   const st = STATUS[t.studioStatus] || STATUS.new;
+  const sourceBlock = sourceHtml(t);
+  const resultBlock = resultHtml(t, performer, canPaste);
   $("drawer").innerHTML = `
     <div class="drawer-head">
       <h2>${escapeHtml(t.name)}</h2>
       <button type="button" class="drawer-x" id="closeDrawer" aria-label="Close">×</button>
     </div>
-    <div class="meta"><span class="pill line-${t.line}">${t.line}</span> ${t.shifts || 0} shift · ${t.hours || 0} h · <span class="pill ${st.cls}">${st.label}</span></div>
+    <div class="meta"><span class="pill line-${t.line}">${t.line}</span> ${t.shifts || 0} shift · ${t.hours || 0} h · <span id="stMetaStatus" class="pill ${st.cls}">${st.label}</span></div>
     <div class="drawer-body">
     <div class="card-job tone-${job.tone}">
       ${jobBadgeHtml(me())}
@@ -2411,11 +2451,9 @@ function openTask(id) {
     </div>
     ${heroAssign}
     ${pinHtml(t)}
-    <div class="io-stack">
-      ${sourceHtml(t)}
-      ${resultHtml(t, performer, canPaste)}
-    </div>
-    <div class="ops">${opsWho}${opsTime}${opsStatus}</div>
+    ${sourceBlock || resultBlock ? `<div class="io-stack">${sourceBlock}${resultBlock}</div>` : ""}
+    ${whoBlock}
+    ${opsTime ? `<div class="ops">${opsTime}</div>` : ""}
     </div>
     <div class="drawer-actions">
       ${canOps() && isSendable(t) ? `<button class="btn green" id="exportOne">Send this to client</button>` : ""}
@@ -2431,25 +2469,11 @@ function openTask(id) {
     ackNotices({ taskId: id });
   }
   const syncDoneOption = () => {
-    const sel = $("stStatus");
     const hint = $("stDoneHint");
-    if (!sel) return;
     const hasResult = Boolean(($("stResult")?.value || t.resultUrl || "").trim());
-    const allowDone = (hasResult || t.studioStatus === "done") && (canSetStatus("done") || t.studioStatus === "done");
-    let opt = sel.querySelector('option[value="done"]');
-    if (allowDone && !opt) {
-      opt = document.createElement("option");
-      opt.value = "done";
-      opt.textContent = STATUS.done.label;
-      sel.appendChild(opt);
-    }
-    if (!allowDone && opt) {
-      if (sel.value === "done") sel.value = t.studioStatus;
-      opt.remove();
-    }
     if (hint) {
       if (performer && !hasResult && t.studioStatus !== "done" && t.studioStatus !== "approve" && t.studioStatus !== "closed") {
-        hint.textContent = "Done appears here after you paste the result link.";
+        hint.textContent = "Paste the result link, then tap Done.";
       } else if (canOps() && t.studioStatus === "done") {
         hint.textContent = "Send to client — that sets Senior Approval.";
       } else if (canOps() && t.studioStatus === "approve") {
@@ -2468,12 +2492,28 @@ function openTask(id) {
   $("stResult")?.addEventListener("input", syncDoneOption);
   $("stResult")?.addEventListener("change", syncDoneOption);
   $("stResult")?.addEventListener("paste", () => setTimeout(syncDoneOption, 0));
-  $("stStatus")?.addEventListener("change", () => {
-    if ($("stStatus").value !== "done") return;
-    if (($("stResult")?.value || t.resultUrl || "").trim()) return;
-    $("stStatus").value = t.studioStatus;
-    toast("Paste the result link before Done");
-    syncDoneOption();
+  $("drawer")?.querySelectorAll(".status-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const key = btn.dataset.status;
+      if (!key || btn.disabled) return;
+      if (key === "approve") {
+        toast("Senior Approval is set only when you Send to client");
+        return;
+      }
+      if (key === "closed" && t.studioStatus !== "closed" && t.studioStatus !== "approve") {
+        toast("Closed is after Senior Approval, when the client accepts");
+        return;
+      }
+      if (key === "done" && !($("stResult")?.value || t.resultUrl || "").trim()) {
+        toast("Paste the result link before Done");
+        return;
+      }
+      if (key !== t.studioStatus && !canSetStatus(key) && !(key === "closed" && canOps() && t.studioStatus === "approve")) {
+        toast("This role cannot set " + (STATUS[key]?.label || key));
+        return;
+      }
+      paintStatusButtons(key);
+    });
   });
   syncDoneOption();
   $("stShifts")?.addEventListener("input", () => {
