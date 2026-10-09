@@ -117,7 +117,7 @@ JOB_TITLES = {
 CREW_JOBS = {"designer", "teamlead"}
 
 
-def apply_person_job(db: dict, person: dict, job: str) -> str | None:
+def apply_person_job(db: dict, person: dict, job: str, *, check_last: bool = True) -> str | None:
     """MD ↔ TL only. Identity, Excel column, and $15 rate stay. Keep one Team Lead."""
     nxt = str(job or "").strip()
     if nxt not in CREW_JOBS:
@@ -126,8 +126,16 @@ def apply_person_job(db: dict, person: dict, job: str) -> str | None:
         return "only Motion design and Team Lead can switch"
     if person.get("role") == nxt:
         return None
-    if person.get("role") == "teamlead" and nxt == "designer":
-        leads = sum(1 for p in db.get("people") or [] if p.get("role") == "teamlead" and p.get("id") != person.get("id"))
+    if (
+        check_last
+        and person.get("role") == "teamlead"
+        and nxt == "designer"
+    ):
+        leads = sum(
+            1
+            for p in db.get("people") or []
+            if p.get("role") == "teamlead" and p.get("id") != person.get("id")
+        )
         if leads < 1:
             return "keep at least one Team Lead"
     person["role"] = nxt
@@ -852,6 +860,21 @@ class Handler(SimpleHTTPRequestHandler):
                     if "job" in data:
                         item["job"] = data.get("job")
                     items = [item]
+                planned = {p["id"]: p.get("role") for p in db["people"]}
+                job_changes = False
+                for item in items:
+                    person = next((p for p in db["people"] if p["id"] == item.get("id")), None)
+                    if not person or "job" not in item or item.get("job") is None:
+                        continue
+                    nxt = str(item.get("job") or "").strip()
+                    if nxt not in CREW_JOBS or person.get("role") not in CREW_JOBS:
+                        self._json(400, {"error": "only Motion design and Team Lead can switch"})
+                        return
+                    planned[person["id"]] = nxt
+                    job_changes = True
+                if job_changes and not any(role == "teamlead" for role in planned.values()):
+                    self._json(400, {"error": "keep at least one Team Lead"})
+                    return
                 updated = []
                 for item in items:
                     person = next((p for p in db["people"] if p["id"] == item.get("id")), None)
@@ -874,7 +897,7 @@ class Handler(SimpleHTTPRequestHandler):
                         else:
                             person["rateUsd"] = rate
                     if "job" in item and item.get("job") is not None:
-                        err = apply_person_job(db, person, item.get("job"))
+                        err = apply_person_job(db, person, item.get("job"), check_last=False)
                         if err:
                             self._json(400, {"error": err})
                             return

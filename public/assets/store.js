@@ -452,6 +452,22 @@
         if ("job" in data) item.job = data.job;
         return [item];
       })();
+      const crew = new Set(["designer", "teamlead"]);
+      const planned = Object.fromEntries(db.people.map((p) => [p.id, p.role]));
+      let jobChanges = false;
+      for (const item of items) {
+        const person = db.people.find((p) => p.id === item.id);
+        if (!person || !("job" in item) || item.job == null) continue;
+        const nxt = String(item.job || "").trim();
+        if (!crew.has(nxt) || !crew.has(person.role)) {
+          return { error: "only Motion design and Team Lead can switch" };
+        }
+        planned[person.id] = nxt;
+        jobChanges = true;
+      }
+      if (jobChanges && !Object.values(planned).includes("teamlead")) {
+        return { error: "keep at least one Team Lead" };
+      }
       const updated = [];
       for (const item of items) {
         const person = db.people.find((p) => p.id === item.id);
@@ -472,15 +488,7 @@
         }
         if ("job" in item && item.job != null) {
           const nxt = String(item.job || "").trim();
-          const crew = new Set(["designer", "teamlead"]);
-          if (!crew.has(nxt) || !crew.has(person.role)) {
-            return { error: "only Motion design and Team Lead can switch" };
-          }
           if (person.role !== nxt) {
-            if (person.role === "teamlead" && nxt === "designer") {
-              const others = db.people.filter((p) => p.role === "teamlead" && p.id !== person.id).length;
-              if (others < 1) return { error: "keep at least one Team Lead" };
-            }
             person.role = nxt;
             person.jobTitle = nxt === "teamlead" ? "Team Lead" : "Motion design";
           }
