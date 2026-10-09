@@ -1657,17 +1657,13 @@ function statusMark(t) {
   );
 }
 function excelStatus(t) {
-  const key = t.studioStatus || "new";
-  return (
-    {
-      new: { cls: "ready", label: "Ready", title: "Ready to Start" },
-      wip: { cls: "wip", label: "WIP", title: "WIP" },
-      revision: { cls: "fix", label: "Fix", title: "Need Fixing" },
-      done: { cls: "done", label: "Done", title: "Done" },
-      approve: { cls: "appr", label: "Appr.", title: "Senior Approval" },
-      closed: { cls: "closed", label: "Closed", title: "Closed" },
-    }[key] || { cls: "ready", label: "Ready", title: "Ready to Start" }
-  );
+  if ((t.studioStatus || "") === "closed") {
+    return { cls: "closed", label: "Closed", title: "Closed · green in SP_MGX_check" };
+  }
+  if ((t.studioStatus || "") === "new") {
+    return { cls: "ready", label: "Ready", title: "Ready to Start" };
+  }
+  return { cls: "wip", label: "WIP", title: "WIP · blue in SP_MGX_check" };
 }
 function statusChip(t) {
   const spec = statusMark(t);
