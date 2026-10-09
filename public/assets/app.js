@@ -779,6 +779,13 @@ function renderKpis() {
 function initials(name) {
   return (name || "?").slice(0, 1);
 }
+function avatarHtml(p, name) {
+  const label = escapeHtml(initials(name || displayName(p)));
+  const star = p?.avatarStar
+    ? `<span class="avatar-star" aria-hidden="true">🌟</span>`
+    : "";
+  return `<span class="avatar${p?.avatarStar ? " has-star" : ""}" style="background:${p?.color || "#c5c7d0"}">${label}${star}</span>`;
+}
 function jobMeta(p) {
   return JOB_BADGE[p?.role] || { code: "?", title: ROLE_LABEL[p?.role] || p?.role || "" };
 }
@@ -789,7 +796,7 @@ function jobBadgeHtml(p) {
 function personCell(id) {
   const p = person(id);
   if (!p) return `<span class="empty">unassigned</span>`;
-  return `<span class="person"><span class="avatar" style="background:${p.color}">${initials(displayName(p))}</span>${escapeHtml(displayName(p))}${jobBadgeHtml(p)}</span>`;
+  return `<span class="person">${avatarHtml(p)}${escapeHtml(displayName(p))}${jobBadgeHtml(p)}</span>`;
 }
 function whoCell(t) {
   const base = personCell(t.assigneeId);
@@ -2314,7 +2321,7 @@ function renderTeam() {
     .map(
       (p) => `
       <div class="team-row" data-id="${p.id}">
-        <span class="person"><span class="avatar" style="background:${p.color}">${initials(displayName(p))}</span>${escapeHtml(displayName(p))}</span>
+        <span class="person">${avatarHtml(p)}${escapeHtml(displayName(p))}</span>
         <span class="job-mark">${jobBadgeHtml(p)}<span class="job-title">${escapeHtml(jobMeta(p).title)}</span></span>
         <input class="team-name" value="${escapeHtml(displayName(p))}" placeholder="Real name" />
         <button class="btn primary team-save" type="button">Save</button>
@@ -2462,18 +2469,22 @@ async function confirmDeletePerson() {
   toast(`Deleted ${displayName(p)}${moved}`);
 }
 
-function helpPersonOptions(t, selectedId) {
-  const taken = new Set(
-    helpEntries(t)
-      .map((row) => row.id)
-      .filter((id) => id !== selectedId)
-  );
-  if (t.assigneeId) taken.add(t.assigneeId);
+function liveAssigneeId(t) {
+  return $("stPerson") ? $("stPerson").value : t.assigneeId || "";
+}
+function helpPersonOptions(t, selectedId, assigneeId, fromTask) {
+  const who = assigneeId !== undefined ? assigneeId : liveAssigneeId(t) || t.assigneeId || "";
+  const fromDom = fromTask
+    ? []
+    : [...($("helpRows")?.querySelectorAll(".help-person") || [])].map((el) => el.value);
+  const source = fromDom.length ? fromDom : helpEntries(t).map((row) => row.id);
+  const taken = new Set(source.filter((id) => id && id !== selectedId));
+  if (who) taken.add(who);
   return designers()
-    .filter((p) => p.id === selectedId || !taken.has(p.id))
+    .filter((p) => p.id !== who && (p.id === selectedId || !taken.has(p.id)))
     .map(
       (p) =>
-        `<option value="${p.id}" ${p.id === selectedId ? "selected" : ""}>${escapeHtml(p.name)} · ${jobMeta(p).code}</option>`
+        `<option value="${p.id}" ${p.id === selectedId && p.id !== who ? "selected" : ""}>${escapeHtml(p.name)} · ${jobMeta(p).code}</option>`
     )
     .join("");
 }
@@ -2489,7 +2500,7 @@ function helpSplitHtml(t, editable) {
       <div class="help-row">
         ${
           editable
-            ? `<select class="help-person">${helpPersonOptions(t, row.id)}</select>
+            ? `<select class="help-person">${helpPersonOptions(t, row.id, t.assigneeId, true)}</select>
                <input class="help-hours" type="number" min="0.1" step="0.1" value="${row.hours}" />
                <button type="button" class="btn ghost help-del" title="Remove">×</button>`
             : `<span>${personCell(row.id)}</span><span class="help-h">${row.hours}h</span>`
@@ -2568,7 +2579,20 @@ function bindHelpSplit(t) {
     btn.closest(".help-row")?.remove();
     paint();
   });
-  $("stPerson")?.addEventListener("change", paint);
+  $("stPerson")?.addEventListener("change", () => {
+    const who = liveAssigneeId(t);
+    $("helpRows")?.querySelectorAll(".help-row").forEach((row) => {
+      const sel = row.querySelector(".help-person");
+      if (sel?.value === who) row.remove();
+    });
+    $("helpRows")?.querySelectorAll(".help-person").forEach((sel) => {
+      const keep = sel.value === who ? "" : sel.value;
+      sel.innerHTML = helpPersonOptions(t, keep, who);
+      if (keep && [...sel.options].some((o) => o.value === keep)) sel.value = keep;
+      else if (!sel.options.length) sel.closest(".help-row")?.remove();
+    });
+    paint();
+  });
   $("stShifts")?.addEventListener("input", paint);
 }
 
