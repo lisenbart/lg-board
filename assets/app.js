@@ -299,6 +299,12 @@ function isTeamLead() {
 function canOps() {
   return me().role === "manager" || me().role === "finance";
 }
+function canWriteNotes() {
+  return canOps() || isTeamLead();
+}
+function clientComments(t) {
+  return Array.isArray(t?.comments) ? t.comments : [];
+}
 function canEditTime() {
   return canOps();
 }
@@ -902,6 +908,71 @@ function pinHtml(t) {
       ${actions}
     </article>`;
 }
+function driveFileId(url) {
+  const text = String(url || "");
+  const file = text.match(/\/file\/d\/([a-zA-Z0-9_-]+)/i);
+  if (file) return file[1];
+  const id = text.match(/[?&]id=([a-zA-Z0-9_-]+)/i);
+  return id ? id[1] : "";
+}
+function shotThumb(url) {
+  const id = driveFileId(url);
+  if (id) return `https://drive.google.com/thumbnail?id=${encodeURIComponent(id)}&sz=w480`;
+  if (/\.(?:png|jpe?g|gif|webp|bmp)(?:\?|$)/i.test(url)) return url;
+  return "";
+}
+function commentWhen(at) {
+  const d = new Date(at);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+}
+function notesShotsHtml(row) {
+  const files = (row.attachments || []).filter((a) => a?.url);
+  if (!files.length) return "";
+  return `<div class="notes-shots">${files
+    .map((a) => {
+      const thumb = a.kind === "image" || shotThumb(a.url) ? shotThumb(a.url) : "";
+      return `<a class="notes-shot" href="${escapeHtml(a.url)}" target="_blank" rel="noreferrer">
+        ${thumb ? `<img src="${escapeHtml(thumb)}" alt="" />` : ""}
+        <span>${a.kind === "image" ? "Screenshot" : "Open link"}</span>
+      </a>`;
+    })
+    .join("")}</div>`;
+}
+function notesHtml(t) {
+  const rows = clientComments(t);
+  const canWrite = canWriteNotes();
+  if (!rows.length && !canWrite) return "";
+  const items = rows
+    .map(
+      (row) => `<article class="notes-item" data-id="${escapeHtml(row.id || "")}">
+        <header class="notes-meta">
+          <strong>${escapeHtml(row.authorName || person(row.authorId)?.name || "Client")}</strong>
+          <span>${escapeHtml(commentWhen(row.at))}${row.source === "monday" ? " · Monday" : ""}</span>
+          ${
+            canWrite && row.source !== "monday" && row.id
+              ? `<button type="button" class="notes-del" data-id="${escapeHtml(row.id)}" aria-label="Remove note">×</button>`
+              : ""
+          }
+        </header>
+        <div class="notes-body">${linkifyBrief(row.body || "")}</div>
+        ${notesShotsHtml(row)}
+      </article>`
+    )
+    .join("");
+  const composer = canWrite
+    ? `<div class="notes-compose">
+        <textarea id="stComment" rows="3" placeholder="Paste client text and screenshot links"></textarea>
+        <p class="io-hint">Brief stays as is. Paste from Monday — text plus Drive / image links.</p>
+        <button class="btn" type="button" id="addNote">Add note</button>
+      </div>`
+    : "";
+  return `<section class="notes${rows.length ? "" : " is-empty"}">
+      <header class="notes-head">Client notes</header>
+      ${items || (canWrite ? `<p class="notes-empty">No client notes yet</p>` : "")}
+      ${composer}
+    </section>`;
+}
 function sourceHtml(t) {
   const parts = parseBrief(t);
   const videoBtn = parts.fileUrl
@@ -960,7 +1031,13 @@ function cardJob(t) {
       return { tone: "wait", title: "Waiting for LP", body: "Result is in. Line Producer sends it to the client." };
     }
     if (t.studioStatus === "revision") {
-      return { tone: "fix", title: "Need Fixing", body: "Fix the work, paste the new result link, then Done." };
+      return {
+        tone: "fix",
+        title: "Need Fixing",
+        body: clientComments(t).length
+          ? "Client notes are under the brief. Fix, paste the new result link, then Done."
+          : "Fix the work, paste the new result link, then Done.",
+      };
     }
     if (!hasResult) {
       return {
@@ -1471,7 +1548,7 @@ function renderGuide() {
       <div class="guide-grid">
         ${card("manager", "LP", "Line Producer", "Анастасія. Бачить усе.", [
           `Новий пак: ${ui("Pull from Monday")} або ${ui("Shift email")} (рядок як в Orit: NAME | 0.3 shifts).`,
-          `Бриф на картці — 1:1 як у Monday Doc. ${ui("Open brief")} / ${ui("Open folder")} (Working folder). Без кнопки Create.`,
+          `Бриф на картці — 1:1 як у Monday Doc. Не змінюється. ${ui("Client notes")} одразу під ним: встав текст і лінки на скріни з Monday.`,
           `Години: ${ui("Shifts")} у рядку або в картці. 1 shift = 9 годин. Виконавця ставить TL.`,
           `Рядок фарбується за статусом. Чіп: ${ui("Ready")} / ${ui("WIP")} / ${ui("Fix")} / ${ui("Done")} / ${ui("Appr.")} / ${ui("Closed")}. Не ${ui("Send")}.`,
           `${ui("Excel")} — той самий чіп у лівій колонці ${ui("DX")} / ${ui("DD")}. ${ui("Due")} = колонка ${ui("DEADLINE")} у файлі.`,
@@ -1488,7 +1565,7 @@ function renderGuide() {
         ])}
         ${card("designer", "MD", "Motion design", "Марія, Сергій, Аліна, Олекса. Лише свої таски.", [
           `Дзвіночок ${ui("On you")} — тебе поставили. ${ui("Fix")} — ${ui("Need Fixing")}.`,
-          `Картка: ${ui("Brief")} → ${ui("Source")} → ${ui("Result")}. Бриф як у Monday, без вигаданих розмірів.`,
+          `Картка: ${ui("Brief")} → ${ui("Client notes")} (якщо клієнт написав) → ${ui("Source")} → ${ui("Result")}. Бриф не міняється.`,
           `Зробив → ${ui("Paste result link here")} (лінк на файл, не на теку). Поки лінка немає, ${ui("Done")} у статусі немає.`,
           `Потім ${ui("Done")} → ${ui("Save")}. Далі чекає LP. ${ui("Appr.")} — уже в клієнта. ${ui("Closed")} — прийнято, нічого не робити.`,
           `Якщо відрендерив чужий таск — TL/LP ставить тобі години в ${ui("Hours split")}. Таск з’явиться в твоїй черзі як help, ${ui("Done")} лишається в Who.`,
@@ -2747,6 +2824,7 @@ function openTask(id) {
     </div>
     ${heroAssign}
     ${pinHtml(t)}
+    ${notesHtml(t)}
     ${sourceBlock || resultBlock ? `<div class="io-stack">${sourceBlock}${resultBlock}</div>` : ""}
     ${whoBlock}
     ${helpSplitHtml(t, canEditHelp())}
@@ -2760,6 +2838,50 @@ function openTask(id) {
     </div>
   `;
   $("closeDrawer").onclick = closeDrawer;
+  async function postClientNote({ reopen } = { reopen: true }) {
+    const body = String($("stComment")?.value || "").trim();
+    if (!body) {
+      toast("Paste client text or a screenshot link");
+      return false;
+    }
+    const out = await api("/api/tasks/comment", {
+      id: t.id,
+      body,
+      actorId: me().id,
+      role: me().role,
+    });
+    if (out.error || !out.state) {
+      toast(out.error || "Could not add note");
+      return false;
+    }
+    applyState(out.state);
+    toast("Note added");
+    if (reopen) openTask(t.id);
+    else if ($("stComment")) $("stComment").value = "";
+    return true;
+  }
+  $("addNote")?.addEventListener("click", () => postClientNote());
+  $("drawer")?.querySelectorAll(".notes-del").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const out = await api("/api/tasks/comment", {
+        id: t.id,
+        deleteId: btn.dataset.id,
+        actorId: me().id,
+        role: me().role,
+      });
+      if (out.error || !out.state) {
+        toast(out.error || "Could not remove note");
+        return;
+      }
+      applyState(out.state);
+      openTask(t.id);
+    });
+  });
+  $("drawer")?.querySelectorAll(".notes-shot img").forEach((img) => {
+    img.addEventListener("error", () => img.remove());
+  });
   const N = window.LGNotices;
   if (N && N.forPerson(state.db, me().id, true).some((n) => n.taskId === id)) {
     ackNotices({ taskId: id });
@@ -2832,7 +2954,11 @@ function openTask(id) {
     }
     hint.textContent = `${hoursFromShifts(shifts)} h`;
   });
-  $("saveTask").onclick = () => {
+  $("saveTask").onclick = async () => {
+    if (canWriteNotes() && String($("stComment")?.value || "").trim()) {
+      const ok = await postClientNote({ reopen: false });
+      if (!ok) return;
+    }
     const resultUrl = ($("stResult")?.value || t.resultUrl || "").trim();
     const studioStatus = $("stStatus").value;
     if (studioStatus !== t.studioStatus && !canSetStatus(studioStatus)) {

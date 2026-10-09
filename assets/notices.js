@@ -28,6 +28,15 @@
       skipActor: true,
       channels: ["portal"],
     },
+    "task.comment": {
+      label: "Client notes",
+      title: "{name}",
+      detail: "New note under the brief",
+      mark: "note",
+      audience: { assignee: true },
+      skipActor: true,
+      channels: ["portal"],
+    },
     "task.ready": {
       label: "Ready to send",
       title: "{name}",
@@ -57,7 +66,7 @@
     },
   };
   const KEEP = 400;
-  const MARK_LABEL = { new: "New", mine: "On you", fix: "Fix", send: "Send" };
+  const MARK_LABEL = { new: "New", mine: "On you", fix: "Fix", note: "Notes", send: "Send" };
 
   const now = () => new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
   const fill = (tpl, payload) =>
