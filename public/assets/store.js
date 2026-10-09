@@ -122,10 +122,16 @@
       db.notices = db.notices || [];
       db.noticeReads = db.noticeReads || {};
     }
-    const sergey = (db.people || []).find((p) => p.id === "designer3" || p.name === "Сергій");
-    if (sergey) {
-      sergey.color = "#4D8DFF";
-      sergey.avatarStar = true;
+    const crewTint = [
+      { match: (p) => p.id === "designer3" || p.name === "Сергій", color: "#7EC4FF", avatarStar: true },
+      { match: (p) => p.id === "designer4" || p.name === "Аліна", color: "#FFB38A" },
+      { match: (p) => p.id === "designer5" || p.name === "Олекса", color: "#FF9EC8" },
+    ];
+    for (const p of db.people || []) {
+      const tint = crewTint.find((row) => row.match(p));
+      if (!tint) continue;
+      p.color = tint.color;
+      if (tint.avatarStar) p.avatarStar = true;
     }
     return db;
   }
