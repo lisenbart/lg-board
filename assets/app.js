@@ -97,10 +97,25 @@ function isLocalHost() {
   return location.hostname === "localhost" || location.hostname === "127.0.0.1";
 }
 function isStudioHost() {
-  return isLocalHost();
+  return (
+    isLocalHost() ||
+    document.documentElement.classList.contains("studio-host") ||
+    window.__lgStudioApi === true
+  );
 }
 function isClientPreview() {
   return !isStudioHost();
+}
+function probeStudioApi() {
+  return fetch("/health", { cache: "no-store" })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((j) => {
+      if (j && j.ok) {
+        document.documentElement.classList.add("studio-host");
+        window.__lgStudioApi = true;
+      }
+    })
+    .catch(() => {});
 }
 function financeUnlocked() {
   if (isStudioHost()) return true;
@@ -1969,6 +1984,13 @@ function renderClient(fin) {
       <div class="kpi"><b>${usd(fin.clientIn)}</b><span>CLIENT IN</span></div>
       <div class="kpi"><b>${usd(fin.studio)}</b><span>STUDIO</span></div>
     </div>
+    <div class="fin-create-bar">
+      <div class="fin-create-actions">
+        <button type="button" class="btn" id="btnOpenFolder">Open folder</button>
+        <button type="button" class="btn primary" id="btnCreateInvoices" ${canCreate ? "" : "disabled"}>Create DD / DX</button>
+      </div>
+      <p class="fin-view-only">Word + PDF go to the studio invoice folder. Live Drive October is not written.</p>
+    </div>
     <section class="group fin-card">
       <div class="fin-scroll">
         <table class="fin-table">
@@ -1976,16 +1998,6 @@ function renderClient(fin) {
           <tbody>${lineRows}</tbody>
           <tfoot><tr><td>MGX</td><td class="num">${fin.tasks.length}</td><td class="num">${fin.totalShifts.toFixed(1)}</td><td class="num">${hoursLabel(fin.totalHours)}</td><td></td><td class="num">${usd(fin.clientIn)}</td><td></td></tr></tfoot>
         </table>
-      </div>
-      <div class="fin-create-bar">
-        ${
-          isClientPreview()
-            ? `<p class="fin-view-only">View only on this link. Word + PDF stay on the studio sandbox.</p>`
-            : `<div class="fin-create-actions">
-          <button type="button" class="btn" id="btnOpenFolder">Open folder</button>
-          <button type="button" class="btn primary" id="btnCreateInvoices" ${canCreate ? "" : "disabled"}>Create DD / DX</button>
-        </div>`
-        }
       </div>
     </section>`;
 }
@@ -2214,6 +2226,10 @@ function downloadInvoiceZip() {
 }
 
 async function openInvoiceFolder() {
+  if (isClientPreview()) {
+    toast("Open folder needs the studio app. This GitHub link is a mirror and has no invoice disk.");
+    return;
+  }
   const res = await fetch("/api/finance/invoice/reveal", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -2235,6 +2251,10 @@ async function openInvoiceFolder() {
 }
 
 async function createMonthInvoices() {
+  if (isClientPreview()) {
+    toast("Create DD / DX needs the studio app (python3 server.py). This GitHub link is a mirror and does not write Word files.");
+    return;
+  }
   const btn = $("btnCreateInvoices");
   if (btn) btn.disabled = true;
   let out = {};
@@ -3190,7 +3210,8 @@ $("drawerBg").addEventListener("click", (e) => {
   if (e.target === $("drawerBg")) closeDrawer();
 });
 
-api("/api/state")
+probeStudioApi()
+  .then(() => api("/api/state"))
   .then((db) => {
     state.db = db;
     state.month = localStorage.getItem(MONTH_KEY) || calendarMonth() || db.meta?.month || "2026-10";

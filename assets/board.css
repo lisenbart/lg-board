@@ -1181,7 +1181,7 @@ body.col-resizing * { cursor: col-resize !important; }
 .fin-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .fin-create-bar {
   display: flex; flex-wrap: wrap; justify-content: space-between;
-  align-items: center; gap: 10px; margin-top: 12px;
+  align-items: center; gap: 10px;
 }
 .fin-create-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .fin-path {
