@@ -546,6 +546,25 @@ class Handler(SimpleHTTPRequestHandler):
                 for key in ("studioStatus", "assigneeId", "resultUrl", "brief", "folderUrl", "docUrl"):
                     if key in data:
                         task[key] = data[key]
+                if "help" in data:
+                    if role not in {"manager", "finance", "teamlead"}:
+                        self._json(403, {"error": "only TL or LP can split hours"})
+                        return
+                    help_rows = []
+                    for row in data.get("help") or []:
+                        pid = str((row or {}).get("id") or "").strip()
+                        try:
+                            hours = float(str((row or {}).get("hours") or "").replace(",", "."))
+                        except (TypeError, ValueError):
+                            self._json(400, {"error": "help hours must be a number"})
+                            return
+                        if not pid or hours <= 0:
+                            continue
+                        help_rows.append({"id": pid, "hours": hours})
+                    task["help"] = help_rows
+                excel_io.normalize_help(
+                    task, {p["id"] for p in excel_io.designers(db)}
+                )
                 if task.get("studioStatus") == "closed":
                     task["mondayStatus"] = "Closed"
                 elif nxt == "revision":
@@ -554,7 +573,7 @@ class Handler(SimpleHTTPRequestHandler):
                 if note:
                     task.setdefault("activity", []).append({"at": utc_now(), "text": note})
                 notice_io.on_task_change(db, task, before, data.get("actorId") or "")
-                money = "assigneeId" in data or "shifts" in data
+                money = "assigneeId" in data or "shifts" in data or "help" in data
                 try:
                     sync_excel(db, task.get("month"), calculator=money)
                 except FileNotFoundError as e:
@@ -896,9 +915,20 @@ class Handler(SimpleHTTPRequestHandler):
                     self._json(400, {"error": "move-to person not found"})
                     return
                 actor_id = data.get("actorId") or ""
+                for task in db["tasks"]:
+                    help_rows = [
+                        row for row in (task.get("help") or []) if (row or {}).get("id") != pid
+                    ]
+                    if dest and task.get("assigneeId") == dest:
+                        help_rows = [row for row in help_rows if (row or {}).get("id") != dest]
+                    task["help"] = help_rows
                 for task in held:
                     before = {"assigneeId": pid, "studioStatus": task.get("studioStatus")}
                     task["assigneeId"] = dest
+                    if dest:
+                        task["help"] = [
+                            row for row in (task.get("help") or []) if (row or {}).get("id") != dest
+                        ]
                     task.setdefault("activity", []).append(
                         {
                             "at": utc_now(),

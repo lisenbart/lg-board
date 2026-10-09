@@ -195,6 +195,7 @@
       "studioStatus": "wip",
       "mondayStatus": "WIP",
       "assigneeId": "designer2",
+      "help": [{ "id": "designer3", "hours": 0.5 }],
       "brief": "Please combine:\n\n1. DD-VEO-059-001_GravePumpkin + DD-AIV-HalloweenMario\n2. Length = 30s\n3. Trim first ±8 seconds of video\n4. Add a motion transition between the hook and the video\n\nThanks\n\nWorking folder\nhttps://drive.google.com/drive/folders/1HdB-e1XMARbnvLO28er_PJDOz0zSXEQC\n\nNaming:\nDD-AIV-224-002_SettAI_HalloweenMario_DD-VEO-059-001_EN_30s_1080x1080\nDD-AIV-224-002_SettAI_HalloweenMario_DD-VEO-059-001_EN_30s_1080x1350\nDD-AIV-224-002_SettAI_HalloweenMario_DD-VEO-059-001_EN_30s_1080x1920\nDD-AIV-224-002_SettAI_HalloweenMario_DD-VEO-059-001_EN_30s_1920x1080",
       "folderUrl": "https://drive.google.com/drive/folders/1HdB-e1XMARbnvLO28er_PJDOz0zSXEQC",
       "docUrl": "https://docs.google.com/document/d/1cPl7H3wSEuCkL3X-U-Wxb0HVtvHElsrV8hzPwuhMkeI/edit",
@@ -208,6 +209,10 @@
         {
           "at": "2026-10-07T08:40:00Z",
           "text": "Team lead assigned Designer 2"
+        },
+        {
+          "at": "2026-10-07T16:20:00Z",
+          "text": "Hours split: Марія keeps the rest · Сергій 0.5h"
         }
       ],
       "month": "2026-10"

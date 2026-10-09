@@ -301,6 +301,42 @@ function parseShifts(raw) {
 function hoursOf(t) {
   return Number(t.hours) || hoursFromShifts(t.shifts || 0) || 0;
 }
+function roundHours(n) {
+  const x = Number(n);
+  if (!Number.isFinite(x) || x <= 0) return 0;
+  return Math.round(x * 10) / 10;
+}
+function helpEntries(t) {
+  const who = String(t?.assigneeId || "");
+  const seen = new Set();
+  const rows = [];
+  for (const row of t?.help || []) {
+    const id = String(row?.id || "").trim();
+    const hours = roundHours(row?.hours);
+    if (!id || id === who || hours <= 0 || seen.has(id)) continue;
+    seen.add(id);
+    rows.push({ id, hours });
+  }
+  return rows;
+}
+function helpHoursTotal(t) {
+  return roundHours(helpEntries(t).reduce((s, row) => s + row.hours, 0));
+}
+function hoursOwned(t) {
+  return Math.max(0, Math.round((hoursOf(t) - helpHoursTotal(t)) * 10) / 10);
+}
+function hoursForPerson(t, personId) {
+  const id = String(personId || "");
+  if (!id) return 0;
+  if (id === String(t?.assigneeId || "")) return hoursOwned(t);
+  return helpEntries(t).find((row) => row.id === id)?.hours || 0;
+}
+function helpedOn(t, personId) {
+  return helpEntries(t).some((row) => row.id === personId);
+}
+function canEditHelp() {
+  return canAssign() || canOps();
+}
 function usd(n) {
   return `$${(Number(n) || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
@@ -385,18 +421,24 @@ function financeSnapshot() {
   let unassignedShifts = 0;
   let unassignedProjects = 0;
   for (const t of tasks) {
-    const p = t.assigneeId ? person(t.assigneeId) : null;
-    if (p?.role === "manager") continue;
-    if (!p || !payMap[p.id]) {
-      unassignedHours += hoursOf(t);
-      unassignedShifts += Number(t.shifts) || 0;
-      unassignedProjects += 1;
-      continue;
+    const h = hoursOf(t);
+    let allocated = 0;
+    for (const p of crew()) {
+      if (p.role === "manager" || !payMap[p.id]) continue;
+      const share = hoursForPerson(t, p.id);
+      if (share <= 0) continue;
+      payMap[p.id].projects += 1;
+      payMap[p.id].shifts += share / shiftHours();
+      payMap[p.id].hours += share;
+      payMap[p.id].tasks.push(t);
+      allocated += share;
     }
-    payMap[p.id].projects += 1;
-    payMap[p.id].shifts += Number(t.shifts) || 0;
-    payMap[p.id].hours += hoursOf(t);
-    payMap[p.id].tasks.push(t);
+    const leftover = Math.max(0, roundHours(h - allocated));
+    if (leftover > 0.05) {
+      unassignedHours += leftover;
+      unassignedShifts += leftover / shiftHours();
+      unassignedProjects += 1;
+    }
   }
   const payroll = Object.values(payMap)
     .map((row) => {
@@ -539,11 +581,11 @@ function visibleTasks() {
   const q = (document.querySelector(".search")?.value || "").toLowerCase();
   return monthTasks().filter((t) => {
     if (q && !`${t.name} ${t.brief}`.toLowerCase().includes(q)) return false;
-    if (isDesigner() && t.assigneeId !== me().id) return false;
+    if (isDesigner() && t.assigneeId !== me().id && !helpedOn(t, me().id)) return false;
     if (!isDesigner() && state.designerFilter) {
       if (state.designerFilter === "unassigned") {
         if (t.assigneeId) return false;
-      } else if (t.assigneeId !== state.designerFilter) return false;
+      } else if (t.assigneeId !== state.designerFilter && !helpedOn(t, state.designerFilter)) return false;
     }
     return true;
   });
@@ -749,6 +791,13 @@ function personCell(id) {
   if (!p) return `<span class="empty">unassigned</span>`;
   return `<span class="person"><span class="avatar" style="background:${p.color}">${initials(displayName(p))}</span>${escapeHtml(displayName(p))}${jobBadgeHtml(p)}</span>`;
 }
+function whoCell(t) {
+  const base = personCell(t.assigneeId);
+  const help = helpEntries(t);
+  if (!help.length) return base;
+  const names = help.map((row) => person(row.id)?.name || row.id).join(", ");
+  return `${base}<small class="help-mark" title="${escapeHtml(names)}">+${help.length}</small>`;
+}
 function normalizeDriveFolder(url) {
   const raw = String(url || "");
   const open = raw.match(/drive\.google\.com\/open\?id=([a-zA-Z0-9_-]+)/i);
@@ -856,6 +905,14 @@ function cardJob(t) {
   const who = person(t.assigneeId);
   const name = who ? displayName(who) : "";
   if (role === "designer") {
+    if (!mine && helpedOn(t, me().id)) {
+      const share = hoursForPerson(t, me().id);
+      return {
+        tone: "ok",
+        title: "You helped",
+        body: `${share}h studio pay on this task. ${name || "Who"} still owns Done.`,
+      };
+    }
     if (t.studioStatus === "closed") {
       return { tone: "ok", title: "Closed", body: "Client accepted. This task is finished." };
     }
@@ -992,8 +1049,8 @@ function renderLoad() {
   const people = designers();
   const tasks = monthTasks();
   const rows = people.map((p) => {
-    const mine = tasks.filter((t) => t.assigneeId === p.id);
-    const hours = mine.reduce((s, t) => s + (Number(t.hours) || 0), 0);
+    const mine = tasks.filter((t) => hoursForPerson(t, p.id) > 0);
+    const hours = mine.reduce((s, t) => s + hoursForPerson(t, p.id), 0);
     return { person: p, mine, count: mine.length, hours };
   });
   const unassigned = tasks.filter((t) => !t.assigneeId);
@@ -1211,10 +1268,8 @@ function renderExcelSheet() {
     .filter((t) => !q || `${t.name} ${t.brief}`.toLowerCase().includes(q))
     .slice()
     .sort((a, b) => String(a.line).localeCompare(String(b.line)) || String(a.name).localeCompare(String(b.name)));
-  const hoursOf = (personId) =>
-    tasks
-      .filter((t) => t.assigneeId === personId)
-      .reduce((s, t) => s + (Number(t.hours) || 0), 0);
+  const hoursOfPerson = (personId) =>
+    tasks.reduce((s, t) => s + hoursForPerson(t, personId), 0);
   const allHours = tasks.reduce((s, t) => s + (Number(t.hours) || 0), 0);
   const allShifts = tasks.reduce((s, t) => s + (Number(t.shifts) || 0), 0);
   const nameHeads = people.map((p) => `<th class="xl-person">${escapeHtml(p.name)}</th>`).join("");
@@ -1223,8 +1278,9 @@ function renderExcelSheet() {
   const rowHtml = (t) => {
     const cells = people
       .map((p) => {
-        const mine = t.assigneeId === p.id;
-        const h = mine ? fmtHours(t.hours) : "";
+        const share = hoursForPerson(t, p.id);
+        const mine = share > 0;
+        const h = mine ? fmtHours(share) : "";
         const style = mine ? `style="background:${p.color}"` : "";
         return `<td class="${mine ? "xl-fill" : ""}" ${style}>${h}</td>`;
       })
@@ -1251,7 +1307,7 @@ function renderExcelSheet() {
     </tbody>`;
   };
 
-  const totals = people.map((p) => `<td class="xl-num"><b>${fmtHours(hoursOf(p.id))}</b></td>`).join("");
+  const totals = people.map((p) => `<td class="xl-num"><b>${fmtHours(hoursOfPerson(p.id))}</b></td>`).join("");
 
   $("board").innerHTML = `
     <section class="xl-wrap">
@@ -1368,11 +1424,13 @@ function renderGuide() {
           `${ui("Excel")} — той самий чіп у лівій колонці ${ui("DX")} / ${ui("DD")}. ${ui("Due")} = колонка ${ui("DEADLINE")} у файлі.`,
           `${ui("Send to client")} лише з ${ui("Done")} + лінк файлу. Копіює текст у External Weekly. ${ui("Appr.")} сам не ставиться.`,
           `${ui("Mark Closed")} після ${ui("Appr.")}, коли клієнт прийняв. Темно-зелений штамп, білий напис — не той самий колір, що ${ui("Done")}. Якщо відбили — ${ui("Need Fixing")}.`,
+          `${ui("Hours split")} на картці: клієнтські години не ростуть. 0.5h тому, хто відрендерив замість колеги. Who лишається власником ${ui("Done")}.`,
         ])}
         ${card("teamlead", "TL", "Team Lead", "Настя. Усі проєкти + свої як виконавця.", [
           `Дзвіночок ${ui("New")} — нові без людини. Картка каже ${ui("Assign a designer")} — це твоя робота, не URL і не Done.`,
           `Прочитай бриф, ${ui("Open brief")} якщо треба Doc. ${ui("Who works this")} → ${ui("Save")}. Людина одразу бачить таск у себе.`,
           `Свої таски — як MD: ${ui("Paste result link here")}, потім ${ui("Done")}.`,
+          `${ui("Hours split")} — якщо хтось відрендерив чужий файл, постав 0.5h (або скільки чесно). Клієнту години ті самі.`,
           `${ui("Excel")} — та сама картина, що ${ui("SP_MGX_check")}, з чіпами зліва. ${ui("Send to client")} і ${ui("Closed")} у TL немає — це LP.`,
         ])}
         ${card("designer", "MD", "Motion design", "Марія, Сергій, Аліна, Олекса. Лише свої таски.", [
@@ -1380,6 +1438,7 @@ function renderGuide() {
           `Картка: ${ui("Brief")} → ${ui("Source")} → ${ui("Result")}. Бриф як у Monday, без вигаданих розмірів.`,
           `Зробив → ${ui("Paste result link here")} (лінк на файл, не на теку). Поки лінка немає, ${ui("Done")} у статусі немає.`,
           `Потім ${ui("Done")} → ${ui("Save")}. Далі чекає LP. ${ui("Appr.")} — уже в клієнта. ${ui("Closed")} — прийнято, нічого не робити.`,
+          `Якщо відрендерив чужий таск — TL/LP ставить тобі години в ${ui("Hours split")}. Таск з’явиться в твоїй черзі як help, ${ui("Done")} лишається в Who.`,
         ])}
         ${card(
           "client",
@@ -1601,7 +1660,7 @@ function rowHtml(t, mode, gap) {
         <div class="cell"><span class="pill ${st.cls}">${st.label}</span></div>
         <div class="cell">${brief}</div>
         <div class="cell">${result}</div>
-        <div class="cell">${personCell(t.assigneeId)}</div>
+        <div class="cell">${whoCell(t)}</div>
         <div class="cell">${dueCell(t)}</div>
       </div>
     </div>`;
@@ -2403,6 +2462,116 @@ async function confirmDeletePerson() {
   toast(`Deleted ${displayName(p)}${moved}`);
 }
 
+function helpPersonOptions(t, selectedId) {
+  const taken = new Set(
+    helpEntries(t)
+      .map((row) => row.id)
+      .filter((id) => id !== selectedId)
+  );
+  if (t.assigneeId) taken.add(t.assigneeId);
+  return designers()
+    .filter((p) => p.id === selectedId || !taken.has(p.id))
+    .map(
+      (p) =>
+        `<option value="${p.id}" ${p.id === selectedId ? "selected" : ""}>${escapeHtml(p.name)} · ${jobMeta(p).code}</option>`
+    )
+    .join("");
+}
+function helpSplitHtml(t, editable) {
+  const total = hoursOf(t);
+  const help = helpEntries(t);
+  const ownerH = hoursOwned(t);
+  const ownerName = person(t.assigneeId)?.name || "Unassigned";
+  if (!editable && !help.length) return "";
+  const rows = help
+    .map(
+      (row) => `
+      <div class="help-row">
+        ${
+          editable
+            ? `<select class="help-person">${helpPersonOptions(t, row.id)}</select>
+               <input class="help-hours" type="number" min="0.1" step="0.1" value="${row.hours}" />
+               <button type="button" class="btn ghost help-del" title="Remove">×</button>`
+            : `<span>${personCell(row.id)}</span><span class="help-h">${row.hours}h</span>`
+        }
+      </div>`
+    )
+    .join("");
+  return `<section class="help-split">
+      <label>Hours split</label>
+      <p class="status-hint">Client stays ${total}h. Only studio pay moves — render help, not extra SuperPlay hours.</p>
+      <div class="help-owner"><span>${escapeHtml(ownerName)} · Who</span><b id="helpRemainder">${ownerH}h</b></div>
+      <div id="helpRows">${rows}</div>
+      ${
+        editable
+          ? `<button type="button" class="btn ghost" id="helpAdd">Add help hours</button>`
+          : ""
+      }
+    </section>`;
+}
+function readHelpFromCard(assigneeId) {
+  const help = [];
+  const seen = new Set();
+  $("drawer")?.querySelectorAll(".help-row").forEach((row) => {
+    const id = row.querySelector(".help-person")?.value || "";
+    const hours = roundHours(String(row.querySelector(".help-hours")?.value || "").replace(",", "."));
+    if (!id || id === assigneeId || hours <= 0 || seen.has(id)) return;
+    seen.add(id);
+    help.push({ id, hours });
+  });
+  return help;
+}
+function refreshHelpRemainder(t) {
+  const hint = $("helpRemainder");
+  if (!hint) return;
+  const assigneeId = $("stPerson")?.value || t.assigneeId;
+  const total = $("stShifts") ? hoursFromShifts(parseShifts($("stShifts").value) || 0) : hoursOf(t);
+  const given = readHelpFromCard(assigneeId).reduce((s, row) => s + row.hours, 0);
+  const rest = Math.max(0, roundHours(total - given) || 0);
+  const name = person(assigneeId)?.name || "Unassigned";
+  hint.closest(".help-owner")?.querySelector("span") &&
+    (hint.closest(".help-owner").querySelector("span").textContent = `${name} · Who`);
+  hint.textContent = `${rest}h`;
+  hint.classList.toggle("is-over", given > total + 0.001);
+}
+function bindHelpSplit(t) {
+  const box = $("drawer")?.querySelector(".help-split");
+  if (!box || !canEditHelp()) return;
+  const paint = () => refreshHelpRemainder(t);
+  box.addEventListener("input", paint);
+  box.addEventListener("change", paint);
+  $("helpAdd")?.addEventListener("click", () => {
+    const assigneeId = $("stPerson")?.value || t.assigneeId;
+    const taken = new Set(readHelpFromCard(assigneeId).map((row) => row.id));
+    if (assigneeId) taken.add(assigneeId);
+    const next = designers().find((p) => !taken.has(p.id));
+    if (!next) {
+      toast("Everyone already has hours on this task");
+      return;
+    }
+    const draft = { ...t, assigneeId, help: [...readHelpFromCard(assigneeId), { id: next.id, hours: 0.5 }] };
+    const wrap = $("helpRows");
+    if (!wrap) return;
+    wrap.insertAdjacentHTML(
+      "beforeend",
+      `<div class="help-row">
+        <select class="help-person">${helpPersonOptions(draft, next.id)}</select>
+        <input class="help-hours" type="number" min="0.1" step="0.1" value="0.5" />
+        <button type="button" class="btn ghost help-del" title="Remove">×</button>
+      </div>`
+    );
+    paint();
+  });
+  box.addEventListener("click", (e) => {
+    const btn = e.target.closest(".help-del");
+    if (!btn) return;
+    btn.closest(".help-row")?.remove();
+    paint();
+  });
+  $("stPerson")?.addEventListener("change", paint);
+  $("stShifts")?.addEventListener("input", paint);
+}
+
 function openTask(id) {
   if (isClient()) return;
   const t = state.db.tasks.find((x) => x.id === id);
@@ -2472,6 +2641,7 @@ function openTask(id) {
     ${pinHtml(t)}
     ${sourceBlock || resultBlock ? `<div class="io-stack">${sourceBlock}${resultBlock}</div>` : ""}
     ${whoBlock}
+    ${helpSplitHtml(t, canEditHelp())}
     ${opsTime ? `<div class="card-ops">${opsTime}</div>` : ""}
     </div>
     <div class="drawer-actions">
@@ -2566,6 +2736,16 @@ function openTask(id) {
     }
     const assigneeId = $("stPerson") ? $("stPerson").value : t.assigneeId;
     const patch = { studioStatus, assigneeId, role: me().role };
+    if (canEditHelp()) {
+      const help = readHelpFromCard(assigneeId);
+      const total = patch.shifts !== undefined ? hoursFromShifts(patch.shifts) : hoursOf(t);
+      const given = help.reduce((s, row) => s + row.hours, 0);
+      if (given > total + 0.001) {
+        toast("Help hours cannot exceed the client hours on this task");
+        return;
+      }
+      patch.help = help;
+    }
     if ($("stResult")) patch.resultUrl = resultUrl;
     if (canEditTime() && $("stShifts")) {
       const shifts = parseShifts($("stShifts").value);
@@ -2583,8 +2763,17 @@ function openTask(id) {
       }
       patch.deadline = deadline;
     }
+    const helpNote = patch.help
+      ? patch.help.map((row) => `${person(row.id)?.name || row.id} ${row.hours}h`).join(", ")
+      : "";
+    const prevHelp = JSON.stringify(helpEntries(t));
+    const nextHelp = JSON.stringify(patch.help || helpEntries(t));
     const note =
-      patch.shifts !== undefined && patch.shifts !== Number(t.shifts)
+      patch.help && prevHelp !== nextHelp
+        ? helpNote
+          ? `${me().name} split hours: ${person(assigneeId)?.name || "Who"} keeps the rest · ${helpNote}`
+          : `${me().name} cleared help hours`
+        : patch.shifts !== undefined && patch.shifts !== Number(t.shifts)
         ? `${me().name} set ${patch.shifts} shifts → ${hoursFromShifts(patch.shifts)} h`
         : patch.deadline !== undefined && patch.deadline !== parseDeadlineIso(t.deadline)
           ? patch.deadline
@@ -2612,6 +2801,7 @@ function openTask(id) {
       { close: true }
     );
   });
+  bindHelpSplit(t);
   fillDrivePackIfMissing(t);
   $("copyOne")?.addEventListener("click", async () => {
     const pack = mondayReply(t);

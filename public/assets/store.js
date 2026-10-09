@@ -19,6 +19,35 @@
   const clone = (x) => JSON.parse(JSON.stringify(x));
   const now = () => new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
   const hoursFromShift = (shift) => Math.round(Number(shift) * 9 * 10) / 10;
+  const roundHours = (n) => {
+    const x = Number(n);
+    if (!Number.isFinite(x) || x <= 0) return 0;
+    return Math.round(x * 10) / 10;
+  };
+  const normalizeHelp = (task, peopleIds) => {
+    const who = String(task.assigneeId || "");
+    const total = Number(task.hours) || hoursFromShift(task.shifts || 0) || 0;
+    const ids = peopleIds || new Set();
+    const rows = [];
+    let used = 0;
+    const seen = new Set();
+    for (const row of task.help || []) {
+      const pid = String(row?.id || "").trim();
+      const hours = roundHours(row?.hours);
+      if (!pid || pid === who || hours <= 0 || seen.has(pid) || (ids.size && !ids.has(pid))) continue;
+      let next = hours;
+      if (used + next > total + 0.001) next = Math.round(Math.max(0, total - used) * 10) / 10;
+      if (next <= 0) continue;
+      seen.add(pid);
+      rows.push({ id: pid, hours: next });
+      used = Math.round((used + next) * 10) / 10;
+      if (used >= total) break;
+    }
+    task.help = rows;
+    return rows;
+  };
+  const performerIds = (db) =>
+    new Set((db.people || []).filter((p) => p.role === "teamlead" || p.role === "designer").map((p) => p.id));
   const lineFromName = (name) => {
     const prefix = String(name).split("-", 1)[0].toUpperCase();
     return ["DD", "DX", "DS"].includes(prefix) ? prefix : "DD";
@@ -294,6 +323,20 @@
       for (const key of ["studioStatus", "assigneeId", "resultUrl", "brief", "folderUrl", "docUrl"]) {
         if (key in data) task[key] = data[key];
       }
+      if ("help" in data) {
+        if (role !== "manager" && role !== "finance" && role !== "teamlead") {
+          return { error: "only TL or LP can split hours" };
+        }
+        const helpRows = [];
+        for (const row of data.help || []) {
+          const pid = String(row?.id || "").trim();
+          const hours = Number(String(row?.hours ?? "").replace(",", "."));
+          if (!pid || !Number.isFinite(hours) || hours <= 0) continue;
+          helpRows.push({ id: pid, hours });
+        }
+        task.help = helpRows;
+      }
+      normalizeHelp(task, performerIds(db));
       if (task.studioStatus === "closed") task.mondayStatus = "Closed";
       else if (nxt === "revision") task.mondayStatus = "Need Fixing";
       if (data.note) {
@@ -436,9 +479,16 @@
       const dest = data.reassignTo || "";
       if (dest === data.id) return { error: "cannot move projects onto the person being deleted" };
       if (dest && !db.people.some((p) => p.id === dest)) return { error: "move-to person not found" };
+      for (const task of db.tasks) {
+        task.help = (task.help || []).filter((row) => row?.id !== data.id);
+        if (dest && task.assigneeId === dest) {
+          task.help = (task.help || []).filter((row) => row?.id !== dest);
+        }
+      }
       for (const task of held) {
         const before = { assigneeId: data.id, studioStatus: task.studioStatus };
         task.assigneeId = dest;
+        if (dest) task.help = (task.help || []).filter((row) => row?.id !== dest);
         task.activity = task.activity || [];
         task.activity.push({
           at: now(),

@@ -79,6 +79,84 @@ def _hours_value(value, shifts: float) -> float:
     return round(shifts * 9, 1) if shifts else 0.0
 
 
+def round_hours(value) -> float:
+    try:
+        n = float(str(value).replace(",", "."))
+    except (TypeError, ValueError):
+        return 0.0
+    if n <= 0:
+        return 0.0
+    return round(n, 1)
+
+
+def help_entries(task: dict) -> list[dict]:
+    """Studio hours given to helpers. Client HOURS stay on the task."""
+    who = str(task.get("assigneeId") or "").strip()
+    out: list[dict] = []
+    seen: set[str] = set()
+    for row in task.get("help") or []:
+        pid = str((row or {}).get("id") or "").strip()
+        hours = round_hours((row or {}).get("hours"))
+        if not pid or pid == who or hours <= 0 or pid in seen:
+            continue
+        seen.add(pid)
+        out.append({"id": pid, "hours": hours})
+    return out
+
+
+def client_hours(task: dict, shift_hours: float = 9) -> float:
+    try:
+        h = float(task.get("hours") or 0)
+        if h:
+            return round(h, 1)
+    except (TypeError, ValueError):
+        pass
+    try:
+        return round(float(task.get("shifts") or 0) * float(shift_hours or 9), 1)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def hours_for_person(task: dict, person_id: str, shift_hours: float = 9) -> float:
+    pid = str(person_id or "").strip()
+    if not pid:
+        return 0.0
+    total = client_hours(task, shift_hours)
+    help_rows = help_entries(task)
+    given = round(sum(row["hours"] for row in help_rows), 1)
+    remainder = max(0.0, round(total - given, 1))
+    if pid == str(task.get("assigneeId") or "").strip():
+        return remainder
+    for row in help_rows:
+        if row["id"] == pid:
+            return row["hours"]
+    return 0.0
+
+
+def normalize_help(task: dict, people_ids: set[str] | None = None) -> list[dict]:
+    who = str(task.get("assigneeId") or "").strip()
+    total = client_hours(task)
+    rows = []
+    used = 0.0
+    for row in help_entries(task):
+        pid = row["id"]
+        if people_ids is not None and pid not in people_ids:
+            continue
+        if pid == who:
+            continue
+        hours = row["hours"]
+        if used + hours > total + 0.001:
+            hours = round(max(0.0, total - used), 1)
+        if hours <= 0:
+            continue
+        rows.append({"id": pid, "hours": hours})
+        used = round(used + hours, 1)
+        if used >= total:
+            break
+    task["help"] = rows
+    return rows
+
+
 def _norm_name(name: str) -> str:
     return " ".join(str(name or "").strip().split()).lower()
 
@@ -144,15 +222,21 @@ def parse_workbook(path: Path, ym: str) -> dict:
         shifts_n = _as_shift(ws.cell(r, 3).value)
         hours_n = _hours_value(ws.cell(r, 4).value, shifts_n)
         deadline = ws.cell(r, 5).value
-        assignee = ""
-        assignee_id = ""
+        shares = []
         for h in headers:
             val = ws.cell(r, h["col"]).value
-            if val not in (None, ""):
-                assignee = h["name"]
-                assignee_id = h["id"]
-                hours_n = _hours_value(val, shifts_n)
-                break
+            if val in (None, ""):
+                continue
+            hh = _hours_value(val, shifts_n)
+            if hh <= 0:
+                continue
+            shares.append({"id": h.get("id") or "", "name": h.get("name") or "", "hours": hh})
+        assignee = ""
+        assignee_id = ""
+        if shares:
+            primary = max(shares, key=lambda s: (s["hours"], s["name"]))
+            assignee = primary.get("name") or ""
+            assignee_id = primary.get("id") or ""
         if isinstance(deadline, datetime):
             deadline_s = deadline.strftime("%Y-%m-%d")
         else:
@@ -167,9 +251,31 @@ def parse_workbook(path: Path, ym: str) -> dict:
                 "deadline": deadline_s,
                 "assigneeName": assignee,
                 "assigneeId": assignee_id,
+                "shares": shares,
             }
         )
     return {"people": people, "rows": rows, "sheet": ws.title}
+
+
+def _resolved_shares(row: dict, people: list[dict], by_name: dict) -> list[dict]:
+    ids = {p["id"] for p in people}
+    out = []
+    seen: set[str] = set()
+    for share in row.get("shares") or row.get("help") or []:
+        pid = str(share.get("id") or "").strip()
+        if not pid or pid not in ids:
+            person = by_name.get((share.get("name") or "").strip().lower())
+            pid = person["id"] if person else ""
+        hours = round_hours(share.get("hours"))
+        if not pid or pid not in ids or hours <= 0 or pid in seen:
+            continue
+        seen.add(pid)
+        out.append({"id": pid, "hours": hours})
+    return out
+
+
+def _help_from_row(row: dict, people: list[dict], by_name: dict, assignee_id: str) -> list[dict]:
+    return [s for s in _resolved_shares(row, people, by_name) if s["id"] != assignee_id]
 
 
 def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
@@ -191,13 +297,20 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
             person = by_name.get(row["assigneeName"].strip().lower())
             if person:
                 assignee_id = person["id"]
+        shares = _resolved_shares(row, people, by_name)
+        share_ids = {s["id"] for s in shares}
         task = existing.get(name)
+        keep = (task.get("assigneeId") or "") if task else ""
+        if keep and keep in share_ids:
+            assignee_id = keep
+        help_rows = [s for s in shares if s["id"] != assignee_id]
         if task:
             task["shifts"] = row["shifts"]
             task["hours"] = row["hours"]
             task["line"] = row["line"]
             task["deadline"] = row.get("deadline") or task.get("deadline") or ""
             task["assigneeId"] = assignee_id
+            task["help"] = help_rows
             task["month"] = ym
             updated += 1
         else:
@@ -214,6 +327,7 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
                 "studioStatus": "new",
                 "mondayStatus": "Ready to Start",
                 "assigneeId": assignee_id,
+                "help": help_rows,
                 "brief": "",
                 "folderUrl": "",
                 "docUrl": "",
@@ -245,17 +359,24 @@ def tasks_for_finance(db: dict, ym: str) -> list[dict]:
     out = []
     for row in parsed.get("rows") or []:
         base = existing.get(row["name"]) or by_id.get(_id_key(row["name"])) or {}
+        shares = _resolved_shares(row, people, by_name)
+        share_ids = {s["id"] for s in shares}
+        keep = str(base.get("assigneeId") or "")
         person = None
-        if row.get("assigneeId"):
+        if keep and keep in share_ids:
+            person = next((p for p in people if p.get("id") == keep), None)
+        if person is None and row.get("assigneeId"):
             person = next((p for p in db.get("people") or [] if p.get("id") == row["assigneeId"]), None)
         if person is None:
             person = by_name.get((row.get("assigneeName") or "").strip().lower())
+        assignee_id = person["id"] if person else ""
         task = dict(base)
         task["name"] = row["name"]
         task["line"] = row["line"]
         task["shifts"] = row["shifts"]
         task["hours"] = row["hours"]
-        task["assigneeId"] = person["id"] if person else ""
+        task["assigneeId"] = assignee_id
+        task["help"] = [s for s in shares if s["id"] != assignee_id]
         task["month"] = ym
         out.append(task)
     return out
@@ -334,13 +455,14 @@ def _write_task_row(ws, row: int, task: dict, columns: list[tuple[int, dict | No
             ws.cell(row, 5, deadline)
     else:
         ws.cell(row, 5, None)
-    who = task.get("assigneeId") or ""
+    help_rows = help_entries(task)
     last_col = 5
     for col, person in columns:
         last_col = max(last_col, col)
         cell = ws.cell(row, col)
-        if person and person["id"] == who:
-            cell.value = f"=C{row}*9"
+        share = hours_for_person(task, person["id"]) if person else 0.0
+        if person and share > 0:
+            cell.value = share if help_rows else f"=C{row}*9"
             cell.fill = _hex_fill(person.get("color") or "92D050")
         else:
             cell.value = None

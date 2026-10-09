@@ -239,20 +239,23 @@ def snapshot(db: dict, month: str, nbu: dict | None = None) -> dict:
         lines[line]["shifts"] += sh
         lines[line]["hours"] += h
         lines[line]["bill"] += h * client_rate
-        pid = t.get("assigneeId") or ""
-        p = people.get(pid)
-        if p and p.get("role") == "manager":
-            continue
-        if not p or p.get("id") not in pay:
+        allocated = 0.0
+        for pid, row in list(pay.items()):
+            if row.get("role") == "manager":
+                continue
+            ph = excel_io.hours_for_person(t, pid, shift_hours)
+            if ph <= 0:
+                continue
+            row["projects"] += 1
+            row["shifts"] += round(ph / shift_hours, 2) if shift_hours else 0
+            row["hours"] += ph
+            row["payUsd"] += ph * row["rate"]
+            allocated = round(allocated + ph, 1)
+        leftover = round(max(0.0, h - allocated), 1)
+        if leftover > 0.05:
             unassigned["projects"] += 1
-            unassigned["shifts"] += sh
-            unassigned["hours"] += h
-            continue
-        row = pay.setdefault(pid, _pay_row(p, meta))
-        row["projects"] += 1
-        row["shifts"] += sh
-        row["hours"] += h
-        row["payUsd"] += h * row["rate"]
+            unassigned["shifts"] += round(leftover / shift_hours, 2) if shift_hours else sh
+            unassigned["hours"] += leftover
     total_hours = round(sum(hours_of(t, shift_hours) for t in tasks), 1)
     total_shifts = round(sum(float(t.get("shifts") or 0) for t in tasks), 2)
     for row in pay.values():
@@ -794,12 +797,17 @@ def write_month(db: dict, ym: str, nbu_rate: float | None = None, path: Path | N
         ws.cell(row, 3, shifts if shifts not in (None, "") else None)
         ws.cell(row, 4, f"=C{row}*9")
         who = task.get("assigneeId") or ""
+        help_rows = excel_io.help_entries(task)
         for i, person in enumerate(crew):
             cell = ws.cell(row, empl_start + i)
             rate = person_rate(person, meta=meta)
-            on_row = person.get("role") == "manager" or person["id"] == who
-            if on_row:
+            share = excel_io.hours_for_person(task, person["id"])
+            on_row = person.get("role") == "manager" or share > 0
+            if person.get("role") == "manager":
                 cell.value = f"=D{row}*{rate:g}"
+            elif share > 0:
+                cell.value = f"={share:g}*{rate:g}" if help_rows or person["id"] != who else f"=D{row}*{rate:g}"
+            if on_row:
                 raw = (person.get("color") or "92D050").replace("#", "")
                 cell.fill = PatternFill("solid", fgColor=raw[:6] or "92D050")
         last_empl = get_column_letter(empl_start + n_empl - 1)
