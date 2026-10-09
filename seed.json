@@ -125,20 +125,6 @@
       "email": "superplay@lg-board",
       "color": "#323338",
       "jobTitle": "Client"
-    },
-    {
-      "id": "designer6",
-      "name": "Андрій",
-      "role": "designer",
-      "color": "#8ED1B5",
-      "payOrder": 7,
-      "jobTitle": "Motion design",
-      "rateUsd": 15,
-      "aliases": [
-        "Andriy",
-        "Andrew",
-        "Андрей"
-      ]
     }
   ],
   "tasks": [
