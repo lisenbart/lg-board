@@ -122,6 +122,11 @@
       db.notices = db.notices || [];
       db.noticeReads = db.noticeReads || {};
     }
+    const sergey = (db.people || []).find((p) => p.id === "designer3" || p.name === "Сергій");
+    if (sergey) {
+      sergey.color = "#4D8DFF";
+      sergey.avatarStar = true;
+    }
     return db;
   }
 
