@@ -849,6 +849,8 @@ class Handler(SimpleHTTPRequestHandler):
                         item["name"] = data.get("name")
                     if "rateUsd" in data:
                         item["rateUsd"] = data.get("rateUsd")
+                    if "job" in data:
+                        item["job"] = data.get("job")
                     items = [item]
                 updated = []
                 for item in items:
