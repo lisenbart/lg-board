@@ -943,7 +943,32 @@ function closeShot() {
   const img = box.querySelector("img");
   if (img) img.removeAttribute("src");
 }
-function openShot(src) {
+function projectRoot(t) {
+  const m = String(t?.name || "").trim().match(/^([A-Z]{2}-[A-Z0-9]+-\d+(?:-\d+)?)/i);
+  const raw = (m ? m[1].toUpperCase() : String(t?.id || "SHOT")).replace(/[^A-Z0-9-]/g, "");
+  return raw || "SHOT";
+}
+function allShotAtts(t) {
+  const out = [];
+  for (const row of clientComments(t)) {
+    for (const att of row.attachments || []) {
+      if (isShot(att)) out.push(att);
+    }
+  }
+  return out;
+}
+function shotFileName(t, att) {
+  if (att?.name) return att.name;
+  const shots = allShotAtts(t);
+  const total = shots.length;
+  const index = Math.max(1, shots.indexOf(att) + 1);
+  const extMatch = String(att?.url || "").match(/\.(png|jpe?g|gif|webp)(?:\?|$)/i);
+  const ext = (extMatch ? extMatch[1] : "png").toLowerCase().replace("jpeg", "jpg");
+  const root = projectRoot(t);
+  if (total <= 1) return `${root}.${ext}`;
+  return `${root}_${String(index).padStart(2, "0")}.${ext}`;
+}
+function openShot(src, name) {
   if (!src) return;
   let box = $("shotBox");
   if (!box) {
@@ -951,7 +976,7 @@ function openShot(src) {
     box.id = "shotBox";
     box.className = "shot-box";
     box.hidden = true;
-    box.innerHTML = `<button type="button" class="shot-box-x" aria-label="Close">×</button><img alt="Screenshot">`;
+    box.innerHTML = `<button type="button" class="shot-box-x" aria-label="Close">×</button><a class="shot-box-dl" download>Download</a><img alt="Screenshot">`;
     document.body.appendChild(box);
     box.querySelector(".shot-box-x").addEventListener("click", (e) => {
       e.stopPropagation();
@@ -964,7 +989,16 @@ function openShot(src) {
       if (e.key === "Escape" && !box.hidden) closeShot();
     });
   }
-  box.querySelector("img").src = src;
+  const file = name || "screenshot.png";
+  const img = box.querySelector("img");
+  const dl = box.querySelector(".shot-box-dl");
+  img.alt = file;
+  img.src = src;
+  if (dl) {
+    dl.href = src;
+    dl.download = file;
+    dl.textContent = file;
+  }
   box.hidden = false;
 }
 function notesShotsHtml(row) {
@@ -987,14 +1021,16 @@ function bindNoteShots(t) {
     const att = (comment?.attachments || [])[Number(btn.dataset.i)];
     const src = shotSrc(att) || att?.url || "";
     const img = btn.querySelector("img");
+    const file = shotFileName(t, att);
     if (img && src) {
       img.src = src;
+      img.alt = file;
       img.addEventListener("error", () => btn.remove());
     }
     btn.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
-      openShot(img?.currentSrc || img?.src || src);
+      openShot(img?.currentSrc || img?.src || src, file);
     });
   });
 }

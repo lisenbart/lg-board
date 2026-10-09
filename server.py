@@ -162,7 +162,11 @@ COMMENT_FILES = DATA / "comments"
 URL_IN_TEXT = re.compile(r"https?://[^\s<>\"')\]]+", re.I)
 IMAGE_URL = re.compile(r"\.(?:png|jpe?g|gif|webp|bmp)(?:\?|$)", re.I)
 COMMENT_TASK_ID = re.compile(r"^[A-Za-z0-9_-]+$")
-COMMENT_FILE_NAME = re.compile(r"^c-\d+-\d+\.(png|jpg|jpeg|gif|webp)$", re.I)
+COMMENT_FILE_NAME = re.compile(
+    r"^(?:c-\d+-\d+|[A-Z0-9]+(?:-[A-Z0-9]+)*(?:_\d{2})?)\.(png|jpg|jpeg|gif|webp)$",
+    re.I,
+)
+PROJECT_ROOT = re.compile(r"^([A-Z]{2}-[A-Z0-9]+-\d+(?:-\d+)?)", re.I)
 IMAGE_EXT = {
     "image/png": "png",
     "image/jpeg": "jpg",
@@ -213,12 +217,79 @@ def decode_data_image(item: dict) -> tuple[str, bytes] | None:
     return mime, blob
 
 
-def store_comment_images(task_id: str, comment_id: str, items: list | None) -> list[dict]:
+def project_root(task: dict | None) -> str:
+    m = PROJECT_ROOT.match(str((task or {}).get("name") or "").strip())
+    raw = (m.group(1) if m else str((task or {}).get("id") or "shot")).upper()
+    return re.sub(r"[^A-Z0-9-]", "", raw) or "SHOT"
+
+
+def is_shot_att(att: dict | None) -> bool:
+    url = str((att or {}).get("url") or "")
+    return (att or {}).get("kind") == "image" or url.startswith("data:image") or "/api/comment-file" in url
+
+
+def count_shots(task: dict | None) -> int:
+    n = 0
+    for row in (task or {}).get("comments") or []:
+        for att in row.get("attachments") or []:
+            if is_shot_att(att):
+                n += 1
+    return n
+
+
+def shot_filename(root: str, index: int, ext: str, total: int) -> str:
+    ext = (ext or "png").lower().replace("jpeg", "jpg")
+    if total <= 1:
+        return f"{root}.{ext}"
+    return f"{root}_{index:02d}.{ext}"
+
+
+def ext_from_url(url: str) -> str:
+    m = re.search(r"\.(png|jpe?g|gif|webp)(?:\?|$)", str(url or ""), re.I)
+    if m:
+        return m.group(1).lower().replace("jpeg", "jpg")
+    return "png"
+
+
+def relabel_first_shot(task: dict, root: str) -> None:
+    """If the card had one unnamed/root.png shot, it becomes root_01 when a second arrives."""
+    found = None
+    for row in task.get("comments") or []:
+        for att in row.get("attachments") or []:
+            if is_shot_att(att):
+                found = att
+                break
+        if found:
+            break
+    if not found:
+        return
+    old_name = str(found.get("name") or "")
+    if re.search(r"_\d{2}\.[A-Za-z]+$", old_name):
+        return
+    ext = ext_from_url(old_name or found.get("url") or "")
+    new_name = f"{root}_01.{ext}"
+    url = str(found.get("url") or "")
+    if "/api/comment-file" in url and old_name:
+        tid = str(task.get("id") or "")
+        src = COMMENT_FILES / tid / old_name
+        dest = COMMENT_FILES / tid / new_name
+        if src.is_file() and src.resolve() != dest.resolve():
+            dest.write_bytes(src.read_bytes())
+            try:
+                src.unlink()
+            except OSError:
+                pass
+        found["url"] = f"/api/comment-file?task={tid}&name={new_name}"
+    found["name"] = new_name
+
+
+def store_comment_images(task: dict, items: list | None, *, start: int, total: int) -> list[dict]:
     out: list[dict] = []
-    tid = str(task_id or "")
+    tid = str((task or {}).get("id") or "")
     if not COMMENT_TASK_ID.match(tid):
         return out
     folder = COMMENT_FILES / tid
+    root = project_root(task)
     n = 0
     for item in items or []:
         if n >= MAX_SHOTS:
@@ -230,9 +301,10 @@ def store_comment_images(task_id: str, comment_id: str, items: list | None) -> l
             continue
         mime, blob = decoded
         folder.mkdir(parents=True, exist_ok=True)
-        name = f"{comment_id}-{n}.{IMAGE_EXT[mime]}"
+        index = start + n + 1
+        name = shot_filename(root, index, IMAGE_EXT[mime], total)
         (folder / name).write_bytes(blob)
-        out.append({"url": f"/api/comment-file?task={tid}&name={name}", "kind": "image"})
+        out.append({"url": f"/api/comment-file?task={tid}&name={name}", "kind": "image", "name": name})
         n += 1
     return out
 
@@ -245,13 +317,28 @@ def make_comment(
     source: str = "manual",
     monday_id: str = "",
     extra: list | None = None,
-    task_id: str = "",
+    task: dict | None = None,
 ) -> dict | str:
     text = str(body or "").strip()
     attachments = comment_attachments(text, extra)
+    new_files = sum(1 for item in extra or [] if isinstance(item, dict) and item.get("data"))
+    url_shots = [a for a in attachments if is_shot_att(a)]
+    existing = count_shots(task)
+    total = existing + len(url_shots) + min(new_files, MAX_SHOTS)
+    root = project_root(task)
+    if existing == 1 and total > 1 and task is not None:
+        relabel_first_shot(task, root)
+        existing = count_shots(task)
+    for i, att in enumerate(url_shots):
+        att["name"] = shot_filename(root, existing + i + 1, ext_from_url(att.get("url") or ""), total)
     seq = int((db.get("meta") or {}).get("commentSeq") or 0) + 1
     comment_id = f"c-{seq}"
-    stored = store_comment_images(task_id, comment_id, extra)
+    stored = store_comment_images(
+        task or {},
+        extra,
+        start=existing + len(url_shots),
+        total=total,
+    )
     attachments.extend(stored)
     if not text and not attachments:
         return "paste client text or a screenshot"
@@ -366,6 +453,7 @@ class Handler(SimpleHTTPRequestHandler):
             data = fpath.read_bytes()
             self.send_response(200)
             self.send_header("Content-Type", ctype)
+            self.send_header("Content-Disposition", f'inline; filename="{name}"')
             self.send_header("Cache-Control", "private, max-age=86400")
             self.send_header("Content-Length", str(len(data)))
             self.end_headers()
@@ -829,7 +917,7 @@ class Handler(SimpleHTTPRequestHandler):
                     source=str(data.get("source") or "manual"),
                     monday_id=str(data.get("mondayId") or ""),
                     extra=data.get("attachments") or [],
-                    task_id=str(task.get("id") or ""),
+                    task=task,
                 )
                 if isinstance(comment, str):
                     self._json(400, {"error": comment})

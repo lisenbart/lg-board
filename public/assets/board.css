@@ -863,6 +863,22 @@ body.col-resizing * { cursor: col-resize !important; }
   line-height: 1;
   cursor: pointer;
 }
+.shot-box-dl {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  max-width: calc(100% - 80px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: #fff;
+  color: var(--ink);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+}
 .notes-compose {
   padding: 10px 14px 12px;
   border-top: 1px solid #eceef5;
