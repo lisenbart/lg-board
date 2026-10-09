@@ -292,7 +292,7 @@ a { color: var(--blue); }
 .notice-done { background: #e6f9ef; color: #037f4c; }
 .notice-send { background: #efe6fb; color: #6b21a8; }
 .notice-sent, .notice-appr { background: #e7f7ff; color: #0369a1; }
-.notice-closed { background: #00c875; color: #fff; }
+.notice-closed { background: #037f4c; color: #fff; }
 .notice-none { background: #eef0f5; color: #676879; }
 .who select { border: 1px solid var(--line); border-radius: 16px; padding: 4px 8px; background: #fff; font-size: 12px; }
 #whoMail {
@@ -781,7 +781,7 @@ body.col-resizing * { cursor: col-resize !important; }
 .status-btn.is-on.st-fix { background: #fde8ee; color: #9b2245; border-color: #e39aab; }
 .status-btn.is-on.st-done { background: #e6f9ef; color: #037f4c; border-color: #7dcea0; }
 .status-btn.is-on.st-appr { background: #e7f7ff; color: #0369a1; border-color: #7ec8e8; }
-.status-btn.is-on.st-closed { background: #00c875; color: #fff; border-color: #00a35f; }
+.status-btn.is-on.st-closed { background: #037f4c; color: #fff; border-color: #026a40; }
 .status-btn:disabled.is-off {
   opacity: 0.4;
   cursor: not-allowed;
@@ -974,7 +974,7 @@ body.col-resizing * { cursor: col-resize !important; }
 .status-revision { background: #bb3354; }
 .status-done { background: #00c875; }
 .status-approve { background: #66ccff; }
-.status-closed { background: #00c875; }
+.status-closed { background: #037f4c; font-weight: 600; }
 .row.status-gap { box-shadow: inset 0 10px 0 var(--bg); }
 .line-DD { background: var(--green); color: #043; }
 .line-DX { background: var(--purple); }
@@ -1018,7 +1018,7 @@ body.col-resizing * { cursor: col-resize !important; }
 .xl-table td.xl-st.st-fix { background: #fde8ee; color: #9b2245; }
 .xl-table td.xl-st.st-done { background: #e6f9ef; color: #037f4c; }
 .xl-table td.xl-st.st-appr { background: #e7f7ff; color: #0369a1; }
-.xl-table td.xl-st.st-closed { background: #00c875; color: #fff; }
+.xl-table td.xl-st.st-closed { background: #037f4c; color: #fff; }
 .xl-person { min-width: 72px; font-weight: 500; }
 .xl-num { font-variant-numeric: tabular-nums; }
 .xl-row { cursor: pointer; }
