@@ -1076,6 +1076,19 @@ body.col-resizing * { cursor: col-resize !important; }
 .xl-num { font-variant-numeric: tabular-nums; }
 .xl-row { cursor: pointer; }
 .xl-row:hover td.xl-name { background: #f7f8fc; }
+.xl-row.is-closed { opacity: 0.48; }
+.xl-row.is-closed td { color: #6d7080; }
+.xl-row.is-closed td.xl-name { background: #f4f5f7; color: #8a8d99; }
+.xl-row.is-closed td.xl-st.st-closed {
+  background: #d5e8dc;
+  color: #4d6f5c;
+}
+.xl-row.is-closed td.xl-fill {
+  filter: saturate(0.35);
+  color: #4a4d58;
+}
+.xl-row.is-closed:hover { opacity: 0.7; }
+.xl-row.is-closed:hover td.xl-name { background: #eceef2; }
 .xl-fill { color: #1f1f1f; font-weight: 500; }
 .xl-hit { cursor: pointer; }
 .xl-hit:hover { background: #e7f1fd; }

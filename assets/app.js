@@ -1290,7 +1290,7 @@ function renderExcelSheet() {
       })
       .join("");
     const mark = excelStatus(t);
-    return `<tr class="xl-row" data-id="${t.id}">
+    return `<tr class="xl-row${t.studioStatus === "closed" ? " is-closed" : ""}" data-id="${t.id}">
       <td class="xl-st st-${mark.cls}" title="${escapeHtml(mark.title)}">${escapeHtml(mark.label)}</td>
       <td class="xl-name" title="${escapeHtml(t.name)}">${escapeHtml(t.name)}</td>
       <td class="xl-num">${t.shifts ?? ""}</td>
