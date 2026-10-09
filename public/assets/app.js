@@ -654,6 +654,7 @@ function renderChrome() {
       });
     });
   }
+}
 
 function renderToolbar() {
   if (state.view === "team" || state.view === "close" || state.view === "guide") {
