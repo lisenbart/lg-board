@@ -1446,7 +1446,7 @@ function renderBoard() {
         <div class="cell">Status</div>
         <div class="cell">Brief</div>
         <div class="cell">Result</div>
-        <div class="cell">Assignee</div>
+        <div class="cell">Who</div>
         <div class="cell">Due</div>
       </div>
     </div>`;
@@ -2409,13 +2409,13 @@ function openTask(id) {
     : personCell(t.assigneeId);
   const heroAssign = assignHero
     ? `<div class="field field-focus">
-        <label>Assign employee</label>
+        <label>Who works this</label>
         ${assignSelect}
       </div>`
     : "";
   const showAssignee = !isDesigner() && !assignHero;
   const whoAssign = showAssignee
-    ? `<div class="who-assign"><label>Assignee · employee</label>${canAssign() ? assignSelect : personCell(t.assigneeId)}</div>`
+    ? `<div class="who-assign"><label>Who works this</label>${canAssign() ? assignSelect : personCell(t.assigneeId)}</div>`
     : "";
   const opsTime = canEditTime()
     ? `<div class="ops-item"><label>Shifts</label>
