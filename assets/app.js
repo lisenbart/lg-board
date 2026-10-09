@@ -2409,13 +2409,13 @@ function openTask(id) {
     : personCell(t.assigneeId);
   const heroAssign = assignHero
     ? `<div class="field field-focus">
-        <label>Assign designer</label>
+        <label>Assign employee</label>
         ${assignSelect}
       </div>`
     : "";
   const showAssignee = !isDesigner() && !assignHero;
   const whoAssign = showAssignee
-    ? `<div class="who-assign"><label>Assignee</label>${canAssign() ? assignSelect : personCell(t.assigneeId)}</div>`
+    ? `<div class="who-assign"><label>Assignee · employee</label>${canAssign() ? assignSelect : personCell(t.assigneeId)}</div>`
     : "";
   const opsTime = canEditTime()
     ? `<div class="ops-item"><label>Shifts</label>
