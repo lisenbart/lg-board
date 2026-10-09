@@ -1035,10 +1035,10 @@ body.col-resizing * { cursor: col-resize !important; }
 }
 .io-stack { display: grid; gap: 8px; margin-bottom: 14px; }
 .io {
-  border: 1px solid #eceef5;
+  border: 1.5px solid #b8bfd0;
   border-radius: 10px;
   padding: 10px 12px 12px;
-  background: #fbfbfd;
+  background: #fff;
 }
 .io h3 {
   margin: 0 0 8px;
@@ -1048,8 +1048,6 @@ body.col-resizing * { cursor: col-resize !important; }
   text-transform: uppercase;
   color: var(--muted);
 }
-.io-source { border-top: 3px solid var(--orange); }
-.io-result { border-top: 3px solid var(--green); }
 .io-result.is-focus { background: #f7fbff; }
 .io-result input {
   width: 100%; border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px;
