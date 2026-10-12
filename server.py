@@ -26,9 +26,10 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-12e"
+BUILD = "2026-10-12f"
 LOCK = threading.Lock()
 _FILES_SYNCED = False
+_BRIEFS_SYNCED = False
 
 EMAIL_LINE = re.compile(
     r"^\s*([A-Z]{2}-[A-Za-z0-9._-]+)\s*\|\s*([\d]+(?:[.,]\d+)?)\s*shifts?\s*$",
@@ -38,6 +39,19 @@ EMAIL_LINE = re.compile(
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _link_live_briefs(db: dict) -> bool:
+    global _BRIEFS_SYNCED
+    if _BRIEFS_SYNCED:
+        return False
+    try:
+        n = drive_sync.attach_missing_briefs(db)
+    except Exception as e:
+        print(f"[drive] attach briefs: {e}", flush=True)
+        return False
+    _BRIEFS_SYNCED = True
+    return bool(n)
 
 
 def load_db() -> dict:
@@ -51,6 +65,7 @@ def load_db() -> dict:
         if mirror_io.ORIGIN_XLSX.exists():
             mirror_io.restore_buffer_xlsx()
             mirror_io.sync_from_files(db)
+        _link_live_briefs(db)
         save_db(db, origin=True)
         _FILES_SYNCED = True
         return db
@@ -68,6 +83,8 @@ def load_db() -> dict:
         drive_sync.apply_meta(db)
         save_db(db, origin=True)
     if drive_io.attach_cached_packs(db):
+        save_db(db)
+    if _link_live_briefs(db):
         save_db(db)
     return db
 

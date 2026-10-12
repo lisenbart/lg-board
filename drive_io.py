@@ -24,7 +24,8 @@ DRIVE_FOLDER_URL_RE = re.compile(
     re.I,
 )
 WORK_LABEL_RE = re.compile(
-    r"(?:working folder|pls work here|please work here|work here|pls work)[:\s]*\n*"
+    r"(?:working folder|робоча папка|pls work here|please work here|work here|pls work)"
+    r"[:\s\-]*[^\n]{0,60}?\n?\s*"
     r"(https://drive\.google\.com/(?:drive/folders/|open\?id=)[a-zA-Z0-9_-]+)",
     re.I,
 )
@@ -322,10 +323,20 @@ def ensure_task(db: dict, task: dict, ym: str | None = None) -> dict:
         return {"ok": False, "error": "task has no name"}
     apply_work_folder(task)
     if (db.get("meta") or {}).get("mode") == "mirror":
+        import drive_sync
+
+        linked = 0
+        try:
+            if drive_sync.connected():
+                linked = drive_sync.attach_missing_briefs(db)
+        except Exception as e:
+            print(f"[drive] attach briefs failed for {name}: {e}", flush=True)
+        apply_work_folder(task)
         return {
             "ok": True,
             "created": False,
-            "skipped": "mirror",
+            "linked": bool(task.get("docUrl") or task.get("brief")),
+            "attached": linked,
             "folderUrl": task.get("folderUrl") or "",
             "docUrl": task.get("docUrl") or "",
         }

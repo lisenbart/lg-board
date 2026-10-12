@@ -22,17 +22,19 @@ DATA = ROOT / "data"
 SECRETS = DATA / "secrets"
 ROOTS_PATH = DATA / "drive_roots.json"
 INDEX_PATH = DATA / "drive_index.json"
+BRIEFS_PATH = DATA / "mirror" / "live_briefs.json"
 CLIENT_PATH = SECRETS / "google_client.json"
 OAUTH_PATH = SECRETS / "google_oauth.json"
 SA_PATH = SECRETS / "google_service.json"
 TOKEN_PATH = SECRETS / "google_drive_token.txt"
-BUILD = "2026-10-12e"
+BUILD = "2026-10-12f"
 OAUTH_STATE_PATH = SECRETS / "drive_oauth_state.json"
 SCOPE = "https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/documents"
 API = "https://www.googleapis.com/drive/v3"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 FOLDER_MIME = "application/vnd.google-apps.folder"
+DOC_MIME = "application/vnd.google-apps.document"
 NAME_ID = re.compile(r"^([A-Z]{2}-[A-Z0-9]+-\d+(?:-\d+)?)", re.I)
 INVOICE_DOC = re.compile(r"^invoice(DD|DX)_\d{4}\.\d{2}\.\d{2}\.docx$", re.I)
 _TOKEN_MEM: dict = {"at": 0.0, "value": ""}
@@ -434,6 +436,164 @@ def map_project_folders(token: str) -> dict:
     return mapped
 
 
+def export_plain(token: str, file_id: str) -> str:
+    data = _api(
+        token,
+        f"files/{file_id}/export",
+        {"mimeType": "text/plain", "supportsAllDrives": "true"},
+        raw=True,
+    )
+    return (data or b"").decode("utf-8-sig", errors="replace").strip()
+
+
+def _pick_doc(children: list[dict], folder_name: str) -> dict | None:
+    docs = [row for row in children if row.get("mimeType") == DOC_MIME]
+    if not docs:
+        return None
+    want = (folder_name or "").strip().lower()
+    for row in docs:
+        if str(row.get("name") or "").strip().lower() == want:
+            return row
+    for row in docs:
+        title = str(row.get("name") or "").strip().lower()
+        if want and (title in want or want in title):
+            return row
+    return docs[0]
+
+
+def load_brief_packs() -> dict:
+    raw = load_json(BRIEFS_PATH, {})
+    return raw if isinstance(raw, dict) else {}
+
+
+def scan_october_packs(token: str, need_keys: set[str] | None = None) -> tuple[dict, dict]:
+    """Read-only: October DD/DX folders + the Google Doc inside each one."""
+    cfg = roots()
+    packs = load_brief_packs()
+    mapped: dict[str, str] = {}
+    for key in ("octoberDD", "octoberDX"):
+        parent = str(cfg.get(key) or "")
+        if not parent:
+            continue
+        for item in list_children(token, parent):
+            if item.get("mimeType") != FOLDER_MIME:
+                continue
+            name = str(item.get("name") or "").strip()
+            code = NAME_ID.match(name)
+            if not code:
+                continue
+            kid = code.group(1).upper()
+            fid = str(item.get("id") or "")
+            mapped[kid] = folder_url(fid)
+            prev = packs.get(kid) if isinstance(packs.get(kid), dict) else {}
+            if need_keys is not None and kid not in need_keys:
+                rec = dict(prev)
+                rec.update({"folderId": fid, "folderUrl": mapped[kid], "name": name})
+                packs[kid] = rec
+                continue
+            if prev.get("docId") and prev.get("brief") and prev.get("docUrl"):
+                rec = dict(prev)
+                rec.update({"folderId": fid, "folderUrl": mapped[kid], "name": name})
+                packs[kid] = rec
+                continue
+            kids = list_children(token, fid) if fid else []
+            doc = _pick_doc(kids, name)
+            rec = {
+                "folderId": fid,
+                "folderUrl": mapped[kid],
+                "name": name,
+                "docId": str(prev.get("docId") or ""),
+                "docUrl": str(prev.get("docUrl") or ""),
+                "brief": str(prev.get("brief") or ""),
+            }
+            if doc:
+                rec["docId"] = str(doc.get("id") or "")
+                rec["docUrl"] = str(doc.get("webViewLink") or "") or (
+                    f"https://docs.google.com/document/d/{rec['docId']}/edit" if rec["docId"] else ""
+                )
+                if not rec["brief"] and rec["docId"]:
+                    try:
+                        rec["brief"] = export_plain(token, rec["docId"])
+                    except DriveSyncError as e:
+                        print(f"[drive] export brief failed for {name}: {e}", flush=True)
+            packs[kid] = rec
+    if mapped:
+        save_json(mirror_io.FOLDERS_PATH, mapped)
+    save_json(BRIEFS_PATH, packs)
+    return mapped, packs
+
+
+def apply_brief_packs(db: dict, packs: dict | None = None) -> int:
+    import excel_io
+    import drive_io
+
+    packs = packs if packs is not None else load_brief_packs()
+    filled = 0
+    for task in db.get("tasks") or []:
+        if str(task.get("source") or "") == "portal":
+            continue
+        key = excel_io._id_key(task.get("name") or "")
+        pack = packs.get(key) if key else None
+        if not isinstance(pack, dict):
+            continue
+        changed = False
+        if pack.get("folderUrl") and not str(task.get("folderUrl") or "").strip():
+            task["folderUrl"] = pack["folderUrl"]
+            changed = True
+        if pack.get("docUrl") and not str(task.get("docUrl") or "").strip():
+            task["docUrl"] = pack["docUrl"]
+            changed = True
+        if pack.get("brief") and not str(task.get("brief") or "").strip():
+            task["brief"] = pack["brief"]
+            changed = True
+        if changed:
+            filled += 1
+            drive_io.apply_work_folder(task)
+            task.setdefault("activity", []).append(
+                {
+                    "at": utc_now(),
+                    "text": "Linked folder + brief Doc from live October Drive",
+                }
+            )
+    return filled
+
+
+def missing_brief_keys(db: dict) -> set[str]:
+    import excel_io
+
+    month = str((db.get("meta") or {}).get("month") or "2026-10")
+    need: set[str] = set()
+    for task in db.get("tasks") or []:
+        if str(task.get("source") or "") == "portal":
+            continue
+        if str(task.get("month") or month) != month:
+            continue
+        if str(task.get("studioStatus") or "") == "closed":
+            continue
+        if str(task.get("brief") or "").strip() and str(task.get("docUrl") or "").strip():
+            continue
+        key = excel_io._id_key(task.get("name") or "")
+        if key:
+            need.add(key)
+    return need
+
+
+def attach_missing_briefs(db: dict) -> int:
+    """Fill empty card brief/doc from the live October folder + Google Doc. Never writes Drive."""
+    cached = load_brief_packs()
+    filled = apply_brief_packs(db, cached)
+    need = missing_brief_keys(db)
+    if not need:
+        return filled
+    if not connected():
+        return filled
+    token = access_token()
+    if not token:
+        return filled
+    _mapped, packs = scan_october_packs(token, need)
+    return filled + apply_brief_packs(db, packs)
+
+
 def _write_bytes(path: Path, data: bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(data)
@@ -537,9 +697,25 @@ def pull(db: dict | None = None, hydrate: bool = True) -> dict:
         _write_bytes(dest, download_file(token, fid))
         downloaded.append(dest.name)
 
-    mapped = map_project_folders(token)
-    if mapped:
-        save_json(mirror_io.FOLDERS_PATH, mapped)
+    applied = False
+    briefs = 0
+    if db is not None:
+        if excel_id and mirror_io.ORIGIN_XLSX.exists():
+            mirror_io.restore_buffer_xlsx()
+        if hydrate:
+            mirror_io.sync_from_files(db)
+        applied = True
+
+    mapped, packs = scan_october_packs(token, missing_brief_keys(db) if db is not None else None)
+    if db is not None:
+        briefs = apply_brief_packs(db, packs)
+        apply_meta(
+            db,
+            {
+                "drivePulledAt": utc_now(),
+                "mirrorSource": "SP_MGX_check.xlsx · Google Drive · read only",
+            },
+        )
 
     idx = {
         "pulledAt": utc_now(),
@@ -550,21 +726,8 @@ def pull(db: dict | None = None, hydrate: bool = True) -> dict:
         "downloaded": downloaded,
     }
     save_json(INDEX_PATH, idx)
-
-    applied = False
     if db is not None:
-        if excel_id and mirror_io.ORIGIN_XLSX.exists():
-            mirror_io.restore_buffer_xlsx()
-        if hydrate:
-            mirror_io.sync_from_files(db)
-        apply_meta(
-            db,
-            {
-                "drivePulledAt": idx["pulledAt"],
-                "mirrorSource": "SP_MGX_check.xlsx · Google Drive · read only",
-            },
-        )
-        applied = True
+        apply_meta(db, {"drivePulledAt": idx["pulledAt"]})
 
     return {
         "ok": True,
@@ -573,5 +736,6 @@ def pull(db: dict | None = None, hydrate: bool = True) -> dict:
         "downloaded": downloaded,
         "projects": len(mapped),
         "files": len(index_rows),
+        "briefs": briefs,
         "applied": applied,
     }

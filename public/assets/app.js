@@ -1618,9 +1618,11 @@ function fillDrivePackIfMissing(t) {
   if ((hasDriveDoc(t) && hasDriveFolder(t)) || state.driveTried[t.id]) return;
   state.driveTried[t.id] = true;
   api("/api/drive/ensure", { id: t.id, month: state.month, role: me().role }).then((out) => {
+    const hadDoc = hasDriveDoc(t);
     if (out.state) applyState(out.state);
     if (out.ok && state.openId === t.id) openTask(t.id);
     else if (out.error && t.source === "portal") toast(out.error);
+    if (out.ok && out.docUrl && !hadDoc) toast("Linked the brief Doc from Drive");
   });
 }
 async function retryDrivePack(t) {
@@ -2565,7 +2567,8 @@ async function pullDrive() {
   if (out.drive) state.drive = out.drive;
   if (out.state) applyState(out.state);
   const names = (out.downloaded || []).join(", ") || "Drive files";
-  toast(`Drive files · ${names}`);
+  const briefs = Number(out.briefs || 0);
+  toast(briefs ? `Drive files · ${names} · ${briefs} brief${briefs === 1 ? "" : "s"} from October folders` : `Drive files · ${names}`);
   render();
 }
 

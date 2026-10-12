@@ -110,14 +110,32 @@ def apply_comments(db: dict, kept: dict) -> None:
             task["comments"] = kept[key]
 
 
+def live_brief_map() -> dict:
+    path = DATA / "mirror" / "live_briefs.json"
+    if not path.exists():
+        return {}
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return raw if isinstance(raw, dict) else {}
+
+
 def attach_pack(task: dict, briefs: dict, folders: dict) -> None:
     key = excel_io._id_key(task.get("name") or "")
     pack = briefs.get(key) or {}
+    live = live_brief_map().get(key) or {}
+    if not isinstance(live, dict):
+        live = {}
     if pack.get("brief") and not task.get("brief"):
         task["brief"] = pack["brief"]
+    elif live.get("brief") and not str(task.get("brief") or "").strip():
+        task["brief"] = live["brief"]
     if pack.get("docUrl") and not task.get("docUrl"):
         task["docUrl"] = pack["docUrl"]
-    live_folder = folders.get(key) or ""
+    elif live.get("docUrl") and not str(task.get("docUrl") or "").strip():
+        task["docUrl"] = live["docUrl"]
+    live_folder = folders.get(key) or live.get("folderUrl") or ""
     if live_folder:
         task["folderUrl"] = live_folder
     elif pack.get("folderUrl") and not task.get("folderUrl"):

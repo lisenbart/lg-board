@@ -5,6 +5,7 @@ __pycache__/
 data/db.json
 data/board.db
 data/drive_cache.json
+data/mirror/live_briefs.json
 data/invoices/**
 !data/invoices/.gitkeep
 .tmp/
