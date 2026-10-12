@@ -1,4 +1,4 @@
-"""Create MGX project folders + brief Docs. Portal test tasks write into the live month DD/DX folders."""
+"""Create MGX project folders + brief Docs in the live month DD / DX / DS folders."""
 from __future__ import annotations
 
 import http.client
@@ -161,14 +161,6 @@ def attach_cached_packs(db: dict) -> bool:
     return changed
 
 
-def sandbox_root_id(db: dict) -> str:
-    meta = db.get("meta") or {}
-    fid = folder_id_from_url(meta.get("driveSandbox") or "")
-    if not fid:
-        raise DriveError("sandbox _PORTAL_TEST folder is not set")
-    return fid
-
-
 def _headers(token: str, extra: dict | None = None) -> dict:
     h = {"Authorization": f"Bearer {token}", "Connection": "keep-alive"}
     if extra:
@@ -286,127 +278,6 @@ def _create_doc(token: str, parent_id: str, title: str, brief: str = "", *, skip
     return did
 
 
-def line_parent_id(db: dict, ym: str, line: str, token: str) -> str:
-    meta = db.get("meta") or {}
-    line = (line or "DD").upper()
-    if line not in {"DD", "DX", "DS"}:
-        line = "DD"
-    if ym == "2026-10":
-        key = {"DD": "driveOctoberDD", "DX": "driveOctoberDX"}.get(line)
-        if key and meta.get(key):
-            fid = folder_id_from_url(meta[key])
-            if fid:
-                return fid
-    month_id = folder_id_from_url(meta.get("driveSandboxOctober") or "") if ym == "2026-10" else ""
-    if not month_id:
-        if not token:
-            raise DriveError("Drive is not connected — cannot create a month folder")
-        month_id = _mkdir(token, sandbox_root_id(db), month_folder_name(ym))
-        if ym == "2026-10":
-            meta["driveSandboxOctober"] = folder_url(month_id)
-    if not token:
-        raise DriveError("Drive is not connected")
-    line_id = _mkdir(token, month_id, line)
-    if ym == "2026-10" and line == "DS":
-        meta["driveOctoberDS"] = folder_url(line_id)
-    return line_id
-
-
-def ensure_task(db: dict, task: dict, ym: str | None = None) -> dict:
-    """Idempotent: project folder named as the task + Google Doc with the brief.
-
-    Writes only under _PORTAL_TEST. Live Projects / 10_October is never a parent.
-    Mirror mode never creates Drive files — clicks stay in the portal buffer.
-    """
-    name = (task.get("name") or "").strip()
-    if not name:
-        return {"ok": False, "error": "task has no name"}
-    apply_work_folder(task)
-    if (db.get("meta") or {}).get("mode") == "mirror":
-        import drive_sync
-
-        linked = 0
-        try:
-            if drive_sync.connected():
-                linked = drive_sync.attach_missing_briefs(db)
-        except Exception as e:
-            print(f"[drive] attach briefs failed for {name}: {e}", flush=True)
-        apply_work_folder(task)
-        return {
-            "ok": True,
-            "created": False,
-            "linked": bool(task.get("docUrl") or task.get("brief")),
-            "attached": linked,
-            "folderUrl": task.get("folderUrl") or "",
-            "docUrl": task.get("docUrl") or "",
-        }
-    if task.get("folderUrl") and task.get("docUrl"):
-        return {
-            "ok": True,
-            "created": False,
-            "folderUrl": task["folderUrl"],
-            "docUrl": task["docUrl"],
-        }
-    hit = cached_pack(name)
-    if hit:
-        missing = not (task.get("folderUrl") and task.get("docUrl"))
-        task["folderUrl"] = hit["folderUrl"]
-        task["docUrl"] = hit["docUrl"]
-        if missing:
-            task.setdefault("activity", []).append(
-                {
-                    "at": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
-                    "text": "Folder and brief created in _PORTAL_TEST",
-                }
-            )
-        return {"ok": True, "created": missing, **hit}
-
-    ym = ym or task.get("month") or (db.get("meta") or {}).get("month") or "2026-10"
-    token = drive_token()
-    if not token:
-        return {
-            "ok": False,
-            "error": "Drive token missing — folder lives in _PORTAL_TEST once LG_DRIVE_TOKEN is set",
-        }
-
-    sandbox_root_id(db)
-    parent = line_parent_id(db, ym, task.get("line") or "DD", token)
-    import mirror_io
-
-    if mirror_io.is_live_id(parent):
-        raise DriveError("refusing to write into the live October Drive folder")
-    folder_id = _mkdir(token, parent, name)
-    doc_id = _create_doc(token, folder_id, name, task.get("brief") or "")
-    pack = remember(name, folder_id, doc_id)
-    task["docUrl"] = pack["docUrl"]
-    if not client_folder_from_brief(task.get("brief") or ""):
-        task["folderUrl"] = pack["folderUrl"]
-    apply_work_folder(task)
-    task.setdefault("activity", []).append(
-        {
-            "at": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "text": "Folder and brief created in _PORTAL_TEST",
-        }
-    )
-    return {"ok": True, "created": True, **pack}
-
-
-def ensure_tasks(db: dict, tasks: list[dict], ym: str | None = None) -> dict:
-    created = 0
-    skipped = 0
-    errors = []
-    for task in tasks:
-        out = ensure_task(db, task, ym)
-        if out.get("created"):
-            created += 1
-        elif out.get("ok"):
-            skipped += 1
-        else:
-            errors.append({"name": task.get("name"), "error": out.get("error")})
-    ready = sum(1 for t in tasks if t.get("folderUrl") and t.get("docUrl"))
-    return {"created": created, "linked": skipped, "ready": ready, "errors": errors}
-
-
 def line_from_name(name: str) -> str:
     m = re.match(r"^\s*(DD|DX|DS)\b", name or "", re.I)
     return m.group(1).upper() if m else "DD"
@@ -443,7 +314,7 @@ def remember_line_parent(db: dict, line: str, fid: str) -> None:
 
 
 def live_line_parent_id(db: dict, ym: str, line: str, token: str) -> str:
-    """Month / DD|DX|DS folder on the live Projects drive — not _PORTAL_TEST."""
+    """Month / DD|DX|DS folder on the live Projects drive."""
     line = (line or "DD").upper()
     if line not in {"DD", "DX", "DS"}:
         line = "DD"
@@ -480,6 +351,56 @@ def remember_live_folder(name: str, url: str) -> None:
     mirror_io.FOLDERS_PATH.write_text(
         json.dumps(mapped, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
+
+
+def ensure_live_pack(db: dict, task: dict, ym: str | None = None) -> dict:
+    """Idempotent live folder + brief Doc. Never writes outside Projects / month / DD|DX|DS."""
+    name = (task.get("name") or "").strip()
+    if not name:
+        return {"ok": False, "error": "task has no name"}
+    apply_work_folder(task)
+    if task.get("folderUrl") and task.get("docUrl"):
+        return {
+            "ok": True,
+            "created": False,
+            "folderUrl": task["folderUrl"],
+            "docUrl": task["docUrl"],
+        }
+    ym = str(ym or task.get("month") or (db.get("meta") or {}).get("month") or "2026-10")
+    line = task.get("line") or line_from_name(name)
+    pack = create_live_pack(db, name, ym, line)
+    missing = not (task.get("folderUrl") and task.get("docUrl"))
+    task["folderUrl"] = pack.get("folderUrl") or task.get("folderUrl") or ""
+    task["docUrl"] = pack.get("docUrl") or ""
+    apply_work_folder(task)
+    if missing:
+        task.setdefault("activity", []).append(
+            {
+                "at": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "text": f"Drive folder + brief Doc in {line}",
+            }
+        )
+    return {"ok": True, "created": missing, **pack}
+
+
+def ensure_live_packs(db: dict, tasks: list[dict], ym: str | None = None) -> dict:
+    created = 0
+    skipped = 0
+    errors = []
+    for task in tasks:
+        try:
+            out = ensure_live_pack(db, task, ym)
+        except DriveError as e:
+            errors.append({"name": task.get("name"), "error": str(e)})
+            continue
+        if out.get("created"):
+            created += 1
+        elif out.get("ok"):
+            skipped += 1
+        else:
+            errors.append({"name": task.get("name"), "error": out.get("error")})
+    ready = sum(1 for t in tasks if t.get("folderUrl") and t.get("docUrl"))
+    return {"created": created, "linked": skipped, "ready": ready, "errors": errors}
 
 
 def create_live_pack(db: dict, name: str, ym: str, line: str) -> dict:

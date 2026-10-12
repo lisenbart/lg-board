@@ -346,7 +346,7 @@
     }
 
     if (path === "/api/drive/ensure") {
-      return { error: "Drive folders are created in the studio sandbox, not on GitHub Pages." };
+      return { error: "Drive folders are created on the studio server, not on GitHub Pages." };
     }
     if (path === "/api/tasks/create") {
       return { error: "Create task runs on the studio server, not on GitHub Pages." };
@@ -735,7 +735,7 @@
       return { added: 0, updated: 0, state: clone(db) };
     }
     if (path === "/api/excel/save") {
-      return { error: "The SP_MGX_check calculator is updated in the studio sandbox, not on GitHub Pages." };
+      return { error: "The SP_MGX_check calculator is updated on the studio server, not on GitHub Pages." };
     }
     if (path === "/api/excel/import") {
       return { error: "Open the studio app to import SP_MGX_check.xlsx" };

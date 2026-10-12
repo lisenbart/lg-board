@@ -969,7 +969,7 @@ function renderToolbar() {
     return;
   }
   if (state.view === "excel") {
-    const drive = state.db?.meta?.driveLiveExcel || state.db?.meta?.driveSandboxExcel || "";
+    const drive = state.db?.meta?.driveLiveExcel || "";
     $("toolbar").innerHTML = `
       ${isFinance() ? `<button type="button" class="btn" id="btnDrivePull">Read Drive</button>` : ""}
       ${isDesigner() || isClientPreview() ? "" : `<button class="btn" id="btnExcelPull">Refresh from file</button>`}
@@ -2531,7 +2531,6 @@ function ensureDriveStatus() {
     .then((out) => {
       state.driveLoading = false;
       if (out && !out.error) state.drive = out;
-      if (isFinance() && driveAccessToken() && out && !out.connected) persistDriveToken();
       if (isFinance()) render();
     })
     .catch(() => {
@@ -2539,22 +2538,6 @@ function ensureDriveStatus() {
     });
 }
 
-async function saveDriveToken(ev) {
-  ev?.preventDefault();
-  const token = String($("driveToken")?.value || "").trim();
-  if (!token) {
-    toast("Paste a Drive access token first");
-    return;
-  }
-  const out = await api("/api/drive/token", { token });
-  if (out.error) {
-    toast(out.error);
-    return;
-  }
-  if (out.drive) state.drive = out.drive;
-  toast("Drive token saved · Create task can write folders");
-  render();
-}
 async function pullDrive() {
   const out = await api("/api/drive/pull", {});
   if (out.error) {
@@ -2573,7 +2556,7 @@ function drivePack() {
   const d = state.drive || {};
   const meta = state.db?.meta || {};
   return {
-    connected: d.connected || Boolean(driveAccessToken()),
+    connected: d.connected || Boolean(state.driveAccessToken),
     hasClient: d.hasClient,
     clientId: d.clientId || "",
     hasSecret: d.hasSecret,

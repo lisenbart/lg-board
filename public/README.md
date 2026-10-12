@@ -14,7 +14,7 @@ Open **https://lisenbart.github.io/lg-board/** and switch **I am**:
 
 Mechanics to walk through:
 
-1. Projects land from Monday (demo pull until API access) and from the Orit shift email.
+1. Projects land from **Create task**, Excel / Drive, or the Orit shift email.
 2. Team lead assigns a person — that is the same assignment the Excel tab shows (`SP_MGX_check` picture).
 3. Open a card: the top banner is that seat’s next step (TL assign, MD paste result, LP send). Brief is the text on the card; **Open brief** / **Open folder** are Drive buttons, not URL fields. **Hours split** (TL / LP) moves studio pay to a helper — client SHIFTS / HOURS stay. Live Excel is the who/hours picture, not the old demo split.
 4. Designer pastes the result link, then sets Done. Done is locked until the link is there.

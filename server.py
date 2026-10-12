@@ -26,7 +26,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-12i"
+BUILD = "2026-10-12j"
 LOCK = threading.Lock()
 _FILES_SYNCED = False
 _BRIEFS_SYNCED = False
@@ -90,9 +90,11 @@ def load_db() -> dict:
     dirty = notice_io.ensure(db)
     if drop_sandbox_demo_tasks(db):
         dirty = True
+    if any(k in (db.get("meta") or {}) for k in drive_sync.SANDBOX_META_KEYS):
+        dirty = True
+    drive_sync.apply_meta(db)
     if dirty:
         save_db(db)
-    drive_sync.apply_meta(db)
     origin = mirror_io.ORIGIN_XLSX
     buf = excel_io.XLSX_PATH
     if not _FILES_SYNCED and origin.exists():
@@ -1055,7 +1057,7 @@ class Handler(SimpleHTTPRequestHandler):
                 actor_id = data.get("actorId") or ""
                 for task in fresh:
                     notice_io.on_landed(db, task, actor_id)
-                drive = drive_io.ensure_tasks(db, fresh, task_month(data, db))
+                drive = drive_io.ensure_live_packs(db, fresh, task_month(data, db))
                 db.setdefault("events", []).insert(
                     0,
                     {
@@ -1096,27 +1098,13 @@ class Handler(SimpleHTTPRequestHandler):
                     self._json(404, {"error": "not found"})
                     return
                 ym = data.get("month") or task.get("month") or db.get("meta", {}).get("month") or "2026-10"
-                if str(task.get("source") or "") == "portal":
-                    try:
-                        pack = drive_io.create_live_pack(
-                            db,
-                            str(task.get("name") or ""),
-                            ym,
-                            task.get("line") or drive_io.line_from_name(task.get("name") or ""),
-                        )
-                        task["folderUrl"] = pack.get("folderUrl") or ""
-                        task["docUrl"] = pack.get("docUrl") or ""
-                        task.setdefault("activity", []).append(
-                            {"at": utc_now(), "text": f"Drive folder + brief Doc in {task.get('line') or 'DD'}"}
-                        )
-                        out = {"ok": True, "created": True, **pack}
-                    except drive_io.DriveError as e:
-                        print(f"[drive] ensure failed for {task.get('name')}: {e}", flush=True)
-                        save_db(db)
-                        self._json(409, {"ok": False, "error": str(e), "state": db})
-                        return
-                else:
-                    out = drive_io.ensure_task(db, task, ym)
+                try:
+                    out = drive_io.ensure_live_pack(db, task, ym)
+                except drive_io.DriveError as e:
+                    print(f"[drive] ensure failed for {task.get('name')}: {e}", flush=True)
+                    save_db(db)
+                    self._json(409, {"ok": False, "error": str(e), "state": db})
+                    return
                 save_db(db)
                 if not out.get("ok"):
                     self._json(400, {**out, "state": db})
@@ -1457,7 +1445,7 @@ class Handler(SimpleHTTPRequestHandler):
                     self._json(500, {"error": str(e)})
                     return
                 save_db(db)
-                drive = db.get("meta", {}).get("driveSandboxExcel") or ""
+                drive = db.get("meta", {}).get("driveLiveExcel") or ""
                 self._json(
                     200,
                     {

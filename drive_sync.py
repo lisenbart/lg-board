@@ -27,7 +27,7 @@ CLIENT_PATH = SECRETS / "google_client.json"
 OAUTH_PATH = SECRETS / "google_oauth.json"
 SA_PATH = SECRETS / "google_service.json"
 TOKEN_PATH = SECRETS / "google_drive_token.txt"
-BUILD = "2026-10-12i"
+BUILD = "2026-10-12j"
 OAUTH_STATE_PATH = SECRETS / "drive_oauth_state.json"
 SCOPE = "https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/documents"
 API = "https://www.googleapis.com/drive/v3"
@@ -613,9 +613,20 @@ def _latest_templates(index_rows: list[dict]) -> dict[str, dict]:
     return latest
 
 
+SANDBOX_META_KEYS = (
+    "driveSandbox",
+    "driveSandboxOctober",
+    "driveSandboxExcel",
+    "driveOctoberDD",
+    "driveOctoberDX",
+)
+
+
 def apply_meta(db: dict, extra: dict | None = None) -> None:
     cfg = roots()
     meta = db.setdefault("meta", {})
+    for key in SANDBOX_META_KEYS:
+        meta.pop(key, None)
     meta["driveDocs"] = folder_url(cfg["docs"]) if cfg.get("docs") else ""
     meta["driveLiveExcel"] = file_url(cfg["excel"]) if cfg.get("excel") else meta.get("driveLiveExcel")
     meta["driveCalculator"] = file_url(cfg["calculator"]) if cfg.get("calculator") else meta.get("driveCalculator")
