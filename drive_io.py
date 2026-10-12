@@ -424,8 +424,26 @@ def is_deletable_task(task: dict) -> bool:
     return str((task or {}).get("id") or "").startswith("t-new-")
 
 
+LIVE_LINE_META = {"DD": "driveLiveDD", "DX": "driveLiveDX", "DS": "driveLiveDS"}
+LIVE_LINE_CFG = {"DD": "octoberDD", "DX": "octoberDX", "DS": "octoberDS"}
+
+
+def remember_line_parent(db: dict, line: str, fid: str) -> None:
+    if not fid or line not in LIVE_LINE_META:
+        return
+    meta = db.setdefault("meta", {})
+    meta[LIVE_LINE_META[line]] = folder_url(fid)
+    if line == "DS":
+        meta["driveOctoberDS"] = folder_url(fid)
+    import drive_sync
+
+    cfg = drive_sync.roots()
+    cfg[LIVE_LINE_CFG[line]] = fid
+    drive_sync.save_json(drive_sync.ROOTS_PATH, cfg)
+
+
 def live_line_parent_id(db: dict, ym: str, line: str, token: str) -> str:
-    """Month / DD|DX folder on the live Projects drive — not _PORTAL_TEST."""
+    """Month / DD|DX|DS folder on the live Projects drive — not _PORTAL_TEST."""
     line = (line or "DD").upper()
     if line not in {"DD", "DX", "DS"}:
         line = "DD"
@@ -433,19 +451,20 @@ def live_line_parent_id(db: dict, ym: str, line: str, token: str) -> str:
     import drive_sync
 
     cfg = drive_sync.roots()
-    if ym == "2026-10":
-        url = meta.get("driveLiveDD" if line == "DD" else "driveLiveDX" if line == "DX" else "") or ""
-        fid = folder_id_from_url(url)
-        if not fid:
-            fid = str(cfg.get("octoberDD" if line == "DD" else "octoberDX" if line == "DX" else "") or "")
-        if fid:
-            return fid
-        oct_id = folder_id_from_url(meta.get("driveLiveOctober") or "") or str(cfg.get("october") or "")
-        if oct_id:
-            return _mkdir(token, oct_id, line)
+    url = meta.get(LIVE_LINE_META[line]) or ""
+    fid = folder_id_from_url(url) or str(cfg.get(LIVE_LINE_CFG[line]) or "")
+    if fid and ym == "2026-10":
+        return fid
+    oct_id = folder_id_from_url(meta.get("driveLiveOctober") or "") or str(cfg.get("october") or "")
+    if ym == "2026-10" and oct_id:
+        fid, _ = _ensure_folder(token, oct_id, line)
+        remember_line_parent(db, line, fid)
+        return fid
     projects = folder_id_from_url(meta.get("driveLiveProjects") or "") or "1IBEGffspl0b7Ze6jH9BZNoyMybHxWSGH"
     month_id = _mkdir(token, projects, month_folder_name(ym))
-    return _mkdir(token, month_id, line)
+    fid, _ = _ensure_folder(token, month_id, line)
+    remember_line_parent(db, line, fid)
+    return fid
 
 
 def remember_live_folder(name: str, url: str) -> None:

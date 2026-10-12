@@ -27,7 +27,7 @@ CLIENT_PATH = SECRETS / "google_client.json"
 OAUTH_PATH = SECRETS / "google_oauth.json"
 SA_PATH = SECRETS / "google_service.json"
 TOKEN_PATH = SECRETS / "google_drive_token.txt"
-BUILD = "2026-10-12f"
+BUILD = "2026-10-12g"
 OAUTH_STATE_PATH = SECRETS / "drive_oauth_state.json"
 SCOPE = "https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/documents"
 API = "https://www.googleapis.com/drive/v3"
@@ -422,7 +422,7 @@ def walk_docs(token: str) -> list[dict]:
 def map_project_folders(token: str) -> dict:
     cfg = roots()
     mapped: dict[str, str] = {}
-    for key in ("octoberDD", "octoberDX"):
+    for key in ("octoberDD", "octoberDX", "octoberDS"):
         parent = str(cfg.get(key) or "")
         if not parent:
             continue
@@ -467,11 +467,11 @@ def load_brief_packs() -> dict:
 
 
 def scan_october_packs(token: str, need_keys: set[str] | None = None) -> tuple[dict, dict]:
-    """Read-only: October DD/DX folders + the Google Doc inside each one."""
+    """Read-only: October DD/DX/DS folders + the Google Doc inside each one."""
     cfg = roots()
     packs = load_brief_packs()
     mapped: dict[str, str] = {}
-    for key in ("octoberDD", "octoberDX"):
+    for key in ("octoberDD", "octoberDX", "octoberDS"):
         parent = str(cfg.get(key) or "")
         if not parent:
             continue
@@ -620,6 +620,13 @@ def apply_meta(db: dict, extra: dict | None = None) -> None:
     meta["driveLiveExcel"] = file_url(cfg["excel"]) if cfg.get("excel") else meta.get("driveLiveExcel")
     meta["driveCalculator"] = file_url(cfg["calculator"]) if cfg.get("calculator") else meta.get("driveCalculator")
     meta["driveLiveOctober"] = folder_url(cfg["october"]) if cfg.get("october") else meta.get("driveLiveOctober")
+    if cfg.get("octoberDD"):
+        meta["driveLiveDD"] = folder_url(cfg["octoberDD"])
+    if cfg.get("octoberDX"):
+        meta["driveLiveDX"] = folder_url(cfg["octoberDX"])
+    if cfg.get("octoberDS"):
+        meta["driveLiveDS"] = folder_url(cfg["octoberDS"])
+        meta["driveOctoberDS"] = meta["driveLiveDS"]
     meta["driveMgxInvoices"] = folder_url(cfg["mgxInvoices"]) if cfg.get("mgxInvoices") else ""
     meta["driveMode"] = "read"
     if extra:
@@ -646,8 +653,10 @@ def status() -> dict:
         "october": folder_url(cfg["october"]) if cfg.get("october") else "",
         "octoberDD": folder_url(cfg["octoberDD"]) if cfg.get("octoberDD") else "",
         "octoberDX": folder_url(cfg["octoberDX"]) if cfg.get("octoberDX") else "",
+        "octoberDS": folder_url(cfg["octoberDS"]) if cfg.get("octoberDS") else "",
         "octoberDDId": str(cfg.get("octoberDD") or ""),
         "octoberDXId": str(cfg.get("octoberDX") or ""),
+        "octoberDSId": str(cfg.get("octoberDS") or ""),
         "invoices": folder_url(cfg["mgxInvoices"]) if cfg.get("mgxInvoices") else "",
         "counts": {
             "files": len(files),
