@@ -163,9 +163,29 @@ a { color: var(--blue); }
 .create-bar {
   display: flex;
   align-items: center;
+  gap: 8px;
   padding: 0 0 10px;
 }
 .create-bar .btn { padding: 8px 14px; }
+.cell.name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.cell.name .notice-chip { flex-shrink: 0; }
+.name-text {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.row-del {
+  flex-shrink: 0;
+  margin-left: auto;
+  padding: 2px 8px;
+  font-size: 12px;
+}
 .pin-edit {
   display: block;
   width: 100%;

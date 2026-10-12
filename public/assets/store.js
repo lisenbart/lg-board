@@ -402,7 +402,7 @@
     if (path === "/api/tasks/create") {
       return { error: "Create task runs on the studio server, not on GitHub Pages." };
     }
-    if (path === "/api/tasks/delete") {
+    if (path === "/api/tasks/delete" || path === "/api/tasks/delete-many") {
       return { error: "Delete task runs on the studio server, not on GitHub Pages." };
     }
     if (path === "/api/drive/pull" || path === "/api/drive/status" || path === "/api/drive/token" || path === "/api/drive/client") {

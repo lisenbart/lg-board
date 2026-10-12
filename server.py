@@ -26,7 +26,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-12c"
+BUILD = "2026-10-12d"
 LOCK = threading.Lock()
 _FILES_SYNCED = False
 
@@ -931,25 +931,38 @@ class Handler(SimpleHTTPRequestHandler):
                     },
                 )
                 return
-            if path == "/api/tasks/delete":
+            if path in {"/api/tasks/delete", "/api/tasks/delete-many"}:
                 if data.get("role") not in OPS_ROLES:
                     self._json(403, {"error": "only DL or LP can delete a test task"})
                     return
-                task = next((t for t in db.get("tasks") or [] if t.get("id") == data.get("id")), None)
-                if not task:
+                if path == "/api/tasks/delete-many":
+                    ids = [str(x) for x in (data.get("ids") or []) if x]
+                    tasks = [t for t in (db.get("tasks") or []) if str(t.get("id") or "") in set(ids)]
+                else:
+                    task = next((t for t in db.get("tasks") or [] if t.get("id") == data.get("id")), None)
+                    tasks = [task] if task else []
+                if not tasks:
                     self._json(404, {"error": "not found"})
                     return
-                if str(task.get("source") or "") != "portal":
+                blocked = [t for t in tasks if not drive_io.is_deletable_task(t)]
+                if blocked:
                     self._json(403, {"error": "only portal test tasks can be deleted"})
                     return
-                drive = {"ok": False}
-                try:
-                    drive = drive_io.trash_live_pack(task)
-                except drive_io.DriveError as e:
-                    drive = {"ok": False, "error": str(e)}
-                db["tasks"] = [t for t in (db.get("tasks") or []) if t.get("id") != task.get("id")]
+                drive = {"ok": True, "trashed": 0, "errors": []}
+                gone = {str(t.get("id") or "") for t in tasks}
+                for task in tasks:
+                    try:
+                        out = drive_io.trash_live_pack(task, db)
+                        if out.get("trashed"):
+                            drive["trashed"] += 1
+                    except drive_io.DriveError as e:
+                        print(f"[drive] trash failed for {task.get('name')}: {e}", flush=True)
+                        drive["ok"] = False
+                        drive["errors"].append(str(e))
+                db["tasks"] = [t for t in (db.get("tasks") or []) if str(t.get("id") or "") not in gone]
+                names = ", ".join(str(t.get("name") or "") for t in tasks)
                 db.setdefault("events", []).insert(
-                    0, {"at": utc_now(), "text": f"Deleted test task {task.get('name')}"}
+                    0, {"at": utc_now(), "text": f"Deleted test task {names}"}
                 )
                 save_db(db)
                 self._json(200, {"ok": True, "drive": drive, "state": db})

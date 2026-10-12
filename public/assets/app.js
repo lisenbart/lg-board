@@ -483,6 +483,14 @@ function isTeamLead() {
 function canOps() {
   return me().role === "manager" || me().role === "finance";
 }
+function isTestTaskName(t) {
+  return /test[-_]?task/i.test(String(t?.name || ""));
+}
+function isDeletableTask(t) {
+  if (isTestTaskName(t)) return true;
+  if (String(t?.source || "") === "portal") return true;
+  return String(t?.id || "").startsWith("t-new-");
+}
 function canWriteNotes() {
   return canOps() || isTeamLead();
 }
@@ -1000,6 +1008,29 @@ function openCreateTask() {
 }
 function closeCreateTask() {
   $("createTaskModal").classList.remove("show");
+}
+async function deletePortalTasks(ids) {
+  const list = [...new Set((ids || []).filter(Boolean))];
+  if (!list.length) return;
+  const label = list.length === 1 ? "this test task" : `${list.length} test tasks`;
+  if (!confirm(`Delete ${label} from the board and move the Drive folder to trash?`)) return;
+  const path = list.length === 1 ? "/api/tasks/delete" : "/api/tasks/delete-many";
+  const body = list.length === 1 ? { id: list[0], role: me().role, actorId: me().id } : { ids: list, role: me().role, actorId: me().id };
+  const out = await api(path, body);
+  if (out.error || !out.state) {
+    toast(out.error || "Could not delete");
+    return;
+  }
+  applyState(out.state);
+  closeDrawer();
+  const n = Number(out.drive?.trashed || 0);
+  if (out.drive && out.drive.ok === false) {
+    toast(out.drive.errors?.[0] || "Removed from the board. Drive folder was not trashed.");
+  } else if (n) {
+    toast(n === 1 ? "Deleted on the board and moved the Drive folder to trash" : `Deleted ${list.length} on the board · ${n} Drive folders to trash`);
+  } else {
+    toast("Deleted on the board");
+  }
 }
 async function submitCreateTask() {
   const name = String($("createTaskName")?.value || "").replace(/\s+/g, " ").trim();
@@ -2112,9 +2143,13 @@ function renderBoard() {
       </div>
     </div>`;
 
+  const tests = canOps() ? visibleTasks().filter(isTestTaskName) : [];
   const createBar =
     canOps() && state.view === "board"
-      ? `<div class="create-bar"><button type="button" class="btn primary" id="btnCreateTask">Create task</button></div>`
+      ? `<div class="create-bar">
+          <button type="button" class="btn primary" id="btnCreateTask">Create task</button>
+          ${tests.length ? `<button type="button" class="btn danger" id="btnDeleteTests">Delete test tasks (${tests.length})</button>` : ""}
+        </div>`
       : "";
   $("board").innerHTML = `
     ${createBar}
@@ -2156,6 +2191,15 @@ function renderBoard() {
   });
   bindSplitter($("board").querySelector(".group"));
   $("btnCreateTask")?.addEventListener("click", openCreateTask);
+  $("btnDeleteTests")?.addEventListener("click", () =>
+    deletePortalTasks(visibleTasks().filter(isTestTaskName).map((t) => t.id))
+  );
+  $("board").querySelectorAll("[data-del]").forEach((el) => {
+    el.addEventListener("click", (e) => {
+      e.stopPropagation();
+      deletePortalTasks([el.dataset.del]);
+    });
+  });
   bindTimeEdits();
 }
 
@@ -2232,12 +2276,16 @@ function rowHtml(t, mode, gap) {
         : ""
       : "";
   const chip = statusChip(t);
+  const del =
+    mode === "ops" && canOps() && isDeletableTask(t)
+      ? `<button type="button" class="btn danger row-del" data-del="${t.id}">Delete</button>`
+      : "";
   const frozen =
     mode === "ops"
       ? `<div class="frozen">
           <div class="cell"><span class="pill line-${t.line}">${t.line}</span></div>
           <div class="cell">${pick}</div>
-          <div class="cell name" title="${escapeHtml(t.name)}">${chip}${escapeHtml(t.name)}</div>
+          <div class="cell name" title="${escapeHtml(t.name)}">${chip}<span class="name-text">${escapeHtml(t.name)}</span>${del}</div>
         </div>`
       : `<div class="frozen">
           <div class="cell"><span class="pill line-${t.line}">${t.line}</span></div>
@@ -3396,7 +3444,7 @@ function openTask(id) {
       ${canOps() && isSendable(t) ? `<button class="btn green" id="exportOne">Send this to client</button>` : ""}
       ${canOps() && t.studioStatus === "approve" ? `<button class="btn" id="closeOne">Mark Closed</button>` : ""}
       ${canOps() && t.studioStatus === "approve" && t.resultUrl ? `<button class="btn" id="copyOne">Copy Monday reply</button>` : ""}
-      ${canOps() && t.source === "portal" ? `<button type="button" class="btn danger" id="deleteTask">Delete</button>` : ""}
+      ${canOps() && isDeletableTask(t) ? `<button type="button" class="btn danger" id="deleteTask">Delete</button>` : ""}
       <button class="btn primary" id="saveTask">Save</button>
     </div>
   `;
@@ -3683,23 +3731,7 @@ function openTask(id) {
     await sendToClient([t.id]);
     openTask(t.id);
   });
-  $("deleteTask")?.addEventListener("click", async () => {
-    if (!confirm("Delete this test task and its Drive folder?")) return;
-    const out = await api("/api/tasks/delete", { id: t.id, role: me().role, actorId: me().id });
-    if (out.error || !out.state) {
-      toast(out.error || "Could not delete");
-      return;
-    }
-    applyState(out.state);
-    closeDrawer();
-    if (out.drive && out.drive.ok === false) {
-      toast(out.drive.error || "Removed from the board. Drive folder was not trashed.");
-    } else if (out.drive && out.drive.trashed) {
-      toast("Deleted on the board and moved the Drive folder to trash");
-    } else {
-      toast("Deleted on the board");
-    }
-  });
+  $("deleteTask")?.addEventListener("click", () => deletePortalTasks([t.id]));
   $("closeOne")?.addEventListener("click", () => {
     updateTask(
       t.id,
@@ -4043,11 +4075,6 @@ $("createTaskName")?.addEventListener("keydown", (e) => {
 });
 $("createTaskModal")?.addEventListener("click", (e) => {
   if (e.target === $("createTaskModal")) closeCreateTask();
-});
-$("driveClientCancel")?.addEventListener("click", closeDriveClientModal);
-$("driveClientGo")?.addEventListener("click", saveDriveClientJson);
-$("driveClientModal")?.addEventListener("click", (e) => {
-  if (e.target === $("driveClientModal")) closeDriveClientModal();
 });
 $("emailCancel").onclick = () => $("emailModal").classList.remove("show");
 $("emailApply").onclick = async () => {

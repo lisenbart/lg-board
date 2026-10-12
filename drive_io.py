@@ -374,6 +374,18 @@ def line_from_name(name: str) -> str:
     return m.group(1).upper() if m else "DD"
 
 
+def is_test_task_name(task: dict) -> bool:
+    return bool(re.search(r"test[-_]?task", str((task or {}).get("name") or ""), re.I))
+
+
+def is_deletable_task(task: dict) -> bool:
+    if is_test_task_name(task):
+        return True
+    if str((task or {}).get("source") or "") == "portal":
+        return True
+    return str((task or {}).get("id") or "").startswith("t-new-")
+
+
 def live_line_parent_id(db: dict, ym: str, line: str, token: str) -> str:
     """Month / DD|DX folder on the live Projects drive — not _PORTAL_TEST."""
     line = (line or "DD").upper()
@@ -444,6 +456,10 @@ def forget_live_folder(name: str) -> None:
     cache = _load_cache()
     (cache.get("byName") or {}).pop(name, None)
     _save_cache(cache)
+    packs = _load_packs()
+    if name in (packs.get("byName") or {}):
+        packs["byName"].pop(name, None)
+        PACKS_PATH.write_text(json.dumps(packs, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     if not key:
         return
     mapped = mirror_io.folder_map()
@@ -454,25 +470,79 @@ def forget_live_folder(name: str) -> None:
         )
 
 
-def trash_live_pack(task: dict) -> dict:
+def _folder_id_from_pack(name: str) -> str:
+    for store in (_load_cache(), _load_packs()):
+        pack = (store.get("byName") or {}).get(name) or {}
+        fid = str(pack.get("folderId") or "") or folder_id_from_url(str(pack.get("folderUrl") or ""))
+        if fid:
+            return fid
+    return ""
+
+
+def _search_folder(token: str, name: str, parent_id: str = "") -> str:
+    safe = name.replace("\\", "\\\\").replace("'", "\\'")
+    q = f"name = '{safe}' and mimeType = '{FOLDER_MIME}' and trashed = false"
+    if parent_id:
+        q += f" and '{parent_id}' in parents"
+    query = {
+        "q": q,
+        "fields": "files(id,name)",
+        "pageSize": "10",
+        "includeItemsFromAllDrives": "true",
+    }
+    try:
+        out = _api(token, "GET", "files", query={**query, "corpora": "allDrives"})
+    except DriveError:
+        out = _api(token, "GET", "files", query=query)
+    files = out.get("files") or []
+    return str((files[0] or {}).get("id") or "") if files else ""
+
+
+def _trash_file(token: str, fid: str) -> None:
+    try:
+        _api(token, "PATCH", f"files/{fid}", body={"trashed": True})
+    except DriveError:
+        _api(token, "DELETE", f"files/{fid}")
+
+
+def resolve_live_folder_id(task: dict, db: dict | None = None) -> str:
+    name = str((task or {}).get("name") or "").strip()
+    fid = folder_id_from_url((task or {}).get("folderUrl") or "") or _folder_id_from_pack(name)
+    if fid:
+        return fid
+    token = drive_token()
+    if not token:
+        return ""
+    parents: list[str] = []
+    if db is not None:
+        ym = str(task.get("month") or (db.get("meta") or {}).get("month") or "2026-10")
+        line = str(task.get("line") or line_from_name(name) or "DD")
+        other = "DX" if line == "DD" else "DD"
+        for cand in (line, other):
+            try:
+                pid = live_line_parent_id(db, ym, cand, token)
+            except DriveError:
+                continue
+            if pid and pid not in parents:
+                parents.append(pid)
+    for parent in parents:
+        fid = _search_folder(token, name, parent)
+        if fid:
+            return fid
+    return _search_folder(token, name)
+
+
+def trash_live_pack(task: dict, db: dict | None = None) -> dict:
     """Move the test folder (and the brief Doc inside it) to Drive trash."""
     name = str((task or {}).get("name") or "").strip()
     token = drive_token()
-    fid = folder_id_from_url((task or {}).get("folderUrl") or "")
-    hit = cached_pack(name) or {}
-    fid = fid or str(hit.get("folderId") or "")
+    fid = resolve_live_folder_id(task, db)
     if not fid:
         forget_live_folder(name)
         return {"ok": True, "trashed": False, "skipped": "no Drive folder"}
     if not token:
         raise DriveError("Drive is not connected on this server")
-    _api(
-        token,
-        "PATCH",
-        f"files/{fid}",
-        query={"supportsAllDrives": "true"},
-        body={"trashed": True},
-    )
+    _trash_file(token, fid)
     forget_live_folder(name)
     return {"ok": True, "trashed": True, "folderId": fid}
 
