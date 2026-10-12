@@ -62,10 +62,10 @@ ROLE_PIN_KEYS = {
     "client": "client",
 }
 STUDIO_ROLES = (
-    {"role": "finance", "label": "Head", "blurb": ""},
-    {"role": "manager", "label": "LP", "blurb": ""},
-    {"role": "teamlead", "label": "TL", "blurb": ""},
-    {"role": "designer", "label": "MD", "blurb": ""},
+    {"role": "finance", "label": "DL", "blurb": ""},
+    {"role": "manager", "label": "LP", "blurb": "Line Producer"},
+    {"role": "teamlead", "label": "TL", "blurb": "Team Lead"},
+    {"role": "designer", "label": "MD", "blurb": "Motion design"},
 )
 
 LOCK_ROLE = {

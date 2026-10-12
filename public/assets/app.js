@@ -251,8 +251,9 @@ async function showStudioRoster(error) {
       ? roles
           .map(
             (r) =>
-              `<button type="button" class="login-seat login-role" data-role="${escapeHtml(r.role)}">
+              `<button type="button" class="login-seat" data-role="${escapeHtml(r.role)}">
                 <strong>${escapeHtml(r.label)}</strong>
+                ${r.blurb ? `<span>${escapeHtml(r.blurb)}</span>` : ""}
               </button>`
           )
           .join("")

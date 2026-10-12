@@ -359,8 +359,6 @@ html.studio-host.in-app .login-gate { display: none !important; }
 .home-door.is-studio { border-color: #0073ea; background: #f3f8ff; }
 .home-door.is-studio:hover { background: #eaf3ff; }
 .home-door strong { font-size: 20px; font-weight: 600; letter-spacing: -0.03em; }
-.login-seat.login-role { text-align: center; padding: 14px 14px; }
-.login-seat.login-role strong { font-size: 16px; }
 .login-acc, .login-seat {
   display: block;
   width: 100%;
