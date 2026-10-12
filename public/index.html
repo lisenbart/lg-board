@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-build="2026-10-12j">
+<html lang="en" data-build="2026-10-12k">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@300;400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/board.css?v=111" />
+  <link rel="stylesheet" href="assets/board.css?v=112" />
   <script>
     (function () {
       const host = location.hostname;
@@ -117,6 +117,17 @@
     </div>
   </div>
 
+  <div class="modal-bg" id="taskDelModal">
+    <div class="modal">
+      <h3 id="taskDelTitle">Delete this project?</h3>
+      <p id="taskDelIntro" style="color:#676879;font-size:13px">This removes it from the board and moves the Drive folder to trash. You cannot undo this.</p>
+      <div class="modal-actions">
+        <button type="button" class="btn ghost" id="taskDelCancel">Cancel</button>
+        <button type="button" class="btn danger" id="taskDelConfirm">Delete</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-bg" id="emailModal">
     <div class="modal">
       <h3>Paste shift email</h3>
@@ -174,7 +185,7 @@
 
   <div class="toast" id="toast"></div>
   <script src="assets/notices.js?v=3"></script>
-  <script src="assets/store.js?v=71"></script>
-  <script src="assets/app.js?v=131"></script>
+  <script src="assets/store.js?v=72"></script>
+  <script src="assets/app.js?v=132"></script>
 </body>
 </html>

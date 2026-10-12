@@ -424,23 +424,29 @@ function escapeHtml(s) {
 async function copyText(text) {
   const value = String(text || "");
   try {
-    await navigator.clipboard.writeText(value);
-    return true;
-  } catch {
-    try {
-      const area = document.createElement("textarea");
-      area.value = value;
-      area.setAttribute("readonly", "");
-      area.style.position = "fixed";
-      area.style.left = "-9999px";
-      document.body.appendChild(area);
-      area.select();
-      const ok = document.execCommand("copy");
-      area.remove();
-      return ok;
-    } catch {
-      return false;
+    if (navigator.clipboard?.writeText) {
+      await Promise.race([
+        navigator.clipboard.writeText(value),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("clipboard timeout")), 1200)),
+      ]);
+      return true;
     }
+  } catch {
+    /* fall through to execCommand */
+  }
+  try {
+    const area = document.createElement("textarea");
+    area.value = value;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.left = "-9999px";
+    document.body.appendChild(area);
+    area.select();
+    const ok = document.execCommand("copy");
+    area.remove();
+    return ok;
+  } catch {
+    return false;
   }
 }
 
@@ -452,7 +458,8 @@ function showPaste(title, intro, text) {
 }
 
 function mondayReply(task) {
-  return `${task.name}\ncheck it please\n${task.resultUrl || ""}`.trim();
+  const link = String(task?.resultUrl || "").trim();
+  return link ? `check it please\n${link}` : "check it please";
 }
 
 function person(id) {
@@ -483,13 +490,11 @@ function isTeamLead() {
 function canOps() {
   return me().role === "manager" || me().role === "finance";
 }
-function isTestTaskName(t) {
-  return /test[-_]?task/i.test(String(t?.name || ""));
-}
 function isDeletableTask(t) {
-  if (isTestTaskName(t)) return true;
-  if (String(t?.source || "") === "portal") return true;
-  return String(t?.id || "").startsWith("t-new-");
+  return Boolean(t && t.id);
+}
+function isClientCopyable(t) {
+  return Boolean(t && t.studioStatus !== "closed" && String(t.resultUrl || "").trim());
 }
 function canWriteNotes() {
   return canOps() || isTeamLead();
@@ -1025,27 +1030,67 @@ function openCreateTask() {
 function closeCreateTask() {
   $("createTaskModal").classList.remove("show");
 }
-async function deletePortalTasks(ids) {
+let pendingDeleteIds = [];
+
+function closeTaskDelete() {
+  pendingDeleteIds = [];
+  $("taskDelModal")?.classList.remove("show");
+}
+
+function askDeleteTasks(ids) {
   const list = [...new Set((ids || []).filter(Boolean))];
-  if (!list.length) return;
-  const label = list.length === 1 ? "this test task" : `${list.length} test tasks`;
-  if (!confirm(`Delete ${label} from the board and move the Drive folder to trash?`)) return;
-  const path = list.length === 1 ? "/api/tasks/delete" : "/api/tasks/delete-many";
-  const body = list.length === 1 ? { id: list[0], role: me().role, actorId: me().id } : { ids: list, role: me().role, actorId: me().id };
-  const out = await api(path, body);
-  if (out.error || !out.state) {
-    toast(out.error || "Could not delete");
-    return;
+  if (!list.length || !canOps()) return;
+  pendingDeleteIds = list;
+  const first = state.db.tasks.find((x) => x.id === list[0]);
+  const titleEl = $("taskDelTitle");
+  const introEl = $("taskDelIntro");
+  if (titleEl) {
+    titleEl.textContent =
+      list.length === 1
+        ? `Delete ${first?.name || "this project"}?`
+        : `Delete ${list.length} projects?`;
   }
-  applyState(out.state);
-  closeDrawer();
-  const n = Number(out.drive?.trashed || 0);
-  if (out.drive && out.drive.ok === false) {
-    toast(out.drive.errors?.[0] || "Removed from the board. Drive folder was not trashed.");
-  } else if (n) {
-    toast(n === 1 ? "Deleted on the board and moved the Drive folder to trash" : `Deleted ${list.length} on the board · ${n} Drive folders to trash`);
-  } else {
-    toast("Deleted on the board");
+  if (introEl) {
+    introEl.textContent =
+      "This removes it from the board and moves the Drive folder to trash. You cannot undo this.";
+  }
+  $("taskDelModal")?.classList.add("show");
+}
+
+async function confirmDeleteTasks() {
+  const list = [...pendingDeleteIds];
+  if (!list.length) return;
+  const go = $("taskDelConfirm");
+  if (go?.classList.contains("is-busy")) return;
+  setBusy(go, true, "Deleting…");
+  const path = list.length === 1 ? "/api/tasks/delete" : "/api/tasks/delete-many";
+  const body =
+    list.length === 1
+      ? { id: list[0], role: me().role, actorId: me().id }
+      : { ids: list, role: me().role, actorId: me().id };
+  try {
+    const out = await api(path, body);
+    if (out.error || !out.state) {
+      toast(out.error || "Could not delete");
+      return;
+    }
+    closeTaskDelete();
+    applyState(out.state);
+    closeDrawer();
+    const n = Number(out.drive?.trashed || 0);
+    if (out.drive && out.drive.ok === false) {
+      toast(out.drive.errors?.[0] || "Removed from the board. Drive folder was not trashed.");
+    } else if (n) {
+      toast(
+        n === 1
+          ? "Deleted on the board and moved the Drive folder to trash"
+          : `Deleted ${list.length} on the board · ${n} Drive folders to trash`
+      );
+    } else {
+      toast("Deleted on the board");
+    }
+  } finally {
+    setBusy(go, false);
   }
 }
 async function submitCreateTask() {
@@ -2173,12 +2218,10 @@ function renderBoard() {
       </div>
     </div>`;
 
-  const tests = canOps() ? visibleTasks().filter(isTestTaskName) : [];
   const createBar =
     canOps() && state.view === "board"
       ? `<div class="create-bar">
           <button type="button" class="btn primary" id="btnCreateTask">Create task</button>
-          ${tests.length ? `<button type="button" class="btn danger" id="btnDeleteTests">Delete test tasks (${tests.length})</button>` : ""}
         </div>`
       : "";
   $("board").innerHTML = `
@@ -2221,15 +2264,6 @@ function renderBoard() {
   });
   bindSplitter($("board").querySelector(".group"));
   $("btnCreateTask")?.addEventListener("click", openCreateTask);
-  $("btnDeleteTests")?.addEventListener("click", () =>
-    deletePortalTasks(visibleTasks().filter(isTestTaskName).map((t) => t.id))
-  );
-  $("board").querySelectorAll("[data-del]").forEach((el) => {
-    el.addEventListener("click", (e) => {
-      e.stopPropagation();
-      deletePortalTasks([el.dataset.del]);
-    });
-  });
   bindTimeEdits();
 }
 
@@ -2306,16 +2340,12 @@ function rowHtml(t, mode, gap) {
         : ""
       : "";
   const chip = statusChip(t);
-  const del =
-    mode === "ops" && canOps() && isDeletableTask(t)
-      ? `<button type="button" class="btn danger row-del" data-del="${t.id}">Delete</button>`
-      : "";
   const frozen =
     mode === "ops"
       ? `<div class="frozen">
           <div class="cell"><span class="pill line-${t.line}">${t.line}</span></div>
           <div class="cell">${pick}</div>
-          <div class="cell name" title="${escapeHtml(t.name)}">${chip}<span class="name-text">${escapeHtml(t.name)}</span>${del}</div>
+          <div class="cell name" title="${escapeHtml(t.name)}">${chip}<span class="name-text">${escapeHtml(t.name)}</span></div>
         </div>`
       : `<div class="frozen">
           <div class="cell"><span class="pill line-${t.line}">${t.line}</span></div>
@@ -3461,7 +3491,7 @@ function openTask(id) {
     <div class="drawer-actions">
       ${canOps() && isSendable(t) ? `<button class="btn green" id="exportOne">Send this to client</button>` : ""}
       ${canOps() && t.studioStatus === "approve" ? `<button class="btn" id="closeOne">Mark Closed</button>` : ""}
-      ${canOps() && t.studioStatus === "approve" && t.resultUrl ? `<button class="btn" id="copyOne">Copy Monday reply</button>` : ""}
+      ${canOps() && isClientCopyable(t) ? `<button type="button" class="btn" id="copyOne">Copy for client</button>` : ""}
       ${canOps() && isDeletableTask(t) ? `<button type="button" class="btn danger" id="deleteTask">Delete</button>` : ""}
       <div class="save-cluster">
         <span class="save-wait" id="saveWait" hidden></span>
@@ -3801,7 +3831,7 @@ function openTask(id) {
     await sendToClient([t.id]);
     openTask(t.id);
   });
-  $("deleteTask")?.addEventListener("click", () => deletePortalTasks([t.id]));
+  $("deleteTask")?.addEventListener("click", () => askDeleteTasks([t.id]));
   $("closeOne")?.addEventListener("click", () => {
     updateTask(
       t.id,
@@ -3817,10 +3847,13 @@ function openTask(id) {
   $("ensureDrive")?.addEventListener("click", () => retryDrivePack(t));
   fillDrivePackIfMissing(t);
   $("copyOne")?.addEventListener("click", async () => {
-    const pack = mondayReply(t);
-    const ok = await copyText(pack);
-    showPaste("Paste into Monday", "Already Senior Approval. Copy again into External Weekly.", pack);
-    toast(ok ? "Copied Monday reply" : "Ready to copy");
+    const btn = $("copyOne");
+    setBusy(btn, true, "Copying…");
+    try {
+      await copyForClient(mondayReply(t));
+    } finally {
+      setBusy(btn, false);
+    }
   });
 }
 
@@ -3857,6 +3890,23 @@ function driveToast(drive) {
   if (drive.errors?.length) return " · Drive folder skipped";
   return "";
 }
+async function copyForClient(text) {
+  const pack = String(text || "").trim();
+  const ok = await copyText(pack);
+  $("pasteModal")?.classList.remove("show");
+  if (ok) {
+    toast("Copied for the client");
+    return true;
+  }
+  showPaste(
+    "Copy for the client",
+    "Clipboard is blocked here. Select the text and copy, then Close.",
+    pack
+  );
+  toast("Copy failed — select the text");
+  return false;
+}
+
 async function sendToClient(ids) {
   if (!canOps()) {
     toast("Only Line Producer can send to the client");
@@ -3875,18 +3925,7 @@ async function sendToClient(ids) {
   }
   applyState(out.state);
   const pack = (out.exported || []).map((row) => row.reply).join("\n\n");
-  const ok = await copyText(pack);
-  showPaste(
-    "Paste into Monday",
-    "Monday API is not connected yet. Paste this into External Weekly — status on our board is already Senior Approval.",
-    pack
-  );
-  const skipped = picked.length - ready.length;
-  const copied = out.exported?.length || ready.length;
-  toast(
-    (ok ? `Copied ${copied} Monday replies` : `Ready to copy ${copied} replies`) +
-      (skipped ? ` · ${skipped} skipped (not Done)` : "")
-  );
+  await copyForClient(pack);
 }
 async function exportMonday() {
   await sendToClient([...state.selected]);
@@ -4121,11 +4160,22 @@ $("delModal").addEventListener("click", (e) => {
 });
 $("pasteClose").onclick = () => $("pasteModal").classList.remove("show");
 $("pasteCopy").onclick = async () => {
-  const ok = await copyText($("pasteText").value);
-  toast(ok ? "Copied" : "Select the text and copy");
+  const btn = $("pasteCopy");
+  if (btn?.classList.contains("is-busy")) return;
+  setBusy(btn, true, "Copying…");
+  try {
+    await copyForClient($("pasteText").value);
+  } finally {
+    setBusy(btn, false);
+  }
 };
 $("pasteModal").addEventListener("click", (e) => {
   if (e.target === $("pasteModal")) $("pasteModal").classList.remove("show");
+});
+$("taskDelCancel")?.addEventListener("click", closeTaskDelete);
+$("taskDelConfirm")?.addEventListener("click", confirmDeleteTasks);
+$("taskDelModal")?.addEventListener("click", (e) => {
+  if (e.target === $("taskDelModal")) closeTaskDelete();
 });
 $("createTaskCancel")?.addEventListener("click", closeCreateTask);
 $("createTaskGo")?.addEventListener("click", submitCreateTask);

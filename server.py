@@ -26,7 +26,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-12j"
+BUILD = "2026-10-12k"
 LOCK = threading.Lock()
 _FILES_SYNCED = False
 _BRIEFS_SYNCED = False
@@ -211,7 +211,34 @@ STATUS_BY_ROLE = {
 
 
 def monday_reply(task: dict) -> str:
-    return f"{task.get('name') or ''}\ncheck it please\n{task.get('resultUrl') or ''}".strip()
+    link = str(task.get("resultUrl") or "").strip()
+    return f"check it please\n{link}" if link else "check it please"
+
+
+def dropped_names(db: dict) -> list[str]:
+    names = db.setdefault("droppedNames", [])
+    if not isinstance(names, list):
+        names = []
+        db["droppedNames"] = names
+    return names
+
+
+def remember_dropped(db: dict, tasks: list[dict]) -> None:
+    have = {str(n).strip() for n in dropped_names(db) if n}
+    names = dropped_names(db)
+    for task in tasks:
+        n = str((task or {}).get("name") or "").strip()
+        if n and n not in have:
+            names.append(n)
+            have.add(n)
+
+
+def undrop_name(db: dict, name: str) -> None:
+    key = str(name or "").strip()
+    if not key:
+        return
+    names = dropped_names(db)
+    db["droppedNames"] = [n for n in names if str(n).strip() != key]
 
 
 COMMENT_ROLES = {"manager", "finance", "teamlead"}
@@ -902,6 +929,7 @@ class Handler(SimpleHTTPRequestHandler):
                 if any(str(t.get("name") or "").strip() == name for t in db.get("tasks") or []):
                     self._json(409, {"error": "this project is already on the board"})
                     return
+                undrop_name(db, name)
                 ym = str(data.get("month") or db.get("meta", {}).get("month") or "2026-10")
                 line = drive_io.line_from_name(name)
                 used = {str(t.get("id") or "") for t in db.get("tasks") or []}
@@ -972,7 +1000,7 @@ class Handler(SimpleHTTPRequestHandler):
                 return
             if path in {"/api/tasks/delete", "/api/tasks/delete-many"}:
                 if data.get("role") not in OPS_ROLES:
-                    self._json(403, {"error": "only DL or LP can delete a test task"})
+                    self._json(403, {"error": "only DL or LP can delete a task"})
                     return
                 if path == "/api/tasks/delete-many":
                     ids = [str(x) for x in (data.get("ids") or []) if x]
@@ -982,10 +1010,6 @@ class Handler(SimpleHTTPRequestHandler):
                     tasks = [task] if task else []
                 if not tasks:
                     self._json(404, {"error": "not found"})
-                    return
-                blocked = [t for t in tasks if not drive_io.is_deletable_task(t)]
-                if blocked:
-                    self._json(403, {"error": "only portal test tasks can be deleted"})
                     return
                 drive = {"ok": True, "trashed": 0, "errors": []}
                 gone = {str(t.get("id") or "") for t in tasks}
@@ -998,10 +1022,11 @@ class Handler(SimpleHTTPRequestHandler):
                         print(f"[drive] trash failed for {task.get('name')}: {e}", flush=True)
                         drive["ok"] = False
                         drive["errors"].append(str(e))
+                remember_dropped(db, tasks)
                 db["tasks"] = [t for t in (db.get("tasks") or []) if str(t.get("id") or "") not in gone]
                 names = ", ".join(str(t.get("name") or "") for t in tasks)
                 db.setdefault("events", []).insert(
-                    0, {"at": utc_now(), "text": f"Deleted test task {names}"}
+                    0, {"at": utc_now(), "text": f"Deleted {names}"}
                 )
                 save_db(db)
                 self._json(200, {"ok": True, "drive": drive, "state": db})

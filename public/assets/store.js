@@ -11,8 +11,10 @@
     finance: new Set(["new", "wip", "revision", "done", "closed"]),
     client: new Set(),
   };
-  const mondayReply = (task) =>
-    `${task.name || ""}\ncheck it please\n${task.resultUrl || ""}`.trim();
+  const mondayReply = (task) => {
+    const link = String(task?.resultUrl || "").trim();
+    return link ? `check it please\n${link}` : "check it please";
+  };
   const isSendable = (task) =>
     task && task.studioStatus === "done" && String(task.resultUrl || "").trim();
 

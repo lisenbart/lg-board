@@ -288,11 +288,7 @@ def is_test_task_name(task: dict) -> bool:
 
 
 def is_deletable_task(task: dict) -> bool:
-    if is_test_task_name(task):
-        return True
-    if str((task or {}).get("source") or "") == "portal":
-        return True
-    return str((task or {}).get("id") or "").startswith("t-new-")
+    return bool(str((task or {}).get("id") or "").strip())
 
 
 LIVE_LINE_META = {"DD": "driveLiveDD", "DX": "driveLiveDX", "DS": "driveLiveDS"}
