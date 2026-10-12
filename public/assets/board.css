@@ -224,6 +224,35 @@ a { color: var(--blue); }
 .btn.orange { background: var(--orange); color: #3a2a00; }
 .btn.ghost { background: transparent; border: 1px solid var(--line); }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn.is-busy {
+  opacity: 0.6;
+  cursor: wait;
+  pointer-events: none;
+}
+.btn.is-busy::after {
+  content: "";
+  width: 11px;
+  height: 11px;
+  margin-left: 8px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: btnspin 0.7s linear infinite;
+}
+@keyframes btnspin {
+  to { transform: rotate(360deg); }
+}
+.create-wait,
+.save-wait {
+  color: var(--muted);
+  font-size: 12px;
+}
+.save-cluster {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
 .search {
   margin-left: auto; border: 1px solid var(--line); border-radius: 4px;
   padding: 6px 10px; min-width: 200px; background: #fff;
@@ -789,7 +818,7 @@ body.col-resizing * { cursor: col-resize !important; }
   display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
   margin-top: auto; padding-top: 16px; border-top: 1px solid #eceef5;
 }
-.drawer-actions .btn.primary { margin-left: auto; }
+.save-cluster .btn.primary { margin-left: 0; }
 .brief {
   background: #f7f8fc; border-radius: 8px; padding: 12px; white-space: pre-wrap;
   font-size: 13px; line-height: 1.5; border: 1px solid #eceef5; font-weight: 400;

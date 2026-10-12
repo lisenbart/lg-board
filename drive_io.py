@@ -1,12 +1,12 @@
 """Create MGX project folders + brief Docs. Portal test tasks write into the live month DD/DX folders."""
 from __future__ import annotations
 
+import http.client
 import json
 import os
 import re
-import urllib.error
+import threading
 import urllib.parse
-import urllib.request
 from datetime import datetime
 from pathlib import Path
 
@@ -29,7 +29,11 @@ WORK_LABEL_RE = re.compile(
     re.I,
 )
 API = "https://www.googleapis.com/drive/v3"
-UPLOAD = "https://www.googleapis.com/upload/drive/v3/files"
+DRIVE_HOST = "www.googleapis.com"
+DOCS_HOST = "docs.googleapis.com"
+HTTP_TIMEOUT = 20
+_TLS = threading.local()
+_LAST_BRIEF: dict[str, str] = {}
 
 
 class DriveError(RuntimeError):
@@ -165,31 +169,61 @@ def sandbox_root_id(db: dict) -> str:
 
 
 def _headers(token: str, extra: dict | None = None) -> dict:
-    h = {"Authorization": f"Bearer {token}"}
+    h = {"Authorization": f"Bearer {token}", "Connection": "keep-alive"}
     if extra:
         h.update(extra)
     return h
+
+
+def _host_conn(host: str) -> http.client.HTTPSConnection:
+    bag = getattr(_TLS, "conns", None)
+    if bag is None:
+        bag = {}
+        _TLS.conns = bag
+    conn = bag.get(host)
+    if conn is None:
+        conn = http.client.HTTPSConnection(host, timeout=HTTP_TIMEOUT)
+        bag[host] = conn
+    return conn
+
+
+def _drop_conn(host: str) -> None:
+    bag = getattr(_TLS, "conns", None) or {}
+    conn = bag.pop(host, None)
+    if conn is None:
+        return
+    try:
+        conn.close()
+    except OSError:
+        pass
+
+
+def _http(host: str, method: str, path: str, headers: dict, body: bytes | None = None) -> tuple[int, str]:
+    last_err: Exception | None = None
+    for _ in range(2):
+        try:
+            conn = _host_conn(host)
+            conn.request(method, path, body=body, headers=headers)
+            res = conn.getresponse()
+            raw = res.read().decode("utf-8", errors="replace")
+            return res.status, raw
+        except (http.client.HTTPException, OSError, TimeoutError) as e:
+            last_err = e
+            _drop_conn(host)
+    raise DriveError(f"Drive HTTP failed: {last_err}") from last_err
 
 
 def _api(token: str, method: str, path: str, query: dict | None = None, body: dict | None = None) -> dict:
     q = {"supportsAllDrives": "true"}
     if query:
         q.update(query)
-    url = f"{API}/{path}" + "?" + urllib.parse.urlencode(q)
+    loc = f"/drive/v3/{path}?" + urllib.parse.urlencode(q)
     data = json.dumps(body).encode("utf-8") if body is not None else None
-    req = urllib.request.Request(
-        url,
-        data=data,
-        headers=_headers(token, {"Content-Type": "application/json"} if body is not None else None),
-        method=method,
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=30) as res:
-            raw = res.read().decode("utf-8")
-            return json.loads(raw) if raw else {}
-    except urllib.error.HTTPError as e:
-        err = e.read().decode("utf-8", errors="replace")
-        raise DriveError(f"Drive API {e.code}: {err[:300]}") from e
+    headers = _headers(token, {"Content-Type": "application/json"} if data is not None else None)
+    status, raw = _http(DRIVE_HOST, method, loc, headers, data)
+    if status >= 400:
+        raise DriveError(f"Drive API {status}: {raw[:300]}")
+    return json.loads(raw) if raw else {}
 
 
 def _find_child(token: str, parent_id: str, title: str, mime: str | None = None) -> dict | None:
@@ -212,10 +246,10 @@ def _find_child(token: str, parent_id: str, title: str, mime: str | None = None)
     return files[0] if files else None
 
 
-def _mkdir(token: str, parent_id: str, title: str) -> str:
+def _ensure_folder(token: str, parent_id: str, title: str) -> tuple[str, bool]:
     found = _find_child(token, parent_id, title, FOLDER_MIME)
     if found:
-        return found["id"]
+        return found["id"], False
     created = _api(
         token,
         "POST",
@@ -223,39 +257,32 @@ def _mkdir(token: str, parent_id: str, title: str) -> str:
         query={"fields": "id,webViewLink"},
         body={"name": title, "mimeType": FOLDER_MIME, "parents": [parent_id]},
     )
-    return created["id"]
+    return created["id"], True
 
 
-def _create_doc(token: str, parent_id: str, title: str, brief: str) -> str:
-    found = _find_child(token, parent_id, title, DOC_MIME)
-    if found:
-        return found["id"]
-    boundary = "lgboarddriveboundary"
-    meta = json.dumps(
-        {"name": title, "mimeType": DOC_MIME, "parents": [parent_id]},
-        ensure_ascii=False,
+def _mkdir(token: str, parent_id: str, title: str) -> str:
+    fid, _ = _ensure_folder(token, parent_id, title)
+    return fid
+
+
+def _create_doc(token: str, parent_id: str, title: str, brief: str = "", *, skip_find: bool = False) -> str:
+    if not skip_find:
+        found = _find_child(token, parent_id, title, DOC_MIME)
+        if found:
+            return found["id"]
+    created = _api(
+        token,
+        "POST",
+        "files",
+        query={"fields": "id,webViewLink"},
+        body={"name": title, "mimeType": DOC_MIME, "parents": [parent_id]},
     )
-    body = (
-        f"--{boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n{meta}\r\n"
-        f"--{boundary}\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n{brief or 'Brief'}\r\n"
-        f"--{boundary}--\r\n"
-    ).encode("utf-8")
-    url = UPLOAD + "?" + urllib.parse.urlencode(
-        {"uploadType": "multipart", "fields": "id,webViewLink", "supportsAllDrives": "true"}
-    )
-    req = urllib.request.Request(
-        url,
-        data=body,
-        headers=_headers(token, {"Content-Type": f"multipart/related; boundary={boundary}"}),
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=30) as res:
-            created = json.loads(res.read().decode("utf-8"))
-            return created["id"]
-    except urllib.error.HTTPError as e:
-        err = e.read().decode("utf-8", errors="replace")
-        raise DriveError(f"Drive upload {e.code}: {err[:300]}") from e
+    did = str(created.get("id") or "")
+    if did:
+        _LAST_BRIEF[did] = ""
+    if did and (brief or "").strip() and (brief or "").strip() != "Brief":
+        write_brief_doc(doc_url(did), brief)
+    return did
 
 
 def line_parent_id(db: dict, ym: str, line: str, token: str) -> str:
@@ -441,8 +468,8 @@ def create_live_pack(db: dict, name: str, ym: str, line: str) -> dict:
             "data/secrets/google_service.json and share October DD/DX with that account."
         )
     parent = live_line_parent_id(db, ym, line, token)
-    folder_id = _mkdir(token, parent, name)
-    doc_id = _create_doc(token, folder_id, name, "Brief")
+    folder_id, is_new = _ensure_folder(token, parent, name)
+    doc_id = _create_doc(token, folder_id, name, skip_find=is_new)
     pack = remember(name, folder_id, doc_id)
     remember_live_folder(name, pack["folderUrl"])
     return pack
@@ -566,27 +593,26 @@ def sync_task_brief(db: dict, task: dict) -> dict:
     }
 
 
-def write_brief_doc(doc_url: str, text: str) -> None:
-    did = ""
-    m = re.search(r"/document/d/([a-zA-Z0-9_-]+)", doc_url or "")
-    if m:
-        did = m.group(1)
-    if not did:
-        raise DriveError("task has no Google Doc yet")
-    token = drive_token()
-    if not token:
-        raise DriveError("Drive is not connected on this server")
-    req = urllib.request.Request(
-        f"https://docs.googleapis.com/v1/documents/{did}?fields=body(content(endIndex))",
-        headers=_headers(token),
-        method="GET",
+def _docs_json(token: str, method: str, path: str, body: dict | None = None) -> dict:
+    data = json.dumps(body).encode("utf-8") if body is not None else None
+    headers = _headers(token, {"Content-Type": "application/json"} if data is not None else None)
+    status, raw = _http(DOCS_HOST, method, path, headers, data)
+    if status >= 400:
+        raise DriveError(f"Docs API {status}: {raw[:300]}")
+    return json.loads(raw) if raw else {}
+
+
+def _docs_batch(token: str, did: str, requests: list[dict]) -> dict:
+    path = "/v1/documents/" + urllib.parse.quote(did) + ":batchUpdate"
+    return _docs_json(token, "POST", path, {"requests": requests})
+
+
+def _rewrite_doc(token: str, did: str, text: str) -> None:
+    doc = _docs_json(
+        token,
+        "GET",
+        f"/v1/documents/{urllib.parse.quote(did)}?fields=body(content(endIndex))",
     )
-    try:
-        with urllib.request.urlopen(req, timeout=30) as res:
-            doc = json.loads(res.read().decode("utf-8"))
-    except urllib.error.HTTPError as e:
-        err = e.read().decode("utf-8", errors="replace")
-        raise DriveError(f"Docs API {e.code}: {err[:300]}") from e
     end = 1
     for block in (doc.get("body") or {}).get("content") or []:
         try:
@@ -599,19 +625,47 @@ def write_brief_doc(doc_url: str, text: str) -> None:
     body = (text or "").strip()
     if body:
         requests.append({"insertText": {"location": {"index": 1}, "text": body}})
-    if not requests:
+    if requests:
+        _docs_batch(token, did, requests)
+
+
+def write_brief_doc(doc_url: str, text: str) -> None:
+    did = ""
+    m = re.search(r"/document/d/([a-zA-Z0-9_-]+)", doc_url or "")
+    if m:
+        did = m.group(1)
+    if not did:
+        raise DriveError("task has no Google Doc yet")
+    token = drive_token()
+    if not token:
+        raise DriveError("Drive is not connected on this server")
+    body = (text or "").strip()
+    prev = _LAST_BRIEF.get(did)
+    if prev == body:
         return
-    url = "https://docs.googleapis.com/v1/documents/" + urllib.parse.quote(did) + ":batchUpdate"
-    data = json.dumps({"requests": requests}).encode("utf-8")
-    req = urllib.request.Request(
-        url,
-        data=data,
-        headers=_headers(token, {"Content-Type": "application/json"}),
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=30) as res:
-            res.read()
-    except urllib.error.HTTPError as e:
-        err = e.read().decode("utf-8", errors="replace")
-        raise DriveError(f"Docs write {e.code}: {err[:300]}") from e
+    if prev is None:
+        _rewrite_doc(token, did, body)
+    elif prev == "":
+        if body:
+            _docs_batch(token, did, [{"insertText": {"location": {"index": 1}, "text": body}}])
+    else:
+        out = _docs_batch(
+            token,
+            did,
+            [
+                {
+                    "replaceAllText": {
+                        "containsText": {"text": prev, "matchCase": True},
+                        "replaceText": body,
+                    }
+                }
+            ],
+        )
+        n = 0
+        try:
+            n = int((((out.get("replies") or [{}])[0]).get("replaceAllText") or {}).get("occurrencesChanged") or 0)
+        except (TypeError, ValueError, IndexError):
+            n = 0
+        if n < 1:
+            _rewrite_doc(token, did, body)
+    _LAST_BRIEF[did] = body

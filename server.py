@@ -26,7 +26,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-12d"
+BUILD = "2026-10-12e"
 LOCK = threading.Lock()
 _FILES_SYNCED = False
 
@@ -1277,7 +1277,8 @@ class Handler(SimpleHTTPRequestHandler):
                     if key in data:
                         task[key] = data[key]
                 drive = None
-                if "brief" in data and (
+                brief_changed = "brief" in data and str(task.get("brief") or "") != str(brief_before or "")
+                if brief_changed and (
                     str(task.get("source") or "") == "portal" or task.get("docUrl")
                 ):
                     try:

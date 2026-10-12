@@ -741,6 +741,25 @@ function toast(msg) {
   setTimeout(() => el.classList.remove("show"), 3200);
 }
 
+function setBusy(el, on, label) {
+  if (!el) return;
+  if (on) {
+    if (el.dataset.idleLabel == null) el.dataset.idleLabel = el.textContent;
+    el.disabled = true;
+    el.classList.add("is-busy");
+    el.setAttribute("aria-busy", "true");
+    if (label) el.textContent = label;
+  } else {
+    el.disabled = false;
+    el.classList.remove("is-busy");
+    el.removeAttribute("aria-busy");
+    if (el.dataset.idleLabel != null) {
+      el.textContent = el.dataset.idleLabel;
+      delete el.dataset.idleLabel;
+    }
+  }
+}
+
 async function api(path, payload) {
   if (window.__lgUseLocal && typeof window.LGLocalApi === "function") {
     return window.LGLocalApi(path, payload);
@@ -1040,15 +1059,27 @@ async function submitCreateTask() {
     return;
   }
   const go = $("createTaskGo");
-  if (go) go.disabled = true;
+  if (go?.classList.contains("is-busy")) return;
+  if (err) err.textContent = "";
+  const wait = $("createTaskWait");
+  if (wait) wait.hidden = false;
+  setBusy(go, true, "Creating on Drive…");
+  const cancel = $("createTaskCancel");
+  if (cancel) cancel.disabled = true;
   let payload = {
     name,
     month: state.month,
     role: me().role,
     actorId: me().id,
   };
-  const out = await api("/api/tasks/create", payload);
-  if (go) go.disabled = false;
+  let out = {};
+  try {
+    out = await api("/api/tasks/create", payload);
+  } finally {
+    if (wait) wait.hidden = true;
+    setBusy(go, false);
+    if (cancel) cancel.disabled = false;
+  }
   if (out.error || !out.state) {
     if (err) err.textContent = out.error || "Could not create the task";
     return;
@@ -3445,7 +3476,10 @@ function openTask(id) {
       ${canOps() && t.studioStatus === "approve" ? `<button class="btn" id="closeOne">Mark Closed</button>` : ""}
       ${canOps() && t.studioStatus === "approve" && t.resultUrl ? `<button class="btn" id="copyOne">Copy Monday reply</button>` : ""}
       ${canOps() && isDeletableTask(t) ? `<button type="button" class="btn danger" id="deleteTask">Delete</button>` : ""}
-      <button class="btn primary" id="saveTask">Save</button>
+      <div class="save-cluster">
+        <span class="save-wait" id="saveWait" hidden></span>
+        <button class="btn primary" id="saveTask">Save</button>
+      </div>
     </div>
   `;
   $("closeDrawer").onclick = closeDrawer;
@@ -3651,6 +3685,8 @@ function openTask(id) {
     hint.textContent = `${hoursFromShifts(shifts)} h`;
   });
   $("saveTask").onclick = async () => {
+    const saveBtn = $("saveTask");
+    if (saveBtn?.classList.contains("is-busy")) return;
     if (canWriteNotes() && (String($("stComment")?.value || "").trim() || pendingShots.length)) {
       const ok = await postClientNote({ reopen: false });
       if (!ok) return;
@@ -3695,7 +3731,9 @@ function openTask(id) {
       }
       patch.shifts = shifts;
     }
-    if (canOps() && $("stBrief")) patch.brief = $("stBrief").value;
+    const nextBrief = canOps() && $("stBrief") ? $("stBrief").value : null;
+    const briefToDrive = nextBrief != null && nextBrief !== (t.brief || "");
+    if (nextBrief != null) patch.brief = nextBrief;
     if (canEditTime() && $("stDeadline")) {
       const deadline = parseDeadlineIso($("stDeadline").value);
       if ($("stDeadline").value && !deadline) {
@@ -3725,7 +3763,19 @@ function openTask(id) {
           : resultUrl && resultUrl !== t.resultUrl
             ? `${me().name} pasted the result`
             : `${me().name} updated status`;
-    updateTask(t.id, { ...patch, note }, { close: true });
+    const actions = $("drawer")?.querySelectorAll(".drawer-actions button") || [];
+    const hint = $("saveWait");
+    if (hint) {
+      hint.hidden = false;
+      hint.textContent = briefToDrive ? "Writing the brief into the Google Doc…" : "Saving…";
+    }
+    actions.forEach((btn) => setBusy(btn, true, btn.id === "saveTask" ? (briefToDrive ? "Saving to Drive…" : "Saving…") : undefined));
+    try {
+      await updateTask(t.id, { ...patch, note }, { close: true });
+    } finally {
+      if (hint) hint.hidden = true;
+      actions.forEach((btn) => setBusy(btn, false));
+    }
   };
   $("exportOne")?.addEventListener("click", async () => {
     await sendToClient([t.id]);
