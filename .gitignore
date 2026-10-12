@@ -1,6 +1,7 @@
 __pycache__/
 *.pyc
 .DS_Store
+.venv/
 data/db.json
 data/board.db
 data/drive_cache.json

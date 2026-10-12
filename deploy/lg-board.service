@@ -1,0 +1,16 @@
+[Unit]
+Description=LG Board studio desk
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/lg-board
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/ubuntu/lg-board/.venv/bin/python /home/ubuntu/lg-board/server.py
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
