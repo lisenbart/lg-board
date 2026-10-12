@@ -875,12 +875,6 @@ class Handler(SimpleHTTPRequestHandler):
                 db.setdefault("events", []).insert(
                     0, {"at": utc_now(), "text": f"Created task {name}"}
                 )
-                try:
-                    sync_excel(db, ym, calculator=False)
-                except FileNotFoundError as e:
-                    save_db(db)
-                    self._json(500, {"error": str(e), "state": db, "drive": drive})
-                    return
                 save_db(db)
                 self._json(200, {"ok": True, "task": task, "drive": drive, "state": db})
                 return
