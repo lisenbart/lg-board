@@ -12,6 +12,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
+import auth_io
 import drive_io
 import excel_io
 import finance_io
@@ -409,14 +410,32 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         super().end_headers()
 
-    def _json(self, code: int, payload) -> None:
+    def _json(self, code: int, payload, cookie: str | None = None) -> None:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", str(len(body)))
+        if cookie:
+            self.send_header("Set-Cookie", cookie)
         self.end_headers()
         self.wfile.write(body)
+
+    def _cookie_secure(self) -> bool:
+        proto = (self.headers.get("X-Forwarded-Proto") or "").split(",")[0].strip().lower()
+        return proto == "https"
+
+    def _token(self) -> str:
+        return auth_io.token_from_header(self.headers.get("Cookie") or "")
+
+    def _session(self) -> dict | None:
+        return auth_io.session_of(self._token())
+
+    def _bind_actor(self, data: dict, sess: dict) -> dict:
+        data = dict(data or {})
+        data["role"] = sess.get("role") or ""
+        data["actorId"] = sess.get("personId") or data.get("actorId") or ""
+        return data
 
     def _read_json(self) -> dict:
         length = int(self.headers.get("Content-Length") or 0)
@@ -466,22 +485,51 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self) -> None:
         path = urlparse(self.path).path
-        if path == "/api/state":
-            with LOCK:
-                self._json(200, load_db())
+        if path in {"/hours", "/hours/"}:
+            self.path = "/index.html"
+            return SimpleHTTPRequestHandler.do_GET(self)
+        if path == "/health":
+            self._json(200, {"ok": True})
             return
+        if path == "/api/me":
+            sess = self._session()
+            if not sess:
+                self._json(401, {"error": "sign in"})
+                return
+            with LOCK:
+                db = load_db()
+            self._json(200, {"session": sess, "state": auth_io.view_state(db, sess)})
+            return
+        if path == "/api/state":
+            sess = self._session()
+            if not sess:
+                self._json(401, {"error": "sign in"})
+                return
+            with LOCK:
+                db = load_db()
+            self._json(200, auth_io.view_state(db, sess))
+            return
+        sess = self._session()
+        studio = bool(sess) and sess.get("role") != "client" and sess.get("email") != auth_io.CLIENT_EMAIL
+        finance = bool(sess) and sess.get("role") == "finance"
         if path == "/api/comment-file":
+            if not studio:
+                self._json(401, {"error": "sign in"})
+                return
             qs = parse_qs(urlparse(self.path).query)
             self._comment_file((qs.get("task") or [""])[0], (qs.get("name") or [""])[0])
             return
         parts = [p for p in path.split("/") if p]
         if len(parts) == 3 and parts[0] == "comments":
+            if not studio:
+                self._json(401, {"error": "sign in"})
+                return
             self._comment_file(parts[1], parts[2])
             return
-        if path == "/health":
-            self._json(200, {"ok": True})
-            return
         if path == "/api/finance/snapshot":
+            if not finance:
+                self._json(401, {"error": "sign in"})
+                return
             qs = parse_qs(urlparse(self.path).query)
             month = (qs.get("month") or [""])[0] or load_db().get("meta", {}).get("month") or "2026-10"
             with LOCK:
@@ -494,16 +542,25 @@ class Handler(SimpleHTTPRequestHandler):
             self._json(200, snap)
             return
         if path == "/api/nbu":
+            if not finance:
+                self._json(401, {"error": "sign in"})
+                return
             qs = parse_qs(urlparse(self.path).query)
             force = (qs.get("refresh") or [""])[0] in {"1", "true", "yes"}
             self._json(200, finance_io.fetch_nbu(force=force))
             return
         if path == "/api/finance/invoices":
+            if not finance:
+                self._json(401, {"error": "sign in"})
+                return
             qs = parse_qs(urlparse(self.path).query)
             month = (qs.get("month") or [""])[0] or load_db().get("meta", {}).get("month") or "2026-10"
             self._json(200, finance_io.list_invoices(month))
             return
         if path == "/api/finance/invoice/file":
+            if not finance:
+                self._json(401, {"error": "sign in"})
+                return
             qs = parse_qs(urlparse(self.path).query)
             month = (qs.get("month") or [""])[0] or "2026-10"
             name = (qs.get("name") or [""])[0]
@@ -523,6 +580,9 @@ class Handler(SimpleHTTPRequestHandler):
             self._bytes(fpath.read_bytes(), ctype, fpath.name)
             return
         if path == "/api/finance/invoice/zip":
+            if not finance:
+                self._json(401, {"error": "sign in"})
+                return
             qs = parse_qs(urlparse(self.path).query)
             month = (qs.get("month") or [""])[0] or load_db().get("meta", {}).get("month") or "2026-10"
             name, data = finance_io.zip_invoice_dir(month)
@@ -532,6 +592,9 @@ class Handler(SimpleHTTPRequestHandler):
             self._bytes(data, "application/zip", name)
             return
         if path == "/api/finance/calculator":
+            if not finance:
+                self._json(401, {"error": "sign in"})
+                return
             xlsx = finance_io.CALC_PATH
             if not xlsx.exists():
                 self.send_error(404, "Calculator workbook missing")
@@ -543,6 +606,9 @@ class Handler(SimpleHTTPRequestHandler):
             )
             return
         if path == "/api/excel/file":
+            if not studio:
+                self._json(401, {"error": "sign in"})
+                return
             xlsx = excel_io.XLSX_PATH
             if not xlsx.exists():
                 self.send_error(404, "Excel workbook missing")
@@ -566,9 +632,65 @@ class Handler(SimpleHTTPRequestHandler):
     def do_POST(self) -> None:
         path = urlparse(self.path).path
         data = self._read_json()
+        if path == "/api/login":
+            with LOCK:
+                db = load_db()
+                email = auth_io.resolve_email(data.get("email") or "")
+                pin = str(data.get("pin") or "")
+                door = str(data.get("door") or "")
+                if (
+                    email not in auth_io.LOCK_ROLE
+                    or not auth_io.door_allows(door, email)
+                    or not auth_io.pin_ok(email, pin)
+                ):
+                    self._json(403, {"error": "wrong login or PIN"})
+                    return
+                people = db.get("people") or []
+                seats = auth_io.seats_for(email, people)
+                if not seats:
+                    self._json(400, {"error": "no seat for this login"})
+                    return
+                need_seat = email == "lisenbart.games@gmail.com" and not data.get("seatId")
+                seat = auth_io.pick_seat(email, people, data.get("seatId"))
+                token = auth_io.create_session(email, seat)
+                sess = auth_io.session_of(token)
+                cookie = auth_io.cookie_header(token, secure=self._cookie_secure())
+                payload = {
+                    "ok": True,
+                    "needSeat": need_seat,
+                    "seats": seats,
+                    "session": sess,
+                    "state": auth_io.view_state(db, sess),
+                }
+            self._json(200, payload, cookie=cookie)
+            return
+        if path == "/api/logout":
+            auth_io.drop_session(self._token())
+            self._json(200, {"ok": True}, cookie=auth_io.cookie_header("", clear=True))
+            return
+        sess = self._session()
+        if not sess:
+            self._json(401, {"error": "sign in"})
+            return
+        if path == "/api/seat":
+            with LOCK:
+                db = load_db()
+                nxt = auth_io.switch_seat(self._token(), db.get("people") or [], str(data.get("seatId") or ""))
+            if not nxt:
+                self._json(403, {"error": "cannot switch seat"})
+                return
+            self._json(200, {"ok": True, "session": nxt, "state": auth_io.view_state(load_db(), nxt)})
+            return
+        if sess.get("role") == "client" or sess.get("email") == auth_io.CLIENT_EMAIL:
+            self._json(403, {"error": "client cannot edit"})
+            return
+        data = self._bind_actor(data, sess)
         with LOCK:
             db = load_db()
             if path == "/api/reset":
+                if sess.get("role") != "finance":
+                    self._json(403, {"error": "only finance can reset"})
+                    return
                 db = mirror_io.restore(carry_from=db)
                 save_db(db, origin=True)
                 self._json(200, db)
@@ -1373,9 +1495,11 @@ def _monday_fixture() -> list[dict]:
 
 def main() -> None:
     load_db()
+    auth_io.ensure_pins()
     ThreadingHTTPServer.allow_reuse_address = True
     httpd = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
     print(f"LG Board http://127.0.0.1:{PORT}", flush=True)
+    print("SuperPlay hours http://127.0.0.1:%s/hours" % PORT, flush=True)
     httpd.serve_forever()
 
 

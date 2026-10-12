@@ -99,6 +99,18 @@ const $ = (id) => document.getElementById(id);
 function isLocalHost() {
   return location.hostname === "localhost" || location.hostname === "127.0.0.1";
 }
+function isHoursPage() {
+  return (
+    document.documentElement.classList.contains("hours-host") ||
+    /^\/hours\/?$/.test(location.pathname)
+  );
+}
+function clientLink() {
+  return `${location.origin}/hours`;
+}
+function studioAccounts() {
+  return ACCOUNTS.filter((a) => a.lockRole !== "client");
+}
 function isStudioHost() {
   return (
     isLocalHost() ||
@@ -178,56 +190,135 @@ function enterStudio() {
   document.documentElement.classList.add("in-app");
   $("loginGate").hidden = true;
 }
-function showLogin(accountEmail) {
+function openLoginGate() {
   document.documentElement.classList.remove("in-app");
-  const gate = $("loginGate");
-  gate.hidden = false;
-  const box = $("loginAccounts");
-  const picked = accountByEmail(accountEmail);
-  if (picked && !picked.lockRole) {
-    box.innerHTML =
-      `<button type="button" class="btn ghost login-back" id="loginBack">Back</button>` +
-      seatPeople(picked)
-        .map(
-          (p) =>
-            `<button type="button" class="login-seat" data-seat="${p.id}">
-              <strong>${escapeHtml(p.name)} ${jobBadgeHtml(p)}</strong>
-              <span>${escapeHtml(jobMeta(p).title)}</span>
-            </button>`
-        )
-        .join("");
-    $("loginBack")?.addEventListener("click", () => showLogin());
-    box.querySelectorAll(".login-seat").forEach((el) => {
-      el.addEventListener("click", () => {
-        if (!applySession({ email: picked.email, seatId: el.dataset.seat })) return;
-        enterStudio();
-        render();
-      });
-    });
-    return;
-  }
-  box.innerHTML = ACCOUNTS.map(
-    (a) =>
-      `<button type="button" class="login-acc" data-email="${escapeHtml(a.email)}">
-        <strong>${escapeHtml(a.name)}</strong>
-        <span>${escapeHtml(a.email)}</span>
-        <small>${escapeHtml(a.blurb)}</small>
-      </button>`
-  ).join("");
-  box.querySelectorAll(".login-acc").forEach((el) => {
-    el.addEventListener("click", () => {
-      const account = accountByEmail(el.dataset.email);
-      if (!account) return;
-      if (!account.lockRole) {
-        showLogin(account.email);
-        return;
+  $("loginGate").hidden = false;
+}
+function showHome() {
+  state.loginDoor = null;
+  state.loginPin = "";
+  openLoginGate();
+  $("loginTitle").hidden = true;
+  $("loginLead").hidden = true;
+  $("loginLead").textContent = "";
+  document.title = "Lisenbart Board";
+  $("loginCard")?.classList.add("is-home");
+  $("loginAccounts").innerHTML = `
+    <img class="home-logo" src="assets/logo.png" alt="Lisenbart Games Animation" />
+    <div class="home-doors">
+      <button type="button" class="home-door" id="doorClient">
+        <strong>Client</strong>
+        <span>Hours for your projects</span>
+      </button>
+      <button type="button" class="home-door is-studio" id="doorStudio">
+        <strong>Studio</strong>
+        <span>Pipeline, team, finance</span>
+      </button>
+    </div>
+  `;
+  $("doorClient")?.addEventListener("click", () => showDoorForm("client"));
+  $("doorStudio")?.addEventListener("click", () => showDoorForm("studio"));
+}
+function showDoorForm(door, error) {
+  state.loginDoor = door;
+  openLoginGate();
+  $("loginCard")?.classList.remove("is-home");
+  $("loginTitle").hidden = false;
+  $("loginLead").hidden = false;
+  $("loginTitle").textContent = door === "client" ? "Client" : "Studio";
+  $("loginLead").textContent =
+    door === "client"
+      ? "Your hours page. Login and PIN from Lisenbart."
+      : "Studio desk. Your mailbox and PIN.";
+  document.title = door === "client" ? "Client — Lisenbart Board" : "Studio — Lisenbart Board";
+  const emailPh = door === "client" ? "superplay" : "dmytro@lisenbart.games";
+  $("loginAccounts").innerHTML = `
+    <button type="button" class="btn ghost login-back" id="loginBack">Back</button>
+    <label class="login-pin-lab" for="loginEmail">Login</label>
+    <input id="loginEmail" class="login-pin login-email" type="text" autocomplete="username" placeholder="${escapeHtml(emailPh)}" />
+    <label class="login-pin-lab" for="loginPin">PIN</label>
+    <input id="loginPin" class="login-pin" type="password" inputmode="numeric" maxlength="8" autocomplete="current-password" />
+    ${error ? `<p class="login-err">${escapeHtml(error)}</p>` : ""}
+    <button type="button" class="btn primary login-go" id="loginGo">Open</button>
+  `;
+  $("loginBack")?.addEventListener("click", () => {
+    if (isHoursPage()) {
+      location.href = "/";
+      return;
+    }
+    showHome();
+  });
+  const go = () => submitDoorLogin();
+  $("loginGo")?.addEventListener("click", go);
+  ["loginEmail", "loginPin"].forEach((id) => {
+    $(id)?.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        go();
       }
-      const seat = seatPeople(account)[0];
-      if (!applySession({ email: account.email, seatId: seat?.id })) return;
-      enterStudio();
-      render();
     });
   });
+  $("loginEmail")?.focus();
+}
+async function submitDoorLogin(seatId) {
+  const door = state.loginDoor || (isHoursPage() ? "client" : "studio");
+  const email = $("loginEmail") ? $("loginEmail").value : state.loginEmail || "";
+  const pin = $("loginPin") ? $("loginPin").value : state.loginPin || "";
+  state.loginEmail = email;
+  state.loginPin = pin;
+  const out = await api("/api/login", { door, email, pin, seatId: seatId || undefined });
+  if (out.error) {
+    showDoorForm(door, out.error);
+    if (state.loginEmail) $("loginEmail").value = state.loginEmail;
+    return;
+  }
+  if (out.needSeat && !seatId) {
+    state.loginSeats = out.seats || [];
+    showSeatStep();
+    return;
+  }
+  const sess = out.session || {};
+  applyState(out.state);
+  if (!applySession({ email: sess.email, seatId: sess.seatId })) {
+    showDoorForm(door, "Could not open this seat");
+    return;
+  }
+  if ((sess.role === "client" || door === "client") && !isHoursPage()) {
+    location.replace("/hours");
+    return;
+  }
+  enterStudio();
+  render();
+}
+function showSeatStep() {
+  openLoginGate();
+  $("loginTitle").hidden = false;
+  $("loginLead").hidden = false;
+  $("loginTitle").textContent = "Who are you?";
+  $("loginLead").textContent = "Team login. Pick your name.";
+  const seats = state.loginSeats || [];
+  $("loginAccounts").innerHTML =
+    `<button type="button" class="btn ghost login-back" id="loginBack">Back</button>` +
+    seats
+      .map(
+        (p) =>
+          `<button type="button" class="login-seat" data-seat="${p.id}">
+            <strong>${escapeHtml(p.name)} ${jobBadgeHtml(p)}</strong>
+            <span>${escapeHtml(jobMeta(p).title)}</span>
+          </button>`
+      )
+      .join("");
+  $("loginBack")?.addEventListener("click", () => showDoorForm("studio"));
+  $("loginAccounts").querySelectorAll(".login-seat").forEach((el) => {
+    el.addEventListener("click", () => submitDoorLogin(el.dataset.seat));
+  });
+}
+function showLogin() {
+  if (isHoursPage()) {
+    showDoorForm("client");
+    return;
+  }
+  showHome();
 }
 function visiblePeople() {
   return state.db?.people || [];
@@ -287,11 +378,12 @@ function me() {
   return person(state.roleId) || visiblePeople()[0] || state.db.people[0];
 }
 function isFinance() {
+  if (isHoursPage()) return false;
   if (isClientPreview() && !financeUnlocked()) return false;
   return me().role === "finance";
 }
 function isClient() {
-  return me().role === "client";
+  return me()?.role === "client" || isHoursPage();
 }
 function isDesigner() {
   return me().role === "designer";
@@ -560,11 +652,17 @@ async function api(path, payload) {
     const res = await fetch(path, {
       method: payload ? "POST" : "GET",
       headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
       body: payload ? JSON.stringify(payload) : undefined,
     });
     const type = res.headers.get("content-type") || "";
     if (!type.includes("json")) throw new Error("no api");
-    return res.json();
+    const body = await res.json();
+    if (res.status === 401 && path !== "/api/me" && path !== "/api/login") {
+      writeSession(null);
+      showLogin();
+    }
+    return body;
   } catch (err) {
     if (typeof window.LGLocalApi !== "function") throw err;
     window.__lgUseLocal = true;
@@ -806,6 +904,7 @@ function renderToolbar() {
       ${drive ? `<a class="btn" href="${escapeHtml(drive)}" target="_blank" rel="noreferrer">Open Drive</a>` : ""}
       <button class="btn green" id="btnExport" ${n ? "" : "disabled"}>Send to client (${n})</button>
       <input class="search" placeholder="Search project" />
+      <button class="btn ghost" id="btnClientLink">Copy SuperPlay link</button>
       <button class="btn ghost" id="btnReset">Reset to live</button>
     `;
   }
@@ -813,7 +912,12 @@ function renderToolbar() {
   $("btnImport")?.addEventListener("click", importMonday);
   $("btnEmail")?.addEventListener("click", () => $("emailModal").classList.add("show"));
   $("btnExport")?.addEventListener("click", exportMonday);
+  $("btnClientLink")?.addEventListener("click", copyClientPage);
   $("btnReset")?.addEventListener("click", resetDemo);
+}
+async function copyClientPage() {
+  const ok = await copyText(clientLink());
+  toast(ok ? "SuperPlay link copied" : "Copy failed");
 }
 
 function renderKpis() {
@@ -1804,9 +1908,9 @@ function renderGuide() {
           "SuperPlay",
           "Клієнт. Своя сторінка годин, без черги студії.",
           [
-            `Сидіння ${ui("SuperPlay")} відкриває ${ui("Hours")} — усі таски місяця як у ${ui("SP-LG_projects")}: ${ui("PROJECT NAME")} / ${ui("SHIFTS")} / ${ui("HOURS")}.`,
-            `Секції ${ui("MGX DX")} і ${ui("MGX DD")}, сума годин справа від заголовка, ${ui("TOTAL")} знизу. Це той самий список, на якому стоять інвойси.`,
-            `Місяць перемикається стрілками зверху. Імен виконавців, ставок і карток тут немає.`,
+            `Адреса студії ${ui("board.lisenbart.games")}. Кнопка ${ui("Client")} → логін + PIN. Після входу — лише ${ui("Hours")}.`,
+            `Можна кинути пряме посилання ${ui("/hours")}. Список як у інвойсі: ${ui("PROJECT NAME")} / ${ui("SHIFTS")} / ${ui("HOURS")}.`,
+            `Секції ${ui("MGX DX")} і ${ui("MGX DD")}, ${ui("TOTAL")} знизу. Імен виконавців, ставок і карток немає.`,
           ]
         )}
       </div>
@@ -3611,6 +3715,13 @@ $("who").addEventListener("change", (e) => {
   state.view = next?.role === "finance" ? "close" : next?.role === "client" ? "report" : "board";
   setInboxOpen(false);
   if (state.session) writeSession({ ...state.session, seatId: e.target.value });
+  const account = accountByEmail(state.session?.email);
+  if (isStudioHost() && account && !account.lockRole) {
+    api("/api/seat", { seatId: e.target.value }).then((out) => {
+      if (out?.state) applyState(out.state);
+    });
+    return;
+  }
   render();
 });
 $("inboxBtn")?.addEventListener("click", (e) => {
@@ -3627,6 +3738,7 @@ document.addEventListener("click", (e) => {
   setInboxOpen(false);
 });
 $("signOut").addEventListener("click", () => {
+  api("/api/logout", {});
   writeSession(null);
   state.roleId = "manager";
   state.view = "board";
@@ -3634,6 +3746,10 @@ $("signOut").addEventListener("click", () => {
   state.designerFilter = null;
   state.openId = null;
   $("drawerBg").classList.remove("show");
+  if (isHoursPage()) {
+    location.replace("/");
+    return;
+  }
   showLogin();
 });
 $("finGateCancel")?.addEventListener("click", closeFinancePin);
@@ -3689,23 +3805,34 @@ $("drawerBg").addEventListener("click", (e) => {
 });
 
 probeStudioApi()
-  .then(() => api("/api/state"))
-  .then((db) => {
-    state.db = db;
-    state.month = localStorage.getItem(MONTH_KEY) || calendarMonth() || db.meta?.month || "2026-10";
-    if (isStudioHost()) {
-      const session = readSession();
-      if (!session || !applySession(session)) {
-        showLogin();
-        return;
-      }
-      enterStudio();
-    } else {
+  .then(async () => {
+    if (!isStudioHost()) {
+      const db = await api("/api/state");
+      state.db = db;
+      state.month = localStorage.getItem(MONTH_KEY) || calendarMonth() || db.meta?.month || "2026-10";
       const people = visiblePeople();
       if (!people.some((p) => p.id === state.roleId)) {
         state.roleId = people.find((p) => p.role === "manager")?.id || people[0]?.id;
       }
+      render();
+      return;
     }
+    const meOut = await api("/api/me");
+    if (!meOut || meOut.error || !meOut.session) {
+      showLogin();
+      return;
+    }
+    applyState(meOut.state);
+    state.month = localStorage.getItem(MONTH_KEY) || calendarMonth() || meOut.state?.meta?.month || "2026-10";
+    if (!applySession(meOut.session)) {
+      showLogin();
+      return;
+    }
+    if ((meOut.session.role === "client" || meOut.session.email === "superplay@lg-board") && !isHoursPage()) {
+      location.replace("/hours");
+      return;
+    }
+    enterStudio();
     render();
   })
   .catch(() => {

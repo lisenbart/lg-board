@@ -10,16 +10,18 @@ One list, not Monday groups. Sorted by studio status:
 
 **Ready to Start → WIP → Need Fixing → Done → Senior Approval → Closed**
 
-## Access (sandbox)
+## Access
 
-Three mailboxes. No Google password in the sandbox — click the account.
+Studio URL: **https://board.lisenbart.games**
 
-| Mailbox | Seat | Sees |
-| --- | --- | --- |
-| `dmytro@lisenbart.games` | Dmytro · Finance | Everything, including money and Team names |
-| `anastasiia@lisenbart.games` | Anastasiia · Manager | Everything except Finance |
-| `lisenbart.games@gmail.com` | Shared Drive mailbox | After login, pick **team lead** or a **designer** |
-| SuperPlay | Client | **Hours** only — tasks, shifts, hours for the month (the sheet invoices are based on). No pipeline, no rates. |
+Home is the logo plus two doors: **Client** and **Studio**. Each person has a login + PIN (`data/secrets/pins.json` on the server, not in git).
+
+| Door | Login | Seat | Sees |
+| --- | --- | --- | --- |
+| Studio | `dmytro@lisenbart.games` | Dmytro · Finance | Everything, including money and Team names |
+| Studio | `anastasiia@lisenbart.games` | Anastasiia · Manager | Everything except Finance |
+| Studio | `lisenbart.games@gmail.com` or `team` | Then pick **team lead** or a **designer** | Queue for that person |
+| Client | `superplay` | SuperPlay | **Hours** only. Also `https://board.lisenbart.games/hours` |
 
 Then:
 
@@ -37,7 +39,7 @@ The pack is a **mirror**: people, hours, and money come from the live `SP_MGX_ch
 
 First names and LP / TL / MD badges are on. **Finance** is behind a PIN (Dmytro only). Client / Studio / Employeers and **Create DD / DX** are visible there. Word + PDF still write on the studio app (`python3 server.py`), not into live Drive. On the GitHub link the button is visible; the file is created when the Python app is running.
 
-Do **not** put this on glowl.direct. Prefer a Lisenbart name. Later: `board.lisenbart.games` with the same studio mailboxes plus SuperPlay Hours.
+Do **not** put this on glowl.direct. Live desk: **https://board.lisenbart.games**. GitHub Pages stays a per-browser demo.
 
 ## What the sandbox does
 
