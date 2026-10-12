@@ -51,6 +51,13 @@ DEFAULT_PINS = {
     "anastasiia@lisenbart.games": "1726",
     "lisenbart.games@gmail.com": "2026",
     CLIENT_EMAIL: "3500",
+    "finance": "3245",
+    "manager": "1726",
+    "teamlead": "2026",
+    "designer2": "2026",
+    "designer3": "2026",
+    "designer4": "2026",
+    "designer5": "2026",
 }
 
 LOCK_ROLE = {
@@ -97,17 +104,35 @@ def ensure_pins() -> dict:
     return {str(k).strip().lower(): str(v).strip() for k, v in pins.items() if k}
 
 
-def pin_ok(email: str, pin: str) -> bool:
-    want = ensure_pins().get(str(email or "").strip().lower(), "")
-    got = str(pin or "").strip()
-    if not want or not got:
-        return False
-    if len(want) != len(got):
+def _pin_eq(want: str, got: str) -> bool:
+    if not want or not got or len(want) != len(got):
         return False
     acc = 0
     for a, b in zip(want.encode("utf-8"), got.encode("utf-8")):
         acc |= a ^ b
     return acc == 0
+
+
+def pin_ok(email: str, pin: str) -> bool:
+    want = ensure_pins().get(str(email or "").strip().lower(), "")
+    return _pin_eq(want, str(pin or "").strip())
+
+
+def pin_ok_for_person(person: dict | None, pin: str) -> bool:
+    """LP PIN is not valid for MD. Each seat checks its own id, then its mailbox."""
+    got = str(pin or "").strip()
+    pins = ensure_pins()
+    keys = []
+    if person:
+        keys.append(str(person.get("id") or "").strip())
+        keys.append(email_for_person(person))
+    for key in keys:
+        if not key:
+            continue
+        want = pins.get(key.lower()) or pins.get(key)
+        if want and _pin_eq(str(want).strip(), got):
+            return True
+    return False
 
 
 def _sessions() -> dict:

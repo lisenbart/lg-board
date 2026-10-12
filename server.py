@@ -648,13 +648,18 @@ class Handler(SimpleHTTPRequestHandler):
                 if door == "studio":
                     person = auth_io.person_by_id(people, data.get("seatId"))
                     email = auth_io.email_for_person(person)
-                    if person:
-                        seat = {
-                            "id": person.get("id"),
-                            "name": person.get("name") or "",
-                            "role": person.get("role") or "",
-                        }
-                if (
+                    if not person or person.get("role") == "client":
+                        self._json(403, {"error": "wrong login or PIN"})
+                        return
+                    if not auth_io.pin_ok_for_person(person, pin):
+                        self._json(403, {"error": "wrong login or PIN"})
+                        return
+                    seat = {
+                        "id": person.get("id"),
+                        "name": person.get("name") or "",
+                        "role": person.get("role") or "",
+                    }
+                elif (
                     email not in auth_io.LOCK_ROLE
                     or not auth_io.door_allows(door, email)
                     or not auth_io.pin_ok(email, pin)
@@ -689,13 +694,7 @@ class Handler(SimpleHTTPRequestHandler):
             self._json(401, {"error": "sign in"})
             return
         if path == "/api/seat":
-            with LOCK:
-                db = load_db()
-                nxt = auth_io.switch_seat(self._token(), db.get("people") or [], str(data.get("seatId") or ""))
-            if not nxt:
-                self._json(403, {"error": "cannot switch seat"})
-                return
-            self._json(200, {"ok": True, "session": nxt, "state": auth_io.view_state(load_db(), nxt)})
+            self._json(403, {"error": "sign out and pick your name again"})
             return
         if sess.get("role") == "client" or sess.get("email") == auth_io.CLIENT_EMAIL:
             self._json(403, {"error": "client cannot edit"})

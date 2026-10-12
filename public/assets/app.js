@@ -74,7 +74,7 @@ const ACCOUNTS = [
 
 const state = {
   db: null,
-  roleId: "manager",
+  roleId: "",
   view: "board",
   selected: new Set(),
   openId: null,
@@ -174,15 +174,23 @@ function seatPeople(account) {
   return people.filter((p) => p.role === "teamlead" || p.role === "designer");
 }
 function applySession(session) {
-  const account = accountByEmail(session?.email);
-  const seats = seatPeople(account);
-  if (!account || !seats.length) {
+  const seatId = session?.seatId || session?.personId;
+  const people = state.db?.people || [];
+  const seat = people.find((p) => p.id === seatId);
+  if (!seat) {
     writeSession(null);
     return false;
   }
-  const seat = seats.find((p) => p.id === session.seatId) || seats[0];
-  state.session = { email: account.email, seatId: seat.id };
+  if (session?.role && seat.role !== session.role) {
+    writeSession(null);
+    return false;
+  }
   state.roleId = seat.id;
+  state.session = {
+    email: session.email || seat.email || "",
+    seatId: seat.id,
+    role: seat.role,
+  };
   writeSession(state.session);
   return true;
 }
@@ -344,8 +352,8 @@ async function submitDoorLogin(seatId) {
     return;
   }
   const sess = out.session || {};
-  applyState(out.state);
-  if (!applySession({ email: sess.email, seatId: sess.seatId })) {
+  applyState(out.state, { render: false });
+  if (!applySession(sess)) {
     if (door === "studio" && state.loginSeat) {
       showStudioPin(state.loginSeat, "Could not open this seat");
       return;
@@ -422,7 +430,12 @@ function person(id) {
   return (state.db.people || []).find((p) => p.id === id);
 }
 function me() {
-  return person(state.roleId) || visiblePeople()[0] || state.db.people[0];
+  const mine = person(state.roleId);
+  if (mine) return mine;
+  if (isClientPreview()) {
+    return visiblePeople()[0] || state.db?.people?.[0] || { id: "", role: "", name: "" };
+  }
+  return { id: state.roleId || "", role: "", name: "" };
 }
 function isFinance() {
   if (isHoursPage()) return false;
@@ -801,23 +814,11 @@ function renderWho() {
       .join("");
     return;
   }
-  const account = accountByEmail(state.session?.email);
   mail.hidden = false;
-  mail.textContent = account?.email || "";
+  mail.textContent = whoLabel(me());
   out.hidden = false;
-  const seats = seatPeople(account);
-  if (seats.length <= 1) {
-    sel.hidden = true;
-    sel.innerHTML = "";
-    return;
-  }
-  sel.hidden = false;
-  sel.innerHTML = seats
-    .map(
-      (p) =>
-        `<option value="${p.id}" ${p.id === state.roleId ? "selected" : ""}>${escapeHtml(whoLabel(p))}</option>`
-    )
-    .join("");
+  sel.hidden = true;
+  sel.innerHTML = "";
 }
 
 function renderMonth() {
@@ -3601,12 +3602,13 @@ async function resetDemo() {
   applyState(out);
   toast("Restored live snapshot · core files untouched");
 }
-function applyState(db) {
+function applyState(db, opts = {}) {
   state.db = db;
   state.finApi = null;
   state.finApiMonth = null;
   state.finApiLoading = null;
   state.selected = new Set([...state.selected].filter((id) => db.tasks.some((t) => t.id === id)));
+  if (opts.render === false) return;
   render();
 }
 
@@ -3869,7 +3871,7 @@ probeStudioApi()
       showLogin();
       return;
     }
-    applyState(meOut.state);
+    applyState(meOut.state, { render: false });
     state.month = localStorage.getItem(MONTH_KEY) || calendarMonth() || meOut.state?.meta?.month || "2026-10";
     if (!applySession(meOut.session)) {
       showLogin();
