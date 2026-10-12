@@ -122,6 +122,63 @@ def _save_sessions(rows: dict) -> None:
     _save_json(SESSIONS_PATH, rows)
 
 
+ROLE_EMAIL = {
+    "finance": "dmytro@lisenbart.games",
+    "manager": "anastasiia@lisenbart.games",
+    "teamlead": "lisenbart.games@gmail.com",
+    "designer": "lisenbart.games@gmail.com",
+    "client": CLIENT_EMAIL,
+}
+
+ROSTER_ORDER = {"finance": 0, "manager": 1, "teamlead": 2, "designer": 3}
+
+
+def email_for_person(person: dict | None) -> str:
+    if not person:
+        return ""
+    return ROLE_EMAIL.get(str(person.get("role") or ""), "")
+
+
+def studio_roster(people: list[dict]) -> list[dict]:
+    rows = []
+    for person in people or []:
+        role = str(person.get("role") or "")
+        if role not in {"finance", "manager", "teamlead", "designer"}:
+            continue
+        try:
+            order = int(person.get("payOrder") or 99)
+        except (TypeError, ValueError):
+            order = 99
+        rows.append(
+            {
+                "id": person.get("id"),
+                "name": person.get("name") or "",
+                "role": role,
+                "payOrder": order,
+            }
+        )
+    rows.sort(
+        key=lambda row: (
+            ROSTER_ORDER.get(row["role"], 9),
+            int(row.get("payOrder") or 99),
+            str(row.get("name") or "").lower(),
+        )
+    )
+    for row in rows:
+        row.pop("payOrder", None)
+    return rows
+
+
+def person_by_id(people: list[dict], seat_id: str) -> dict | None:
+    want = str(seat_id or "")
+    if not want:
+        return None
+    for person in people or []:
+        if str(person.get("id") or "") == want:
+            return person
+    return None
+
+
 def seats_for(email: str, people: list[dict]) -> list[dict]:
     role = LOCK_ROLE.get(str(email or "").strip().lower())
     if role:

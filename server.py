@@ -491,6 +491,11 @@ class Handler(SimpleHTTPRequestHandler):
         if path == "/health":
             self._json(200, {"ok": True})
             return
+        if path == "/api/roster":
+            with LOCK:
+                people = load_db().get("people") or []
+            self._json(200, {"studio": auth_io.studio_roster(people)})
+            return
         if path == "/api/me":
             sess = self._session()
             if not sess:
@@ -635,9 +640,20 @@ class Handler(SimpleHTTPRequestHandler):
         if path == "/api/login":
             with LOCK:
                 db = load_db()
-                email = auth_io.resolve_email(data.get("email") or "")
                 pin = str(data.get("pin") or "")
                 door = str(data.get("door") or "")
+                people = db.get("people") or []
+                email = auth_io.resolve_email(data.get("email") or "")
+                seat = None
+                if door == "studio":
+                    person = auth_io.person_by_id(people, data.get("seatId"))
+                    email = auth_io.email_for_person(person)
+                    if person:
+                        seat = {
+                            "id": person.get("id"),
+                            "name": person.get("name") or "",
+                            "role": person.get("role") or "",
+                        }
                 if (
                     email not in auth_io.LOCK_ROLE
                     or not auth_io.door_allows(door, email)
@@ -645,13 +661,13 @@ class Handler(SimpleHTTPRequestHandler):
                 ):
                     self._json(403, {"error": "wrong login or PIN"})
                     return
-                people = db.get("people") or []
                 seats = auth_io.seats_for(email, people)
                 if not seats:
                     self._json(400, {"error": "no seat for this login"})
                     return
-                need_seat = email == "lisenbart.games@gmail.com" and not data.get("seatId")
-                seat = auth_io.pick_seat(email, people, data.get("seatId"))
+                need_seat = False
+                if seat is None:
+                    seat = auth_io.pick_seat(email, people, data.get("seatId"))
                 token = auth_io.create_session(email, seat)
                 sess = auth_io.session_of(token)
                 cookie = auth_io.cookie_header(token, secure=self._cookie_secure())

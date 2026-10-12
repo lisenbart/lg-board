@@ -20,7 +20,7 @@ Home is the logo plus two doors: **Client** and **Studio**. Each person has a lo
 | --- | --- | --- | --- |
 | Studio | `dmytro@lisenbart.games` | Dmytro · Finance | Everything, including money and Team names |
 | Studio | `anastasiia@lisenbart.games` | Anastasiia · Manager | Everything except Finance |
-| Studio | `lisenbart.games@gmail.com` or `team` | Then pick **team lead** or a **designer** | Queue for that person |
+| Studio | Pick your name on the Studio door, then PIN | That person | Their queue / desk |
 | Client | `superplay` | SuperPlay | **Hours** only. Also `https://board.lisenbart.games/hours` |
 
 Then:
