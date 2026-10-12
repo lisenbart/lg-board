@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT="${HOME}/lg-board"
 cd "$ROOT"
 git fetch origin
-git reset --hard origin/main
+git reset --hard origin/studio
 sudo systemctl restart lg-board
 sleep 2
 curl -sS http://127.0.0.1:43141/api/version
