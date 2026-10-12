@@ -90,6 +90,9 @@ const state = {
   finApiMonth: null,
   finApiLoading: null,
   driveTried: {},
+  search: "",
+  searchFocus: false,
+  searchCaret: 0,
 };
 const $ = (id) => document.getElementById(id);
 
@@ -598,8 +601,32 @@ function taskMonth(t) {
 function monthTasks() {
   return state.db.tasks.filter((t) => taskMonth(t) === state.month);
 }
+function searchQuery() {
+  return String(state.search || "").trim().toLowerCase();
+}
+function bindSearch() {
+  const box = $("toolbar")?.querySelector(".search");
+  if (!box) return;
+  box.value = state.search || "";
+  box.addEventListener("input", () => {
+    state.search = box.value;
+    state.searchFocus = true;
+    state.searchCaret = box.selectionStart;
+    render();
+  });
+  if (state.searchFocus) {
+    const pos = typeof state.searchCaret === "number" ? state.searchCaret : box.value.length;
+    box.focus();
+    try {
+      box.setSelectionRange(pos, pos);
+    } catch {
+      /* ignore */
+    }
+    state.searchFocus = false;
+  }
+}
 function visibleTasks() {
-  const q = (document.querySelector(".search")?.value || "").toLowerCase();
+  const q = searchQuery();
   return monthTasks().filter((t) => {
     if (q && !`${t.name} ${t.brief}`.toLowerCase().includes(q)) return false;
     if (isDesigner() && t.assigneeId !== me().id && !helpedOn(t, me().id)) return false;
@@ -745,7 +772,7 @@ function renderToolbar() {
   }
   if (state.view === "report") {
     $("toolbar").innerHTML = `<input class="search" placeholder="Search project" />`;
-    $("toolbar").querySelector(".search")?.addEventListener("input", render);
+    bindSearch();
     return;
   }
   if (state.view === "excel") {
@@ -755,7 +782,7 @@ function renderToolbar() {
       ${drive ? `<a class="btn" href="${escapeHtml(drive)}" target="_blank" rel="noreferrer">Open on Drive</a>` : ""}
       <input class="search" placeholder="Search project" />
     `;
-    $("toolbar").querySelector(".search")?.addEventListener("input", render);
+    bindSearch();
     $("btnExcelPull")?.addEventListener("click", pullExcel);
     return;
   }
@@ -782,7 +809,7 @@ function renderToolbar() {
       <button class="btn ghost" id="btnReset">Reset to live</button>
     `;
   }
-  $("toolbar").querySelector(".search")?.addEventListener("input", render);
+  bindSearch();
   $("btnImport")?.addEventListener("click", importMonday);
   $("btnEmail")?.addEventListener("click", () => $("emailModal").classList.add("show"));
   $("btnExport")?.addEventListener("click", exportMonday);
@@ -1499,7 +1526,7 @@ function reportSections(tasks) {
 }
 
 function renderClientReport() {
-  const q = (document.querySelector(".search")?.value || "").toLowerCase();
+  const q = searchQuery();
   const all = monthTasks();
   const tasks = all
     .filter((t) => !q || String(t.name || "").toLowerCase().includes(q))
@@ -1578,7 +1605,7 @@ function renderClientReport() {
 
 function renderExcelSheet() {
   const people = designers();
-  const q = (document.querySelector(".search")?.value || "").toLowerCase();
+  const q = searchQuery();
   const tasks = monthTasks()
     .filter((t) => !q || `${t.name} ${t.brief}`.toLowerCase().includes(q))
     .slice()
