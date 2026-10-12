@@ -13,7 +13,7 @@
     "designerRateUsd": 15,
     "managerRateUsd": 5,
     "taxPct": 0.06,
-    "driveCalculator": "https://drive.google.com/file/d/1KNL8xAHUmTuZx3xe01XtlwxjYw_FThhA/view",
+    "driveCalculator": "https://drive.google.com/file/d/1ggptfxiIHFniWzeBnrcxmXk76KXDcrDL/view",
     "driveInvoiceMgx": "https://drive.google.com/drive/folders/1BugYUcLPzb47sc4fZMwYXG6FPigzsyP5",
     "driveLiveOctober": "https://drive.google.com/drive/folders/173mZwMf2SAg2tKouzHc-xIqE_WadwIEH",
     "driveLiveDD": "https://drive.google.com/drive/folders/1cbyetaLxF2IiB47HOPMP_ffxo4v8T90p",
@@ -22,8 +22,12 @@
     "mode": "mirror",
     "bufferDirty": false,
     "driveLiveExcel": "https://drive.google.com/file/d/1SvRLe-Txl-F9MTfuDb08GBCh6XywNlzE/view",
-    "mirrorAt": "2026-10-09T16:46:40Z",
-    "mirrorSource": "SP_MGX_check.xlsx · live Drive · read only"
+    "mirrorAt": "2026-10-12T19:24:05Z",
+    "mirrorSource": "SP_MGX_check.xlsx · Google Drive · read only",
+    "driveMode": "read",
+    "driveDocs": "https://drive.google.com/drive/folders/191q3zTumkNi-2tc9LCB1SG2lZwtu0pVs",
+    "driveMgxInvoices": "https://drive.google.com/drive/folders/16gIAIUwko4aykuvwQl3bvee600DFBb_9",
+    "drivePulledAt": "2026-10-12T19:20:00Z"
   },
   "people": [
     {
@@ -150,7 +154,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:40Z",
+          "at": "2026-10-12T19:24:05Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -177,7 +181,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:40Z",
+          "at": "2026-10-12T19:24:05Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -204,7 +208,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:40Z",
+          "at": "2026-10-12T19:24:05Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -231,7 +235,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:40Z",
+          "at": "2026-10-12T19:24:05Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -258,7 +262,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:40Z",
+          "at": "2026-10-12T19:24:05Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -285,7 +289,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:40Z",
+          "at": "2026-10-12T19:24:05Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -312,7 +316,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:40Z",
+          "at": "2026-10-12T19:24:05Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -331,7 +335,12 @@
       "studioStatus": "wip",
       "mondayStatus": "WIP",
       "assigneeId": "designer2",
-      "help": [],
+      "help": [
+        {
+          "id": "designer4",
+          "hours": 1.0
+        }
+      ],
       "brief": "DX-HC-New UA EN HLWN - DX-VEO-055-001_TrickOrSweet + DX-AIV-HalloweenTower\n\n1. cut end 6seconds of video and add the hook\n2. Add logo to the final frame\n3. total = 60s\n\npls work here\nhttps://drive.google.com/drive/folders/1OeHcqfUqv4iwJuXCFROmYxU9HE1acFSw\n\nNaming:\nDX-AIV-230-002_SettAI_HalloweenTower_DX-VEO-055-001_EN_60s_1080x1080\nDX-AIV-230-002_SettAI_HalloweenTower_DX-VEO-055-001_EN_60s_1080x1350\nDX-AIV-230-002_SettAI_HalloweenTower_DX-VEO-055-001_EN_60s_1080x1920\nDX-AIV-230-002_SettAI_HalloweenTower_DX-VEO-055-001_EN_60s_1920x1080",
       "folderUrl": "https://drive.google.com/drive/folders/1OeHcqfUqv4iwJuXCFROmYxU9HE1acFSw",
       "docUrl": "https://docs.google.com/document/d/1nDgVtJoqWeSKz4I3mcgpVmfJYInTEIxGJs6kKcm0t7M/edit",
@@ -339,7 +348,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:40Z",
+          "at": "2026-10-12T19:24:05Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -366,7 +375,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:40Z",
+          "at": "2026-10-12T19:24:05Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -393,7 +402,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:40Z",
+          "at": "2026-10-12T19:24:05Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -420,7 +429,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:40Z",
+          "at": "2026-10-12T19:24:05Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -447,7 +456,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:40Z",
+          "at": "2026-10-12T19:24:05Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -474,7 +483,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:40Z",
+          "at": "2026-10-12T19:24:05Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -501,7 +510,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:40Z",
+          "at": "2026-10-12T19:24:05Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -528,7 +537,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:40Z",
+          "at": "2026-10-12T19:24:05Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -555,7 +564,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:40Z",
+          "at": "2026-10-12T19:24:05Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -582,7 +591,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:40Z",
+          "at": "2026-10-12T19:24:05Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -609,7 +618,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:40Z",
+          "at": "2026-10-12T19:24:05Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -636,7 +645,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:40Z",
+          "at": "2026-10-12T19:24:05Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -663,7 +672,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:40Z",
+          "at": "2026-10-12T19:24:05Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -690,13 +699,40 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:40Z",
+          "at": "2026-10-12T19:24:05Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
     },
     {
       "id": "t-xl-21",
+      "name": "DD-B-158-002_Riches_NewYearsWin | Design",
+      "line": "DD",
+      "department": "MGX",
+      "game": "",
+      "shifts": 0.8,
+      "hours": 7.2,
+      "deadline": "2026-10-13",
+      "month": "2026-10",
+      "excelStatus": "wip",
+      "studioStatus": "wip",
+      "mondayStatus": "WIP",
+      "assigneeId": "designer4",
+      "help": [],
+      "brief": "",
+      "folderUrl": "https://drive.google.com/drive/folders/1KvSlso5yYG6M6uBZyhsMW3k6suI2tQ8G",
+      "docUrl": "",
+      "resultUrl": "",
+      "source": "live-excel",
+      "activity": [
+        {
+          "at": "2026-10-12T19:24:05Z",
+          "text": "Pulled from SP_MGX_check.xlsx"
+        }
+      ]
+    },
+    {
+      "id": "t-xl-22",
       "name": "DX-AIV-0222-002_SettAI_HalloweenRelax_DX-H-124-001_EN_30s- HC",
       "line": "DX",
       "department": "MGX",
@@ -717,13 +753,13 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:41Z",
+          "at": "2026-10-12T19:24:06Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
     },
     {
-      "id": "t-xl-22",
+      "id": "t-xl-23",
       "name": "DX-V-153-005_WinningCircle_DX-H-124-001_EN_30s HC",
       "line": "DX",
       "department": "MGX",
@@ -744,13 +780,13 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:41Z",
+          "at": "2026-10-12T19:24:06Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
     },
     {
-      "id": "t-xl-23",
+      "id": "t-xl-24",
       "name": "DX-V-026-014_Trail_Treasure_DX-H-124-001",
       "line": "DX",
       "department": "MGX",
@@ -771,13 +807,13 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:41Z",
+          "at": "2026-10-12T19:24:06Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
     },
     {
-      "id": "t-xl-24",
+      "id": "t-xl-25",
       "name": "DX-V-144-006_Split_Rally_DX-VEO-053-001",
       "line": "DX",
       "department": "MGX",
@@ -798,13 +834,13 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:41Z",
+          "at": "2026-10-12T19:24:06Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
     },
     {
-      "id": "t-xl-25",
+      "id": "t-xl-26",
       "name": "DX-V-107-018_RollBack_DX-H-054-001",
       "line": "DX",
       "department": "MGX",
@@ -825,13 +861,13 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:41Z",
+          "at": "2026-10-12T19:24:06Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
     },
     {
-      "id": "t-xl-26",
+      "id": "t-xl-27",
       "name": "DX-AIV-0139-003_SettAI_MakeYourMove_DX-H-101-002_EN_60s| Comp/MGX",
       "line": "DX",
       "department": "MGX",
@@ -852,13 +888,13 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:41Z",
+          "at": "2026-10-12T19:24:06Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
     },
     {
-      "id": "t-xl-27",
+      "id": "t-xl-28",
       "name": "DX-V-135-032_ASODreams_UA_DX-VEO-063-001_EN_30s",
       "line": "DX",
       "department": "MGX",
@@ -879,13 +915,13 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:41Z",
+          "at": "2026-10-12T19:24:06Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
     },
     {
-      "id": "t-xl-28",
+      "id": "t-xl-29",
       "name": "DX-V-135-033_ASODreams_UA_DX-VEO-062-001_EN_30",
       "line": "DX",
       "department": "MGX",
@@ -906,13 +942,13 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:41Z",
+          "at": "2026-10-12T19:24:06Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
     },
     {
-      "id": "t-xl-29",
+      "id": "t-xl-30",
       "name": "DX-V-135-034_ASODreams_UA_DX-VEO-061-001_EN_30",
       "line": "DX",
       "department": "MGX",
@@ -933,13 +969,13 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:41Z",
+          "at": "2026-10-12T19:24:06Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
     },
     {
-      "id": "t-xl-30",
+      "id": "t-xl-31",
       "name": "DX-V-135-035_ASODreams_UA_DX-VEO-060-001_EN_30",
       "line": "DX",
       "department": "MGX",
@@ -960,13 +996,13 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:41Z",
+          "at": "2026-10-12T19:24:06Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
     },
     {
-      "id": "t-xl-31",
+      "id": "t-xl-32",
       "name": "DX-V-135-036_ASODreams_UA_DX-VEO-059-001_EN_30s",
       "line": "DX",
       "department": "MGX",
@@ -987,13 +1023,13 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:41Z",
+          "at": "2026-10-12T19:24:06Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
     },
     {
-      "id": "t-xl-32",
+      "id": "t-xl-33",
       "name": "DX-UGC-118-013_FamilyHoliday_V3_DX-VEO-064-001_EN_45s",
       "line": "DX",
       "department": "MGX",
@@ -1014,13 +1050,13 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:41Z",
+          "at": "2026-10-12T19:24:06Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
     },
     {
-      "id": "t-xl-33",
+      "id": "t-xl-34",
       "name": "DX-UGC-118-014_FamilyHoliday_V3_DX-VEO-063-001_EN_45s",
       "line": "DX",
       "department": "MGX",
@@ -1041,13 +1077,13 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:41Z",
+          "at": "2026-10-12T19:24:06Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
     },
     {
-      "id": "t-xl-34",
+      "id": "t-xl-35",
       "name": "DX-UGC-118-015_FamilyHoliday_V3_DX-VEO-062-001_EN_45",
       "line": "DX",
       "department": "MGX",
@@ -1068,13 +1104,13 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:41Z",
+          "at": "2026-10-12T19:24:06Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
     },
     {
-      "id": "t-xl-35",
+      "id": "t-xl-36",
       "name": "DX-UGC-118-016_FamilyHoliday_V3_DX-VEO-061-001_EN_45s",
       "line": "DX",
       "department": "MGX",
@@ -1095,13 +1131,13 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:41Z",
+          "at": "2026-10-12T19:24:06Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
     },
     {
-      "id": "t-xl-36",
+      "id": "t-xl-37",
       "name": "DX-UGC-118-017_FamilyHoliday_V3_DX-VEO-060-001_EN_45s",
       "line": "DX",
       "department": "MGX",
@@ -1122,13 +1158,13 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:41Z",
+          "at": "2026-10-12T19:24:06Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
     },
     {
-      "id": "t-xl-37",
+      "id": "t-xl-38",
       "name": "DX-UGC-118-018_FamilyHoliday_V3_DX-VEO-059-001_EN_45s",
       "line": "DX",
       "department": "MGX",
@@ -1149,13 +1185,13 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:41Z",
+          "at": "2026-10-12T19:24:06Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
     },
     {
-      "id": "t-xl-38",
+      "id": "t-xl-39",
       "name": "DX-UGC-118-019_FamilyHoliday_V3_DX-VEO-058-001_EN_45s",
       "line": "DX",
       "department": "MGX",
@@ -1176,13 +1212,13 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:41Z",
+          "at": "2026-10-12T19:24:06Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
     },
     {
-      "id": "t-xl-39",
+      "id": "t-xl-40",
       "name": "DD-V-311-005_NipponJA_NoStoreButton",
       "line": "DD",
       "department": "MGX",
@@ -1203,13 +1239,13 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:41Z",
+          "at": "2026-10-12T19:24:06Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
     },
     {
-      "id": "t-xl-40",
+      "id": "t-xl-41",
       "name": "DD-V-223-058_FirstPlace_NoStoreButton_JA",
       "line": "DD",
       "department": "MGX",
@@ -1230,13 +1266,13 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:41Z",
+          "at": "2026-10-12T19:24:06Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
     },
     {
-      "id": "t-xl-41",
+      "id": "t-xl-42",
       "name": "DD-V-276-005_JapanStyle_NoStoreButton_JA",
       "line": "DD",
       "department": "MGX",
@@ -1257,13 +1293,13 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:41Z",
+          "at": "2026-10-12T19:24:06Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
     },
     {
-      "id": "t-xl-42",
+      "id": "t-xl-43",
       "name": "DD-V-294-002_LavaQuest_NoStoreButton",
       "line": "DD",
       "department": "MGX",
@@ -1284,13 +1320,13 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:41Z",
+          "at": "2026-10-12T19:24:06Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
     },
     {
-      "id": "t-xl-43",
+      "id": "t-xl-44",
       "name": "DD-V-333-001_StoreVid2026",
       "line": "DD",
       "department": "MGX",
@@ -1311,13 +1347,13 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:41Z",
+          "at": "2026-10-12T19:24:06Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
     },
     {
-      "id": "t-xl-44",
+      "id": "t-xl-45",
       "name": "DD-V-039-008_GoogleFairy_DD-H-313-001",
       "line": "DD",
       "department": "MGX",
@@ -1338,13 +1374,13 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:41Z",
+          "at": "2026-10-12T19:24:06Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
     },
     {
-      "id": "t-xl-45",
+      "id": "t-xl-46",
       "name": "DD-V-281-017_MegaTrail_DD-H-313-001_UA_EN",
       "line": "DD",
       "department": "MGX",
@@ -1365,13 +1401,13 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:41Z",
+          "at": "2026-10-12T19:24:06Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
     },
     {
-      "id": "t-xl-46",
+      "id": "t-xl-47",
       "name": "DD-V-144-044_SimpleStealBlastPirate_DD-H-313-001",
       "line": "DD",
       "department": "MGX",
@@ -1392,13 +1428,13 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:41Z",
+          "at": "2026-10-12T19:24:06Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
     },
     {
-      "id": "t-xl-47",
+      "id": "t-xl-48",
       "name": "DD-V-295-002_FindPeon_DD-H-313-001_UA_EN_30s | Comp/MGX",
       "line": "DD",
       "department": "MGX",
@@ -1419,13 +1455,13 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:41Z",
+          "at": "2026-10-12T19:24:06Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
     },
     {
-      "id": "t-xl-48",
+      "id": "t-xl-49",
       "name": "DD-V-236-003_MergeDreams_DD-H-313-001_UA_EN_30s_1920x1080 | Comp/MGX",
       "line": "DD",
       "department": "MGX",
@@ -1446,13 +1482,13 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:41Z",
+          "at": "2026-10-12T19:24:06Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
     },
     {
-      "id": "t-xl-49",
+      "id": "t-xl-50",
       "name": "DD-V-199-001_SocialStoreVideo",
       "line": "DD",
       "department": "MGX",
@@ -1473,13 +1509,13 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:41Z",
+          "at": "2026-10-12T19:24:06Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
     },
     {
-      "id": "t-xl-50",
+      "id": "t-xl-51",
       "name": "DD-V-191-001_PetBlast_Elephant",
       "line": "DD",
       "department": "MGX",
@@ -1500,13 +1536,13 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:41Z",
+          "at": "2026-10-12T19:24:06Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
     },
     {
-      "id": "t-xl-51",
+      "id": "t-xl-52",
       "name": "DD-V-334-001_AroundTheWorld_30s",
       "line": "DD",
       "department": "MGX",
@@ -1532,13 +1568,13 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:41Z",
+          "at": "2026-10-12T19:24:06Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
     },
     {
-      "id": "t-xl-52",
+      "id": "t-xl-53",
       "name": "DD-V-327-001_FriendsSet_30s",
       "line": "DD",
       "department": "MGX",
@@ -1559,13 +1595,13 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:41Z",
+          "at": "2026-10-12T19:24:06Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
     },
     {
-      "id": "t-xl-53",
+      "id": "t-xl-54",
       "name": "DD-V-213-001_Album_Summer_EN_30s",
       "line": "DD",
       "department": "MGX",
@@ -1586,13 +1622,13 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:41Z",
+          "at": "2026-10-12T19:24:06Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
     },
     {
-      "id": "t-xl-54",
+      "id": "t-xl-55",
       "name": "DD-V-189-001_Album_Retro_EN_30s",
       "line": "DD",
       "department": "MGX",
@@ -1613,13 +1649,13 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:41Z",
+          "at": "2026-10-12T19:24:06Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
     },
     {
-      "id": "t-xl-55",
+      "id": "t-xl-56",
       "name": "DD-V-184-001_Album_WinterWonders_EN_30s",
       "line": "DD",
       "department": "MGX",
@@ -1640,13 +1676,13 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:41Z",
+          "at": "2026-10-12T19:24:06Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
     },
     {
-      "id": "t-xl-56",
+      "id": "t-xl-57",
       "name": "DD-B-017-001_Hey_PlayNow",
       "line": "DD",
       "department": "MGX",
@@ -1667,13 +1703,13 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:41Z",
+          "at": "2026-10-12T19:24:06Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
     },
     {
-      "id": "t-xl-57",
+      "id": "t-xl-58",
       "name": "DD-SS-046-002_Summer_NewFresh | Design",
       "line": "DD",
       "department": "MGX",
@@ -1694,13 +1730,13 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:41Z",
+          "at": "2026-10-12T19:24:06Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
     },
     {
-      "id": "t-xl-58",
+      "id": "t-xl-59",
       "name": "DD-SS-045-001_NewFresh_2026-LOC",
       "line": "DD",
       "department": "MGX",
@@ -1721,7 +1757,7 @@
       "source": "live-excel",
       "activity": [
         {
-          "at": "2026-10-09T16:46:41Z",
+          "at": "2026-10-12T19:24:06Z",
           "text": "Pulled from SP_MGX_check.xlsx"
         }
       ]
@@ -1729,7 +1765,7 @@
   ],
   "events": [
     {
-      "at": "2026-10-09T16:46:41Z",
+      "at": "2026-10-12T19:24:06Z",
       "text": "Mirror snapshot from live SP_MGX_check.xlsx. Clicks stay in the portal buffer."
     }
   ],

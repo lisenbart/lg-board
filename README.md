@@ -14,6 +14,8 @@ One list, not Monday groups. Sorted by studio status:
 
 Studio URL: **https://board.lisenbart.games**
 
+Google Drive is **read only**. Working files live under [LLC/docs](https://drive.google.com/drive/folders/191q3zTumkNi-2tc9LCB1SG2lZwtu0pVs) (`CALC`, `_clients/SUPERPLAY`, invoices) plus the live `SP_MGX_check.xlsx` and `Projects / 10_October`. `_acc_pass` is not indexed. To let the VPS pull by itself, put an OAuth client JSON in `data/secrets/google_client.json` (Drive API, redirect `https://board.lisenbart.games/api/drive/oauth/callback`), then as **DL** click **Connect Drive** / **Read Drive**. Writes to live Drive stay off.
+
 Home: **Client** or **Studio**. Five logins, one PIN each (`data/secrets/pins.json`): Finance, LP, TL, MD, Client. After MD PIN, pick which designer is at the desk.
 
 Then:

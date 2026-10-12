@@ -1419,6 +1419,23 @@ body.col-resizing * { cursor: col-resize !important; }
   background: #fff; border: 1px solid #eceef5; border-radius: 8px; padding: 16px 18px;
 }
 .fin-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.drive-strip {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px 20px;
+  background: #fff;
+  border: 1px solid #eceef5;
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+.drive-strip strong { display: block; font-size: 14px; }
+.drive-strip p { margin: 4px 0 8px; color: var(--muted); font-size: 13px; }
+.drive-links { display: flex; flex-wrap: wrap; gap: 10px 14px; }
+.drive-link { font-size: 13px; color: var(--blue); }
+.drive-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .fin-create-bar {
   display: flex; flex-wrap: wrap; justify-content: space-between;
   align-items: center; gap: 10px;

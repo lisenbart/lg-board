@@ -1,0 +1,53 @@
+{
+  "pulledAt": "2026-10-12T19:20:00Z",
+  "source": "LLC/docs + live Excel / October · read only",
+  "root": "https://drive.google.com/drive/folders/191q3zTumkNi-2tc9LCB1SG2lZwtu0pVs",
+  "files": [
+    {
+      "id": "1SvRLe-Txl-F9MTfuDb08GBCh6XywNlzE",
+      "name": "SP_MGX_check.xlsx",
+      "kind": "excel",
+      "path": "Projects/_docs/SP_MGX_check.xlsx",
+      "url": "https://drive.google.com/file/d/1SvRLe-Txl-F9MTfuDb08GBCh6XywNlzE/view"
+    },
+    {
+      "id": "1ggptfxiIHFniWzeBnrcxmXk76KXDcrDL",
+      "name": "SUPERPLAY_MGX_Calculator.xlsx",
+      "kind": "calculator",
+      "path": "LLC/docs/CALC/SUPERPLAY_MGX_Calculator.xlsx",
+      "url": "https://drive.google.com/file/d/1ggptfxiIHFniWzeBnrcxmXk76KXDcrDL/view"
+    },
+    {
+      "id": "1Tpup_dN5I181iQ3-HHD0tn1Vkpt7UxAd",
+      "name": "CALC",
+      "kind": "folder",
+      "path": "LLC/docs/CALC",
+      "url": "https://drive.google.com/drive/folders/1Tpup_dN5I181iQ3-HHD0tn1Vkpt7UxAd"
+    },
+    {
+      "id": "1ymOcAnFNbAeyZZHxDF14HyLJybnZgo_0",
+      "name": "_clients",
+      "kind": "folder",
+      "path": "LLC/docs/_clients",
+      "url": "https://drive.google.com/drive/folders/1ymOcAnFNbAeyZZHxDF14HyLJybnZgo_0"
+    },
+    {
+      "id": "1_c-BhQRC4M-nkmgSkFZv2SJ-q8ndc0gL",
+      "name": "SUPERPLAY",
+      "kind": "folder",
+      "path": "LLC/docs/_clients/SUPERPLAY",
+      "url": "https://drive.google.com/drive/folders/1_c-BhQRC4M-nkmgSkFZv2SJ-q8ndc0gL"
+    },
+    {
+      "id": "16gIAIUwko4aykuvwQl3bvee600DFBb_9",
+      "name": "MGX",
+      "kind": "folder",
+      "path": "LLC/docs/_clients/SUPERPLAY/invoice/MGX",
+      "url": "https://drive.google.com/drive/folders/16gIAIUwko4aykuvwQl3bvee600DFBb_9"
+    }
+  ],
+  "downloaded": [
+    "SP_MGX_check.xlsx",
+    "SUPERPLAY_MGX_Calculator.xlsx"
+  ]
+}

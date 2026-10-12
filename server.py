@@ -14,6 +14,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 
 import auth_io
 import drive_io
+import drive_sync
 import excel_io
 import finance_io
 import mirror_io
@@ -42,6 +43,7 @@ def load_db() -> dict:
     if not DB_PATH.exists():
         db = json.loads(SEED_PATH.read_text(encoding="utf-8"))
         notice_io.ensure(db)
+        drive_sync.apply_meta(db)
         if (db.get("meta") or {}).get("mode") == "mirror":
             mirror_io.restore_buffer_xlsx()
         save_db(db, origin=True)
@@ -49,6 +51,7 @@ def load_db() -> dict:
     db = json.loads(DB_PATH.read_text(encoding="utf-8"))
     if notice_io.ensure(db):
         save_db(db)
+    drive_sync.apply_meta(db)
     meta = db.get("meta") or {}
     if meta.get("mode") == "mirror" and not meta.get("bufferDirty") and mirror_io.ORIGIN_XLSX.exists():
         mirror_io.restore_buffer_xlsx()
@@ -421,6 +424,19 @@ class Handler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _redirect(self, location: str) -> None:
+        self.send_response(302)
+        self.send_header("Location", location)
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+
+    def _public_origin(self) -> str:
+        proto = (self.headers.get("X-Forwarded-Proto") or "").split(",")[0].strip().lower()
+        if proto not in {"http", "https"}:
+            proto = "https" if self._cookie_secure() else "http"
+        host = (self.headers.get("X-Forwarded-Host") or self.headers.get("Host") or "127.0.0.1:43141")
+        return f"{proto}://{host.split(',')[0].strip()}"
+
     def _cookie_secure(self) -> bool:
         proto = (self.headers.get("X-Forwarded-Proto") or "").split(",")[0].strip().lower()
         return proto == "https"
@@ -496,6 +512,18 @@ class Handler(SimpleHTTPRequestHandler):
                 people = load_db().get("people") or []
             self._json(200, auth_io.studio_roster(people))
             return
+        if path == "/api/drive/oauth/callback":
+            qs = parse_qs(urlparse(self.path).query)
+            if (qs.get("error") or [""])[0]:
+                self._redirect("/?drive=denied")
+                return
+            try:
+                drive_sync.finish_oauth((qs.get("code") or [""])[0], (qs.get("state") or [""])[0])
+            except Exception as e:
+                self._json(400, {"error": str(e)})
+                return
+            self._redirect("/?drive=connected")
+            return
         if path == "/api/me":
             sess = self._session()
             if not sess:
@@ -517,6 +545,39 @@ class Handler(SimpleHTTPRequestHandler):
         sess = self._session()
         studio = bool(sess) and sess.get("role") != "client" and sess.get("email") != auth_io.CLIENT_EMAIL
         finance = bool(sess) and sess.get("role") == "finance"
+        if path == "/api/drive/status":
+            if not sess:
+                self._json(401, {"error": "sign in"})
+                return
+            pack = drive_sync.status()
+            if not finance:
+                pack = {
+                    "connected": pack.get("connected"),
+                    "pulledAt": pack.get("pulledAt"),
+                    "source": pack.get("source"),
+                    "excel": pack.get("excel"),
+                    "october": pack.get("october"),
+                }
+            self._json(200, pack)
+            return
+        if path == "/api/drive/oauth/start":
+            if not finance:
+                self._json(401, {"error": "sign in as DL"})
+                return
+            if not drive_sync.has_client():
+                self._json(
+                    409,
+                    {
+                        "error": "Put Google OAuth client JSON in data/secrets/google_client.json",
+                    },
+                )
+                return
+            redirect = self._public_origin() + "/api/drive/oauth/callback"
+            try:
+                self._redirect(drive_sync.begin_oauth(redirect))
+            except drive_sync.DriveSyncError as e:
+                self._json(409, {"error": str(e)})
+            return
         if path == "/api/comment-file":
             if not studio:
                 self._json(401, {"error": "sign in"})
@@ -742,8 +803,21 @@ class Handler(SimpleHTTPRequestHandler):
                     self._json(403, {"error": "only finance can reset"})
                     return
                 db = mirror_io.restore(carry_from=db)
+                drive_sync.apply_meta(db)
                 save_db(db, origin=True)
                 self._json(200, db)
+                return
+            if path == "/api/drive/pull":
+                if sess.get("role") != "finance":
+                    self._json(403, {"error": "only DL can read Drive"})
+                    return
+                try:
+                    out = drive_sync.pull(db, hydrate=True)
+                except drive_sync.DriveSyncError as e:
+                    self._json(409, {"error": str(e), "connected": drive_sync.connected(), "hasClient": drive_sync.has_client()})
+                    return
+                save_db(db, origin=bool(out.get("applied")))
+                self._json(200, {**out, "state": db, "drive": drive_sync.status()})
                 return
             if path == "/api/parse-email":
                 if data.get("role") not in OPS_ROLES:

@@ -164,7 +164,8 @@ def hydrate(previous: dict | None = None, xlsx: Path | None = None) -> dict:
             "month": "2026-10",
             "driveLiveExcel": LIVE_EXCEL_URL,
             "mirrorAt": utc_now(),
-            "mirrorSource": "SP_MGX_check.xlsx · live Drive · read only",
+            "mirrorSource": "SP_MGX_check.xlsx · Google Drive · read only",
+            "driveMode": "read",
             "briefsFrom": "Live October folders + copied brief text where we already had the Doc",
         }
     )

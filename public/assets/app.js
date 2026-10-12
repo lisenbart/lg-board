@@ -89,6 +89,8 @@ const state = {
   finApi: null,
   finApiMonth: null,
   finApiLoading: null,
+  drive: null,
+  driveLoading: false,
   driveTried: {},
   search: "",
   searchFocus: false,
@@ -885,7 +887,9 @@ function renderChrome() {
     if (meta.mode === "mirror") {
       brand.textContent = meta.bufferDirty
         ? "Mirror · clicks in this browser"
-        : "Mirror · live snapshot";
+        : meta.drivePulledAt
+          ? "Drive · read only"
+          : "Mirror · live snapshot";
     } else {
       brand.textContent = "";
     }
@@ -950,12 +954,14 @@ function renderToolbar() {
   if (state.view === "excel") {
     const drive = state.db?.meta?.driveLiveExcel || state.db?.meta?.driveSandboxExcel || "";
     $("toolbar").innerHTML = `
+      ${isFinance() ? `<button type="button" class="btn" id="btnDrivePull">Read Drive</button>` : ""}
       ${isDesigner() || isClientPreview() ? "" : `<button class="btn" id="btnExcelPull">Refresh from file</button>`}
       ${drive ? `<a class="btn" href="${escapeHtml(drive)}" target="_blank" rel="noreferrer">Open on Drive</a>` : ""}
       <input class="search" placeholder="Search project" />
     `;
     bindSearch();
     $("btnExcelPull")?.addEventListener("click", pullExcel);
+    $("btnDrivePull")?.addEventListener("click", pullDrive);
     return;
   }
   if (canOps()) {
@@ -2378,6 +2384,74 @@ function financeFromApi(snap) {
   };
 }
 
+function ensureDriveStatus() {
+  if (!isFinance() || !isStudioHost()) return;
+  if (state.driveLoading) return;
+  state.driveLoading = true;
+  fetch("/api/drive/status", { credentials: "same-origin" })
+    .then((r) => r.json())
+    .then((out) => {
+      state.driveLoading = false;
+      if (out && !out.error) state.drive = out;
+      if (state.view === "close") render();
+    })
+    .catch(() => {
+      state.driveLoading = false;
+    });
+}
+
+async function pullDrive() {
+  const out = await api("/api/drive/pull", {});
+  if (out.error) {
+    toast(out.error);
+    return;
+  }
+  if (out.drive) state.drive = out.drive;
+  if (out.state) applyState(out.state);
+  const names = (out.downloaded || []).join(", ") || "Drive files";
+  toast(
+    out.applied
+      ? `Drive read · ${names}`
+      : `Drive downloaded · Reset to live to apply (${names})`
+  );
+  render();
+}
+
+function driveStrip() {
+  const d = state.drive || {};
+  const links = [
+    ["docs", d.docs],
+    ["Excel", d.excel],
+    ["CALC", d.calculator],
+    ["October", d.october],
+    ["Invoices", d.invoices],
+  ]
+    .filter((row) => row[1])
+    .map(
+      ([label, href]) =>
+        `<a class="drive-link" href="${escapeHtml(href)}" target="_blank" rel="noreferrer">${escapeHtml(label)}</a>`
+    )
+    .join("");
+  const status = d.connected
+    ? `reading Drive${d.pulledAt ? ` · ${escapeHtml(String(d.pulledAt).replace("T", " ").replace("Z", ""))}` : ""}`
+    : d.hasClient
+      ? "snapshot on this server · Connect Drive to keep reading live"
+      : "snapshot from Drive. On the VPS add google_client.json, then Connect Drive";
+  const action = d.connected
+    ? `<button type="button" class="btn primary" id="btnDrivePull">Read Drive</button>`
+    : d.hasClient
+      ? `<a class="btn primary" href="/api/drive/oauth/start">Connect Drive</a>`
+      : "";
+  return `<div class="drive-strip">
+    <div>
+      <strong>Google Drive</strong>
+      <p>${escapeHtml(status)}. Writes stay off.</p>
+      <div class="drive-links">${links}</div>
+    </div>
+    <div class="drive-actions">${action}</div>
+  </div>`;
+}
+
 function ensureFinanceSnapshot() {
   if (isClientPreview()) return;
   if (state.finApiMonth === state.month && state.finApi) return;
@@ -2411,6 +2485,7 @@ function renderClose() {
   ensureNbu();
   ensureExcelHours();
   ensureFinanceSnapshot();
+  ensureDriveStatus();
   const fin =
     state.finApi && state.finApiMonth === state.month ? financeFromApi(state.finApi) : financeSnapshot();
   const tabs = [
@@ -2426,13 +2501,14 @@ function renderClose() {
         `<button type="button" class="fin-tab ${state.finTab === t.id ? "active" : ""}" data-tab="${t.id}" role="tab" aria-selected="${state.finTab === t.id ? "true" : "false"}">${t.label}</button>`
     )
     .join("")}</div>`;
-  $("board").innerHTML = `<section class="fin">${tabBar}${pane}</section>`;
+  $("board").innerHTML = `<section class="fin">${driveStrip()}${tabBar}${pane}</section>`;
   $("board").querySelectorAll(".fin-tab").forEach((el) => {
     el.addEventListener("click", () => {
       state.finTab = el.dataset.tab;
       render();
     });
   });
+  $("btnDrivePull")?.addEventListener("click", pullDrive);
   $("btnCreateInvoices")?.addEventListener("click", createMonthInvoices);
   if (state.finTab === "employees") bindEmployeePay();
   if (state.finTab === "studio") bindStudioPay();
