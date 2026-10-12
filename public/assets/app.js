@@ -990,6 +990,46 @@ async function copyClientPage() {
   toast(ok ? "SuperPlay link copied" : "Copy failed");
 }
 
+function openCreateTask() {
+  if (!canOps()) return;
+  $("createTaskErr").textContent = "";
+  $("createTaskName").value = "";
+  $("createTaskModal").classList.add("show");
+  $("createTaskName").focus();
+}
+function closeCreateTask() {
+  $("createTaskModal").classList.remove("show");
+}
+async function submitCreateTask() {
+  const name = String($("createTaskName")?.value || "").replace(/\s+/g, " ").trim();
+  const err = $("createTaskErr");
+  if (!name) {
+    if (err) err.textContent = "Paste the full project name";
+    return;
+  }
+  const go = $("createTaskGo");
+  if (go) go.disabled = true;
+  const out = await api("/api/tasks/create", {
+    name,
+    month: state.month,
+    role: me().role,
+    actorId: me().id,
+  });
+  if (go) go.disabled = false;
+  if (out.error || !out.state) {
+    if (err) err.textContent = out.error || "Could not create the task";
+    return;
+  }
+  applyState(out.state);
+  closeCreateTask();
+  if (out.drive && out.drive.ok === false) {
+    toast(out.drive.error || "Task is on the board. Drive folder was not created.");
+  } else {
+    toast("Task created · folder + brief Doc on Drive");
+  }
+  if (out.task?.id) openTask(out.task.id);
+}
+
 function renderKpis() {
   if (state.view === "close" || state.view === "team" || state.view === "guide" || state.view === "report") {
     $("kpis").innerHTML = "";
@@ -1090,7 +1130,9 @@ function linkifyBrief(text) {
 }
 function pinHtml(t) {
   const raw = String(t?.brief || "").trim();
-  const body = raw
+  const body = canOps()
+    ? `<textarea id="stBrief" class="pin-edit" rows="8" placeholder="Paste the brief here, then Save. It also writes the Google Doc.">${escapeHtml(raw)}</textarea>`
+    : raw
     ? `<div class="pin-body">${linkifyBrief(raw)}</div>`
     : `<div class="pin-body is-empty">No brief from Monday yet</div>`;
   const work = workFolder(t);
@@ -2048,7 +2090,12 @@ function renderBoard() {
       </div>
     </div>`;
 
+  const createBar =
+    canOps() && state.view === "board"
+      ? `<div class="create-bar"><button type="button" class="btn primary" id="btnCreateTask">Create task</button></div>`
+      : "";
   $("board").innerHTML = `
+    ${createBar}
     <section class="group sheet" style="--name-width:${savedNameWidth()}px">
       <div class="col-splitter" title="Drag to move columns" role="separator" aria-orientation="vertical"></div>
       ${head}
@@ -2086,6 +2133,7 @@ function renderBoard() {
     });
   });
   bindSplitter($("board").querySelector(".group"));
+  $("btnCreateTask")?.addEventListener("click", openCreateTask);
   bindTimeEdits();
 }
 
@@ -3561,6 +3609,7 @@ function openTask(id) {
       }
       patch.shifts = shifts;
     }
+    if (canOps() && $("stBrief")) patch.brief = $("stBrief").value;
     if (canEditTime() && $("stDeadline")) {
       const deadline = parseDeadlineIso($("stDeadline").value);
       if ($("stDeadline").value && !deadline) {
@@ -3926,6 +3975,14 @@ $("pasteCopy").onclick = async () => {
 };
 $("pasteModal").addEventListener("click", (e) => {
   if (e.target === $("pasteModal")) $("pasteModal").classList.remove("show");
+});
+$("createTaskCancel")?.addEventListener("click", closeCreateTask);
+$("createTaskGo")?.addEventListener("click", submitCreateTask);
+$("createTaskName")?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submitCreateTask();
+});
+$("createTaskModal")?.addEventListener("click", (e) => {
+  if (e.target === $("createTaskModal")) closeCreateTask();
 });
 $("emailCancel").onclick = () => $("emailModal").classList.remove("show");
 $("emailApply").onclick = async () => {

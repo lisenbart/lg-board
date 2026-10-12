@@ -160,6 +160,26 @@ a { color: var(--blue); }
   z-index: 2;
 }
 
+.create-bar {
+  display: flex;
+  align-items: center;
+  padding: 0 0 10px;
+}
+.create-bar .btn { padding: 8px 14px; }
+.pin-edit {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.45;
+  min-height: 140px;
+  resize: vertical;
+}
+#createTaskName { min-height: 88px; }
 .toolbar {
   display: flex; gap: 6px; align-items: center; flex-wrap: wrap;
   padding: 8px 20px; background: var(--white);

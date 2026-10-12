@@ -399,6 +399,9 @@
     if (path === "/api/drive/ensure") {
       return { error: "Drive folders are created in the studio sandbox, not on GitHub Pages." };
     }
+    if (path === "/api/tasks/create") {
+      return { error: "Create task runs on the studio server, not on GitHub Pages." };
+    }
     if (path === "/api/drive/pull" || path === "/api/drive/status") {
       return { error: "Drive read runs on the studio server, not on GitHub Pages." };
     }

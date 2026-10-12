@@ -85,8 +85,15 @@ def drive_token() -> str:
     if env:
         return env
     if TOKEN_PATH.exists():
-        return TOKEN_PATH.read_text(encoding="utf-8").strip()
-    return ""
+        raw = TOKEN_PATH.read_text(encoding="utf-8").strip()
+        if raw and not raw.startswith("{"):
+            return raw
+    try:
+        import drive_sync
+
+        return drive_sync.access_token()
+    except Exception:
+        return ""
 
 
 def _load_cache() -> dict:
@@ -141,8 +148,10 @@ def _headers(token: str, extra: dict | None = None) -> dict:
 
 
 def _api(token: str, method: str, path: str, query: dict | None = None, body: dict | None = None) -> dict:
-    q = urllib.parse.urlencode(query or {})
-    url = f"{API}/{path}" + (f"?{q}" if q else "")
+    q = {"supportsAllDrives": "true"}
+    if query:
+        q.update(query)
+    url = f"{API}/{path}" + "?" + urllib.parse.urlencode(q)
     data = json.dumps(body).encode("utf-8") if body is not None else None
     req = urllib.request.Request(
         url,
@@ -168,7 +177,12 @@ def _find_child(token: str, parent_id: str, title: str, mime: str | None = None)
         token,
         "GET",
         "files",
-        query={"q": q, "fields": "files(id,name,mimeType,webViewLink)", "pageSize": "10"},
+        query={
+            "q": q,
+            "fields": "files(id,name,mimeType,webViewLink)",
+            "pageSize": "10",
+            "includeItemsFromAllDrives": "true",
+        },
     )
     files = out.get("files") or []
     return files[0] if files else None
@@ -202,7 +216,9 @@ def _create_doc(token: str, parent_id: str, title: str, brief: str) -> str:
         f"--{boundary}\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n{brief or 'Brief'}\r\n"
         f"--{boundary}--\r\n"
     ).encode("utf-8")
-    url = UPLOAD + "?" + urllib.parse.urlencode({"uploadType": "multipart", "fields": "id,webViewLink"})
+    url = UPLOAD + "?" + urllib.parse.urlencode(
+        {"uploadType": "multipart", "fields": "id,webViewLink", "supportsAllDrives": "true"}
+    )
     req = urllib.request.Request(
         url,
         data=body,
@@ -327,3 +343,112 @@ def ensure_tasks(db: dict, tasks: list[dict], ym: str | None = None) -> dict:
             errors.append({"name": task.get("name"), "error": out.get("error")})
     ready = sum(1 for t in tasks if t.get("folderUrl") and t.get("docUrl"))
     return {"created": created, "linked": skipped, "ready": ready, "errors": errors}
+
+
+def line_from_name(name: str) -> str:
+    m = re.match(r"^\s*(DD|DX|DS)\b", name or "", re.I)
+    return m.group(1).upper() if m else "DD"
+
+
+def live_line_parent_id(db: dict, ym: str, line: str, token: str) -> str:
+    """Month / DD|DX folder on the live Projects drive — not _PORTAL_TEST."""
+    line = (line or "DD").upper()
+    if line not in {"DD", "DX", "DS"}:
+        line = "DD"
+    meta = db.get("meta") or {}
+    import drive_sync
+
+    cfg = drive_sync.roots()
+    if ym == "2026-10":
+        url = meta.get("driveLiveDD" if line == "DD" else "driveLiveDX" if line == "DX" else "") or ""
+        fid = folder_id_from_url(url)
+        if not fid:
+            fid = str(cfg.get("octoberDD" if line == "DD" else "octoberDX" if line == "DX" else "") or "")
+        if fid:
+            return fid
+        oct_id = folder_id_from_url(meta.get("driveLiveOctober") or "") or str(cfg.get("october") or "")
+        if oct_id:
+            return _mkdir(token, oct_id, line)
+    projects = folder_id_from_url(meta.get("driveLiveProjects") or "") or "1IBEGffspl0b7Ze6jH9BZNoyMybHxWSGH"
+    month_id = _mkdir(token, projects, month_folder_name(ym))
+    return _mkdir(token, month_id, line)
+
+
+def remember_live_folder(name: str, url: str) -> None:
+    import excel_io
+    import mirror_io
+
+    key = excel_io._id_key(name)
+    if not key or not url:
+        return
+    mapped = mirror_io.folder_map()
+    mapped[key] = url
+    mirror_io.FOLDERS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    mirror_io.FOLDERS_PATH.write_text(
+        json.dumps(mapped, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+
+
+def create_live_pack(db: dict, name: str, ym: str, line: str) -> dict:
+    """Create the project folder + empty brief Doc in the live month line folder."""
+    name = (name or "").strip()
+    if not name:
+        raise DriveError("task has no name")
+    token = drive_token()
+    if not token:
+        raise DriveError("Drive is not connected — Connect Drive as DL first")
+    parent = live_line_parent_id(db, ym, line, token)
+    folder_id = _mkdir(token, parent, name)
+    doc_id = _create_doc(token, folder_id, name, "Brief")
+    pack = remember(name, folder_id, doc_id)
+    remember_live_folder(name, pack["folderUrl"])
+    return pack
+
+
+def write_brief_doc(doc_url: str, text: str) -> None:
+    did = ""
+    m = re.search(r"/document/d/([a-zA-Z0-9_-]+)", doc_url or "")
+    if m:
+        did = m.group(1)
+    token = drive_token()
+    if not token or not did:
+        return
+    req = urllib.request.Request(
+        f"https://docs.googleapis.com/v1/documents/{did}?fields=body(content(endIndex))",
+        headers=_headers(token),
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as res:
+            doc = json.loads(res.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        err = e.read().decode("utf-8", errors="replace")
+        raise DriveError(f"Docs API {e.code}: {err[:300]}") from e
+    end = 1
+    for block in (doc.get("body") or {}).get("content") or []:
+        try:
+            end = max(end, int(block.get("endIndex") or 1))
+        except (TypeError, ValueError):
+            pass
+    requests = []
+    if end > 2:
+        requests.append({"deleteContentRange": {"range": {"startIndex": 1, "endIndex": end - 1}}})
+    body = (text or "").strip()
+    if body:
+        requests.append({"insertText": {"location": {"index": 1}, "text": body}})
+    if not requests:
+        return
+    url = "https://docs.googleapis.com/v1/documents/" + urllib.parse.quote(did) + ":batchUpdate"
+    data = json.dumps({"requests": requests}).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=data,
+        headers=_headers(token, {"Content-Type": "application/json"}),
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as res:
+            res.read()
+    except urllib.error.HTTPError as e:
+        err = e.read().decode("utf-8", errors="replace")
+        raise DriveError(f"Docs write {e.code}: {err[:300]}") from e

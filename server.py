@@ -820,6 +820,70 @@ class Handler(SimpleHTTPRequestHandler):
                 save_db(db, origin=bool(out.get("applied")))
                 self._json(200, {**out, "state": db, "drive": drive_sync.status()})
                 return
+            if path == "/api/tasks/create":
+                if data.get("role") not in OPS_ROLES:
+                    self._json(403, {"error": "only DL or LP can create a task"})
+                    return
+                name = " ".join(str(data.get("name") or "").split())
+                if not name:
+                    self._json(400, {"error": "paste the full project name"})
+                    return
+                if any(str(t.get("name") or "").strip() == name for t in db.get("tasks") or []):
+                    self._json(409, {"error": "this project is already on the board"})
+                    return
+                ym = str(data.get("month") or db.get("meta", {}).get("month") or "2026-10")
+                line = drive_io.line_from_name(name)
+                used = {str(t.get("id") or "") for t in db.get("tasks") or []}
+                n = 1
+                while f"t-new-{n}" in used:
+                    n += 1
+                game = "SettAI" if "SettAI" in name else ""
+                task = {
+                    "id": f"t-new-{n}",
+                    "name": name,
+                    "line": line,
+                    "department": "MGX",
+                    "game": game,
+                    "shifts": 0,
+                    "hours": 0,
+                    "deadline": "",
+                    "month": ym,
+                    "studioStatus": "new",
+                    "mondayStatus": "Ready to Start",
+                    "assigneeId": "",
+                    "help": [],
+                    "brief": "",
+                    "folderUrl": "",
+                    "docUrl": "",
+                    "resultUrl": "",
+                    "source": "portal",
+                    "activity": [{"at": utc_now(), "text": "Created on the portal"}],
+                }
+                drive = {"ok": False}
+                try:
+                    pack = drive_io.create_live_pack(db, name, ym, line)
+                    task["folderUrl"] = pack.get("folderUrl") or ""
+                    task["docUrl"] = pack.get("docUrl") or ""
+                    task["activity"].append(
+                        {"at": utc_now(), "text": f"Drive folder + brief Doc in {line}"}
+                    )
+                    drive = {"ok": True, "created": True, **pack}
+                except drive_io.DriveError as e:
+                    drive = {"ok": False, "error": str(e)}
+                db.setdefault("tasks", []).insert(0, task)
+                notice_io.on_landed(db, task, str(data.get("actorId") or ""))
+                db.setdefault("events", []).insert(
+                    0, {"at": utc_now(), "text": f"Created task {name}"}
+                )
+                try:
+                    sync_excel(db, ym, calculator=False)
+                except FileNotFoundError as e:
+                    save_db(db)
+                    self._json(500, {"error": str(e), "state": db, "drive": drive})
+                    return
+                save_db(db)
+                self._json(200, {"ok": True, "task": task, "drive": drive, "state": db})
+                return
             if path == "/api/parse-email":
                 if data.get("role") not in OPS_ROLES:
                     self._json(403, {"error": "only Line Producer can parse shift email"})
@@ -1104,9 +1168,15 @@ class Handler(SimpleHTTPRequestHandler):
                         return
                     task["deadline"] = raw[:10] if raw else ""
                 data.pop("comments", None)
+                brief_before = task.get("brief")
                 for key in ("studioStatus", "assigneeId", "resultUrl", "brief", "folderUrl", "docUrl"):
                     if key in data:
                         task[key] = data[key]
+                if "brief" in data and task.get("brief") != brief_before and task.get("docUrl"):
+                    try:
+                        drive_io.write_brief_doc(task.get("docUrl") or "", task.get("brief") or "")
+                    except drive_io.DriveError:
+                        pass
                 if "help" in data:
                     if role not in {"manager", "finance", "teamlead"}:
                         self._json(403, {"error": "only TL or LP can split hours"})
