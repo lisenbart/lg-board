@@ -14,14 +14,12 @@ One list, not Monday groups. Sorted by studio status:
 
 Studio URL: **https://board.lisenbart.games**
 
-Home is the logo plus two doors: **Client** and **Studio**. Each person has a login + PIN (`data/secrets/pins.json` on the server, not in git).
+Home is the logo plus two doors: **Client** and **Studio**. Each **name** has its own PIN (`data/secrets/pins.json` on the server, not in git). A designer PIN does not open TL or LP.
 
-| Door | Login | Seat | Sees |
-| --- | --- | --- | --- |
-| Studio | `dmytro@lisenbart.games` | Dmytro · Finance | Everything, including money and Team names |
-| Studio | `anastasiia@lisenbart.games` | Anastasiia · Manager | Everything except Finance |
-| Studio | Pick your name on the Studio door, then PIN | That person | Their queue / desk |
-| Client | `superplay` | SuperPlay | **Hours** only. Also `https://board.lisenbart.games/hours` |
+| Door | How | Sees |
+| --- | --- | --- |
+| Studio | Pick your name, then **your** PIN | That person only |
+| Client | `superplay` + PIN | **Hours** only. Also `https://board.lisenbart.games/hours` |
 
 Then:
 
@@ -29,7 +27,7 @@ Then:
 - **Designer** — only their queue, plus a read-only Excel picture of the whole month.
 - **Client (SuperPlay)** — **Hours**: PROJECT NAME / SHIFTS / HOURS, sections MGX DX and MGX DD, TOTAL. Same list the invoices are based on. No studio queue, no people, no money.
 
-The shared Gmail cannot tell Настя from Марія, so the seat picker after that mailbox is required.
+Studio no longer uses a shared team mailbox. The name on the door is the seat.
 
 ## Team demo on GitHub Pages
 

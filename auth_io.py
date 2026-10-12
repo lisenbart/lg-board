@@ -49,16 +49,17 @@ def door_allows(door: str, email: str) -> bool:
 DEFAULT_PINS = {
     "dmytro@lisenbart.games": "3245",
     "anastasiia@lisenbart.games": "1726",
-    "lisenbart.games@gmail.com": "2026",
     CLIENT_EMAIL: "3500",
     "finance": "3245",
     "manager": "1726",
-    "teamlead": "2026",
-    "designer2": "2026",
-    "designer3": "2026",
-    "designer4": "2026",
-    "designer5": "2026",
+    "teamlead": "5514",
+    "designer2": "4429",
+    "designer3": "3381",
+    "designer4": "7740",
+    "designer5": "6618",
 }
+SHARED_TEAM_PIN = "2026"
+PERSON_PIN_IDS = ("finance", "manager", "teamlead", "designer2", "designer3", "designer4", "designer5")
 
 LOCK_ROLE = {
     "dmytro@lisenbart.games": "finance",
@@ -93,11 +94,15 @@ def ensure_pins() -> dict:
     if not isinstance(pins, dict) or not pins:
         pins = dict(DEFAULT_PINS)
         _save_json(PINS_PATH, pins)
-        return pins
+        return {str(k).strip().lower(): str(v).strip() for k, v in pins.items() if k}
     changed = False
-    for email, pin in DEFAULT_PINS.items():
-        if email not in pins or not str(pins.get(email) or "").strip():
-            pins[email] = pin
+    for key, pin in DEFAULT_PINS.items():
+        cur = str(pins.get(key) or "").strip()
+        if not cur:
+            pins[key] = pin
+            changed = True
+        elif key in PERSON_PIN_IDS and cur == SHARED_TEAM_PIN:
+            pins[key] = pin
             changed = True
     if changed:
         _save_json(PINS_PATH, pins)
@@ -119,20 +124,12 @@ def pin_ok(email: str, pin: str) -> bool:
 
 
 def pin_ok_for_person(person: dict | None, pin: str) -> bool:
-    """LP PIN is not valid for MD. Each seat checks its own id, then its mailbox."""
-    got = str(pin or "").strip()
-    pins = ensure_pins()
-    keys = []
-    if person:
-        keys.append(str(person.get("id") or "").strip())
-        keys.append(email_for_person(person))
-    for key in keys:
-        if not key:
-            continue
-        want = pins.get(key.lower()) or pins.get(key)
-        if want and _pin_eq(str(want).strip(), got):
-            return True
-    return False
+    """Only this person's PIN. MD cannot open TL with a shared team code."""
+    if not person:
+        return False
+    pid = str(person.get("id") or "").strip()
+    want = ensure_pins().get(pid.lower(), "")
+    return _pin_eq(want, str(pin or "").strip())
 
 
 def _sessions() -> dict:
