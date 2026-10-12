@@ -798,6 +798,19 @@ body.col-resizing * { cursor: col-resize !important; }
   display: flex; align-items: flex-start; gap: 12px; margin: 0 0 4px;
 }
 .drawer-head h2 { flex: 1; margin: 0; font-size: 15px; line-height: 1.35; font-weight: 500; }
+.task-name-edit {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.35;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 8px;
+  color: var(--ink);
+  background: #fff;
+}
 .drawer-x {
   border: 0; background: transparent; width: 32px; height: 32px; border-radius: 6px;
   cursor: pointer; color: var(--muted); font-size: 22px; line-height: 1; flex: 0 0 auto;

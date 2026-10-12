@@ -505,6 +505,104 @@ def create_live_pack(db: dict, name: str, ym: str, line: str) -> dict:
     return pack
 
 
+def _doc_id_from_url(url: str) -> str:
+    m = re.search(r"/document/d/([a-zA-Z0-9_-]+)", url or "")
+    return m.group(1) if m else ""
+
+
+def studio_pack_folder_id(task: dict) -> str:
+    """October DD/DX/DS project folder — not the client working folder from the brief."""
+    name = str((task or {}).get("name") or "").strip()
+    fid = _folder_id_from_pack(name)
+    if fid:
+        return fid
+    import excel_io
+    import mirror_io
+
+    key = excel_io._id_key(name)
+    try:
+        import drive_sync
+
+        pack = (drive_sync.load_brief_packs() or {}).get(key) or {}
+        fid = str(pack.get("folderId") or "") or folder_id_from_url(str(pack.get("folderUrl") or ""))
+        if fid:
+            return fid
+    except Exception:
+        pass
+    if key:
+        fid = folder_id_from_url(str(mirror_io.folder_map().get(key) or ""))
+        if fid:
+            return fid
+    work = folder_id_from_url(client_folder_from_brief(str((task or {}).get("brief") or "")))
+    cand = folder_id_from_url(str((task or {}).get("folderUrl") or ""))
+    if cand and cand != work:
+        return cand
+    return ""
+
+
+def rename_live_pack(db: dict, task: dict, new_name: str) -> dict:
+    """Rename the studio folder + brief Doc. Moves the folder if DD/DX/DS changed."""
+    old_name = str((task or {}).get("name") or "").strip()
+    new_name = (new_name or "").strip()
+    if not new_name:
+        raise DriveError("task has no name")
+    if new_name == old_name:
+        return {"ok": True, "renamed": False}
+    token = drive_token()
+    fid = studio_pack_folder_id(task)
+    did = _doc_id_from_url(str(task.get("docUrl") or ""))
+    hit = cached_pack(old_name) or {}
+    did = did or str(hit.get("docId") or "")
+    if not token and (fid or did):
+        raise DriveError("Drive is not connected on this server")
+    old_line = str(task.get("line") or line_from_name(old_name) or "DD")
+    new_line = line_from_name(new_name)
+    ym = str(task.get("month") or (db.get("meta") or {}).get("month") or "2026-10")
+    if fid and token:
+        body = {"name": new_name}
+        query = {}
+        if new_line != old_line:
+            new_parent = live_line_parent_id(db, ym, new_line, token)
+            meta = _api(token, "GET", f"files/{fid}", query={"fields": "parents"})
+            parents = [str(p) for p in (meta.get("parents") or [])]
+            old_parent = live_line_parent_id(db, ym, old_line, token)
+            if new_parent and new_parent not in parents:
+                query["addParents"] = new_parent
+                drop = old_parent if old_parent in parents else (parents[0] if parents else "")
+                if drop and drop != new_parent:
+                    query["removeParents"] = drop
+        _api(token, "PATCH", f"files/{fid}", query=query or None, body=body)
+    if did and token:
+        _api(token, "PATCH", f"files/{did}", body={"name": new_name})
+    forget_live_folder(old_name)
+    if fid or did:
+        pack = remember(new_name, fid, did)
+        if fid:
+            remember_live_folder(new_name, pack.get("folderUrl") or folder_url(fid))
+    try:
+        import drive_sync
+        import excel_io
+
+        packs = drive_sync.load_brief_packs()
+        old_key = excel_io._id_key(old_name)
+        new_key = excel_io._id_key(new_name)
+        rec = packs.pop(old_key, None) if old_key else None
+        if isinstance(rec, dict):
+            rec["name"] = new_name
+            if fid:
+                rec["folderId"] = fid
+                rec["folderUrl"] = folder_url(fid)
+            if did:
+                rec["docId"] = did
+                rec["docUrl"] = doc_url(did)
+            if new_key:
+                packs[new_key] = rec
+            drive_sync.save_json(drive_sync.BRIEFS_PATH, packs)
+    except Exception:
+        pass
+    return {"ok": True, "renamed": True, "folderId": fid, "docId": did, "line": new_line}
+
+
 def forget_live_folder(name: str) -> None:
     import excel_io
     import mirror_io

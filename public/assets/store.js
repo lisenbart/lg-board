@@ -464,6 +464,7 @@
         delete data.folderUrl;
         delete data.docUrl;
         delete data.assigneeId;
+        delete data.name;
       }
       if (
         "assigneeId" in data &&
@@ -492,6 +493,18 @@
         return { error: `${role} cannot set ${nxt}` };
       }
       delete data.comments;
+      if ("name" in data) {
+        if (!OPS_ROLES.has(role)) return { error: "only DL or LP can rename a project" };
+        const newName = String(data.name || "").replace(/\s+/g, " ").trim();
+        if (!newName) return { error: "paste the full project name" };
+        if (newName !== task.name) {
+          if ((db.tasks || []).some((row) => row.id !== task.id && String(row.name || "").trim() === newName)) {
+            return { error: "this project is already on the board" };
+          }
+          task.name = newName;
+          task.line = lineFromName(newName);
+        }
+      }
       const statusAfter = "studioStatus" in data ? data.studioStatus : task.studioStatus;
       const resultAfter = "resultUrl" in data ? data.resultUrl : task.resultUrl;
       if (statusAfter === "done" && !String(resultAfter || "").trim()) {

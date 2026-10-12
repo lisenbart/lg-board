@@ -637,6 +637,38 @@ def _refresh_total(ws, scan: dict, columns: list[tuple[int, dict | None]]) -> No
         ws.cell(total_row, c).font = CALIBRI_BOLD
 
 
+def rewrite_existing_name(db: dict, ym: str, old_name: str, task: dict, path: Path | None = None) -> bool:
+    """Change PROJECT NAME on an existing sheet row. Does not add a new row."""
+    path = Path(path or XLSX_PATH)
+    if not path.exists():
+        return False
+    wb = load_workbook(path)
+    try:
+        ws = find_sheet(wb, ym)
+        if ws is None:
+            return False
+        scan = _scan_sheet(ws)
+        columns = _bind_people_columns(ws, designers(db))
+        found = scan["rows"].get(_norm_name(old_name))
+        if not found:
+            old_key = _id_key(old_name)
+            if old_key:
+                found = next(
+                    (item for item in scan["rows"].values() if _id_key(item.get("name") or "") == old_key),
+                    None,
+                )
+        if not found:
+            return False
+        _write_task_row(ws, found["row"], task, columns)
+        wb.save(path)
+        return True
+    finally:
+        try:
+            wb.close()
+        except Exception:
+            pass
+
+
 def write_month(db: dict, ym: str, path: Path | None = None) -> Path:
     """Update the month tab in place. Keep formulas (=C*9) and other sheets."""
     path = Path(path or XLSX_PATH)
@@ -688,6 +720,8 @@ def write_month(db: dict, ym: str, path: Path | None = None) -> Path:
             found = id_index.get(kid) if kid else None
         if found:
             _write_task_row(ws, found["row"], task, columns)
+            continue
+        if str(task.get("source") or "") == "portal":
             continue
         line = (task.get("line") or "DD").upper()
         if line not in {"DX", "DD", "DS"}:

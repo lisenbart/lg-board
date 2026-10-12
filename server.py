@@ -26,7 +26,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-12g"
+BUILD = "2026-10-12h"
 LOCK = threading.Lock()
 _FILES_SYNCED = False
 _BRIEFS_SYNCED = False
@@ -1222,7 +1222,7 @@ class Handler(SimpleHTTPRequestHandler):
                     if actor != str(task.get("assigneeId") or ""):
                         self._json(403, {"error": "you can only edit your own tasks"})
                         return
-                    for locked in ("brief", "folderUrl", "docUrl", "assigneeId"):
+                    for locked in ("brief", "folderUrl", "docUrl", "assigneeId", "name"):
                         data.pop(locked, None)
                 if (
                     "assigneeId" in data
@@ -1289,6 +1289,49 @@ class Handler(SimpleHTTPRequestHandler):
                         return
                     task["deadline"] = raw[:10] if raw else ""
                 data.pop("comments", None)
+                drive_rename = None
+                if "name" in data:
+                    if role not in OPS_ROLES:
+                        self._json(403, {"error": "only DL or LP can rename a project"})
+                        return
+                    new_name = " ".join(str(data.get("name") or "").split())
+                    old_name = str(task.get("name") or "").strip()
+                    if not new_name:
+                        self._json(400, {"error": "paste the full project name"})
+                        return
+                    if new_name != old_name:
+                        clash = next(
+                            (
+                                t
+                                for t in db.get("tasks") or []
+                                if t.get("id") != task.get("id")
+                                and str(t.get("name") or "").strip() == new_name
+                            ),
+                            None,
+                        )
+                        if clash:
+                            self._json(409, {"error": "this project is already on the board"})
+                            return
+                        try:
+                            drive_rename = drive_io.rename_live_pack(db, task, new_name)
+                        except drive_io.DriveError as e:
+                            print(f"[drive] rename failed for {old_name}: {e}", flush=True)
+                            self._json(409, {"error": str(e), "drive": {"ok": False, "error": str(e)}})
+                            return
+                        task["name"] = new_name
+                        task["line"] = drive_io.line_from_name(new_name)
+                        try:
+                            excel_io.rewrite_existing_name(
+                                db,
+                                str(task.get("month") or db.get("meta", {}).get("month") or "2026-10"),
+                                old_name,
+                                task,
+                            )
+                        except Exception as e:
+                            print(f"[excel] rename failed for {old_name}: {e}", flush=True)
+                        task.setdefault("activity", []).append(
+                            {"at": utc_now(), "text": f"Renamed {old_name} → {new_name}"}
+                        )
                 brief_before = task.get("brief")
                 for key in ("studioStatus", "assigneeId", "resultUrl", "brief", "folderUrl", "docUrl"):
                     if key in data:
@@ -1344,7 +1387,10 @@ class Handler(SimpleHTTPRequestHandler):
                     self._json(500, {"error": str(e), "state": db})
                     return
                 save_db(db)
-                self._json(200, {"task": task, "state": db, "drive": drive or {"ok": True}})
+                out_drive = drive or {"ok": True}
+                if drive_rename:
+                    out_drive = {**out_drive, "rename": drive_rename}
+                self._json(200, {"task": task, "state": db, "drive": out_drive})
                 return
             if path == "/api/tasks/comment":
                 role = data.get("role") or ""

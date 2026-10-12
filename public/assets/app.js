@@ -3454,7 +3454,11 @@ function openTask(id) {
   const resultBlock = resultHtml(t, performer, canPaste);
   $("drawer").innerHTML = `
     <div class="drawer-head">
-      <h2>${escapeHtml(t.name)}</h2>
+      ${
+        canOps()
+          ? `<input id="stName" class="task-name-edit" value="${escapeHtml(t.name)}" spellcheck="false" aria-label="Project name" />`
+          : `<h2>${escapeHtml(t.name)}</h2>`
+      }
       <button type="button" class="drawer-x" id="closeDrawer" aria-label="Close">×</button>
     </div>
     <div class="meta"><span class="pill line-${t.line}">${t.line}</span> ${t.shifts || 0} shift · ${t.hours || 0} h · <span id="stMetaStatus" class="pill ${st.cls}">${st.label}</span></div>
@@ -3734,6 +3738,22 @@ function openTask(id) {
       }
       patch.shifts = shifts;
     }
+    const nextName = canOps() && $("stName") ? String($("stName").value || "").replace(/\s+/g, " ").trim() : null;
+    if (nextName != null && nextName !== t.name) {
+      if (!nextName) {
+        toast("Paste the full project name");
+        return;
+      }
+      const alsoExcel = t.source && t.source !== "portal" ? " and the Excel row" : "";
+      if (
+        !confirm(
+          `Rename this project on the board, the Drive folder, and the brief Doc${alsoExcel}?\n\n${t.name}\n→\n${nextName}`
+        )
+      ) {
+        return;
+      }
+      patch.name = nextName;
+    }
     const nextBrief = canOps() && $("stBrief") ? $("stBrief").value : null;
     const briefToDrive = nextBrief != null && nextBrief !== (t.brief || "");
     if (nextBrief != null) patch.brief = nextBrief;
@@ -3767,12 +3787,29 @@ function openTask(id) {
             ? `${me().name} pasted the result`
             : `${me().name} updated status`;
     const actions = $("drawer")?.querySelectorAll(".drawer-actions button") || [];
+    const renaming = Boolean(patch.name && patch.name !== t.name);
     const hint = $("saveWait");
     if (hint) {
       hint.hidden = false;
-      hint.textContent = briefToDrive ? "Writing the brief into the Google Doc…" : "Saving…";
+      hint.textContent = renaming
+        ? "Renaming the Drive folder and brief Doc…"
+        : briefToDrive
+          ? "Writing the brief into the Google Doc…"
+          : "Saving…";
     }
-    actions.forEach((btn) => setBusy(btn, true, btn.id === "saveTask" ? (briefToDrive ? "Saving to Drive…" : "Saving…") : undefined));
+    actions.forEach((btn) =>
+      setBusy(
+        btn,
+        true,
+        btn.id === "saveTask"
+          ? renaming
+            ? "Renaming on Drive…"
+            : briefToDrive
+              ? "Saving to Drive…"
+              : "Saving…"
+          : undefined
+      )
+    );
     try {
       await updateTask(t.id, { ...patch, note }, { close: true });
     } finally {
@@ -3822,6 +3859,8 @@ async function updateTask(id, patch, opts = {}) {
   applyState(out.state);
   if (out.drive && out.drive.ok === false && patch.brief != null) {
     toast(out.drive.error || "Saved on the board, not on Drive");
+  } else if (out.drive?.rename?.renamed) {
+    toast("Renamed on the board, Drive folder, and brief Doc");
   } else {
     toast("Saved");
   }
