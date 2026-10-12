@@ -49,7 +49,7 @@ def door_allows(door: str, email: str) -> bool:
 DEFAULT_PINS = {
     "finance": "3245",
     "manager": "1726",
-    "teamlead": "5514",
+    "teamlead": "2026",
     "designer": "4429",
     "client": "3500",
     CLIENT_EMAIL: "3500",
@@ -101,6 +101,9 @@ def ensure_pins() -> dict:
     if not isinstance(pins, dict):
         pins = {}
     changed = False
+    if str(pins.get("teamlead") or "").strip() == "5514":
+        pins["teamlead"] = "2026"
+        changed = True
     for key, pin in DEFAULT_PINS.items():
         if not str(pins.get(key) or "").strip():
             pins[key] = pin

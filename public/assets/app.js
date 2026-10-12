@@ -332,29 +332,36 @@ function showDoorForm(door, error) {
   document.title = "Client — Lisenbart Board";
   $("loginAccounts").innerHTML = `
     <button type="button" class="btn ghost login-back" id="loginBack">Back</button>
-    <label class="login-pin-lab" for="loginPin">PIN</label>
-    <input id="loginPin" class="login-pin" type="password" inputmode="numeric" maxlength="8" autocomplete="current-password" />
+    <label class="login-pin-lab" for="loginEmail">Login</label>
+    <input id="loginEmail" class="login-pin login-email" type="text" autocomplete="username" />
+    <label class="login-pin-lab" for="loginPin">Password</label>
+    <input id="loginPin" class="login-pin" type="password" maxlength="32" autocomplete="current-password" />
     ${error ? `<p class="login-err">${escapeHtml(error)}</p>` : ""}
     <button type="button" class="btn primary login-go" id="loginGo">Open</button>
   `;
   $("loginBack")?.addEventListener("click", loginBackHome);
   const go = () => submitDoorLogin();
   $("loginGo")?.addEventListener("click", go);
-  $("loginPin")?.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      go();
-    }
+  ["loginEmail", "loginPin"].forEach((id) => {
+    $(id)?.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        go();
+      }
+    });
   });
-  $("loginPin")?.focus();
+  $("loginEmail")?.focus();
 }
 async function submitDoorLogin(seatId) {
   const door = state.loginDoor || (isHoursPage() ? "client" : "studio");
   const pin = $("loginPin") ? $("loginPin").value : state.loginPin || "";
   if (pin) state.loginPin = pin;
+  const email = $("loginEmail") ? $("loginEmail").value : state.loginEmail || "";
+  if (email) state.loginEmail = email;
   const role = state.loginRole?.role;
   const out = await api("/api/login", {
     door,
+    email: state.loginEmail,
     pin: state.loginPin,
     role,
     seatId: seatId || undefined,

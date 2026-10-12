@@ -646,6 +646,10 @@ class Handler(SimpleHTTPRequestHandler):
                 email = auth_io.resolve_email(data.get("email") or "")
                 seat = None
                 if door == "client":
+                    email = auth_io.resolve_email(data.get("email") or "")
+                    if email not in {auth_io.CLIENT_EMAIL, "superplay@lg-board"}:
+                        self._json(403, {"error": "wrong login or PIN"})
+                        return
                     if not auth_io.pin_ok_for_role("client", pin) and not auth_io.pin_ok(
                         auth_io.CLIENT_EMAIL, pin
                     ):
