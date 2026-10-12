@@ -804,10 +804,9 @@ function driveMonthFolder(ym) {
   const name = new Date(y, m - 1, 1).toLocaleString("en-US", { month: "long" });
   return `${String(m).padStart(2, "0")}_${name}`;
 }
-function sandboxDriveUrl() {
+function liveMonthDriveUrl() {
   const meta = state.db?.meta || {};
-  if (state.month === "2026-10" && meta.driveSandboxOctober) return meta.driveSandboxOctober;
-  return meta.driveSandbox || "";
+  return meta.driveLiveOctober || meta.driveLiveDD || "";
 }
 function taskMonth(t) {
   return t.month || (t.deadline && String(t.deadline).slice(0, 7)) || state.db?.meta?.month || state.month;
@@ -989,7 +988,7 @@ function renderToolbar() {
     }
   }
   const n = [...state.selected].filter((id) => isSendable(state.db.tasks.find((x) => x.id === id))).length;
-  const drive = sandboxDriveUrl();
+  const drive = liveMonthDriveUrl();
   if (isExecView()) {
     $("toolbar").innerHTML = `
       ${drive ? `<a class="btn" href="${escapeHtml(drive)}" target="_blank" rel="noreferrer">Open Drive</a>` : ""}
@@ -998,7 +997,6 @@ function renderToolbar() {
   } else {
     $("toolbar").innerHTML = `
       ${isFinance() ? driveStrip() : ""}
-      <button class="btn primary" id="btnImport">Pull from Monday</button>
       <button class="btn orange" id="btnEmail">Shift email</button>
       ${drive ? `<a class="btn" href="${escapeHtml(drive)}" target="_blank" rel="noreferrer">Open Drive</a>` : ""}
       <button class="btn green" id="btnExport" ${n ? "" : "disabled"}>Send to client (${n})</button>
@@ -1007,7 +1005,6 @@ function renderToolbar() {
     `;
   }
   bindSearch();
-  $("btnImport")?.addEventListener("click", importMonday);
   $("btnEmail")?.addEventListener("click", () => $("emailModal").classList.add("show"));
   $("btnExport")?.addEventListener("click", exportMonday);
   $("btnClientLink")?.addEventListener("click", copyClientPage);
@@ -1194,7 +1191,7 @@ function pinHtml(t) {
     ? `<textarea id="stBrief" class="pin-edit" rows="8" placeholder="Paste the brief here, then Save. It also writes the Google Doc.">${escapeHtml(raw)}</textarea>`
     : raw
     ? `<div class="pin-body">${linkifyBrief(raw)}</div>`
-    : `<div class="pin-body is-empty">No brief from Monday yet</div>`;
+    : `<div class="pin-body is-empty">No brief yet</div>`;
   const work = workFolder(t);
   const briefBtn = t.docUrl
     ? `<a class="btn pack-brief" href="${escapeHtml(t.docUrl)}" target="_blank" rel="noreferrer">Open brief</a>`
@@ -1209,7 +1206,7 @@ function pinHtml(t) {
     ? `<footer class="pin-actions">${briefBtn}${folderBtn}${retry}</footer>`
     : "";
   const warn = canOps() && t.source === "portal" && !work
-    ? `<p class="drive-warn">No Drive folder yet. Connect Drive as DL, then click Create Drive folder.</p>`
+    ? `<p class="drive-warn">No Drive folder yet. Click Create Drive folder.</p>`
     : "";
   return `<article class="pin">
       <header class="pin-head">Brief</header>
@@ -2056,7 +2053,7 @@ function renderGuide() {
         <h3>Статуси</h3>
         <p class="guide-lead">Один чіп на проєкт. Читай зверху вниз: що означає і хто з ним працює.</p>
         <div class="guide-status-grid">
-          ${statusCard("ready", "Ready", "Ready to Start", "Хто: TL ставить виконавця", "Таск щойно зайшов з Monday або з листа. Людини ще немає — чекає старту.")}
+          ${statusCard("ready", "Ready", "Ready to Start", "Хто: TL ставить виконавця", "Таск щойно створили на порталі, підтягнули з Excel або з листа. Людини ще немає — чекає старту.")}
           ${statusCard("wip", "WIP", "WIP", "Хто: MD робить роботу", "Виконавець уже стоїть. Робота йде. Файл ще не зданий.")}
           ${statusCard("fix", "Fix", "Need Fixing", "Хто: MD править", "Клієнт або LP відбили. Не Done — треба правка, потім знову здати.")}
           ${statusCard("done", "Done", "Done", "Хто: MD здав, далі LP", "Дизайнер вставив лінк результату і натиснув Done. Без лінка цей статус не ставиться.")}
@@ -2068,7 +2065,7 @@ function renderGuide() {
         <h3>Пайплайн</h3>
         <p class="guide-lead">П’ять кроків підряд. Кожен крок змінює чіп справа.</p>
         <ol class="guide-pipe">
-          ${pipeStep("1", "LP", "Line Producer", "Таск заходить", `${ui("Pull from Monday")} або ${ui("Shift email")} (рядок як в Orit: NAME | 0.3 shifts).`, "ready", "Ready")}
+          ${pipeStep("1", "LP", "Line Producer", "Таск заходить", `${ui("Create task")} або ${ui("Shift email")} (рядок як в Orit: NAME | 0.3 shifts).`, "ready", "Ready")}
           ${pipeStep("2", "TL", "Team Lead", "Ставить виконавця", `${ui("Who works this")} → ${ui("Save")}. Людина одразу бачить таск у своїй черзі.`, "wip", "WIP")}
           ${pipeStep("3", "MD", "Motion design", "Здає файл", `${ui("Paste result link here")}, потім ${ui("Done")}. Лінк на файл, не на теку. Поки лінка немає — ${ui("Done")} недоступний.`, "done", "Done")}
           ${pipeStep("4", "LP", "Line Producer", "Відправляє клієнту", `${ui("Send to client")} лише з ${ui("Done")} + лінк. Копіює текст для External Weekly. ${ui("Appr.")} руками зі списку не ставиться.`, "appr", "Appr.")}
@@ -2077,8 +2074,8 @@ function renderGuide() {
       </div>
       <div class="guide-grid">
         ${card("manager", "LP", "Line Producer", "Анастасія. Бачить усе.", [
-          `Новий пак: ${ui("Pull from Monday")} або ${ui("Shift email")} (рядок як в Orit: NAME | 0.3 shifts).`,
-          `Бриф на картці — 1:1 як у Monday Doc. Не змінюється. ${ui("Client notes")} одразу під ним: встав текст і скрін (Ctrl+V) з Monday.`,
+          `Новий пак: ${ui("Create task")} (тека + бриф на Drive) або ${ui("Shift email")} (рядок як в Orit: NAME | 0.3 shifts).`,
+          `Бриф на картці пишеться в Google Doc. ${ui("Client notes")} одразу під ним: встав текст і скрін (Ctrl+V) з Monday.`,
           `Години: ${ui("Shifts")} у рядку або в картці. 1 shift = 9 годин. Виконавця ставить TL.`,
           `Рядок фарбується за статусом. Чіп: ${ui("Ready")} / ${ui("WIP")} / ${ui("Fix")} / ${ui("Done")} / ${ui("Appr.")} / ${ui("Closed")}. Не ${ui("Send")}.`,
           `${ui("Excel")} — години як у файлі. Чіп зліва той самий, що в пайплайні, не лише WIP/Closed. ${ui("Due")} = ${ui("DEADLINE")}.`,
@@ -3869,19 +3866,6 @@ async function updateTask(id, patch, opts = {}) {
     return;
   }
   if (state.openId && $("drawerBg").classList.contains("show")) openTask(id);
-}
-async function importMonday() {
-  const out = await api("/api/import-monday", { month: state.month, role: me().role, actorId: me().id });
-  if (out.error || !out.state) {
-    toast(out.error || "Could not pull from Monday");
-    return;
-  }
-  applyState(out.state);
-  toast(
-    out.added
-      ? `Pulled ${out.added} new from Monday${driveToast(out.drive)}`
-      : "Nothing new"
-  );
 }
 function driveToast(drive) {
   if (!drive) return "";

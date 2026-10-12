@@ -194,21 +194,6 @@
     return db;
   }
 
-  function mondayFixture() {
-    return [
-      {
-        id: "t-dd-new-banana",
-        name: "DD-VEO-068-001_BananaBoat_8s_Resize",
-        line: "DD",
-        game: "Dice Dreams",
-        mondayStatus: "Ready to Start",
-        brief: "Resize BananaBoat 8s. Keep logo top-left.",
-        folderUrl: "https://drive.google.com/drive/folders/13-eo8f5K8rZm-DEkIXgQ0EWNsqC_O5HF",
-        docUrl: "https://docs.google.com/document/d/1dbxJCigaJisDTUnHFqjkmAFTctjM_kFR1tMrw9dFTxU/edit",
-      },
-    ];
-  }
-
   function parseEmail(text) {
     const found = [];
     for (const raw of String(text || "").split(/\n/)) {
@@ -357,43 +342,7 @@
     }
 
     if (path === "/api/import-monday") {
-      if (!OPS_ROLES.has(data.role)) return { error: "only Line Producer can pull from Monday" };
-      const incoming = data.tasks && data.tasks.length ? data.tasks : mondayFixture();
-      let added = 0;
-      for (const item of incoming) {
-        const existing = db.tasks.find((t) => t.name === item.name);
-        if (existing) {
-          if (item.brief && !existing.brief) existing.brief = item.brief;
-          existing.mondayStatus = item.mondayStatus || existing.mondayStatus;
-          continue;
-        }
-        db.tasks.push({
-          id: item.id || `t-imp-${db.tasks.length}`,
-          name: item.name,
-          line: item.line || lineFromName(item.name),
-          department: "MGX",
-          game: item.game || "SettAI",
-          shifts: item.shifts || 0,
-          hours: item.hours || 0,
-          deadline: "",
-          month: item.month || taskMonth(data, db),
-          studioStatus: "new",
-          mondayStatus: item.mondayStatus || "Ready to Start",
-          assigneeId: "",
-          brief: item.brief || "",
-          folderUrl: item.folderUrl || "",
-          docUrl: item.docUrl || "",
-          resultUrl: "",
-          source: "monday",
-          activity: [{ at: now(), text: "Pulled from Monday External Weekly" }],
-        });
-        added += 1;
-        if (N()) N().onLanded(db, db.tasks[db.tasks.length - 1], data.actorId);
-      }
-      db.events = db.events || [];
-      db.events.unshift({ at: now(), text: `Monday import: ${added} new tasks` });
-      writeDb(db);
-      return { added, drive: { created: 0, linked: added, ready: added }, state: clone(db) };
+      return { error: "Monday pull is off. Create the task on the portal." };
     }
 
     if (path === "/api/drive/ensure") {

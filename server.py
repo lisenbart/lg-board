@@ -26,7 +26,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-12h"
+BUILD = "2026-10-12i"
 LOCK = threading.Lock()
 _FILES_SYNCED = False
 _BRIEFS_SYNCED = False
@@ -35,10 +35,26 @@ EMAIL_LINE = re.compile(
     r"^\s*([A-Z]{2}-[A-Za-z0-9._-]+)\s*\|\s*([\d]+(?:[.,]\d+)?)\s*shifts?\s*$",
     re.I,
 )
+SANDBOX_TASK_IDS = frozenset({"t-dd-new-banana"})
+SANDBOX_TASK_NAMES = frozenset({"DD-VEO-068-001_BananaBoat_8s_Resize"})
 
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def drop_sandbox_demo_tasks(db: dict) -> bool:
+    tasks = db.get("tasks") or []
+    kept = [
+        t
+        for t in tasks
+        if str(t.get("id") or "") not in SANDBOX_TASK_IDS
+        and str(t.get("name") or "").strip() not in SANDBOX_TASK_NAMES
+    ]
+    if len(kept) == len(tasks):
+        return False
+    db["tasks"] = kept
+    return True
 
 
 def _link_live_briefs(db: dict) -> bool:
@@ -60,6 +76,7 @@ def load_db() -> dict:
     if not DB_PATH.exists():
         db = json.loads(SEED_PATH.read_text(encoding="utf-8"))
         notice_io.ensure(db)
+        drop_sandbox_demo_tasks(db)
         drive_sync.apply_meta(db)
         drive_io.attach_cached_packs(db)
         if mirror_io.ORIGIN_XLSX.exists():
@@ -70,7 +87,10 @@ def load_db() -> dict:
         _FILES_SYNCED = True
         return db
     db = json.loads(DB_PATH.read_text(encoding="utf-8"))
-    if notice_io.ensure(db):
+    dirty = notice_io.ensure(db)
+    if drop_sandbox_demo_tasks(db):
+        dirty = True
+    if dirty:
         save_db(db)
     drive_sync.apply_meta(db)
     origin = mirror_io.ORIGIN_XLSX
@@ -1062,58 +1082,10 @@ class Handler(SimpleHTTPRequestHandler):
                 )
                 return
             if path == "/api/import-monday":
-                if data.get("role") not in OPS_ROLES:
-                    self._json(403, {"error": "only Line Producer can pull from Monday"})
-                    return
-                incoming = data.get("tasks") or _monday_fixture()
-                added = 0
-                fresh = []
-                for item in incoming:
-                    if any(t["name"] == item["name"] for t in db["tasks"]):
-                        existing = next(t for t in db["tasks"] if t["name"] == item["name"])
-                        if item.get("brief") and not existing.get("brief"):
-                            existing["brief"] = item["brief"]
-                        existing["mondayStatus"] = item.get("mondayStatus") or existing["mondayStatus"]
-                        continue
-                    db["tasks"].append(
-                        {
-                            "id": item.get("id") or f"t-imp-{len(db['tasks'])}",
-                            "name": item["name"],
-                            "line": item.get("line") or line_from_name(item["name"]),
-                            "department": "MGX",
-                            "game": item.get("game") or "SettAI",
-                            "shifts": item.get("shifts") or 0,
-                            "hours": item.get("hours") or 0,
-                            "deadline": "",
-                            "month": item.get("month") or task_month(data, db),
-                            "studioStatus": "new",
-                            "mondayStatus": item.get("mondayStatus") or "Ready to Start",
-                            "assigneeId": "",
-                            "brief": item.get("brief") or "",
-                            "folderUrl": item.get("folderUrl") or "",
-                            "docUrl": item.get("docUrl") or "",
-                            "resultUrl": "",
-                            "source": "monday",
-                            "activity": [{"at": utc_now(), "text": "Pulled from Monday External Weekly"}],
-                        }
-                    )
-                    added += 1
-                    fresh.append(db["tasks"][-1])
-                actor_id = data.get("actorId") or ""
-                for task in fresh:
-                    notice_io.on_landed(db, task, actor_id)
-                drive = drive_io.ensure_tasks(db, fresh, task_month(data, db))
-                db.setdefault("events", []).insert(
-                    0, {"at": utc_now(), "text": f"Monday import: {added} new tasks"}
+                self._json(
+                    410,
+                    {"error": "Monday pull is off. Create the task on the portal."},
                 )
-                try:
-                    sync_excel(db, data.get("month"), calculator=True)
-                except FileNotFoundError as e:
-                    save_db(db)
-                    self._json(500, {"error": str(e), "state": db})
-                    return
-                save_db(db)
-                self._json(200, {"added": added, "drive": drive, "state": db})
                 return
             if path == "/api/drive/ensure":
                 if data.get("role") not in OPS_ROLES:
@@ -1845,21 +1817,6 @@ class Handler(SimpleHTTPRequestHandler):
                 self._json(200, {"state": db})
                 return
         self._json(404, {"error": "unknown endpoint"})
-
-
-def _monday_fixture() -> list[dict]:
-    return [
-        {
-            "id": "t-dd-new-banana",
-            "name": "DD-VEO-068-001_BananaBoat_8s_Resize",
-            "line": "DD",
-            "game": "Dice Dreams",
-            "mondayStatus": "Ready to Start",
-            "brief": "Resize BananaBoat 8s. Keep logo top-left.",
-            "folderUrl": "https://drive.google.com/drive/folders/13-eo8f5K8rZm-DEkIXgQ0EWNsqC_O5HF",
-            "docUrl": "https://docs.google.com/document/d/1dbxJCigaJisDTUnHFqjkmAFTctjM_kFR1tMrw9dFTxU/edit",
-        }
-    ]
 
 
 def main() -> None:
