@@ -99,6 +99,20 @@ def connected() -> bool:
     return bool(oauth.get("refresh_token") and (oauth.get("client_id") or has_client()))
 
 
+def save_access_token(token: str) -> None:
+    raw = (token or "").strip()
+    if not raw:
+        raise DriveSyncError("paste a Drive access token")
+    SECRETS.mkdir(parents=True, exist_ok=True)
+    TOKEN_PATH.write_text(raw + "\n", encoding="utf-8")
+    try:
+        TOKEN_PATH.chmod(0o600)
+    except OSError:
+        pass
+    _TOKEN_MEM["value"] = raw
+    _TOKEN_MEM["at"] = time.time()
+
+
 def _form(url: str, payload: dict) -> dict:
     data = urllib.parse.urlencode(payload).encode("utf-8")
     req = urllib.request.Request(url, data=data, method="POST")

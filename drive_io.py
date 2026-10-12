@@ -1,4 +1,4 @@
-"""Create MGX project folders + brief Docs in Drive sandbox _PORTAL_TEST only."""
+"""Create MGX project folders + brief Docs. Portal test tasks write into the live month DD/DX folders."""
 from __future__ import annotations
 
 import json
@@ -130,6 +130,21 @@ def cached_pack(name: str) -> dict | None:
     if pack.get("folderUrl") and pack.get("docUrl"):
         return pack
     return None
+
+
+def attach_cached_packs(db: dict) -> bool:
+    """Fill empty folder/doc URLs from the local Drive cache (e.g. after a git pull)."""
+    changed = False
+    for task in db.get("tasks") or []:
+        if task.get("folderUrl") and task.get("docUrl"):
+            continue
+        hit = cached_pack(str(task.get("name") or "").strip())
+        if not hit:
+            continue
+        task["folderUrl"] = hit["folderUrl"]
+        task["docUrl"] = hit["docUrl"]
+        changed = True
+    return changed
 
 
 def sandbox_root_id(db: dict) -> str:
@@ -394,9 +409,16 @@ def create_live_pack(db: dict, name: str, ym: str, line: str) -> dict:
     name = (name or "").strip()
     if not name:
         raise DriveError("task has no name")
+    hit = cached_pack(name)
+    if hit:
+        remember_live_folder(name, hit["folderUrl"])
+        return hit
     token = drive_token()
     if not token:
-        raise DriveError("Drive is not connected — Connect Drive as DL first")
+        raise DriveError(
+            "Drive is not connected on this server. As DL open Finance → Connect Drive "
+            "(or paste a Drive access token), then retry Create Drive folder on the card."
+        )
     parent = live_line_parent_id(db, ym, line, token)
     folder_id = _mkdir(token, parent, name)
     doc_id = _create_doc(token, folder_id, name, "Brief")

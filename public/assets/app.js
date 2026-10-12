@@ -952,6 +952,7 @@ function renderToolbar() {
     bindSearch();
     $("btnExcelPull")?.addEventListener("click", pullExcel);
     $("btnDrivePull")?.addEventListener("click", pullDrive);
+    $("driveTokenForm")?.addEventListener("submit", saveDriveToken);
     return;
   }
   if (canOps()) {
@@ -984,6 +985,7 @@ function renderToolbar() {
   $("btnExport")?.addEventListener("click", exportMonday);
   $("btnClientLink")?.addEventListener("click", copyClientPage);
   $("btnDrivePull")?.addEventListener("click", pullDrive);
+  $("driveTokenForm")?.addEventListener("submit", saveDriveToken);
 }
 async function copyClientPage() {
   const ok = await copyText(clientLink());
@@ -1021,12 +1023,13 @@ async function submitCreateTask() {
     return;
   }
   applyState(out.state);
-  closeCreateTask();
   if (out.drive && out.drive.ok === false) {
+    if (err) err.textContent = out.drive.error || "Task is on the board. Drive folder was not created.";
     toast(out.drive.error || "Task is on the board. Drive folder was not created.");
-  } else {
-    toast("Task created · folder + brief Doc on Drive");
+    return;
   }
+  closeCreateTask();
+  toast("Task created · folder + brief Doc on Drive");
   if (out.task?.id) openTask(out.task.id);
 }
 
@@ -1142,11 +1145,18 @@ function pinHtml(t) {
   const folderBtn = work
     ? `<a class="btn pack-folder" href="${escapeHtml(work)}" target="_blank" rel="noreferrer">Open folder</a>`
     : "";
-  const actions = briefBtn || folderBtn
-    ? `<footer class="pin-actions">${briefBtn}${folderBtn}</footer>`
+  const retry = canOps() && t.source === "portal" && !folderBtn
+    ? `<button type="button" class="btn" id="ensureDrive">Create Drive folder</button>`
+    : "";
+  const actions = briefBtn || folderBtn || retry
+    ? `<footer class="pin-actions">${briefBtn}${folderBtn}${retry}</footer>`
+    : "";
+  const warn = canOps() && t.source === "portal" && !work
+    ? `<p class="drive-warn">No Drive folder yet. Connect Drive as DL, then click Create Drive folder.</p>`
     : "";
   return `<article class="pin">
       <header class="pin-head">Brief</header>
+      ${warn}
       ${body}
       ${actions}
     </article>`;
@@ -1553,7 +1563,20 @@ function fillDrivePackIfMissing(t) {
   api("/api/drive/ensure", { id: t.id, month: state.month, role: me().role }).then((out) => {
     if (out.state) applyState(out.state);
     if (out.ok && state.openId === t.id) openTask(t.id);
+    else if (out.error && t.source === "portal") toast(out.error);
   });
+}
+async function retryDrivePack(t) {
+  state.driveTried[t.id] = false;
+  const out = await api("/api/drive/ensure", { id: t.id, month: state.month, role: me().role });
+  if (out.state) applyState(out.state);
+  if (out.error || !out.ok) {
+    toast(out.error || "Drive folder was not created");
+    if (state.openId === t.id) openTask(t.id);
+    return;
+  }
+  toast("Drive folder + brief Doc ready");
+  if (state.openId === t.id) openTask(t.id);
 }
 function timeCell(t) {
   const hours = t.hours || hoursFromShifts(t.shifts || 0);
@@ -2438,6 +2461,22 @@ function ensureDriveStatus() {
     });
 }
 
+async function saveDriveToken(ev) {
+  ev?.preventDefault();
+  const token = String($("driveToken")?.value || "").trim();
+  if (!token) {
+    toast("Paste a Drive access token first");
+    return;
+  }
+  const out = await api("/api/drive/token", { token });
+  if (out.error) {
+    toast(out.error);
+    return;
+  }
+  if (out.drive) state.drive = out.drive;
+  toast("Drive token saved · Create task can write folders");
+  render();
+}
 async function pullDrive() {
   const out = await api("/api/drive/pull", {});
   if (out.error) {
@@ -2482,20 +2521,27 @@ function driveStrip() {
     )
     .join("");
   const status = d.connected
-    ? `reading Drive${d.pulledAt ? ` · ${escapeHtml(String(d.pulledAt).replace("T", " ").replace("Z", ""))}` : ""}`
+    ? `Drive connected${d.pulledAt ? ` · ${escapeHtml(String(d.pulledAt).replace("T", " ").replace("Z", ""))}` : ""}`
     : d.hasClient
-      ? "snapshot on this server · Connect Drive to keep reading live"
-      : "snapshot from Drive. On the VPS add google_client.json, then Connect Drive";
+      ? "snapshot on this server · Connect Drive so Create task can make folders"
+      : "snapshot from Drive. Create task cannot make a folder until Drive is connected";
   const action = d.connected
     ? `<button type="button" class="btn primary" id="btnDrivePull">Read Drive</button>`
     : d.hasClient
       ? `<a class="btn primary" href="/api/drive/oauth/start">Connect Drive</a>`
       : "";
+  const token = d.connected
+    ? ""
+    : `<form class="drive-token" id="driveTokenForm">
+        <input id="driveToken" type="password" autocomplete="off" placeholder="Paste Drive access token" />
+        <button type="submit" class="btn">Save token</button>
+      </form>`;
   return `<div class="drive-strip">
     <div>
       <strong>Google Drive</strong>
-      <p>${escapeHtml(status)}. Writes stay off.</p>
+      <p>${escapeHtml(status)}. Create task writes the live DD / DX folder for this month.</p>
       <div class="drive-links">${links}</div>
+      ${token}
     </div>
     <div class="drive-actions">${action}</div>
   </div>`;
@@ -2558,6 +2604,7 @@ function renderClose() {
     });
   });
   $("btnDrivePull")?.addEventListener("click", pullDrive);
+  $("driveTokenForm")?.addEventListener("submit", saveDriveToken);
   $("btnCreateInvoices")?.addEventListener("click", createMonthInvoices);
   if (state.finTab === "employees") bindEmployeePay();
   if (state.finTab === "studio") bindStudioPay();
@@ -3675,6 +3722,7 @@ function openTask(id) {
     );
   });
   bindHelpSplit(t);
+  $("ensureDrive")?.addEventListener("click", () => retryDrivePack(t));
   fillDrivePackIfMissing(t);
   $("copyOne")?.addEventListener("click", async () => {
     const pack = mondayReply(t);

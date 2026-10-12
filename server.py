@@ -46,6 +46,7 @@ def load_db() -> dict:
         db = json.loads(SEED_PATH.read_text(encoding="utf-8"))
         notice_io.ensure(db)
         drive_sync.apply_meta(db)
+        drive_io.attach_cached_packs(db)
         if mirror_io.ORIGIN_XLSX.exists():
             mirror_io.restore_buffer_xlsx()
             mirror_io.sync_from_files(db)
@@ -65,6 +66,8 @@ def load_db() -> dict:
         mirror_io.sync_from_files(db)
         drive_sync.apply_meta(db)
         save_db(db, origin=True)
+    if drive_io.attach_cached_packs(db):
+        save_db(db)
     return db
 
 
@@ -808,6 +811,17 @@ class Handler(SimpleHTTPRequestHandler):
         data = self._bind_actor(data, sess)
         with LOCK:
             db = load_db()
+            if path == "/api/drive/token":
+                if sess.get("role") != "finance":
+                    self._json(403, {"error": "only DL can save a Drive token"})
+                    return
+                try:
+                    drive_sync.save_access_token(str(data.get("token") or ""))
+                except drive_sync.DriveSyncError as e:
+                    self._json(400, {"error": str(e)})
+                    return
+                self._json(200, {"ok": True, "drive": drive_sync.status()})
+                return
             if path == "/api/drive/pull":
                 if sess.get("role") != "finance":
                     self._json(403, {"error": "only DL can read Drive"})
@@ -869,6 +883,7 @@ class Handler(SimpleHTTPRequestHandler):
                     )
                     drive = {"ok": True, "created": True, **pack}
                 except drive_io.DriveError as e:
+                    print(f"[drive] create failed for {name}: {e}", flush=True)
                     drive = {"ok": False, "error": str(e)}
                 db.setdefault("tasks", []).insert(0, task)
                 notice_io.on_landed(db, task, str(data.get("actorId") or ""))
@@ -1034,13 +1049,34 @@ class Handler(SimpleHTTPRequestHandler):
                 return
             if path == "/api/drive/ensure":
                 if data.get("role") not in OPS_ROLES:
-                    self._json(403, {"error": "only Line Producer can create Drive folders"})
+                    self._json(403, {"error": "only DL or LP can create Drive folders"})
                     return
                 task = next((t for t in db["tasks"] if t["id"] == data.get("id")), None)
                 if not task:
                     self._json(404, {"error": "not found"})
                     return
-                out = drive_io.ensure_task(db, task, data.get("month") or task.get("month"))
+                ym = data.get("month") or task.get("month") or db.get("meta", {}).get("month") or "2026-10"
+                if str(task.get("source") or "") == "portal":
+                    try:
+                        pack = drive_io.create_live_pack(
+                            db,
+                            str(task.get("name") or ""),
+                            ym,
+                            task.get("line") or drive_io.line_from_name(task.get("name") or ""),
+                        )
+                        task["folderUrl"] = pack.get("folderUrl") or ""
+                        task["docUrl"] = pack.get("docUrl") or ""
+                        task.setdefault("activity", []).append(
+                            {"at": utc_now(), "text": f"Drive folder + brief Doc in {task.get('line') or 'DD'}"}
+                        )
+                        out = {"ok": True, "created": True, **pack}
+                    except drive_io.DriveError as e:
+                        print(f"[drive] ensure failed for {task.get('name')}: {e}", flush=True)
+                        save_db(db)
+                        self._json(409, {"ok": False, "error": str(e), "state": db})
+                        return
+                else:
+                    out = drive_io.ensure_task(db, task, ym)
                 save_db(db)
                 if not out.get("ok"):
                     self._json(400, {**out, "state": db})
