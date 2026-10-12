@@ -345,21 +345,22 @@ html.studio-host.in-app .login-gate { display: none !important; }
 }
 .home-door {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  text-align: left;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
   border: 1.5px solid var(--line);
   background: #fff;
   border-radius: 12px;
-  padding: 18px 16px;
+  padding: 22px 16px;
   cursor: pointer;
-  min-height: 108px;
+  min-height: 88px;
 }
 .home-door:hover { border-color: var(--blue); background: #f4f8ff; }
 .home-door.is-studio { border-color: #0073ea; background: #f3f8ff; }
 .home-door.is-studio:hover { background: #eaf3ff; }
-.home-door strong { font-size: 18px; font-weight: 600; letter-spacing: -0.03em; }
-.home-door span { color: var(--muted); font-size: 13px; line-height: 1.35; }
+.home-door strong { font-size: 20px; font-weight: 600; letter-spacing: -0.03em; }
+.login-seat.login-role { text-align: center; padding: 14px 14px; }
+.login-seat.login-role strong { font-size: 16px; }
 .login-acc, .login-seat {
   display: block;
   width: 100%;
@@ -395,7 +396,7 @@ html.studio-host.in-app .login-gate { display: none !important; }
 .login-go { width: 100%; margin-top: 16px; }
 @media (max-width: 560px) {
   .home-doors { grid-template-columns: 1fr; }
-  .home-door { min-height: 88px; }
+  .home-door { min-height: 76px; }
 }
 #finGatePin {
   width: 100%;

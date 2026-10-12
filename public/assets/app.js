@@ -216,11 +216,9 @@ function showHome() {
     <div class="home-doors">
       <button type="button" class="home-door" id="doorClient">
         <strong>Client</strong>
-        <span>Hours for your projects</span>
       </button>
       <button type="button" class="home-door is-studio" id="doorStudio">
         <strong>Studio</strong>
-        <span>Pipeline, team, finance</span>
       </button>
     </div>
   `;
@@ -253,9 +251,8 @@ async function showStudioRoster(error) {
       ? roles
           .map(
             (r) =>
-              `<button type="button" class="login-seat" data-role="${escapeHtml(r.role)}">
+              `<button type="button" class="login-seat login-role" data-role="${escapeHtml(r.role)}">
                 <strong>${escapeHtml(r.label)}</strong>
-                <span>${escapeHtml(r.blurb)}</span>
               </button>`
           )
           .join("")
@@ -276,6 +273,7 @@ function showStudioPin(role, error) {
   $("loginTitle").hidden = false;
   $("loginLead").hidden = false;
   $("loginTitle").textContent = role.label || "Studio";
+  $("loginLead").hidden = !role.blurb;
   $("loginLead").textContent = role.blurb || "";
   $("loginAccounts").innerHTML = `
     <button type="button" class="btn ghost login-back" id="loginBack">Back</button>
