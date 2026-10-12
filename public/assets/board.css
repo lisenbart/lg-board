@@ -242,7 +242,6 @@ a { color: var(--blue); }
   font-size: 12px;
 }
 .save-cluster {
-  margin-left: auto;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -823,7 +822,13 @@ body.col-resizing * { cursor: col-resize !important; }
 .drawer .meta .status-closed { width: auto; flex: 1; min-width: 120px; }
 .drawer-actions {
   display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
-  margin-top: auto; padding-top: 16px; border-top: 1px solid #eceef5;
+  margin-top: auto; padding-top: 14px; border-top: 1px solid #eceef5;
+}
+.drawer-actions-main {
+  display: flex; gap: 8px; flex-wrap: wrap; align-items: center; flex: 1;
+}
+.drawer-actions-end {
+  display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-left: auto;
 }
 .save-cluster .btn.primary { margin-left: 0; }
 .brief {
@@ -1320,9 +1325,9 @@ body.col-resizing * { cursor: col-resize !important; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 
 .toast {
-  position: fixed; bottom: 18px; right: 18px; background: #323338; color: #fff;
+  position: fixed; bottom: 18px; left: 18px; background: #323338; color: #fff;
   padding: 8px 12px; border-radius: 6px; display: none; z-index: 50; max-width: 360px;
-  font-size: 13px; font-weight: 400;
+  font-size: 13px; font-weight: 400; pointer-events: none;
 }
 .toast.show { display: block; }
 

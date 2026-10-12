@@ -3489,13 +3489,16 @@ function openTask(id) {
     ${opsTime ? `<div class="card-ops">${opsTime}</div>` : ""}
     </div>
     <div class="drawer-actions">
-      ${canOps() && isSendable(t) ? `<button class="btn green" id="exportOne">Send this to client</button>` : ""}
-      ${canOps() && t.studioStatus === "approve" ? `<button class="btn" id="closeOne">Mark Closed</button>` : ""}
-      ${canOps() && isClientCopyable(t) ? `<button type="button" class="btn" id="copyOne">Copy for client</button>` : ""}
-      ${canOps() && isDeletableTask(t) ? `<button type="button" class="btn danger" id="deleteTask">Delete</button>` : ""}
-      <div class="save-cluster">
+      <div class="drawer-actions-main">
+        ${canOps() && isSendable(t) ? `<button type="button" class="btn green" id="exportOne">Send this to client</button>` : ""}
+        ${canOps() && isClientCopyable(t) ? `<button type="button" class="btn" id="copyOne">Copy for client</button>` : ""}
+        ${canOps() && t.studioStatus === "approve" ? `<button type="button" class="btn" id="closeOne">Mark Closed</button>` : ""}
+        ${canOps() && isDeletableTask(t) ? `<button type="button" class="btn danger" id="deleteTask">Delete</button>` : ""}
+      </div>
+      <div class="drawer-actions-end">
         <span class="save-wait" id="saveWait" hidden></span>
-        <button class="btn primary" id="saveTask">Save</button>
+        <button type="button" class="btn ghost" id="closeCard">Close</button>
+        ${canEdit || canOps() ? `<button type="button" class="btn primary" id="saveTask">Save</button>` : ""}
       </div>
     </div>
   `;
@@ -3701,7 +3704,8 @@ function openTask(id) {
     }
     hint.textContent = `${hoursFromShifts(shifts)} h`;
   });
-  $("saveTask").onclick = async () => {
+  $("closeCard")?.addEventListener("click", closeDrawer);
+  $("saveTask")?.addEventListener("click", async () => {
     const saveBtn = $("saveTask");
     if (saveBtn?.classList.contains("is-busy")) return;
     if (canWriteNotes() && (String($("stComment")?.value || "").trim() || pendingShots.length)) {
@@ -3709,7 +3713,7 @@ function openTask(id) {
       if (!ok) return;
     }
     const resultUrl = ($("stResult")?.value || t.resultUrl || "").trim();
-    const studioStatus = $("stStatus").value;
+    const studioStatus = $("stStatus")?.value || t.studioStatus;
     if (studioStatus !== t.studioStatus && !canSetStatus(studioStatus)) {
       toast("This role cannot set " + (STATUS[studioStatus]?.label || studioStatus));
       return;
@@ -3822,14 +3826,21 @@ function openTask(id) {
     );
     try {
       await updateTask(t.id, { ...patch, note }, { close: true });
+    } catch (err) {
+      toast(err?.message || "Could not save");
     } finally {
       if (hint) hint.hidden = true;
       actions.forEach((btn) => setBusy(btn, false));
     }
-  };
+  });
   $("exportOne")?.addEventListener("click", async () => {
-    await sendToClient([t.id]);
-    openTask(t.id);
+    const btn = $("exportOne");
+    setBusy(btn, true, "Copying…");
+    try {
+      await sendToClient([t.id]);
+    } finally {
+      setBusy(btn, false);
+    }
   });
   $("deleteTask")?.addEventListener("click", () => askDeleteTasks([t.id]));
   $("closeOne")?.addEventListener("click", () => {
@@ -3895,6 +3906,7 @@ async function copyForClient(text) {
   const ok = await copyText(pack);
   $("pasteModal")?.classList.remove("show");
   if (ok) {
+    closeDrawer();
     toast("Copied for the client");
     return true;
   }
@@ -4198,6 +4210,26 @@ $("emailApply").onclick = async () => {
 };
 $("drawerBg").addEventListener("click", (e) => {
   if (e.target === $("drawerBg")) closeDrawer();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  if ($("taskDelModal")?.classList.contains("show")) {
+    closeTaskDelete();
+    return;
+  }
+  if ($("pasteModal")?.classList.contains("show")) {
+    $("pasteModal").classList.remove("show");
+    return;
+  }
+  if ($("createTaskModal")?.classList.contains("show")) {
+    closeCreateTask();
+    return;
+  }
+  if ($("emailModal")?.classList.contains("show")) {
+    $("emailModal").classList.remove("show");
+    return;
+  }
+  if ($("drawerBg")?.classList.contains("show")) closeDrawer();
 });
 
 probeStudioApi()
