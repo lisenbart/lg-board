@@ -110,7 +110,7 @@ def apply_comments(db: dict, kept: dict) -> None:
             task["comments"] = kept[key]
 
 
-def attach_live(task: dict, briefs: dict, folders: dict) -> None:
+def attach_pack(task: dict, briefs: dict, folders: dict) -> None:
     key = excel_io._id_key(task.get("name") or "")
     pack = briefs.get(key) or {}
     if pack.get("brief") and not task.get("brief"):
@@ -128,6 +128,10 @@ def attach_live(task: dict, briefs: dict, folders: dict) -> None:
     name = task.get("name") or ""
     if "SettAI" in name or "Halloween" in name:
         task["game"] = task.get("game") or "SettAI"
+
+
+def attach_live(task: dict, briefs: dict, folders: dict) -> None:
+    attach_pack(task, briefs, folders)
     excel_status = task.get("excelStatus") or ""
     if excel_status == "closed" or task.get("studioStatus") == "closed":
         task["studioStatus"] = "closed"
@@ -140,6 +144,26 @@ def attach_live(task: dict, briefs: dict, folders: dict) -> None:
         task["mondayStatus"] = "Ready to Start"
     task["resultUrl"] = ""
     task["source"] = "live-excel"
+
+
+def sync_from_files(db: dict, xlsx: Path | None = None) -> dict:
+    """Hours and projects from the workbook on disk. Pipeline clicks stay on the card."""
+    xlsx = Path(xlsx or (BUFFER_XLSX if BUFFER_XLSX.exists() else ORIGIN_XLSX))
+    if not xlsx.exists():
+        return db
+    ensure_people(db.setdefault("people", []))
+    briefs = briefs_from(db)
+    folders = folder_map()
+    for ym in MIRROR_MONTHS:
+        excel_io.apply_to_db(db, excel_io.parse_workbook(xlsx, ym), ym)
+    for task in db.get("tasks") or []:
+        attach_pack(task, briefs, folders)
+        task["source"] = "excel"
+    meta = db.setdefault("meta", {})
+    meta["bufferDirty"] = False
+    meta["mirrorSource"] = "SP_MGX_check.xlsx · files on disk"
+    meta["mirrorAt"] = utc_now()
+    return db
 
 
 def hydrate(previous: dict | None = None, xlsx: Path | None = None) -> dict:

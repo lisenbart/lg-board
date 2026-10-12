@@ -884,24 +884,13 @@ function renderChrome() {
   const meta = state.db?.meta || {};
   const brand = $("brandMode");
   if (brand) {
-    if (meta.mode === "mirror") {
-      brand.textContent = meta.bufferDirty
-        ? "Mirror · clicks in this browser"
-        : meta.drivePulledAt
-          ? "Drive · read only"
-          : "Mirror · live snapshot";
+    if (meta.drivePulledAt || meta.driveMode === "read") {
+      brand.textContent = "Drive · files";
     } else {
       brand.textContent = "";
     }
   }
-  const hint = roleLine();
-  if (meta.mode === "mirror") {
-    $("roleHint").textContent = meta.bufferDirty
-      ? `${hint} · Reset to live throws away clicks here. Core Excel / October Drive stay untouched.`
-      : `${hint} · live people, hours, money. Clicks stay in a buffer.`;
-  } else {
-    $("roleHint").textContent = hint;
-  }
+  $("roleHint").textContent = roleLine();
   $("sideFoot").innerHTML = "";
   ensureDriveStatus();
 
@@ -987,7 +976,6 @@ function renderToolbar() {
       <button class="btn green" id="btnExport" ${n ? "" : "disabled"}>Send to client (${n})</button>
       <input class="search" placeholder="Search project" />
       <button class="btn ghost" id="btnClientLink">Copy SuperPlay link</button>
-      <button class="btn ghost" id="btnReset">Reset to live</button>
     `;
   }
   bindSearch();
@@ -995,7 +983,6 @@ function renderToolbar() {
   $("btnEmail")?.addEventListener("click", () => $("emailModal").classList.add("show"));
   $("btnExport")?.addEventListener("click", exportMonday);
   $("btnClientLink")?.addEventListener("click", copyClientPage);
-  $("btnReset")?.addEventListener("click", resetDemo);
   $("btnDrivePull")?.addEventListener("click", pullDrive);
 }
 async function copyClientPage() {
@@ -2412,11 +2399,7 @@ async function pullDrive() {
   if (out.drive) state.drive = out.drive;
   if (out.state) applyState(out.state);
   const names = (out.downloaded || []).join(", ") || "Drive files";
-  toast(
-    out.applied
-      ? `Drive read · ${names}`
-      : `Drive downloaded · Reset to live to apply (${names})`
-  );
+  toast(`Drive files · ${names}`);
   render();
 }
 
@@ -3707,20 +3690,6 @@ async function sendToClient(ids) {
 }
 async function exportMonday() {
   await sendToClient([...state.selected]);
-}
-async function resetDemo() {
-  if (
-    !confirm(
-      "Discard clicks in this browser and restore the live snapshot?\n\nThe real SP_MGX_check.xlsx and Projects / 10_October are not changed."
-    )
-  ) {
-    return;
-  }
-  const out = await api("/api/reset", {});
-  state.month = out.meta?.month || "2026-10";
-  localStorage.setItem(MONTH_KEY, state.month);
-  applyState(out);
-  toast("Restored live snapshot · core files untouched");
 }
 function applyState(db, opts = {}) {
   state.db = db;

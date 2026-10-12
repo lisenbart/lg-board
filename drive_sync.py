@@ -435,24 +435,19 @@ def pull(db: dict | None = None, hydrate: bool = True) -> dict:
     save_json(INDEX_PATH, idx)
 
     applied = False
-    dirty = bool((db or {}).get("meta", {}).get("bufferDirty"))
-    if hydrate and db is not None and not dirty:
-        mirror_io.restore_buffer_xlsx()
-        restored = mirror_io.hydrate(db, mirror_io.ORIGIN_XLSX)
+    if db is not None:
+        if excel_id and mirror_io.ORIGIN_XLSX.exists():
+            mirror_io.restore_buffer_xlsx()
+        if hydrate:
+            mirror_io.sync_from_files(db)
         apply_meta(
-            restored,
+            db,
             {
                 "drivePulledAt": idx["pulledAt"],
                 "mirrorSource": "SP_MGX_check.xlsx · Google Drive · read only",
             },
         )
-        db.clear()
-        db.update(restored)
         applied = True
-    elif db is not None:
-        apply_meta(db, {"drivePulledAt": idx["pulledAt"]})
-        if excel_id and not dirty:
-            mirror_io.restore_buffer_xlsx()
 
     return {
         "ok": True,
@@ -462,5 +457,4 @@ def pull(db: dict | None = None, hydrate: bool = True) -> dict:
         "projects": len(mapped),
         "files": len(index_rows),
         "applied": applied,
-        "bufferKept": dirty,
     }

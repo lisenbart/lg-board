@@ -27,6 +27,7 @@ DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
 LOCK = threading.Lock()
+_FILES_SYNCED = False
 
 EMAIL_LINE = re.compile(
     r"^\s*([A-Z]{2}-[A-Za-z0-9._-]+)\s*\|\s*([\d]+(?:[.,]\d+)?)\s*shifts?\s*$",
@@ -39,22 +40,31 @@ def utc_now() -> str:
 
 
 def load_db() -> dict:
+    global _FILES_SYNCED
     DATA.mkdir(exist_ok=True)
     if not DB_PATH.exists():
         db = json.loads(SEED_PATH.read_text(encoding="utf-8"))
         notice_io.ensure(db)
         drive_sync.apply_meta(db)
-        if (db.get("meta") or {}).get("mode") == "mirror":
+        if mirror_io.ORIGIN_XLSX.exists():
             mirror_io.restore_buffer_xlsx()
+            mirror_io.sync_from_files(db)
         save_db(db, origin=True)
+        _FILES_SYNCED = True
         return db
     db = json.loads(DB_PATH.read_text(encoding="utf-8"))
     if notice_io.ensure(db):
         save_db(db)
     drive_sync.apply_meta(db)
-    meta = db.get("meta") or {}
-    if meta.get("mode") == "mirror" and not meta.get("bufferDirty") and mirror_io.ORIGIN_XLSX.exists():
-        mirror_io.restore_buffer_xlsx()
+    origin = mirror_io.ORIGIN_XLSX
+    buf = excel_io.XLSX_PATH
+    if not _FILES_SYNCED and origin.exists():
+        _FILES_SYNCED = True
+        if (not buf.exists()) or origin.stat().st_mtime >= buf.stat().st_mtime:
+            mirror_io.restore_buffer_xlsx()
+        mirror_io.sync_from_files(db)
+        drive_sync.apply_meta(db)
+        save_db(db, origin=True)
     return db
 
 
@@ -798,15 +808,6 @@ class Handler(SimpleHTTPRequestHandler):
         data = self._bind_actor(data, sess)
         with LOCK:
             db = load_db()
-            if path == "/api/reset":
-                if sess.get("role") != "finance":
-                    self._json(403, {"error": "only finance can reset"})
-                    return
-                db = mirror_io.restore(carry_from=db)
-                drive_sync.apply_meta(db)
-                save_db(db, origin=True)
-                self._json(200, db)
-                return
             if path == "/api/drive/pull":
                 if sess.get("role") != "finance":
                     self._json(403, {"error": "only DL can read Drive"})
@@ -1201,13 +1202,15 @@ class Handler(SimpleHTTPRequestHandler):
                 return
             if path == "/api/excel/pull":
                 month = data.get("month") or db.get("meta", {}).get("month") or "2026-10"
-                parsed = excel_io.parse_workbook(excel_io.XLSX_PATH, month)
-                stats = excel_io.apply_to_db(db, parsed, month)
+                before = len(db.get("tasks") or [])
+                mirror_io.sync_from_files(db)
+                drive_sync.apply_meta(db)
+                added = max(0, len(db.get("tasks") or []) - before)
                 db.setdefault("events", []).insert(
-                    0, {"at": utc_now(), "text": f"Excel pull {month}: {stats['updated']} updated, {stats['added']} new"}
+                    0, {"at": utc_now(), "text": f"Excel pull {month} from file"}
                 )
-                save_db(db)
-                self._json(200, {**stats, "state": db})
+                save_db(db, origin=True)
+                self._json(200, {"updated": len(db.get("tasks") or []), "added": added, "state": db})
                 return
             if path == "/api/excel/import":
                 month = data.get("month") or db.get("meta", {}).get("month") or "2026-10"
