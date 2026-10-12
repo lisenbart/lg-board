@@ -200,6 +200,7 @@ a { color: var(--blue); }
 .btn.primary { background: var(--blue); color: #fff; }
 .btn.primary:hover { background: var(--blue-hover); }
 .btn.green { background: var(--green); color: #123; }
+.btn.danger { background: #fce8ec; color: var(--red); }
 .btn.orange { background: var(--orange); color: #3a2a00; }
 .btn.ghost { background: transparent; border: 1px solid var(--line); }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }

@@ -3359,6 +3359,7 @@ function openTask(id) {
       ${canOps() && isSendable(t) ? `<button class="btn green" id="exportOne">Send this to client</button>` : ""}
       ${canOps() && t.studioStatus === "approve" ? `<button class="btn" id="closeOne">Mark Closed</button>` : ""}
       ${canOps() && t.studioStatus === "approve" && t.resultUrl ? `<button class="btn" id="copyOne">Copy Monday reply</button>` : ""}
+      ${canOps() && t.source === "portal" ? `<button type="button" class="btn danger" id="deleteTask">Delete</button>` : ""}
       <button class="btn primary" id="saveTask">Save</button>
     </div>
   `;
@@ -3644,6 +3645,23 @@ function openTask(id) {
   $("exportOne")?.addEventListener("click", async () => {
     await sendToClient([t.id]);
     openTask(t.id);
+  });
+  $("deleteTask")?.addEventListener("click", async () => {
+    if (!confirm("Delete this test task and its Drive folder?")) return;
+    const out = await api("/api/tasks/delete", { id: t.id, role: me().role, actorId: me().id });
+    if (out.error || !out.state) {
+      toast(out.error || "Could not delete");
+      return;
+    }
+    applyState(out.state);
+    closeDrawer();
+    if (out.drive && out.drive.ok === false) {
+      toast(out.drive.error || "Removed from the board. Drive folder was not trashed.");
+    } else if (out.drive && out.drive.trashed) {
+      toast("Deleted on the board and moved the Drive folder to trash");
+    } else {
+      toast("Deleted on the board");
+    }
   });
   $("closeOne")?.addEventListener("click", () => {
     updateTask(

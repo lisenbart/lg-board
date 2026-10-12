@@ -405,6 +405,47 @@ def create_live_pack(db: dict, name: str, ym: str, line: str) -> dict:
     return pack
 
 
+def forget_live_folder(name: str) -> None:
+    import excel_io
+    import mirror_io
+
+    key = excel_io._id_key(name)
+    cache = _load_cache()
+    (cache.get("byName") or {}).pop(name, None)
+    _save_cache(cache)
+    if not key:
+        return
+    mapped = mirror_io.folder_map()
+    if key in mapped:
+        mapped.pop(key, None)
+        mirror_io.FOLDERS_PATH.write_text(
+            json.dumps(mapped, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
+
+
+def trash_live_pack(task: dict) -> dict:
+    """Move the test folder (and the brief Doc inside it) to Drive trash."""
+    name = str((task or {}).get("name") or "").strip()
+    token = drive_token()
+    fid = folder_id_from_url((task or {}).get("folderUrl") or "")
+    hit = cached_pack(name) or {}
+    fid = fid or str(hit.get("folderId") or "")
+    if not fid:
+        forget_live_folder(name)
+        return {"ok": True, "trashed": False, "skipped": "no Drive folder"}
+    if not token:
+        raise DriveError("Drive is not connected — Connect Drive as DL first")
+    _api(
+        token,
+        "PATCH",
+        f"files/{fid}",
+        query={"supportsAllDrives": "true"},
+        body={"trashed": True},
+    )
+    forget_live_folder(name)
+    return {"ok": True, "trashed": True, "folderId": fid}
+
+
 def write_brief_doc(doc_url: str, text: str) -> None:
     did = ""
     m = re.search(r"/document/d/([a-zA-Z0-9_-]+)", doc_url or "")

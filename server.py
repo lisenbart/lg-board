@@ -878,6 +878,29 @@ class Handler(SimpleHTTPRequestHandler):
                 save_db(db)
                 self._json(200, {"ok": True, "task": task, "drive": drive, "state": db})
                 return
+            if path == "/api/tasks/delete":
+                if data.get("role") not in OPS_ROLES:
+                    self._json(403, {"error": "only DL or LP can delete a test task"})
+                    return
+                task = next((t for t in db.get("tasks") or [] if t.get("id") == data.get("id")), None)
+                if not task:
+                    self._json(404, {"error": "not found"})
+                    return
+                if str(task.get("source") or "") != "portal":
+                    self._json(403, {"error": "only portal test tasks can be deleted"})
+                    return
+                drive = {"ok": False}
+                try:
+                    drive = drive_io.trash_live_pack(task)
+                except drive_io.DriveError as e:
+                    drive = {"ok": False, "error": str(e)}
+                db["tasks"] = [t for t in (db.get("tasks") or []) if t.get("id") != task.get("id")]
+                db.setdefault("events", []).insert(
+                    0, {"at": utc_now(), "text": f"Deleted test task {task.get('name')}"}
+                )
+                save_db(db)
+                self._json(200, {"ok": True, "drive": drive, "state": db})
+                return
             if path == "/api/parse-email":
                 if data.get("role") not in OPS_ROLES:
                     self._json(403, {"error": "only Line Producer can parse shift email"})
