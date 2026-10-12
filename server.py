@@ -494,7 +494,7 @@ class Handler(SimpleHTTPRequestHandler):
         if path == "/api/roster":
             with LOCK:
                 people = load_db().get("people") or []
-            self._json(200, {"studio": auth_io.studio_roster(people)})
+            self._json(200, auth_io.studio_roster(people))
             return
         if path == "/api/me":
             sess = self._session()
@@ -645,41 +645,72 @@ class Handler(SimpleHTTPRequestHandler):
                 people = db.get("people") or []
                 email = auth_io.resolve_email(data.get("email") or "")
                 seat = None
-                if door == "studio":
-                    person = auth_io.person_by_id(people, data.get("seatId"))
+                if door == "client":
+                    if not auth_io.pin_ok_for_role("client", pin) and not auth_io.pin_ok(
+                        auth_io.CLIENT_EMAIL, pin
+                    ):
+                        self._json(403, {"error": "wrong login or PIN"})
+                        return
+                    email = auth_io.CLIENT_EMAIL
+                    person = next((p for p in people if p.get("role") == "client"), None)
+                    if not person:
+                        self._json(400, {"error": "no seat for this login"})
+                        return
+                    seat = {
+                        "id": person.get("id"),
+                        "name": person.get("name") or "",
+                        "role": "client",
+                    }
+                elif door == "studio":
+                    role = str(data.get("role") or "").strip()
+                    if role not in {"finance", "manager", "teamlead", "designer"}:
+                        self._json(403, {"error": "wrong login or PIN"})
+                        return
+                    if not auth_io.pin_ok_for_role(role, pin):
+                        self._json(403, {"error": "wrong login or PIN"})
+                        return
+                    matches = auth_io.people_for_role(people, role)
+                    if not matches:
+                        self._json(400, {"error": "no seat for this login"})
+                        return
+                    if role == "designer" and not data.get("seatId"):
+                        self._json(
+                            200,
+                            {
+                                "ok": True,
+                                "needSeat": True,
+                                "seats": [
+                                    {
+                                        "id": p.get("id"),
+                                        "name": p.get("name") or "",
+                                        "role": "designer",
+                                    }
+                                    for p in matches
+                                ],
+                            },
+                        )
+                        return
+                    person = auth_io.person_by_id(people, data.get("seatId")) if data.get("seatId") else matches[0]
+                    if not person or person.get("role") != role:
+                        self._json(403, {"error": "wrong login or PIN"})
+                        return
                     email = auth_io.email_for_person(person)
-                    if not person or person.get("role") == "client":
-                        self._json(403, {"error": "wrong login or PIN"})
-                        return
-                    if not auth_io.pin_ok_for_person(person, pin):
-                        self._json(403, {"error": "wrong login or PIN"})
-                        return
                     seat = {
                         "id": person.get("id"),
                         "name": person.get("name") or "",
                         "role": person.get("role") or "",
                     }
-                elif (
-                    email not in auth_io.LOCK_ROLE
-                    or not auth_io.door_allows(door, email)
-                    or not auth_io.pin_ok(email, pin)
-                ):
+                else:
                     self._json(403, {"error": "wrong login or PIN"})
                     return
-                seats = auth_io.seats_for(email, people)
-                if not seats:
+                if seat is None:
                     self._json(400, {"error": "no seat for this login"})
                     return
-                need_seat = False
-                if seat is None:
-                    seat = auth_io.pick_seat(email, people, data.get("seatId"))
                 token = auth_io.create_session(email, seat)
                 sess = auth_io.session_of(token)
                 cookie = auth_io.cookie_header(token, secure=self._cookie_secure())
                 payload = {
                     "ok": True,
-                    "needSeat": need_seat,
-                    "seats": seats,
                     "session": sess,
                     "state": auth_io.view_state(db, sess),
                 }

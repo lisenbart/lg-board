@@ -14,12 +14,7 @@ One list, not Monday groups. Sorted by studio status:
 
 Studio URL: **https://board.lisenbart.games**
 
-Home is the logo plus two doors: **Client** and **Studio**. Each **name** has its own PIN (`data/secrets/pins.json` on the server, not in git). A designer PIN does not open TL or LP.
-
-| Door | How | Sees |
-| --- | --- | --- |
-| Studio | Pick your name, then **your** PIN | That person only |
-| Client | `superplay` + PIN | **Hours** only. Also `https://board.lisenbart.games/hours` |
+Home: **Client** or **Studio**. Five logins, one PIN each (`data/secrets/pins.json`): Finance, LP, TL, MD, Client. After MD PIN, pick which designer is at the desk.
 
 Then:
 

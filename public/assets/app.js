@@ -236,46 +236,47 @@ function loginBackHome() {
 }
 async function showStudioRoster(error) {
   state.loginDoor = "studio";
+  state.loginRole = null;
   openLoginGate();
   $("loginCard")?.classList.remove("is-home");
   $("loginTitle").hidden = false;
   $("loginLead").hidden = false;
   $("loginTitle").textContent = "Studio";
-  $("loginLead").textContent = "Who is signing in?";
+  $("loginLead").textContent = "Pick a login";
   document.title = "Studio — Lisenbart Board";
   const out = await api("/api/roster");
-  const seats = out?.studio || [];
+  const roles = out?.studio || [];
   $("loginAccounts").innerHTML =
     `<button type="button" class="btn ghost login-back" id="loginBack">Back</button>` +
     (error ? `<p class="login-err">${escapeHtml(error)}</p>` : "") +
-    (seats.length
-      ? seats
+    (roles.length
+      ? roles
           .map(
-            (p) =>
-              `<button type="button" class="login-seat" data-seat="${escapeHtml(p.id)}">
-                <strong>${escapeHtml(p.name)} ${jobBadgeHtml(p)}</strong>
-                <span>${escapeHtml(jobMeta(p).title)}</span>
+            (r) =>
+              `<button type="button" class="login-seat" data-role="${escapeHtml(r.role)}">
+                <strong>${escapeHtml(r.label)}</strong>
+                <span>${escapeHtml(r.blurb)}</span>
               </button>`
           )
           .join("")
-      : `<p class="login-err">Could not load the team.</p>`);
+      : `<p class="login-err">Could not load logins.</p>`);
   $("loginBack")?.addEventListener("click", loginBackHome);
   $("loginAccounts").querySelectorAll(".login-seat").forEach((el) => {
     el.addEventListener("click", () => {
-      const person = seats.find((p) => p.id === el.dataset.seat);
-      if (person) showStudioPin(person);
+      const role = roles.find((r) => r.role === el.dataset.role);
+      if (role) showStudioPin(role);
     });
   });
 }
-function showStudioPin(person, error) {
+function showStudioPin(role, error) {
   state.loginDoor = "studio";
-  state.loginSeat = person;
+  state.loginRole = role;
   openLoginGate();
   $("loginCard")?.classList.remove("is-home");
   $("loginTitle").hidden = false;
   $("loginLead").hidden = false;
-  $("loginTitle").textContent = person.name || "Studio";
-  $("loginLead").textContent = jobMeta(person).title;
+  $("loginTitle").textContent = role.label || "Studio";
+  $("loginLead").textContent = role.blurb || "";
   $("loginAccounts").innerHTML = `
     <button type="button" class="btn ghost login-back" id="loginBack">Back</button>
     <label class="login-pin-lab" for="loginPin">PIN</label>
@@ -284,7 +285,7 @@ function showStudioPin(person, error) {
     <button type="button" class="btn primary login-go" id="loginGo">Open</button>
   `;
   $("loginBack")?.addEventListener("click", () => showStudioRoster());
-  const go = () => submitDoorLogin(person.id);
+  const go = () => submitDoorLogin();
   $("loginGo")?.addEventListener("click", go);
   $("loginPin")?.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
@@ -293,6 +294,28 @@ function showStudioPin(person, error) {
     }
   });
   $("loginPin")?.focus();
+}
+function showMdSeats(seats) {
+  openLoginGate();
+  $("loginTitle").hidden = false;
+  $("loginLead").hidden = false;
+  $("loginTitle").textContent = "MD";
+  $("loginLead").textContent = "Who is at the desk?";
+  $("loginAccounts").innerHTML =
+    `<button type="button" class="btn ghost login-back" id="loginBack">Back</button>` +
+    seats
+      .map(
+        (p) =>
+          `<button type="button" class="login-seat" data-seat="${escapeHtml(p.id)}">
+            <strong>${escapeHtml(p.name)}</strong>
+            <span>Motion design</span>
+          </button>`
+      )
+      .join("");
+  $("loginBack")?.addEventListener("click", () => showStudioPin(state.loginRole));
+  $("loginAccounts").querySelectorAll(".login-seat").forEach((el) => {
+    el.addEventListener("click", () => submitDoorLogin(el.dataset.seat));
+  });
 }
 function showDoorForm(door, error) {
   state.loginDoor = door;
@@ -305,12 +328,10 @@ function showDoorForm(door, error) {
   $("loginTitle").hidden = false;
   $("loginLead").hidden = false;
   $("loginTitle").textContent = "Client";
-  $("loginLead").textContent = "Your hours page. Login and PIN from Lisenbart.";
+  $("loginLead").textContent = "Hours for your projects.";
   document.title = "Client — Lisenbart Board";
   $("loginAccounts").innerHTML = `
     <button type="button" class="btn ghost login-back" id="loginBack">Back</button>
-    <label class="login-pin-lab" for="loginEmail">Login</label>
-    <input id="loginEmail" class="login-pin login-email" type="text" autocomplete="username" placeholder="superplay" />
     <label class="login-pin-lab" for="loginPin">PIN</label>
     <input id="loginPin" class="login-pin" type="password" inputmode="numeric" maxlength="8" autocomplete="current-password" />
     ${error ? `<p class="login-err">${escapeHtml(error)}</p>` : ""}
@@ -319,43 +340,42 @@ function showDoorForm(door, error) {
   $("loginBack")?.addEventListener("click", loginBackHome);
   const go = () => submitDoorLogin();
   $("loginGo")?.addEventListener("click", go);
-  ["loginEmail", "loginPin"].forEach((id) => {
-    $(id)?.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        go();
-      }
-    });
+  $("loginPin")?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      go();
+    }
   });
-  $("loginEmail")?.focus();
+  $("loginPin")?.focus();
 }
 async function submitDoorLogin(seatId) {
   const door = state.loginDoor || (isHoursPage() ? "client" : "studio");
-  const email = $("loginEmail") ? $("loginEmail").value : state.loginEmail || "";
   const pin = $("loginPin") ? $("loginPin").value : state.loginPin || "";
-  state.loginEmail = email;
-  state.loginPin = pin;
-  const pickedSeat = seatId || state.loginSeat?.id;
+  if (pin) state.loginPin = pin;
+  const role = state.loginRole?.role;
   const out = await api("/api/login", {
     door,
-    email,
-    pin,
-    seatId: pickedSeat || undefined,
+    pin: state.loginPin,
+    role,
+    seatId: seatId || undefined,
   });
   if (out.error) {
-    if (door === "studio" && state.loginSeat) {
-      showStudioPin(state.loginSeat, out.error);
+    if (door === "studio" && state.loginRole) {
+      showStudioPin(state.loginRole, out.error);
       return;
     }
     showDoorForm(door, out.error);
-    if (state.loginEmail && $("loginEmail")) $("loginEmail").value = state.loginEmail;
+    return;
+  }
+  if (out.needSeat) {
+    showMdSeats(out.seats || []);
     return;
   }
   const sess = out.session || {};
   applyState(out.state, { render: false });
   if (!applySession(sess)) {
-    if (door === "studio" && state.loginSeat) {
-      showStudioPin(state.loginSeat, "Could not open this seat");
+    if (door === "studio" && state.loginRole) {
+      showStudioPin(state.loginRole, "Could not open this seat");
       return;
     }
     showDoorForm(door, "Could not open this seat");

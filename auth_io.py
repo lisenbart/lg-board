@@ -47,19 +47,26 @@ def door_allows(door: str, email: str) -> bool:
     return email in LOCK_ROLE
 
 DEFAULT_PINS = {
-    "dmytro@lisenbart.games": "3245",
-    "anastasiia@lisenbart.games": "1726",
-    CLIENT_EMAIL: "3500",
     "finance": "3245",
     "manager": "1726",
     "teamlead": "5514",
-    "designer2": "4429",
-    "designer3": "3381",
-    "designer4": "7740",
-    "designer5": "6618",
+    "designer": "4429",
+    "client": "3500",
+    CLIENT_EMAIL: "3500",
 }
-SHARED_TEAM_PIN = "2026"
-PERSON_PIN_IDS = ("finance", "manager", "teamlead", "designer2", "designer3", "designer4", "designer5")
+ROLE_PIN_KEYS = {
+    "finance": "finance",
+    "manager": "manager",
+    "teamlead": "teamlead",
+    "designer": "designer",
+    "client": "client",
+}
+STUDIO_ROLES = (
+    {"role": "finance", "label": "Finance", "blurb": "Studio money"},
+    {"role": "manager", "label": "LP", "blurb": "Line Producer"},
+    {"role": "teamlead", "label": "TL", "blurb": "Team Lead"},
+    {"role": "designer", "label": "MD", "blurb": "Motion design"},
+)
 
 LOCK_ROLE = {
     "dmytro@lisenbart.games": "finance",
@@ -91,20 +98,14 @@ def _save_json(path: Path, payload) -> None:
 
 def ensure_pins() -> dict:
     pins = _load_json(PINS_PATH, {})
-    if not isinstance(pins, dict) or not pins:
-        pins = dict(DEFAULT_PINS)
-        _save_json(PINS_PATH, pins)
-        return {str(k).strip().lower(): str(v).strip() for k, v in pins.items() if k}
+    if not isinstance(pins, dict):
+        pins = {}
     changed = False
     for key, pin in DEFAULT_PINS.items():
-        cur = str(pins.get(key) or "").strip()
-        if not cur:
+        if not str(pins.get(key) or "").strip():
             pins[key] = pin
             changed = True
-        elif key in PERSON_PIN_IDS and cur == SHARED_TEAM_PIN:
-            pins[key] = pin
-            changed = True
-    if changed:
+    if changed or not pins:
         _save_json(PINS_PATH, pins)
     return {str(k).strip().lower(): str(v).strip() for k, v in pins.items() if k}
 
@@ -123,12 +124,9 @@ def pin_ok(email: str, pin: str) -> bool:
     return _pin_eq(want, str(pin or "").strip())
 
 
-def pin_ok_for_person(person: dict | None, pin: str) -> bool:
-    """Only this person's PIN. MD cannot open TL with a shared team code."""
-    if not person:
-        return False
-    pid = str(person.get("id") or "").strip()
-    want = ensure_pins().get(pid.lower(), "")
+def pin_ok_for_role(role: str, pin: str) -> bool:
+    key = ROLE_PIN_KEYS.get(str(role or "").strip().lower(), "")
+    want = ensure_pins().get(key, "")
     return _pin_eq(want, str(pin or "").strip())
 
 
@@ -152,43 +150,38 @@ ROLE_EMAIL = {
     "client": CLIENT_EMAIL,
 }
 
-ROSTER_ORDER = {"finance": 0, "manager": 1, "teamlead": 2, "designer": 3}
-
-
 def email_for_person(person: dict | None) -> str:
     if not person:
         return ""
     return ROLE_EMAIL.get(str(person.get("role") or ""), "")
 
 
-def studio_roster(people: list[dict]) -> list[dict]:
-    rows = []
+def studio_roster(people: list[dict]) -> dict:
+    designers = []
     for person in people or []:
-        role = str(person.get("role") or "")
-        if role not in {"finance", "manager", "teamlead", "designer"}:
+        if person.get("role") != "designer":
             continue
         try:
             order = int(person.get("payOrder") or 99)
         except (TypeError, ValueError):
             order = 99
-        rows.append(
+        designers.append(
             {
                 "id": person.get("id"),
                 "name": person.get("name") or "",
-                "role": role,
+                "role": "designer",
                 "payOrder": order,
             }
         )
-    rows.sort(
-        key=lambda row: (
-            ROSTER_ORDER.get(row["role"], 9),
-            int(row.get("payOrder") or 99),
-            str(row.get("name") or "").lower(),
-        )
-    )
-    for row in rows:
+    designers.sort(key=lambda row: (int(row.get("payOrder") or 99), str(row.get("name") or "").lower()))
+    for row in designers:
         row.pop("payOrder", None)
-    return rows
+    return {"studio": [dict(item) for item in STUDIO_ROLES], "designers": designers}
+
+
+def people_for_role(people: list[dict], role: str) -> list[dict]:
+    want = str(role or "").strip()
+    return [p for p in people or [] if p.get("role") == want]
 
 
 def person_by_id(people: list[dict], seat_id: str) -> dict | None:
