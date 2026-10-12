@@ -116,19 +116,6 @@
     </div>
   </div>
 
-  <div class="modal-bg" id="driveClientModal">
-    <div class="modal">
-      <h3>Connect Google Drive</h3>
-      <p style="color:#676879;font-size:13px">One-time. <a href="https://console.cloud.google.com/apis/library/drive.googleapis.com" target="_blank" rel="noreferrer">Enable Drive API</a> and <a href="https://console.cloud.google.com/apis/library/docs.googleapis.com" target="_blank" rel="noreferrer">Docs API</a>, then Credentials → Create OAuth client → <strong>Web application</strong>. JavaScript origin: <code>https://board.lisenbart.games</code>. Redirect: <code>https://board.lisenbart.games/api/drive/oauth/callback</code>. Download JSON, paste it here, Save — Google popup as dmytro@lisenbart.games.</p>
-      <textarea id="driveClientJson" rows="8" placeholder='{"web":{"client_id":"...","client_secret":"..."}}'></textarea>
-      <p class="login-err" id="driveClientErr"></p>
-      <div class="modal-actions">
-        <button type="button" class="btn ghost" id="driveClientCancel">Cancel</button>
-        <button type="button" class="btn primary" id="driveClientGo">Save and connect</button>
-      </div>
-    </div>
-  </div>
-
   <div class="modal-bg" id="emailModal">
     <div class="modal">
       <h3>Paste shift email</h3>
@@ -188,6 +175,6 @@
   <script src="assets/notices.js?v=3"></script>
   <script src="assets/store.js?v=66"></script>
   <script src="assets/gdrive.js?v=2"></script>
-  <script src="assets/app.js?v=122"></script>
+  <script src="assets/app.js?v=123"></script>
 </body>
 </html>

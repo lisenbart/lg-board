@@ -1016,27 +1016,10 @@ async function submitCreateTask() {
     role: me().role,
     actorId: me().id,
   };
-  let out = await api("/api/tasks/create", payload);
-  if (out.error && !out.state) {
-    try {
-      if (!driveAccessToken() && drivePack().clientId) {
-        await requestDriveToken({ prompt: "" });
-        await persistDriveToken();
-      }
-      const pack = await gdriveCreatePack(name, name.slice(0, 2));
-      payload = { ...payload, ...pack };
-      out = await api("/api/tasks/create", payload);
-    } catch (driveErr) {
-      if (go) go.disabled = false;
-      if (err) err.textContent = out.error || driveErr.message || "Connect Drive as DL first";
-      if (isFinance()) openDriveClientModal();
-      return;
-    }
-  }
+  const out = await api("/api/tasks/create", payload);
   if (go) go.disabled = false;
   if (out.error || !out.state) {
     if (err) err.textContent = out.error || "Could not create the task";
-    if (isFinance() && /not connected|OAuth|token/i.test(out.error || "")) openDriveClientModal();
     return;
   }
   applyState(out.state);
@@ -1582,25 +1565,9 @@ async function retryDrivePack(t) {
   state.driveTried[t.id] = false;
   let out = await api("/api/drive/ensure", { id: t.id, month: state.month, role: me().role });
   if (out.error || !out.ok) {
-    try {
-      if (!driveAccessToken() && drivePack().clientId) {
-        await requestDriveToken({ prompt: "" });
-        await persistDriveToken();
-      }
-      const pack = await gdriveCreatePack(t.name, t.line);
-      out = await api("/api/tasks/update", {
-        id: t.id,
-        actorId: me().id,
-        folderUrl: pack.folderUrl,
-        docUrl: pack.docUrl,
-      });
-      if (String(t.brief || "").trim()) await gdriveWriteBrief(pack.docId, t.brief);
-    } catch (err) {
-      toast(out.error || err.message || "Drive folder was not created");
-      if (isFinance()) openDriveClientModal();
-      if (state.openId === t.id) openTask(t.id);
-      return;
-    }
+    toast(out.error || "Drive folder was not created");
+    if (state.openId === t.id) openTask(t.id);
+    return;
   }
   if (out.state) applyState(out.state);
   toast("Drive folder + brief Doc ready");
@@ -1609,8 +1576,6 @@ async function retryDrivePack(t) {
 
 function bindDriveButtons() {
   $("btnDrivePull")?.addEventListener("click", pullDrive);
-  $("btnConnectDrive")?.addEventListener("click", connectDrive);
-  $("btnDriveClient")?.addEventListener("click", openDriveClientModal);
 }
 function timeCell(t) {
   const hours = t.hours || hoursFromShifts(t.shifts || 0);
@@ -3771,33 +3736,7 @@ async function updateTask(id, patch, opts = {}) {
   }
   applyState(out.state);
   if (out.drive && out.drive.ok === false && patch.brief != null) {
-    try {
-      const task = (out.state.tasks || []).find((row) => row.id === id) || {};
-      const docId = String(task.docUrl || "").match(/\/document\/d\/([a-zA-Z0-9_-]+)/)?.[1];
-      if (!driveAccessToken() && drivePack().clientId) {
-        await requestDriveToken({ prompt: "" });
-        await persistDriveToken();
-      }
-      if (docId) {
-        await gdriveWriteBrief(docId, patch.brief);
-        toast("Saved · brief written to Google Doc");
-      } else {
-        const pack = await gdriveCreatePack(task.name, task.line);
-        await api("/api/tasks/update", {
-          id,
-          actorId: me().id,
-          folderUrl: pack.folderUrl,
-          docUrl: pack.docUrl,
-        });
-        await gdriveWriteBrief(pack.docId, patch.brief);
-        toast("Saved · folder + brief written to Drive");
-      }
-    } catch (err) {
-      toast(out.drive.error || err.message || "Saved on the board, not on Drive");
-      if (isFinance()) openDriveClientModal();
-      if (state.openId && $("drawerBg").classList.contains("show")) openTask(id);
-      return;
-    }
+    toast(out.drive.error || "Saved on the board, not on Drive");
   } else {
     toast("Saved");
   }
