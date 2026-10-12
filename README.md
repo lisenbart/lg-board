@@ -14,7 +14,7 @@ One list, not Monday groups. Sorted by studio status:
 
 Studio URL: **https://board.lisenbart.games**
 
-Google Drive: read Excel / October from [LLC/docs](https://drive.google.com/drive/folders/191q3zTumkNi-2tc9LCB1SG2lZwtu0pVs). **Create task** (DL / LP) also writes a folder + empty brief Doc into this month’s live DD / DX. The VPS must be connected: put OAuth client JSON in `data/secrets/google_client.json` (Drive API, redirect `https://board.lisenbart.games/api/drive/oauth/callback`), then as **DL** click **Connect Drive**. Or paste a Drive access token on the Finance Drive strip. Without that, the card still lands on the board and the folder is not created.
+Google Drive: read Excel / October from [LLC/docs](https://drive.google.com/drive/folders/191q3zTumkNi-2tc9LCB1SG2lZwtu0pVs). As **DL**, click **Connect Drive** (paste Google OAuth Web client JSON once, then Google sign-in). After that **Create task** makes the live DD / DX folder + brief Doc, and **Save** on the card writes the brief into that Doc.
 
 Home: **Client** or **Studio**. Five logins, one PIN each (`data/secrets/pins.json`): Finance, LP, TL, MD, Client. After MD PIN, pick which designer is at the desk.
 

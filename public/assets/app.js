@@ -92,6 +92,7 @@ const state = {
   drive: null,
   driveLoading: false,
   driveTried: {},
+  driveAccessToken: sessionStorage.getItem("lgDriveToken") || "",
   search: "",
   searchFocus: false,
   searchCaret: 0,
@@ -951,8 +952,7 @@ function renderToolbar() {
     `;
     bindSearch();
     $("btnExcelPull")?.addEventListener("click", pullExcel);
-    $("btnDrivePull")?.addEventListener("click", pullDrive);
-    $("driveTokenForm")?.addEventListener("submit", saveDriveToken);
+    bindDriveButtons();
     return;
   }
   if (canOps()) {
@@ -984,8 +984,7 @@ function renderToolbar() {
   $("btnEmail")?.addEventListener("click", () => $("emailModal").classList.add("show"));
   $("btnExport")?.addEventListener("click", exportMonday);
   $("btnClientLink")?.addEventListener("click", copyClientPage);
-  $("btnDrivePull")?.addEventListener("click", pullDrive);
-  $("driveTokenForm")?.addEventListener("submit", saveDriveToken);
+  bindDriveButtons();
 }
 async function copyClientPage() {
   const ok = await copyText(clientLink());
@@ -1011,23 +1010,36 @@ async function submitCreateTask() {
   }
   const go = $("createTaskGo");
   if (go) go.disabled = true;
-  const out = await api("/api/tasks/create", {
+  let payload = {
     name,
     month: state.month,
     role: me().role,
     actorId: me().id,
-  });
+  };
+  let out = await api("/api/tasks/create", payload);
+  if (out.error && !out.state) {
+    try {
+      if (!driveAccessToken() && drivePack().clientId) {
+        await requestDriveToken({ prompt: "" });
+        await persistDriveToken();
+      }
+      const pack = await gdriveCreatePack(name, name.slice(0, 2));
+      payload = { ...payload, ...pack };
+      out = await api("/api/tasks/create", payload);
+    } catch (driveErr) {
+      if (go) go.disabled = false;
+      if (err) err.textContent = out.error || driveErr.message || "Connect Drive as DL first";
+      if (isFinance()) openDriveClientModal();
+      return;
+    }
+  }
   if (go) go.disabled = false;
   if (out.error || !out.state) {
     if (err) err.textContent = out.error || "Could not create the task";
+    if (isFinance() && /not connected|OAuth|token/i.test(out.error || "")) openDriveClientModal();
     return;
   }
   applyState(out.state);
-  if (out.drive && out.drive.ok === false) {
-    if (err) err.textContent = out.drive.error || "Task is on the board. Drive folder was not created.";
-    toast(out.drive.error || "Task is on the board. Drive folder was not created.");
-    return;
-  }
   closeCreateTask();
   toast("Task created · folder + brief Doc on Drive");
   if (out.task?.id) openTask(out.task.id);
@@ -1568,15 +1580,37 @@ function fillDrivePackIfMissing(t) {
 }
 async function retryDrivePack(t) {
   state.driveTried[t.id] = false;
-  const out = await api("/api/drive/ensure", { id: t.id, month: state.month, role: me().role });
-  if (out.state) applyState(out.state);
+  let out = await api("/api/drive/ensure", { id: t.id, month: state.month, role: me().role });
   if (out.error || !out.ok) {
-    toast(out.error || "Drive folder was not created");
-    if (state.openId === t.id) openTask(t.id);
-    return;
+    try {
+      if (!driveAccessToken() && drivePack().clientId) {
+        await requestDriveToken({ prompt: "" });
+        await persistDriveToken();
+      }
+      const pack = await gdriveCreatePack(t.name, t.line);
+      out = await api("/api/tasks/update", {
+        id: t.id,
+        actorId: me().id,
+        folderUrl: pack.folderUrl,
+        docUrl: pack.docUrl,
+      });
+      if (String(t.brief || "").trim()) await gdriveWriteBrief(pack.docId, t.brief);
+    } catch (err) {
+      toast(out.error || err.message || "Drive folder was not created");
+      if (isFinance()) openDriveClientModal();
+      if (state.openId === t.id) openTask(t.id);
+      return;
+    }
   }
+  if (out.state) applyState(out.state);
   toast("Drive folder + brief Doc ready");
   if (state.openId === t.id) openTask(t.id);
+}
+
+function bindDriveButtons() {
+  $("btnDrivePull")?.addEventListener("click", pullDrive);
+  $("btnConnectDrive")?.addEventListener("click", connectDrive);
+  $("btnDriveClient")?.addEventListener("click", openDriveClientModal);
 }
 function timeCell(t) {
   const hours = t.hours || hoursFromShifts(t.shifts || 0);
@@ -2454,6 +2488,7 @@ function ensureDriveStatus() {
     .then((out) => {
       state.driveLoading = false;
       if (out && !out.error) state.drive = out;
+      if (isFinance() && driveAccessToken() && out && !out.connected) persistDriveToken();
       if (isFinance()) render();
     })
     .catch(() => {
@@ -2494,13 +2529,17 @@ function drivePack() {
   const d = state.drive || {};
   const meta = state.db?.meta || {};
   return {
-    connected: d.connected,
+    connected: d.connected || Boolean(driveAccessToken()),
     hasClient: d.hasClient,
+    clientId: d.clientId || "",
+    hasSecret: d.hasSecret,
     pulledAt: d.pulledAt || meta.drivePulledAt || "",
     docs: d.docs || meta.driveDocs || "",
     excel: d.excel || meta.driveLiveExcel || "",
     calculator: d.calculator || meta.driveCalculator || "",
     october: d.october || meta.driveLiveOctober || "",
+    octoberDDId: d.octoberDDId || "",
+    octoberDXId: d.octoberDXId || "",
     invoices: d.invoices || meta.driveMgxInvoices || meta.driveInvoiceMgx || "",
   };
 }
@@ -2522,28 +2561,17 @@ function driveStrip() {
     .join("");
   const status = d.connected
     ? `Drive connected${d.pulledAt ? ` · ${escapeHtml(String(d.pulledAt).replace("T", " ").replace("Z", ""))}` : ""}`
-    : d.hasClient
-      ? "snapshot on this server · Connect Drive so Create task can make folders"
-      : "snapshot from Drive. Create task cannot make a folder until Drive is connected";
+    : "Create task writes the live DD / DX folder. Connect Drive as DL first.";
   const action = d.connected
     ? `<button type="button" class="btn primary" id="btnDrivePull">Read Drive</button>`
-    : d.hasClient
-      ? `<a class="btn primary" href="/api/drive/oauth/start">Connect Drive</a>`
-      : "";
-  const token = d.connected
-    ? ""
-    : `<form class="drive-token" id="driveTokenForm">
-        <input id="driveToken" type="password" autocomplete="off" placeholder="Paste Drive access token" />
-        <button type="submit" class="btn">Save token</button>
-      </form>`;
+    : `<button type="button" class="btn primary" id="btnConnectDrive">Connect Drive</button>`;
   return `<div class="drive-strip">
     <div>
       <strong>Google Drive</strong>
-      <p>${escapeHtml(status)}. Create task writes the live DD / DX folder for this month.</p>
+      <p>${escapeHtml(status)}</p>
       <div class="drive-links">${links}</div>
-      ${token}
     </div>
-    <div class="drive-actions">${action}</div>
+    <div class="drive-actions">${action}${d.connected ? "" : `<button type="button" class="btn" id="btnDriveClient">Paste OAuth JSON</button>`}</div>
   </div>`;
 }
 
@@ -2603,8 +2631,7 @@ function renderClose() {
       render();
     });
   });
-  $("btnDrivePull")?.addEventListener("click", pullDrive);
-  $("driveTokenForm")?.addEventListener("submit", saveDriveToken);
+  bindDriveButtons();
   $("btnCreateInvoices")?.addEventListener("click", createMonthInvoices);
   if (state.finTab === "employees") bindEmployeePay();
   if (state.finTab === "studio") bindStudioPay();
@@ -3745,7 +3772,37 @@ async function updateTask(id, patch, opts = {}) {
     return;
   }
   applyState(out.state);
-  toast("Saved");
+  if (out.drive && out.drive.ok === false && patch.brief != null) {
+    try {
+      const task = (out.state.tasks || []).find((row) => row.id === id) || {};
+      const docId = String(task.docUrl || "").match(/\/document\/d\/([a-zA-Z0-9_-]+)/)?.[1];
+      if (!driveAccessToken() && drivePack().clientId) {
+        await requestDriveToken({ prompt: "" });
+        await persistDriveToken();
+      }
+      if (docId) {
+        await gdriveWriteBrief(docId, patch.brief);
+        toast("Saved · brief written to Google Doc");
+      } else {
+        const pack = await gdriveCreatePack(task.name, task.line);
+        await api("/api/tasks/update", {
+          id,
+          actorId: me().id,
+          folderUrl: pack.folderUrl,
+          docUrl: pack.docUrl,
+        });
+        await gdriveWriteBrief(pack.docId, patch.brief);
+        toast("Saved · folder + brief written to Drive");
+      }
+    } catch (err) {
+      toast(out.drive.error || err.message || "Saved on the board, not on Drive");
+      if (isFinance()) openDriveClientModal();
+      if (state.openId && $("drawerBg").classList.contains("show")) openTask(id);
+      return;
+    }
+  } else {
+    toast("Saved");
+  }
   if (opts.close) {
     closeDrawer();
     return;
@@ -4049,6 +4106,11 @@ $("createTaskName")?.addEventListener("keydown", (e) => {
 });
 $("createTaskModal")?.addEventListener("click", (e) => {
   if (e.target === $("createTaskModal")) closeCreateTask();
+});
+$("driveClientCancel")?.addEventListener("click", closeDriveClientModal);
+$("driveClientGo")?.addEventListener("click", saveDriveClientJson);
+$("driveClientModal")?.addEventListener("click", (e) => {
+  if (e.target === $("driveClientModal")) closeDriveClientModal();
 });
 $("emailCancel").onclick = () => $("emailModal").classList.remove("show");
 $("emailApply").onclick = async () => {

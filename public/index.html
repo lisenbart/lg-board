@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@300;400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/board.css?v=104" />
+  <link rel="stylesheet" href="assets/board.css?v=105" />
   <script>
     (function () {
       const host = location.hostname;
@@ -106,12 +106,25 @@
   <div class="modal-bg" id="createTaskModal">
     <div class="modal">
       <h3>Create task</h3>
-      <p style="color:#676879;font-size:13px">Paste the full project name. The card lands on the board and the folder + empty brief Doc go into this month’s live DD / DX on Drive. Drive must be connected as DL, or the folder will not appear. Paste the brief on the card after that.</p>
+      <p style="color:#676879;font-size:13px">Paste the full project name. This creates the card, the Drive folder in this month’s DD / DX, and an empty brief Doc. Then paste the brief on the card and Save — it writes into that Doc.</p>
       <textarea id="createTaskName" rows="3" placeholder="DD-AIV-202-004_SettAI_HalloweenFireTrial_DD-VEO-059-001_EN_30s"></textarea>
       <p class="login-err" id="createTaskErr"></p>
       <div class="modal-actions">
         <button type="button" class="btn ghost" id="createTaskCancel">Cancel</button>
         <button type="button" class="btn primary" id="createTaskGo">Create</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-bg" id="driveClientModal">
+    <div class="modal">
+      <h3>Connect Google Drive</h3>
+      <p style="color:#676879;font-size:13px">One-time. <a href="https://console.cloud.google.com/apis/library/drive.googleapis.com" target="_blank" rel="noreferrer">Enable Drive API</a> and <a href="https://console.cloud.google.com/apis/library/docs.googleapis.com" target="_blank" rel="noreferrer">Docs API</a>, then Credentials → Create OAuth client → <strong>Web application</strong>. JavaScript origin: <code>https://board.lisenbart.games</code>. Redirect: <code>https://board.lisenbart.games/api/drive/oauth/callback</code>. Download JSON, paste it here, Save — Google popup as dmytro@lisenbart.games.</p>
+      <textarea id="driveClientJson" rows="8" placeholder='{"web":{"client_id":"...","client_secret":"..."}}'></textarea>
+      <p class="login-err" id="driveClientErr"></p>
+      <div class="modal-actions">
+        <button type="button" class="btn ghost" id="driveClientCancel">Cancel</button>
+        <button type="button" class="btn primary" id="driveClientGo">Save and connect</button>
       </div>
     </div>
   </div>
@@ -173,7 +186,8 @@
 
   <div class="toast" id="toast"></div>
   <script src="assets/notices.js?v=3"></script>
-  <script src="assets/store.js?v=64"></script>
-  <script src="assets/app.js?v=120"></script>
+  <script src="assets/store.js?v=65"></script>
+  <script src="assets/gdrive.js?v=1"></script>
+  <script src="assets/app.js?v=121"></script>
 </body>
 </html>

@@ -570,6 +570,9 @@ class Handler(SimpleHTTPRequestHandler):
                     "source": pack.get("source"),
                     "excel": pack.get("excel"),
                     "october": pack.get("october"),
+                    "octoberDDId": pack.get("octoberDDId"),
+                    "octoberDXId": pack.get("octoberDXId"),
+                    "clientId": pack.get("clientId"),
                 }
             self._json(200, pack)
             return
@@ -811,6 +814,17 @@ class Handler(SimpleHTTPRequestHandler):
         data = self._bind_actor(data, sess)
         with LOCK:
             db = load_db()
+            if path == "/api/drive/client":
+                if sess.get("role") != "finance":
+                    self._json(403, {"error": "only DL can save the Google OAuth client"})
+                    return
+                try:
+                    drive_sync.save_client(str(data.get("json") or data.get("client") or ""))
+                except drive_sync.DriveSyncError as e:
+                    self._json(400, {"error": str(e)})
+                    return
+                self._json(200, {"ok": True, "drive": drive_sync.status()})
+                return
             if path == "/api/drive/token":
                 if sess.get("role") != "finance":
                     self._json(403, {"error": "only DL can save a Drive token"})
@@ -873,25 +887,45 @@ class Handler(SimpleHTTPRequestHandler):
                     "source": "portal",
                     "activity": [{"at": utc_now(), "text": "Created on the portal"}],
                 }
-                drive = {"ok": False}
-                try:
-                    pack = drive_io.create_live_pack(db, name, ym, line)
-                    task["folderUrl"] = pack.get("folderUrl") or ""
-                    task["docUrl"] = pack.get("docUrl") or ""
-                    task["activity"].append(
-                        {"at": utc_now(), "text": f"Drive folder + brief Doc in {line}"}
-                    )
-                    drive = {"ok": True, "created": True, **pack}
-                except drive_io.DriveError as e:
-                    print(f"[drive] create failed for {name}: {e}", flush=True)
-                    drive = {"ok": False, "error": str(e)}
+                given_folder = str(data.get("folderUrl") or "").strip()
+                given_doc = str(data.get("docUrl") or "").strip()
+                if given_folder and given_doc:
+                    pack = {
+                        "folderUrl": given_folder,
+                        "docUrl": given_doc,
+                        "folderId": str(data.get("folderId") or ""),
+                        "docId": str(data.get("docId") or ""),
+                    }
+                    if pack["folderId"] and pack["docId"]:
+                        drive_io.remember(name, pack["folderId"], pack["docId"])
+                    drive_io.remember_live_folder(name, given_folder)
+                else:
+                    try:
+                        pack = drive_io.create_live_pack(db, name, ym, line)
+                    except drive_io.DriveError as e:
+                        print(f"[drive] create failed for {name}: {e}", flush=True)
+                        self._json(409, {"error": str(e), "drive": {"ok": False, "error": str(e)}})
+                        return
+                task["folderUrl"] = pack.get("folderUrl") or ""
+                task["docUrl"] = pack.get("docUrl") or ""
+                task["activity"].append(
+                    {"at": utc_now(), "text": f"Drive folder + brief Doc in {line}"}
+                )
                 db.setdefault("tasks", []).insert(0, task)
                 notice_io.on_landed(db, task, str(data.get("actorId") or ""))
                 db.setdefault("events", []).insert(
                     0, {"at": utc_now(), "text": f"Created task {name}"}
                 )
                 save_db(db)
-                self._json(200, {"ok": True, "task": task, "drive": drive, "state": db})
+                self._json(
+                    200,
+                    {
+                        "ok": True,
+                        "task": task,
+                        "drive": {"ok": True, "created": True, **pack},
+                        "state": db,
+                    },
+                )
                 return
             if path == "/api/tasks/delete":
                 if data.get("role") not in OPS_ROLES:
@@ -1225,11 +1259,15 @@ class Handler(SimpleHTTPRequestHandler):
                 for key in ("studioStatus", "assigneeId", "resultUrl", "brief", "folderUrl", "docUrl"):
                     if key in data:
                         task[key] = data[key]
-                if "brief" in data and task.get("brief") != brief_before and task.get("docUrl"):
+                drive = None
+                if "brief" in data and (
+                    str(task.get("source") or "") == "portal" or task.get("docUrl")
+                ):
                     try:
-                        drive_io.write_brief_doc(task.get("docUrl") or "", task.get("brief") or "")
-                    except drive_io.DriveError:
-                        pass
+                        drive = drive_io.sync_task_brief(db, task)
+                    except drive_io.DriveError as e:
+                        print(f"[drive] brief failed for {task.get('name')}: {e}", flush=True)
+                        drive = {"ok": False, "error": str(e)}
                 if "help" in data:
                     if role not in {"manager", "finance", "teamlead"}:
                         self._json(403, {"error": "only TL or LP can split hours"})
@@ -1271,7 +1309,7 @@ class Handler(SimpleHTTPRequestHandler):
                     self._json(500, {"error": str(e), "state": db})
                     return
                 save_db(db)
-                self._json(200, {"task": task, "state": db})
+                self._json(200, {"task": task, "state": db, "drive": drive or {"ok": True}})
                 return
             if path == "/api/tasks/comment":
                 role = data.get("role") or ""

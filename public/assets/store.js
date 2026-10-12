@@ -405,8 +405,8 @@
     if (path === "/api/tasks/delete") {
       return { error: "Delete task runs on the studio server, not on GitHub Pages." };
     }
-    if (path === "/api/drive/pull" || path === "/api/drive/status" || path === "/api/drive/token") {
-      return { error: "Drive read runs on the studio server, not on GitHub Pages." };
+    if (path === "/api/drive/pull" || path === "/api/drive/status" || path === "/api/drive/token" || path === "/api/drive/client") {
+      return { error: "Drive writes run on the studio server, not on GitHub Pages." };
     }
 
     if (path === "/api/export-monday") {

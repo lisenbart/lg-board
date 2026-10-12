@@ -23,7 +23,7 @@ CLIENT_PATH = SECRETS / "google_client.json"
 OAUTH_PATH = SECRETS / "google_oauth.json"
 TOKEN_PATH = SECRETS / "google_drive_token.txt"
 OAUTH_STATE_PATH = SECRETS / "drive_oauth_state.json"
-SCOPE = "https://www.googleapis.com/auth/drive"
+SCOPE = "https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/documents"
 API = "https://www.googleapis.com/drive/v3"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
@@ -97,6 +97,26 @@ def connected() -> bool:
         return True
     oauth = load_json(OAUTH_PATH, {})
     return bool(oauth.get("refresh_token") and (oauth.get("client_id") or has_client()))
+
+
+def save_client(raw: str) -> dict:
+    text = (raw or "").strip()
+    if not text:
+        raise DriveSyncError("paste the Google OAuth client JSON")
+    try:
+        blob = json.loads(text)
+    except json.JSONDecodeError as e:
+        raise DriveSyncError("that is not JSON") from e
+    if not isinstance(blob, dict):
+        raise DriveSyncError("that JSON has no client_id")
+    web = blob.get("web") or blob.get("installed") or blob
+    if not isinstance(web, dict) or not str(web.get("client_id") or "").strip():
+        raise DriveSyncError("that JSON has no client_id")
+    packed = blob if ("web" in blob or "installed" in blob) else {"web": web}
+    SECRETS.mkdir(parents=True, exist_ok=True)
+    save_json(CLIENT_PATH, packed)
+    cid, secret = client_creds()
+    return {"hasClient": True, "clientId": cid, "hasSecret": bool(secret)}
 
 
 def save_access_token(token: str) -> None:
@@ -376,15 +396,22 @@ def status() -> dict:
     idx = load_json(INDEX_PATH, {})
     cfg = roots()
     files = idx.get("files") or []
+    cid, secret = client_creds()
     return {
         "connected": connected(),
         "hasClient": has_client(),
+        "clientId": cid,
+        "hasSecret": bool(secret),
         "pulledAt": idx.get("pulledAt") or "",
-        "source": idx.get("source") or "LLC/docs · read only",
+        "source": idx.get("source") or "LLC/docs",
         "docs": folder_url(cfg["docs"]) if cfg.get("docs") else "",
         "excel": file_url(cfg["excel"]) if cfg.get("excel") else "",
         "calculator": file_url(cfg["calculator"]) if cfg.get("calculator") else "",
         "october": folder_url(cfg["october"]) if cfg.get("october") else "",
+        "octoberDD": folder_url(cfg["octoberDD"]) if cfg.get("octoberDD") else "",
+        "octoberDX": folder_url(cfg["octoberDX"]) if cfg.get("octoberDX") else "",
+        "octoberDDId": str(cfg.get("octoberDD") or ""),
+        "octoberDXId": str(cfg.get("octoberDX") or ""),
         "invoices": folder_url(cfg["mgxInvoices"]) if cfg.get("mgxInvoices") else "",
         "counts": {
             "files": len(files),

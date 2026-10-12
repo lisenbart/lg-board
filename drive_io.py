@@ -13,6 +13,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 DATA = ROOT / "data"
 CACHE_PATH = DATA / "drive_cache.json"
+PACKS_PATH = DATA / "drive_packs.json"
 TOKEN_PATH = DATA / "secrets" / "google_drive_token.txt"
 
 FOLDER_MIME = "application/vnd.google-apps.folder"
@@ -123,12 +124,20 @@ def remember(name: str, folder_id: str, doc_id: str) -> dict:
     return pack
 
 
+def _load_packs() -> dict:
+    if not PACKS_PATH.exists():
+        return {"byName": {}}
+    try:
+        return json.loads(PACKS_PATH.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {"byName": {}}
+
+
 def cached_pack(name: str) -> dict | None:
-    pack = (_load_cache().get("byName") or {}).get(name)
-    if not pack:
-        return None
-    if pack.get("folderUrl") and pack.get("docUrl"):
-        return pack
+    for store in (_load_cache(), _load_packs()):
+        pack = (store.get("byName") or {}).get(name)
+        if pack and pack.get("folderUrl") and pack.get("docUrl"):
+            return pack
     return None
 
 
@@ -468,14 +477,35 @@ def trash_live_pack(task: dict) -> dict:
     return {"ok": True, "trashed": True, "folderId": fid}
 
 
+def sync_task_brief(db: dict, task: dict) -> dict:
+    """Make sure the live folder + Doc exist, then write the card brief into the Doc."""
+    name = str((task or {}).get("name") or "").strip()
+    if not name:
+        raise DriveError("task has no name")
+    ym = str(task.get("month") or (db.get("meta") or {}).get("month") or "2026-10")
+    line = task.get("line") or line_from_name(name)
+    if not task.get("folderUrl") or not task.get("docUrl"):
+        pack = create_live_pack(db, name, ym, line)
+        task["folderUrl"] = pack.get("folderUrl") or ""
+        task["docUrl"] = pack.get("docUrl") or ""
+    write_brief_doc(task.get("docUrl") or "", task.get("brief") or "")
+    return {
+        "ok": True,
+        "folderUrl": task.get("folderUrl") or "",
+        "docUrl": task.get("docUrl") or "",
+    }
+
+
 def write_brief_doc(doc_url: str, text: str) -> None:
     did = ""
     m = re.search(r"/document/d/([a-zA-Z0-9_-]+)", doc_url or "")
     if m:
         did = m.group(1)
+    if not did:
+        raise DriveError("task has no Google Doc yet")
     token = drive_token()
-    if not token or not did:
-        return
+    if not token:
+        raise DriveError("Drive is not connected — Connect Drive as DL first")
     req = urllib.request.Request(
         f"https://docs.googleapis.com/v1/documents/{did}?fields=body(content(endIndex))",
         headers=_headers(token),
