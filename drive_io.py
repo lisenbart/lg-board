@@ -425,8 +425,8 @@ def create_live_pack(db: dict, name: str, ym: str, line: str) -> dict:
     token = drive_token()
     if not token:
         raise DriveError(
-            "Drive is not connected on this server. As DL open Finance → Connect Drive "
-            "(or paste a Drive access token), then retry Create Drive folder on the card."
+            "Drive is not connected on this server. Put Google service-account JSON in "
+            "data/secrets/google_service.json and share October DD/DX with that account."
         )
     parent = live_line_parent_id(db, ym, line, token)
     folder_id = _mkdir(token, parent, name)
@@ -465,7 +465,7 @@ def trash_live_pack(task: dict) -> dict:
         forget_live_folder(name)
         return {"ok": True, "trashed": False, "skipped": "no Drive folder"}
     if not token:
-        raise DriveError("Drive is not connected — Connect Drive as DL first")
+        raise DriveError("Drive is not connected on this server")
     _api(
         token,
         "PATCH",
@@ -505,7 +505,7 @@ def write_brief_doc(doc_url: str, text: str) -> None:
         raise DriveError("task has no Google Doc yet")
     token = drive_token()
     if not token:
-        raise DriveError("Drive is not connected — Connect Drive as DL first")
+        raise DriveError("Drive is not connected on this server")
     req = urllib.request.Request(
         f"https://docs.googleapis.com/v1/documents/{did}?fields=body(content(endIndex))",
         headers=_headers(token),

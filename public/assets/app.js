@@ -2559,19 +2559,17 @@ function driveStrip() {
         `<a class="drive-link" href="${escapeHtml(href)}" target="_blank" rel="noreferrer">${escapeHtml(label)}</a>`
     )
     .join("");
+  const build = document.documentElement.dataset.build || "";
   const status = d.connected
-    ? `Drive connected${d.pulledAt ? ` · ${escapeHtml(String(d.pulledAt).replace("T", " ").replace("Z", ""))}` : ""}`
-    : "Create task writes the live DD / DX folder. Connect Drive as DL first.";
-  const action = d.connected
-    ? `<button type="button" class="btn primary" id="btnDrivePull">Read Drive</button>`
-    : `<button type="button" class="btn primary" id="btnConnectDrive">Connect Drive</button>`;
+    ? `Live disk${d.pulledAt ? ` · ${escapeHtml(String(d.pulledAt).replace("T", " ").replace("Z", ""))}` : ""}`
+    : "Live disk · Create task writes October DD / DX";
   return `<div class="drive-strip">
     <div>
       <strong>Google Drive</strong>
-      <p>${escapeHtml(status)}</p>
+      <p>${escapeHtml(status)}${build ? ` · desk ${escapeHtml(build)}` : ""}</p>
       <div class="drive-links">${links}</div>
     </div>
-    <div class="drive-actions">${action}${d.connected ? "" : `<button type="button" class="btn" id="btnDriveClient">Paste OAuth JSON</button>`}</div>
+    <div class="drive-actions"><button type="button" class="btn" id="btnDrivePull">Refresh files</button></div>
   </div>`;
 }
 

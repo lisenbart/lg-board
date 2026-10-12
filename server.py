@@ -26,6 +26,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
+BUILD = "2026-10-12c"
 LOCK = threading.Lock()
 _FILES_SYNCED = False
 
@@ -518,7 +519,10 @@ class Handler(SimpleHTTPRequestHandler):
             self.path = "/index.html"
             return SimpleHTTPRequestHandler.do_GET(self)
         if path == "/health":
-            self._json(200, {"ok": True})
+            self._json(200, {"ok": True, "build": BUILD})
+            return
+        if path == "/api/version":
+            self._json(200, {"ok": True, "build": BUILD, "drive": drive_sync.connected()})
             return
         if path == "/api/roster":
             with LOCK:

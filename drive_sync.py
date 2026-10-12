@@ -1,9 +1,12 @@
-"""Read-only Google Drive pull. Never writes files back to Drive."""
+"""Google Drive pull + always-on writes via service account or stored OAuth."""
 from __future__ import annotations
 
+import base64
 import json
 import os
 import re
+import subprocess
+import tempfile
 import time
 import urllib.error
 import urllib.parse
@@ -21,7 +24,9 @@ ROOTS_PATH = DATA / "drive_roots.json"
 INDEX_PATH = DATA / "drive_index.json"
 CLIENT_PATH = SECRETS / "google_client.json"
 OAUTH_PATH = SECRETS / "google_oauth.json"
+SA_PATH = SECRETS / "google_service.json"
 TOKEN_PATH = SECRETS / "google_drive_token.txt"
+BUILD = "2026-10-12c"
 OAUTH_STATE_PATH = SECRETS / "drive_oauth_state.json"
 SCOPE = "https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/documents"
 API = "https://www.googleapis.com/drive/v3"
@@ -90,13 +95,80 @@ def has_client() -> bool:
     return bool(cid and secret)
 
 
+def has_service_account() -> bool:
+    blob = load_json(SA_PATH, {})
+    return bool(blob.get("client_email") and blob.get("private_key"))
+
+
 def connected() -> bool:
     if (os.environ.get("LG_DRIVE_TOKEN") or os.environ.get("GOOGLE_DRIVE_TOKEN") or "").strip():
+        return True
+    if has_service_account():
         return True
     if TOKEN_PATH.exists() and TOKEN_PATH.read_text(encoding="utf-8").strip():
         return True
     oauth = load_json(OAUTH_PATH, {})
     return bool(oauth.get("refresh_token") and (oauth.get("client_id") or has_client()))
+
+
+def _b64url(raw: bytes) -> str:
+    return base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
+
+
+def service_account_token() -> str:
+    blob = load_json(SA_PATH, {})
+    email = str(blob.get("client_email") or "").strip()
+    key = str(blob.get("private_key") or "")
+    if not email or not key:
+        return ""
+    cached = str(_TOKEN_MEM.get("value") or "")
+    if cached and _TOKEN_MEM.get("kind") == "sa" and time.time() - float(_TOKEN_MEM.get("at") or 0) < 3000:
+        return cached
+    now = int(time.time())
+    header = _b64url(json.dumps({"alg": "RS256", "typ": "JWT"}).encode("utf-8"))
+    payload = _b64url(
+        json.dumps(
+            {
+                "iss": email,
+                "scope": SCOPE,
+                "aud": TOKEN_URL,
+                "iat": now,
+                "exp": now + 3600,
+            }
+        ).encode("utf-8")
+    )
+    signing_input = f"{header}.{payload}".encode("ascii")
+    with tempfile.NamedTemporaryFile("w", suffix=".pem", delete=False) as tmp:
+        tmp.write(key)
+        key_path = tmp.name
+    try:
+        sig = subprocess.check_output(
+            ["openssl", "dgst", "-sha256", "-sign", key_path],
+            input=signing_input,
+            stderr=subprocess.DEVNULL,
+        )
+    except (OSError, subprocess.CalledProcessError) as e:
+        raise DriveSyncError(f"service account sign failed: {e}") from e
+    finally:
+        try:
+            os.unlink(key_path)
+        except OSError:
+            pass
+    assertion = f"{header}.{payload}.{_b64url(sig)}"
+    out = _form(
+        TOKEN_URL,
+        {
+            "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
+            "assertion": assertion,
+        },
+    )
+    token = str(out.get("access_token") or "").strip()
+    if not token:
+        raise DriveSyncError("Google did not return a service-account token")
+    _TOKEN_MEM["value"] = token
+    _TOKEN_MEM["at"] = time.time()
+    _TOKEN_MEM["kind"] = "sa"
+    return token
 
 
 def save_client(raw: str) -> dict:
@@ -149,6 +221,8 @@ def access_token() -> str:
         raw = TOKEN_PATH.read_text(encoding="utf-8").strip()
         if raw and not raw.startswith("{"):
             return raw
+    if has_service_account():
+        return service_account_token()
     oauth = load_json(OAUTH_PATH, {})
     refresh = str(oauth.get("refresh_token") or "").strip()
     if not refresh:
@@ -398,7 +472,9 @@ def status() -> dict:
     files = idx.get("files") or []
     cid, secret = client_creds()
     return {
+        "build": BUILD,
         "connected": connected(),
+        "serviceAccount": has_service_account(),
         "hasClient": has_client(),
         "clientId": cid,
         "hasSecret": bool(secret),
