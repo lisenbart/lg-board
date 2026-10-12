@@ -1430,7 +1430,9 @@ body.col-resizing * { cursor: col-resize !important; }
   border-radius: 8px;
   padding: 14px 16px;
   margin-bottom: 12px;
+  width: 100%;
 }
+#toolbar .drive-strip { order: -1; flex: 1 0 100%; }
 .drive-strip strong { display: block; font-size: 14px; }
 .drive-strip p { margin: 4px 0 8px; color: var(--muted); font-size: 13px; }
 .drive-links { display: flex; flex-wrap: wrap; gap: 10px 14px; }

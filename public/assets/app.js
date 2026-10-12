@@ -903,6 +903,7 @@ function renderChrome() {
     $("roleHint").textContent = hint;
   }
   $("sideFoot").innerHTML = "";
+  ensureDriveStatus();
 
   const tabs = [];
   if (isClient()) {
@@ -979,6 +980,7 @@ function renderToolbar() {
     `;
   } else {
     $("toolbar").innerHTML = `
+      ${isFinance() ? driveStrip() : ""}
       <button class="btn primary" id="btnImport">Pull from Monday</button>
       <button class="btn orange" id="btnEmail">Shift email</button>
       ${drive ? `<a class="btn" href="${escapeHtml(drive)}" target="_blank" rel="noreferrer">Open Drive</a>` : ""}
@@ -994,6 +996,7 @@ function renderToolbar() {
   $("btnExport")?.addEventListener("click", exportMonday);
   $("btnClientLink")?.addEventListener("click", copyClientPage);
   $("btnReset")?.addEventListener("click", resetDemo);
+  $("btnDrivePull")?.addEventListener("click", pullDrive);
 }
 async function copyClientPage() {
   const ok = await copyText(clientLink());
@@ -2386,14 +2389,14 @@ function financeFromApi(snap) {
 
 function ensureDriveStatus() {
   if (!isFinance() || !isStudioHost()) return;
-  if (state.driveLoading) return;
+  if (state.drive || state.driveLoading) return;
   state.driveLoading = true;
   fetch("/api/drive/status", { credentials: "same-origin" })
     .then((r) => r.json())
     .then((out) => {
       state.driveLoading = false;
       if (out && !out.error) state.drive = out;
-      if (state.view === "close") render();
+      if (isFinance()) render();
     })
     .catch(() => {
       state.driveLoading = false;
@@ -2417,8 +2420,23 @@ async function pullDrive() {
   render();
 }
 
-function driveStrip() {
+function drivePack() {
   const d = state.drive || {};
+  const meta = state.db?.meta || {};
+  return {
+    connected: d.connected,
+    hasClient: d.hasClient,
+    pulledAt: d.pulledAt || meta.drivePulledAt || "",
+    docs: d.docs || meta.driveDocs || "",
+    excel: d.excel || meta.driveLiveExcel || "",
+    calculator: d.calculator || meta.driveCalculator || "",
+    october: d.october || meta.driveLiveOctober || "",
+    invoices: d.invoices || meta.driveMgxInvoices || meta.driveInvoiceMgx || "",
+  };
+}
+
+function driveStrip() {
+  const d = drivePack();
   const links = [
     ["docs", d.docs],
     ["Excel", d.excel],
