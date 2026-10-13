@@ -4018,32 +4018,39 @@ function cardIsDirty() {
 let noticeAudio = null;
 function unlockNoticeSound() {
   const AC = window.AudioContext || window.webkitAudioContext;
-  if (!AC) return;
+  if (!AC) return Promise.resolve();
   if (!noticeAudio) noticeAudio = new AC();
-  if (noticeAudio.state === "suspended") noticeAudio.resume().catch(() => {});
+  if (noticeAudio.state === "suspended") return noticeAudio.resume().catch(() => {});
+  return Promise.resolve();
 }
 function playNoticeSound() {
-  try {
-    unlockNoticeSound();
-    if (!noticeAudio) return;
-    const t = noticeAudio.currentTime;
-    const osc = noticeAudio.createOscillator();
-    const gain = noticeAudio.createGain();
-    osc.type = "sine";
-    osc.frequency.setValueAtTime(880, t);
-    osc.frequency.exponentialRampToValueAtTime(1320, t + 0.08);
-    gain.gain.setValueAtTime(0.0001, t);
-    gain.gain.exponentialRampToValueAtTime(0.14, t + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.32);
-    osc.connect(gain);
-    gain.connect(noticeAudio.destination);
-    osc.start(t);
-    osc.stop(t + 0.34);
-  } catch {
-    /* autoplay blocked until a click */
-  }
+  unlockNoticeSound().then(() => {
+    try {
+      if (!noticeAudio || noticeAudio.state !== "running") return;
+      const t = noticeAudio.currentTime;
+      const beep = (freq, at, dur, vol) => {
+        const osc = noticeAudio.createOscillator();
+        const gain = noticeAudio.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(freq, t + at);
+        gain.gain.setValueAtTime(0.0001, t + at);
+        gain.gain.exponentialRampToValueAtTime(vol, t + at + 0.018);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + at + dur);
+        osc.connect(gain);
+        gain.connect(noticeAudio.destination);
+        osc.start(t + at);
+        osc.stop(t + at + dur + 0.02);
+      };
+      beep(880, 0, 0.12, 0.18);
+      beep(1319, 0.14, 0.2, 0.16);
+    } catch {
+      /* autoplay blocked until a click on the desk */
+    }
+  });
 }
-document.addEventListener("pointerdown", unlockNoticeSound, { once: true });
+["pointerdown", "keydown"].forEach((ev) => {
+  document.addEventListener(ev, unlockNoticeSound, { capture: true });
+});
 
 function applyRemoteState(db) {
   const openId = state.openId;
