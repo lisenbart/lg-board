@@ -528,43 +528,8 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
 
 
 def tasks_for_finance(db: dict, ym: str) -> list[dict]:
-    """Hours and assignees for money: only what is written in SP_MGX_check.xlsx."""
-    if not XLSX_PATH.exists():
-        raise FileNotFoundError(f"SP_MGX_check.xlsx missing: {XLSX_PATH}")
-    parsed = parse_workbook(XLSX_PATH, ym)
-    if not parsed.get("sheet"):
-        raise FileNotFoundError(f"SP_MGX_check.xlsx has no {sheet_name_for(ym)} tab")
-    people = designers(db)
-    by_name = people_by_name(people)
-    existing = {
-        str(t.get("name") or "").strip(): t
-        for t in db.get("tasks") or []
-        if (t.get("month") or ym) == ym
-    }
-    by_id = {_id_key(name): t for name, t in existing.items() if _id_key(name)}
-    out = []
-    for row in parsed.get("rows") or []:
-        base = existing.get(row["name"]) or by_id.get(_id_key(row["name"])) or {}
-        shares = _resolved_shares(row, people, by_name)
-        keep = str(base.get("assigneeId") or "")
-        person = None
-        if keep:
-            person = next((p for p in people if p.get("id") == keep), None)
-        if person is None and row.get("assigneeId"):
-            person = next((p for p in db.get("people") or [] if p.get("id") == row["assigneeId"]), None)
-        if person is None:
-            person = by_name.get(_norm_name(row.get("assigneeName") or ""))
-        assignee_id = person["id"] if person else ""
-        task = dict(base)
-        task["name"] = row["name"]
-        task["line"] = row["line"]
-        task["shifts"] = row["shifts"]
-        task["hours"] = row["hours"]
-        task["assigneeId"] = assignee_id
-        task["help"] = [s for s in shares if s["id"] != assignee_id]
-        task["month"] = ym
-        out.append(task)
-    return out
+    """Hours and assignees for money from the board. Portal is the source of truth."""
+    return [t for t in db.get("tasks") or [] if (t.get("month") or ym) == ym]
 
 
 def _style_range(ws, row: int, cols: int) -> None:

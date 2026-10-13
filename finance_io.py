@@ -221,7 +221,7 @@ def snapshot(db: dict, month: str, nbu: dict | None = None) -> dict:
     nbu = _nbu_from(db, nbu)
     fx = float(nbu.get("rate") or FALLBACK_NBU)
     tasks = excel_io.tasks_for_finance(db, month)
-    hours_source = f"SP_MGX_check.xlsx / {excel_io.sheet_name_for(month)}"
+    hours_source = f"board · {excel_io.sheet_name_for(month)}"
     people = {p["id"]: p for p in db.get("people") or []}
     lines = {k: {"line": k, "projects": 0, "shifts": 0.0, "hours": 0.0, "bill": 0.0} for k in ("DD", "DX", "DS")}
     pay = {p["id"]: _pay_row(p, meta) for p in pay_people(db)}
@@ -488,15 +488,21 @@ def _which(path: str) -> str | None:
     return found
 
 
+_PDF_ENGINE: dict | None = None
+
+
 def pdf_engine() -> dict:
-    word = sys.platform == "darwin" and Path("/Applications/Microsoft Word.app").exists()
-    soffice = ""
-    for binary in SOFFICE_BINS:
-        found = _which(binary)
-        if found:
-            soffice = found
-            break
-    return {"ready": bool(word or soffice), "word": bool(word), "soffice": soffice}
+    global _PDF_ENGINE
+    if _PDF_ENGINE is None:
+        word = sys.platform == "darwin" and Path("/Applications/Microsoft Word.app").exists()
+        soffice = ""
+        for binary in SOFFICE_BINS:
+            found = _which(binary)
+            if found:
+                soffice = found
+                break
+        _PDF_ENGINE = {"ready": bool(word or soffice), "word": bool(word), "soffice": soffice}
+    return dict(_PDF_ENGINE)
 
 
 def _word_mac_pdf(src: Path, dest: Path) -> bytes:

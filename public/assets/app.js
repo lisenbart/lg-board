@@ -3848,28 +3848,13 @@ function openTask(id) {
             ? `${me().name} pasted the result`
             : `${me().name} updated status`;
     const actions = $("drawer")?.querySelectorAll(".drawer-actions button") || [];
-    const renaming = Boolean(patch.name && patch.name !== t.name);
     const hint = $("saveWait");
     if (hint) {
       hint.hidden = false;
-      hint.textContent = renaming
-        ? "Renaming the Drive folder and brief Doc…"
-        : briefToDrive
-          ? "Writing the brief into the Google Doc…"
-          : "Saving…";
+      hint.textContent = "Saving…";
     }
     actions.forEach((btn) =>
-      setBusy(
-        btn,
-        true,
-        btn.id === "saveTask"
-          ? renaming
-            ? "Renaming on Drive…"
-            : briefToDrive
-              ? "Saving to Drive…"
-              : "Saving…"
-          : undefined
-      )
+      setBusy(btn, true, btn.id === "saveTask" ? "Saving…" : undefined)
     );
     try {
       await updateTask(t.id, { ...patch, note }, { close: true });

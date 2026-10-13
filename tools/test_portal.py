@@ -18,6 +18,7 @@ sys.path.insert(0, str(ROOT))
 from openpyxl import Workbook, load_workbook
 
 import excel_io
+import finance_io
 import server
 
 PASS = 0
@@ -220,6 +221,41 @@ def test_save_db_atomic() -> None:
             server.DB_PATH = old
 
 
+def test_finance_reads_board_not_xlsx() -> None:
+    called = {"n": 0}
+    orig = excel_io.parse_workbook
+
+    def boom(*_a, **_k):
+        called["n"] += 1
+        raise AssertionError("finance must not parse Excel")
+
+    excel_io.parse_workbook = boom
+    try:
+        db = {
+            "meta": {"month": "2026-10", "nbuRate": 41, "clientRateUsd": 35, "taxPct": 0.06},
+            "people": [{"id": "designer", "name": "Masha", "role": "designer", "rateUsd": 15}],
+            "tasks": [
+                {
+                    "id": "t-1",
+                    "name": "DD-FIN-1",
+                    "month": "2026-10",
+                    "line": "DD",
+                    "hours": 9,
+                    "shifts": 1,
+                    "assigneeId": "designer",
+                    "help": [],
+                }
+            ],
+        }
+        rows = excel_io.tasks_for_finance(db, "2026-10")
+        check("finance hours come from the board", len(rows) == 1 and called["n"] == 0, str(rows))
+        snap = finance_io.snapshot(db, "2026-10")
+        check("snapshot does not parse Excel", called["n"] == 0, str(called))
+        check("snapshot hours match the board", snap.get("hours") == 9, str(snap.get("hours")))
+    finally:
+        excel_io.parse_workbook = orig
+
+
 def test_sync_files_releases_lock() -> None:
     original = server.sync_excel
     during = {"locked": None}
@@ -321,7 +357,30 @@ def test_http(base: str) -> str | None:
         t0 = time.monotonic()
         code, payload, _ = _http(f"{base}/api/me", cookie=cookie.split(";", 1)[0], timeout=5)
         dt = time.monotonic() - t0
-        check("/api/me under 1s", code == 200 and payload.get("session") and dt < 1, f"status={code} {dt:.3f}s")
+        check("/api/me under 0.3s", code == 200 and payload.get("session") and dt < 0.3, f"status={code} {dt:.3f}s")
+
+        t0 = time.monotonic()
+        code, payload, _ = _http(f"{base}/api/finance/snapshot?month=2026-10", cookie=cookie.split(";", 1)[0], timeout=2)
+        dt = time.monotonic() - t0
+        check(
+            "finance snapshot under 0.3s",
+            code == 200 and payload.get("hours") is not None and dt < 0.3,
+            f"status={code} {dt:.3f}s err={payload.get('error') if isinstance(payload, dict) else payload}",
+        )
+
+        t0 = time.monotonic()
+        code, payload, _ = _http(
+            f"{base}/api/excel/save",
+            {"month": "2026-10", "role": "finance"},
+            cookie=cookie.split(";", 1)[0],
+            timeout=2,
+        )
+        dt = time.monotonic() - t0
+        check(
+            "excel/save returns before Drive",
+            code == 200 and payload.get("ok") is True and dt < 0.5,
+            f"status={code} {dt:.3f}s {payload.get('error') if isinstance(payload, dict) else payload}",
+        )
 
         hits = []
 
@@ -444,6 +503,7 @@ def main() -> int:
         test_save_db_atomic,
         test_unreadable_ingest_does_not_wipe,
         test_sync_files_releases_lock,
+        test_finance_reads_board_not_xlsx,
     ):
         try:
             fn()

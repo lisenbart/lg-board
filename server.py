@@ -28,7 +28,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-13h"
+BUILD = "2026-10-13i"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -155,6 +155,13 @@ def load_db() -> dict:
     if _link_live_briefs(db):
         save_db(db)
     return db
+
+
+def peek_db() -> dict:
+    """Read the board file. No Drive attach, no extra save — safe on the hot path."""
+    if not _FILES_SYNCED or not DB_PATH.exists():
+        return load_db()
+    return _read_db_file()
 
 
 def bump_rev(db: dict) -> int:
@@ -1209,7 +1216,7 @@ class Handler(SimpleHTTPRequestHandler):
                 self._json(401, {"error": "sign in"})
                 return
             with LOCK:
-                db = load_db()
+                db = peek_db()
             self._json(200, {"session": sess, "state": auth_io.view_state(db, sess)})
             return
         if path == "/api/state":
@@ -1218,7 +1225,7 @@ class Handler(SimpleHTTPRequestHandler):
                 self._json(401, {"error": "sign in"})
                 return
             with LOCK:
-                db = load_db()
+                db = peek_db()
             self._json(200, auth_io.view_state(db, sess))
             return
         if path == "/api/sync":
@@ -1237,13 +1244,13 @@ class Handler(SimpleHTTPRequestHandler):
                 wait_s = 0
             wait_s = min(25, max(0, wait_s))
             with LOCK:
-                db = load_db()
+                db = peek_db()
                 rev = read_rev(db)
             publish_rev(rev)
             if client_rev and client_rev == rev and wait_s:
                 wait_for_newer(client_rev, wait_s)
                 with LOCK:
-                    db = load_db()
+                    db = peek_db()
                     rev = read_rev(db)
             if client_rev and client_rev == rev:
                 self._json(200, {"unchanged": True, "rev": rev})
@@ -1315,14 +1322,14 @@ class Handler(SimpleHTTPRequestHandler):
                 self._json(401, {"error": "sign in"})
                 return
             qs = parse_qs(urlparse(self.path).query)
-            month = (qs.get("month") or [""])[0] or load_db().get("meta", {}).get("month") or "2026-10"
+            month = (qs.get("month") or [""])[0] or peek_db().get("meta", {}).get("month") or "2026-10"
             with LOCK:
-                db = load_db()
-                try:
-                    snap = finance_io.snapshot(db, month)
-                except FileNotFoundError as e:
-                    self._json(409, {"error": str(e)})
-                    return
+                db = peek_db()
+            try:
+                snap = finance_io.snapshot(db, month)
+            except FileNotFoundError as e:
+                self._json(409, {"error": str(e)})
+                return
             self._json(200, snap)
             return
         if path == "/api/nbu":
@@ -1338,7 +1345,7 @@ class Handler(SimpleHTTPRequestHandler):
                 self._json(401, {"error": "sign in"})
                 return
             qs = parse_qs(urlparse(self.path).query)
-            month = (qs.get("month") or [""])[0] or load_db().get("meta", {}).get("month") or "2026-10"
+            month = (qs.get("month") or [""])[0] or peek_db().get("meta", {}).get("month") or "2026-10"
             self._json(200, finance_io.list_invoices(month))
             return
         if path == "/api/finance/invoice/file":
@@ -1432,7 +1439,7 @@ class Handler(SimpleHTTPRequestHandler):
                 self._json(403, {"error": "wrong login or PIN"})
                 return
             with LOCK:
-                db = load_db()
+                db = peek_db()
                 people = db.get("people") or []
                 email = auth_io.resolve_email(data.get("email") or "")
                 seat = None
@@ -1590,6 +1597,213 @@ class Handler(SimpleHTTPRequestHandler):
                     "packs": packs,
                     "state": db,
                     "drive": drive_sync.status(),
+                },
+            )
+            return
+        if path == "/api/drive/ensure":
+            if data.get("role") not in OPS_ROLES:
+                self._json(403, {"error": "only DL or LP can create Drive folders"})
+                return
+            with LOCK:
+                db = peek_db()
+                task = next((t for t in db["tasks"] if t["id"] == data.get("id")), None)
+                if not task:
+                    self._json(404, {"error": "not found"})
+                    return
+                if task.get("folderUrl") and task.get("docUrl"):
+                    self._json(200, {"ok": True, "created": False, "task": task, "state": db})
+                    return
+                snap = _clone(task)
+                ym = data.get("month") or task.get("month") or db.get("meta", {}).get("month") or "2026-10"
+            try:
+                out = drive_io.ensure_live_pack({"meta": {"month": ym}}, snap, ym)
+            except drive_io.DriveError as e:
+                print(f"[drive] ensure failed for {snap.get('name')}: {e}", flush=True)
+                self._json(409, {"ok": False, "error": str(e)})
+                return
+            with LOCK:
+                db = load_db()
+                task = next((t for t in db.get("tasks") or [] if t.get("id") == data.get("id")), None)
+                if task:
+                    task["folderUrl"] = out.get("folderUrl") or snap.get("folderUrl") or task.get("folderUrl") or ""
+                    task["docUrl"] = out.get("docUrl") or snap.get("docUrl") or task.get("docUrl") or ""
+                    save_db(db)
+            self._json(200, {**out, "state": db, "task": task})
+            return
+        if path == "/api/excel/import":
+            month = data.get("month") or peek_db().get("meta", {}).get("month") or "2026-10"
+            raw = data.get("content") or ""
+            try:
+                blob = base64.b64decode(raw)
+            except Exception:
+                self._json(400, {"error": "not a valid Excel file"})
+                return
+            with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
+                tmp.write(blob)
+                tmp_path = Path(tmp.name)
+            try:
+                parsed = excel_io.parse_workbook(tmp_path, month)
+            finally:
+                tmp_path.unlink(missing_ok=True)
+            with _FILES_LOCK:
+                excel_io.XLSX_PATH.write_bytes(blob)
+            with LOCK:
+                db = load_db()
+                stats = excel_io.apply_to_db(db, parsed, month)
+                db.setdefault("events", []).insert(
+                    0,
+                    {
+                        "at": utc_now(),
+                        "text": f"Excel import {month}: {stats['updated']} updated, {stats['added']} new",
+                    },
+                )
+                save_db(db)
+            self._json(200, {**stats, "state": db})
+            return
+        if path == "/api/excel/save":
+            with LOCK:
+                db = peek_db()
+                month = data.get("month") or db.get("meta", {}).get("month") or "2026-10"
+            _spawn(_sync_files_bg, month, True)
+            self._json(
+                200,
+                {
+                    "ok": True,
+                    "file": str(excel_io.XLSX_PATH),
+                    "drive": (db.get("meta") or {}).get("driveLiveExcel") or "",
+                    "excel": {"queued": True},
+                    "message": "Excel write queued. The board stays instant.",
+                    "state": db,
+                },
+            )
+            return
+        if path == "/api/finance/save":
+            if (data.get("role") or "") != "finance":
+                self._json(403, {"error": "only finance can write the calculator"})
+                return
+            with LOCK:
+                db = peek_db()
+                month = data.get("month") or db.get("meta", {}).get("month") or "2026-10"
+            nbu = data.get("nbuRate")
+            try:
+                if nbu not in (None, ""):
+                    float(nbu)
+            except (TypeError, ValueError):
+                self._json(400, {"error": "NBU rate must be a number"})
+                return
+            _spawn(_sync_files_bg, month, True)
+            self._json(
+                200,
+                {
+                    "ok": True,
+                    "file": str(finance_io.CALC_PATH),
+                    "drive": (db.get("meta") or {}).get("driveCalculator") or "",
+                    "message": "Calculator write queued.",
+                    "state": db,
+                },
+            )
+            return
+        if path == "/api/finance/invoice/reveal":
+            if (data.get("role") or "") != "finance":
+                self._json(403, {"error": "only finance can open the invoice folder"})
+                return
+            month = data.get("month") or peek_db().get("meta", {}).get("month") or "2026-10"
+            try:
+                drive = drive_io.ensure_invoice_month_folder(month)
+            except drive_io.DriveError as e:
+                self._json(409, {"ok": False, "error": str(e)})
+                return
+            self._json(
+                200,
+                {
+                    "ok": True,
+                    "opened": False,
+                    "folderUrl": drive.get("folderUrl") or "",
+                    "folder": drive.get("folder") or "",
+                    "folderPath": drive.get("path") or "",
+                },
+            )
+            return
+        if path == "/api/finance/invoice":
+            if (data.get("role") or "") != "finance":
+                self._json(403, {"error": "only finance can make invoices"})
+                return
+            line = str(data.get("line") or "BOTH").upper().replace(" ", "")
+            nbu = None
+            if data.get("nbuRate"):
+                try:
+                    nbu = {"rate": float(data["nbuRate"]), "date": "", "source": "manual"}
+                except (TypeError, ValueError):
+                    nbu = None
+            with LOCK:
+                db = peek_db()
+                month = data.get("month") or db.get("meta", {}).get("month") or "2026-10"
+                try:
+                    snap = finance_io.snapshot(db, month, nbu)
+                except FileNotFoundError as e:
+                    self._json(409, {"error": str(e)})
+                    return
+            if line in {"BOTH", "ALL", "MGX", "DD/DX", "DDDX"}:
+                rows = [r for r in snap["byLine"] if r.get("hours") and r["line"] in {"DD", "DX", "DS"}]
+            elif line in {"DD", "DX", "DS"}:
+                rows = [r for r in snap["byLine"] if r["line"] == line and r.get("hours")]
+            else:
+                self._json(400, {"error": "invoice line must be DD, DX or both"})
+                return
+            if not rows:
+                self._json(400, {"error": "no hours this month to invoice"})
+                return
+            packs = [finance_io.issue_invoice(r["line"], r["hours"], r["bill"], month) for r in rows]
+            names = []
+            files = []
+            blobs: list[tuple[str, bytes]] = []
+            pdf_error = ""
+            for item in packs:
+                names.append(item["docxName"])
+                if item.get("pdfName"):
+                    names.append(item["pdfName"])
+                files.extend(item.get("files") or [])
+                pdf_error = pdf_error or item.get("pdfError") or ""
+                dest = Path(item.get("folderPath") or "")
+                for name in (item.get("docxName"), item.get("pdfName")):
+                    if not name or not dest:
+                        continue
+                    fpath = dest / name
+                    if fpath.exists() and fpath.stat().st_size > 200:
+                        blobs.append((name, fpath.read_bytes()))
+            first = packs[0]
+            folder_path = first.get("folderPath") or ""
+            try:
+                drive = drive_io.publish_invoices(month, blobs)
+            except drive_io.DriveError as e:
+                print(f"[drive] invoice upload failed: {e}", flush=True)
+                self._json(
+                    409,
+                    {
+                        "ok": False,
+                        "error": str(e),
+                        "folder": first["folder"],
+                        "folderPath": folder_path,
+                        "files": files,
+                        "pdfReady": all(bool(p.get("pdfReady")) for p in packs),
+                        "pdfError": pdf_error,
+                    },
+                )
+                return
+            self._json(
+                200,
+                {
+                    "ok": True,
+                    "folder": first["folder"],
+                    "folderPath": folder_path,
+                    "folderUrl": drive.get("folderUrl") or "",
+                    "drive": drive,
+                    "files": files,
+                    "docxName": first["docxName"],
+                    "pdfName": first.get("pdfName") or "",
+                    "pdfReady": all(bool(p.get("pdfReady")) for p in packs),
+                    "pdfError": pdf_error,
+                    "message": f"Wrote {drive.get('count') or 0} files to {drive.get('path') or folder_path}",
                 },
             )
             return
@@ -1846,28 +2060,6 @@ class Handler(SimpleHTTPRequestHandler):
                         fill_missing_packs(specs, ym)
                     _sync_files_bg(data.get("month") or ym, True)
                 _spawn(_email_files)
-                return
-            if path == "/api/drive/ensure":
-                if data.get("role") not in OPS_ROLES:
-                    self._json(403, {"error": "only DL or LP can create Drive folders"})
-                    return
-                task = next((t for t in db["tasks"] if t["id"] == data.get("id")), None)
-                if not task:
-                    self._json(404, {"error": "not found"})
-                    return
-                ym = data.get("month") or task.get("month") or db.get("meta", {}).get("month") or "2026-10"
-                try:
-                    out = drive_io.ensure_live_pack(db, task, ym)
-                except drive_io.DriveError as e:
-                    print(f"[drive] ensure failed for {task.get('name')}: {e}", flush=True)
-                    save_db(db)
-                    self._json(409, {"ok": False, "error": str(e), "state": db})
-                    return
-                save_db(db)
-                if not out.get("ok"):
-                    self._json(400, {**out, "state": db})
-                    return
-                self._json(200, {**out, "state": db})
                 return
             if path == "/api/export-monday":
                 if data.get("role") not in OPS_ROLES:
@@ -2160,56 +2352,6 @@ class Handler(SimpleHTTPRequestHandler):
                 save_db(db)
                 self._json(200, {"comment": comment, "task": task, "state": db})
                 return
-            if path == "/api/excel/import":
-                month = data.get("month") or db.get("meta", {}).get("month") or "2026-10"
-                raw = data.get("content") or ""
-                try:
-                    blob = base64.b64decode(raw)
-                except Exception:
-                    self._json(400, {"error": "not a valid Excel file"})
-                    return
-                with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
-                    tmp.write(blob)
-                    tmp_path = Path(tmp.name)
-                try:
-                    parsed = excel_io.parse_workbook(tmp_path, month)
-                    stats = excel_io.apply_to_db(db, parsed, month)
-                    excel_io.XLSX_PATH.write_bytes(blob)
-                finally:
-                    tmp_path.unlink(missing_ok=True)
-                db.setdefault("events", []).insert(
-                    0, {"at": utc_now(), "text": f"Excel import {month}: {stats['updated']} updated, {stats['added']} new"}
-                )
-                save_db(db)
-                self._json(200, {**stats, "state": db})
-                return
-            if path == "/api/excel/save":
-                month = data.get("month") or db.get("meta", {}).get("month") or "2026-10"
-                try:
-                    excel = sync_excel(db, month, calculator=True)
-                except FileNotFoundError as e:
-                    self._json(500, {"error": str(e)})
-                    return
-                save_db(db)
-                live = db.get("meta", {}).get("driveLiveExcel") or ""
-                if excel.get("ok"):
-                    message = "Wrote SP_MGX_check.xlsx and the calculator on disk and Drive."
-                elif excel.get("error"):
-                    message = f"Wrote the local Excel. Drive upload failed: {excel['error']}"
-                else:
-                    message = "Wrote the local Excel. Live Drive was not updated."
-                self._json(
-                    200,
-                    {
-                        "ok": True,
-                        "file": str(excel_io.XLSX_PATH),
-                        "drive": live,
-                        "excel": excel,
-                        "message": message,
-                        "state": db,
-                    },
-                )
-                return
             if path == "/api/meta/update":
                 if (data.get("role") or "") != "finance":
                     self._json(403, {"error": "only finance can edit rates"})
@@ -2243,156 +2385,14 @@ class Handler(SimpleHTTPRequestHandler):
                 except (TypeError, ValueError):
                     self._json(400, {"error": "rates must be numbers, 0 or more"})
                     return
-                if "taxPct" in data or "nbuRate" in data:
-                    try:
-                        finance_io.write_month(
-                            db,
-                            data.get("month") or db.get("meta", {}).get("month") or "2026-10",
-                            nbu_rate=meta.get("nbuRate"),
-                        )
-                    except FileNotFoundError as e:
-                        save_db(db)
-                        self._json(500, {"error": str(e), "state": db})
-                        return
                 save_db(db)
                 self._json(200, {"meta": meta, "state": db})
-                return
-            if path == "/api/finance/invoice":
-                if (data.get("role") or "") != "finance":
-                    self._json(403, {"error": "only finance can make invoices"})
-                    return
-                line = str(data.get("line") or "BOTH").upper().replace(" ", "")
-                month = data.get("month") or db.get("meta", {}).get("month") or "2026-10"
-                nbu = None
-                if data.get("nbuRate"):
-                    try:
-                        nbu = {"rate": float(data["nbuRate"]), "date": "", "source": "manual"}
-                    except (TypeError, ValueError):
-                        nbu = None
-                try:
-                    snap = finance_io.snapshot(db, month, nbu)
-                except FileNotFoundError as e:
-                    self._json(409, {"error": str(e)})
-                    return
-                if line in {"BOTH", "ALL", "MGX", "DD/DX", "DDDX"}:
-                    rows = [
-                        r
-                        for r in snap["byLine"]
-                        if r.get("hours") and r["line"] in {"DD", "DX", "DS"}
-                    ]
-                elif line in {"DD", "DX", "DS"}:
-                    rows = [r for r in snap["byLine"] if r["line"] == line and r.get("hours")]
-                else:
-                    self._json(400, {"error": "invoice line must be DD, DX or both"})
-                    return
-                if not rows:
-                    self._json(400, {"error": "no hours this month to invoice"})
-                    return
-                packs = [
-                    finance_io.issue_invoice(r["line"], r["hours"], r["bill"], month)
-                    for r in rows
-                ]
-                names = []
-                files = []
-                blobs: list[tuple[str, bytes]] = []
-                pdf_error = ""
-                for item in packs:
-                    names.append(item["docxName"])
-                    if item.get("pdfName"):
-                        names.append(item["pdfName"])
-                    files.extend(item.get("files") or [])
-                    pdf_error = pdf_error or item.get("pdfError") or ""
-                    dest = Path(item.get("folderPath") or "")
-                    for name in (item.get("docxName"), item.get("pdfName")):
-                        if not name or not dest:
-                            continue
-                        fpath = dest / name
-                        if fpath.exists() and fpath.stat().st_size > 200:
-                            blobs.append((name, fpath.read_bytes()))
-                first = packs[0]
-                folder_path = first.get("folderPath") or ""
-                drive = {}
-                try:
-                    drive = drive_io.publish_invoices(month, blobs)
-                except drive_io.DriveError as e:
-                    print(f"[drive] invoice upload failed: {e}", flush=True)
-                    self._json(
-                        409,
-                        {
-                            "ok": False,
-                            "error": str(e),
-                            "folder": first["folder"],
-                            "folderPath": folder_path,
-                            "files": files,
-                            "pdfReady": all(bool(p.get("pdfReady")) for p in packs),
-                            "pdfError": pdf_error,
-                        },
+                if "taxPct" in data or "nbuRate" in data:
+                    _spawn(
+                        _sync_files_bg,
+                        data.get("month") or db.get("meta", {}).get("month") or "2026-10",
+                        True,
                     )
-                    return
-                self._json(
-                    200,
-                    {
-                        "ok": True,
-                        "folder": first["folder"],
-                        "folderPath": folder_path,
-                        "folderUrl": drive.get("folderUrl") or "",
-                        "drive": drive,
-                        "files": files,
-                        "docxName": first["docxName"],
-                        "pdfName": first.get("pdfName") or "",
-                        "pdfReady": all(bool(p.get("pdfReady")) for p in packs),
-                        "pdfError": pdf_error,
-                        "message": f"Wrote {drive.get('count') or 0} files to {drive.get('path') or folder_path}",
-                    },
-                )
-                return
-            if path == "/api/finance/invoice/reveal":
-                if (data.get("role") or "") != "finance":
-                    self._json(403, {"error": "only finance can open the invoice folder"})
-                    return
-                month = data.get("month") or db.get("meta", {}).get("month") or "2026-10"
-                try:
-                    drive = drive_io.ensure_invoice_month_folder(month)
-                except drive_io.DriveError as e:
-                    self._json(409, {"ok": False, "error": str(e)})
-                    return
-                self._json(
-                    200,
-                    {
-                        "ok": True,
-                        "opened": False,
-                        "folderUrl": drive.get("folderUrl") or "",
-                        "folder": drive.get("folder") or "",
-                        "folderPath": drive.get("path") or "",
-                    },
-                )
-                return
-            if path == "/api/finance/save":
-                if (data.get("role") or "") != "finance":
-                    self._json(403, {"error": "only finance can write the calculator"})
-                    return
-                month = data.get("month") or db.get("meta", {}).get("month") or "2026-10"
-                nbu = data.get("nbuRate")
-                try:
-                    fx = float(nbu) if nbu not in (None, "") else None
-                except (TypeError, ValueError):
-                    self._json(400, {"error": "NBU rate must be a number"})
-                    return
-                path_out = finance_io.write_month(db, month, nbu_rate=fx)
-                drive = db.get("meta", {}).get("driveCalculator") or ""
-                self._json(
-                    200,
-                    {
-                        "ok": True,
-                        "file": str(path_out),
-                        "drive": drive,
-                        "message": (
-                            "Wrote this month into SUPERPLAY_MGX_Calculator.xlsx. "
-                            f"Hours = shifts × 9, client $35, tax {float(db.get('meta', {}).get('taxPct') or 0.06) * 100:g}%, then EMPL vs studio."
-                        ),
-                        "state": db,
-                    },
-                )
                 return
             if path == "/api/people/update":
                 if (data.get("role") or "") != "finance":
@@ -2456,14 +2456,9 @@ class Handler(SimpleHTTPRequestHandler):
                 if not updated and data.get("id"):
                     self._json(404, {"error": "not found"})
                     return
-                try:
-                    sync_excel(db, calculator=True)
-                except FileNotFoundError as e:
-                    save_db(db)
-                    self._json(500, {"error": str(e), "state": db})
-                    return
                 save_db(db)
                 self._json(200, {"people": updated, "state": db})
+                _spawn(_sync_files_bg, db.get("meta", {}).get("month"), True)
                 return
             if path == "/api/people/add":
                 if (data.get("role") or "") != "finance":
@@ -2507,15 +2502,10 @@ class Handler(SimpleHTTPRequestHandler):
                 elif job in {"designer", "teamlead"}:
                     person["rateUsd"] = 15
                 db["people"].append(person)
-                try:
-                    if job in {"designer", "teamlead", "manager"}:
-                        sync_excel(db, calculator=True)
-                except FileNotFoundError as e:
-                    save_db(db)
-                    self._json(500, {"error": str(e), "state": db})
-                    return
                 save_db(db)
                 self._json(200, {"person": person, "state": db})
+                if job in {"designer", "teamlead", "manager"}:
+                    _spawn(_sync_files_bg, db.get("meta", {}).get("month"), True)
                 return
             if path == "/api/people/delete":
                 if (data.get("role") or "") != "finance":
