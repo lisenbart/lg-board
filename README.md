@@ -12,17 +12,15 @@ One list, not Monday groups. Sorted by studio status:
 
 ## Access
 
-Studio URL: **https://board.lisenbart.games**
-
-VPS login is always the Mac key `~/.ssh/lg_board_ovh` (public: `…IPyqI/It38ySpokUwldQtW0yxrYARJFbmtmjF3El9AGr lg-board`). One-time: `bash deploy/mac-login.sh`. After that:
+Source of truth for login and URLs: **[deploy/README.md](deploy/README.md)**. Public studio door: **[site/](site/)** (Netlify, `lisenbart.games`) → **https://board.lisenbart.games**.
 
 ```bash
-ssh board           # shell
-ssh board-update    # pull studio + restart
+ssh board           # VPS shell
+ssh board-update    # deploy the desk
 ssh board-status    # live build
 ```
 
-Do not use a password and do not paste a different key. Google Drive is always the live disk ([LLC/docs](https://drive.google.com/drive/folders/191q3zTumkNi-2tc9LCB1SG2lZwtu0pVs)). The VPS stays signed in with a service account file at `data/secrets/google_service.json` (share October DD/DX with that account). **Create task** then makes the folder + brief Doc; **Save** on the card writes the brief into the Doc. To update the live desk: `bash deploy/update.sh` on the VPS, then hard-refresh the browser.
+Google Drive is always the live disk ([LLC/docs](https://drive.google.com/drive/folders/191q3zTumkNi-2tc9LCB1SG2lZwtu0pVs)). The VPS stays signed in with a service account file at `data/secrets/google_service.json` (share October DD/DX with that account). **Create task** then makes the folder + brief Doc; **Save** on the card writes the brief into the Doc. To update the live desk: `bash deploy/update.sh` on the VPS, then hard-refresh the browser.
 
 Home: **Client** or **Studio**. Five logins, one PIN each (`data/secrets/pins.json`): Finance, LP, TL, MD, Client. After MD PIN, pick which designer is at the desk.
 
