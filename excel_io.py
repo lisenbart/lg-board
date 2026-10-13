@@ -1,7 +1,9 @@
 """Read/write SP_MGX_check.xlsx as a calculator: hours stay = shifts × 9."""
 from __future__ import annotations
 
+import os
 import re
+import tempfile
 from datetime import datetime
 from pathlib import Path
 
@@ -317,60 +319,71 @@ def _header_columns(ws) -> list[dict]:
 
 
 def parse_workbook(path: Path, ym: str) -> dict:
-    wb = load_workbook(path, data_only=False)
-    ws = find_sheet(wb, ym)
-    if ws is None:
-        return {"people": [], "rows": [], "sheet": None}
-    headers = _header_columns(ws)
-    people = [h["name"] for h in headers if h["name"]]
-    rows = []
-    line = "DX"
-    for r in range(2, ws.max_row + 1):
-        a = _cell_text(ws.cell(r, 1).value)
-        b = _cell_text(ws.cell(r, 2).value)
-        if a.lower() == "total":
-            continue
-        if a.upper() in LINE_MARKS and (not b or b.lower() in ROW_LABELS):
-            line = a.upper()
-            continue
-        name = _project_name(a, b)
-        if not name:
-            continue
-        shifts_n = _as_shift(ws.cell(r, 3).value)
-        hours_n = _hours_value(ws.cell(r, 4).value, shifts_n)
-        deadline = ws.cell(r, 5).value
-        shares = []
-        for h in headers:
-            val = ws.cell(r, h["col"]).value
-            if val in (None, ""):
+    empty = {"people": [], "rows": [], "sheet": None}
+    try:
+        wb = load_workbook(path, data_only=False)
+    except Exception as e:
+        print(f"[excel] parse {path}: {e}", flush=True)
+        return empty
+    try:
+        ws = find_sheet(wb, ym)
+        if ws is None:
+            return empty
+        headers = _header_columns(ws)
+        people = [h["name"] for h in headers if h["name"]]
+        rows = []
+        line = "DX"
+        for r in range(2, (ws.max_row or 1) + 1):
+            a = _cell_text(ws.cell(r, 1).value)
+            b = _cell_text(ws.cell(r, 2).value)
+            if a.lower() == "total":
                 continue
-            hh = _hours_value(val, shifts_n)
-            if hh <= 0:
+            if a.upper() in LINE_MARKS and (not b or b.lower() in ROW_LABELS):
+                line = a.upper()
                 continue
-            shares.append({"id": h.get("id") or "", "name": h.get("name") or "", "hours": hh})
-        assignee = ""
-        assignee_id = ""
-        if shares:
-            primary = max(shares, key=lambda s: (s["hours"], s["name"]))
-            assignee = primary.get("name") or ""
-            assignee_id = primary.get("id") or ""
-        deadline_s = _deadline_iso(deadline, ym)
-        prefix = name.split("-", 1)[0].upper()
-        excel_status = status_from_line_fill(_cell_fill_hex(ws.cell(r, 1)))
-        rows.append(
-            {
-                "name": name,
-                "line": prefix if prefix in {"DD", "DX", "DS"} else line,
-                "shifts": shifts_n,
-                "hours": hours_n,
-                "deadline": deadline_s,
-                "assigneeName": assignee,
-                "assigneeId": assignee_id,
-                "shares": shares,
-                "excelStatus": excel_status,
-            }
-        )
-    return {"people": people, "rows": rows, "sheet": ws.title}
+            name = _project_name(a, b)
+            if not name:
+                continue
+            shifts_n = _as_shift(ws.cell(r, 3).value)
+            hours_n = _hours_value(ws.cell(r, 4).value, shifts_n)
+            deadline = ws.cell(r, 5).value
+            shares = []
+            for h in headers:
+                val = ws.cell(r, h["col"]).value
+                if val in (None, ""):
+                    continue
+                hh = _hours_value(val, shifts_n)
+                if hh <= 0:
+                    continue
+                shares.append({"id": h.get("id") or "", "name": h.get("name") or "", "hours": hh})
+            assignee = ""
+            assignee_id = ""
+            if shares:
+                primary = max(shares, key=lambda s: (s["hours"], s["name"]))
+                assignee = primary.get("name") or ""
+                assignee_id = primary.get("id") or ""
+            deadline_s = _deadline_iso(deadline, ym)
+            prefix = name.split("-", 1)[0].upper()
+            excel_status = status_from_line_fill(_cell_fill_hex(ws.cell(r, 1)))
+            rows.append(
+                {
+                    "name": name,
+                    "line": prefix if prefix in {"DD", "DX", "DS"} else line,
+                    "shifts": shifts_n,
+                    "hours": hours_n,
+                    "deadline": deadline_s,
+                    "assigneeName": assignee,
+                    "assigneeId": assignee_id,
+                    "shares": shares,
+                    "excelStatus": excel_status,
+                }
+            )
+        return {"people": people, "rows": rows, "sheet": ws.title}
+    finally:
+        try:
+            wb.close()
+        except Exception:
+            pass
 
 
 def _resolved_shares(row: dict, people: list[dict], by_name: dict) -> list[dict]:
@@ -392,6 +405,14 @@ def _resolved_shares(row: dict, people: list[dict], by_name: dict) -> list[dict]
 
 def _help_from_row(row: dict, people: list[dict], by_name: dict, assignee_id: str) -> list[dict]:
     return [s for s in _resolved_shares(row, people, by_name) if s["id"] != assignee_id]
+
+
+def _next_task_id(db: dict, prefix: str = "t-xl") -> str:
+    used = {str(t.get("id") or "") for t in db.get("tasks") or []}
+    n = len(used) + 1
+    while f"{prefix}-{n}" in used:
+        n += 1
+    return f"{prefix}-{n}"
 
 
 def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
@@ -417,8 +438,16 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
         for n in (db.get("droppedNames") or [])
         if str(n).strip() not in parsed_names and _id_key(n) not in parsed_keys
     ]
+    seen_names: set[str] = set()
+    seen_keys: set[str] = set()
     for row in parsed.get("rows") or []:
         name = row["name"]
+        key = _id_key(name)
+        if name in seen_names or (key and key in seen_keys):
+            continue
+        seen_names.add(name)
+        if key:
+            seen_keys.add(key)
         assignee_id = ""
         if row.get("assigneeId") and row["assigneeId"] in {p["id"] for p in people}:
             assignee_id = row["assigneeId"]
@@ -427,7 +456,6 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
             if person:
                 assignee_id = person["id"]
         shares = _resolved_shares(row, people, by_name)
-        key = _id_key(name)
         task = existing.get(name) or (by_key.get(key) if key else None)
         keep = (task.get("assigneeId") or "") if task else ""
         people_ids = {p["id"] for p in people}
@@ -462,7 +490,7 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
             updated += 1
         else:
             task = {
-                "id": f"t-xl-{len(db.get('tasks') or [])}",
+                "id": _next_task_id(db),
                 "name": name,
                 "line": row["line"],
                 "department": "MGX",
@@ -759,7 +787,7 @@ def rewrite_existing_name(db: dict, ym: str, old_name: str, task: dict, path: Pa
         if not found:
             return False
         _write_task_row(ws, found["row"], task, columns)
-        wb.save(path)
+        _atomic_save(wb, path)
         return True
     finally:
         try:
@@ -774,6 +802,13 @@ def write_month(db: dict, ym: str, path: Path | None = None) -> Path:
     if not path.exists():
         raise FileNotFoundError(f"Excel workbook missing: {path}")
     wb = load_workbook(path)
+    try:
+        return _write_month_body(db, ym, path, wb)
+    finally:
+        _close_wb(wb)
+
+
+def _write_month_body(db: dict, ym: str, path: Path, wb) -> Path:
     ws = find_sheet(wb, ym)
     people = designers(db)
     y = ym.split("-")[0]
@@ -839,5 +874,30 @@ def write_month(db: dict, ym: str, path: Path | None = None) -> Path:
         if kid:
             id_index[kid] = rec
     _refresh_total(ws, scan, columns)
-    wb.save(path)
+    _atomic_save(wb, path)
     return path
+
+
+def _atomic_save(wb, path: Path) -> None:
+    """Replace the xlsx only after a full write, so a crash cannot leave a 0-byte sheet."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(suffix=".xlsx", dir=str(path.parent))
+    os.close(fd)
+    tmp_path = Path(tmp)
+    try:
+        wb.save(tmp_path)
+        tmp_path.replace(path)
+    except Exception:
+        try:
+            tmp_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise
+
+
+def _close_wb(wb) -> None:
+    try:
+        wb.close()
+    except Exception:
+        pass

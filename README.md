@@ -65,6 +65,12 @@ Open [http://127.0.0.1:43141](http://127.0.0.1:43141) and sign in with one of th
 
 Data: `data/db.json` (copied from `data/seed.json` on first start). Live Excel is `data/SP_MGX_check.xlsx`; `ssh board-update` snapshots it under `~/lg-board-backups` before git reset.
 
+Crash tests (Excel ingest, login, bad JSON, concurrent `/api/me`):
+
+```bash
+python3 tools/test_portal.py
+```
+
 ## Try it
 
 1. **Dmytro** — Finance → Client (Word invoices) and Employeers (UAH + copy card).

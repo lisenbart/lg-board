@@ -28,7 +28,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-13d"
+BUILD = "2026-10-13e"
 LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
 _REV_COND = threading.Condition()
@@ -66,11 +66,12 @@ def utc_now() -> str:
 
 
 def _link_live_briefs(db: dict) -> bool:
+    """Cache only. Drive scans happen in the watch thread, never under the board lock."""
     global _BRIEFS_SYNCED
     if _BRIEFS_SYNCED:
         return False
     try:
-        n = drive_sync.attach_missing_briefs(db)
+        n = drive_sync.apply_brief_packs(db, drive_sync.load_brief_packs())
     except Exception as e:
         print(f"[drive] attach briefs: {e}", flush=True)
         return False
@@ -78,11 +79,42 @@ def _link_live_briefs(db: dict) -> bool:
     return bool(n)
 
 
+def _empty_db() -> dict:
+    try:
+        db = json.loads(SEED_PATH.read_text(encoding="utf-8"))
+        if isinstance(db, dict):
+            return db
+    except (OSError, json.JSONDecodeError) as e:
+        print(f"[db] seed unreadable: {e}", flush=True)
+    return {"meta": {"month": "2026-10", "rev": 0}, "tasks": [], "people": [], "events": []}
+
+
+def _read_db_file() -> dict:
+    bak = DB_PATH.with_suffix(".json.bak")
+    for candidate in (DB_PATH, bak):
+        try:
+            if not candidate.exists():
+                continue
+            db = json.loads(candidate.read_text(encoding="utf-8"))
+            if isinstance(db, dict):
+                if candidate == bak and candidate != DB_PATH:
+                    print(f"[db] restored from {candidate.name}", flush=True)
+                return db
+        except (OSError, json.JSONDecodeError) as e:
+            print(f"[db] corrupt {candidate}: {e}", flush=True)
+            if candidate == DB_PATH:
+                try:
+                    shutil.copyfile(DB_PATH, DB_PATH.with_suffix(".json.bad"))
+                except OSError:
+                    pass
+    return _empty_db()
+
+
 def load_db() -> dict:
     global _FILES_SYNCED
     DATA.mkdir(exist_ok=True)
     if not DB_PATH.exists():
-        db = json.loads(SEED_PATH.read_text(encoding="utf-8"))
+        db = _empty_db()
         notice_io.ensure(db)
         drive_sync.apply_meta(db)
         drive_io.attach_cached_packs(db)
@@ -93,7 +125,7 @@ def load_db() -> dict:
         save_db(db, origin=True)
         _FILES_SYNCED = True
         return db
-    db = json.loads(DB_PATH.read_text(encoding="utf-8"))
+    db = _read_db_file()
     dirty = notice_io.ensure(db)
     if read_rev(db) < 1:
         dirty = True
@@ -160,7 +192,16 @@ def save_db(db: dict, origin: bool = False) -> None:
     elif meta.get("mode") == "mirror":
         meta["bufferDirty"] = True
     bump_rev(db)
-    DB_PATH.write_text(json.dumps(db, ensure_ascii=False, indent=2), encoding="utf-8")
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    blob = json.dumps(db, ensure_ascii=False, indent=2, default=str)
+    tmp = DB_PATH.with_name(DB_PATH.name + ".tmp")
+    tmp.write_text(blob, encoding="utf-8")
+    if DB_PATH.exists():
+        try:
+            shutil.copyfile(DB_PATH, DB_PATH.with_suffix(".json.bak"))
+        except OSError:
+            pass
+    tmp.replace(DB_PATH)
 
 
 def hours_from_shift(shift: float) -> float:
@@ -220,8 +261,11 @@ def sync_excel(db: dict, month: str | None = None, calculator: bool = False) -> 
     parsed = excel_io.parse_workbook(excel_io.XLSX_PATH, ym)
     excel_io.apply_to_db(db, parsed, ym)
     if calculator:
-        fx = (db.get("meta") or {}).get("nbuRate")
-        finance_io.write_month(db, ym, nbu_rate=fx)
+        try:
+            fx = (db.get("meta") or {}).get("nbuRate")
+            finance_io.write_month(db, ym, nbu_rate=fx)
+        except Exception as e:
+            print(f"[finance] write_month: {e}", flush=True)
     try:
         if excel_io.XLSX_PATH.exists():
             mirror_io.ORIGIN_XLSX.parent.mkdir(parents=True, exist_ok=True)
@@ -289,20 +333,25 @@ def _newest_xlsx() -> Path:
     return buf
 
 
-def apply_excel_file(db: dict, ym: str) -> dict:
-    """Disk SP_MGX_check.xlsx → cards. No Drive calls."""
-    before = {str(t.get("name") or "").strip() for t in db.get("tasks") or []}
-    before_sig = _month_task_sig(db, ym)
+def _copy_newest_xlsx() -> Path:
     path = _newest_xlsx()
     if path.exists() and path != excel_io.XLSX_PATH:
         try:
             shutil.copyfile(path, excel_io.XLSX_PATH)
         except OSError as e:
             print(f"[excel] buffer copy: {e}", flush=True)
-    use = path if path.exists() else excel_io.XLSX_PATH
-    mirror_io.sync_from_files(db, use if use.exists() else None)
-    drive_sync.apply_meta(db)
-    parsed = excel_io.parse_workbook(use, ym) if use.exists() else {}
+    return excel_io.XLSX_PATH if excel_io.XLSX_PATH.exists() else path
+
+
+def _parse_months(path: Path, months: list[str]) -> dict[str, dict]:
+    out: dict[str, dict] = {}
+    exists = path.exists()
+    for ym in months:
+        out[ym] = excel_io.parse_workbook(path, ym) if exists else {"people": [], "rows": [], "sheet": None}
+    return out
+
+
+def _ingest_stats(db: dict, ym: str, parsed: dict, before: set[str], before_sig: tuple) -> dict:
     rows = parsed.get("rows") or []
     parsed_names = {str(r.get("name") or "").strip() for r in rows if r.get("name")}
     fresh = [t for t in (db.get("tasks") or []) if str(t.get("name") or "").strip() not in before]
@@ -340,6 +389,17 @@ def apply_excel_file(db: dict, ym: str) -> dict:
             for t in need_folders
         ],
     }
+
+
+def apply_excel_file(db: dict, ym: str, parsed: dict | None = None) -> dict:
+    """Disk SP_MGX_check.xlsx → cards. No Drive calls. Parse first, then call this under LOCK."""
+    before = {str(t.get("name") or "").strip() for t in db.get("tasks") or []}
+    before_sig = _month_task_sig(db, ym)
+    if parsed is None:
+        parsed = excel_io.parse_workbook(_copy_newest_xlsx(), ym) if _newest_xlsx().exists() or excel_io.XLSX_PATH.exists() else {}
+    excel_io.apply_to_db(db, parsed, ym)
+    drive_sync.apply_meta(db)
+    return _ingest_stats(db, ym, parsed, before, before_sig)
 
 
 def fill_missing_packs(specs: list[dict], ym: str) -> dict:
@@ -390,7 +450,7 @@ def fill_missing_packs(specs: list[dict], ym: str) -> dict:
 
 
 def run_excel_ingest(*, download: bool = False, force: bool = False, create_packs: bool = True) -> dict:
-    """Drive Excel (optional) → board cards, then folders. Drive I/O never holds LOCK."""
+    """Drive Excel (optional) → board cards, then folders. Drive I/O and openpyxl never hold LOCK."""
     global _EXCEL_WATCH
     if not _INGEST_LOCK.acquire(blocking=False):
         return {"busy": True, "added": 0, "changed": False, "fresh": [], "drive": {"ok": True, "created": 0, "errors": []}}
@@ -405,9 +465,24 @@ def run_excel_ingest(*, download: bool = False, force: bool = False, create_pack
                 dl_error = str(e)[:240]
                 print(f"[excel] download: {e}", flush=True)
         with LOCK:
+            ym = str(load_db().get("meta", {}).get("month") or "2026-10")
+        use = _copy_newest_xlsx()
+        months = list(dict.fromkeys([*mirror_io.MIRROR_MONTHS, ym]))
+        parsed_months = _parse_months(use, months)
+        readable = any((p or {}).get("sheet") for p in parsed_months.values())
+        if use.exists() and not readable:
+            dl_error = dl_error or "Excel unreadable"
+        with LOCK:
             db = load_db()
-            ym = str(db.get("meta", {}).get("month") or "2026-10")
-            stats = apply_excel_file(db, ym)
+            ym = str(db.get("meta", {}).get("month") or ym)
+            before = {str(t.get("name") or "").strip() for t in db.get("tasks") or []}
+            before_sig = _month_task_sig(db, ym)
+            if readable:
+                for month, parsed in parsed_months.items():
+                    if (parsed or {}).get("sheet"):
+                        excel_io.apply_to_db(db, parsed, month)
+                drive_sync.apply_meta(db)
+            stats = _ingest_stats(db, ym, parsed_months.get(ym) or {}, before, before_sig)
             specs = list(stats.pop("needSpecs") or [])
             src = "Drive" if from_drive else "file"
             watch = {
@@ -424,7 +499,8 @@ def run_excel_ingest(*, download: bool = False, force: bool = False, create_pack
                 "sheet": stats.get("sheet") or "",
             }
             db.setdefault("meta", {})["excelWatch"] = watch
-            if stats.get("added") or stats.get("changed") or from_drive or dl_error:
+            persist = bool(stats.get("added") or stats.get("changed") or from_drive)
+            if persist:
                 if stats.get("added") or stats.get("changed"):
                     db.setdefault("events", []).insert(
                         0,
@@ -485,8 +561,31 @@ def run_excel_ingest(*, download: bool = False, force: bool = False, create_pack
         _INGEST_LOCK.release()
 
 
+def _refresh_briefs_off_lock() -> None:
+    if not drive_sync.connected():
+        return
+    with LOCK:
+        db = load_db()
+        need = drive_sync.missing_brief_keys(db)
+    if not need:
+        return
+    n = drive_sync.attach_missing_briefs(db)
+    if not n:
+        return
+    with LOCK:
+        live = load_db()
+        extra = drive_sync.apply_brief_packs(live)
+        if extra:
+            save_db(live)
+
+
 def watch_live_excel() -> dict:
-    return run_excel_ingest(download=True, force=True, create_packs=True)
+    out = run_excel_ingest(download=True, force=True, create_packs=True)
+    try:
+        _refresh_briefs_off_lock()
+    except Exception as e:
+        print(f"[excel] briefs: {e}", flush=True)
+    return out
 
 
 def start_excel_watch() -> None:
@@ -843,8 +942,17 @@ def parse_email(text: str) -> list[dict]:
 
 
 class Handler(SimpleHTTPRequestHandler):
+    timeout = 45
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(PUBLIC), **kwargs)
+
+    def setup(self) -> None:
+        super().setup()
+        try:
+            self.connection.settimeout(45)
+        except Exception:
+            pass
 
     def log_message(self, fmt: str, *args) -> None:
         print(f"[{self.log_date_time_string()}] {fmt % args}")
@@ -854,7 +962,7 @@ class Handler(SimpleHTTPRequestHandler):
         super().end_headers()
 
     def _json(self, code: int, payload, cookie: str | None = None) -> None:
-        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        body = json.dumps(payload, ensure_ascii=False, default=str).encode("utf-8")
         self.send_response(code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
@@ -862,7 +970,10 @@ class Handler(SimpleHTTPRequestHandler):
         if cookie:
             self.send_header("Set-Cookie", cookie)
         self.end_headers()
-        self.wfile.write(body)
+        try:
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError, TimeoutError):
+            return
 
     def _redirect(self, location: str) -> None:
         self.send_response(302)
@@ -894,11 +1005,41 @@ class Handler(SimpleHTTPRequestHandler):
         return data
 
     def _read_json(self) -> dict:
-        length = int(self.headers.get("Content-Length") or 0)
-        if length == 0:
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except (TypeError, ValueError):
+            length = 0
+        if length <= 0:
             return {}
-        raw = self.rfile.read(length).decode("utf-8")
-        return json.loads(raw) if raw else {}
+        if length > 25_000_000:
+            raise ValueError("payload too large")
+        raw = self.rfile.read(length)
+        try:
+            text = raw.decode("utf-8")
+        except UnicodeDecodeError as e:
+            raise ValueError("payload is not utf-8") from e
+        if not text.strip():
+            return {}
+        data = json.loads(text)
+        if not isinstance(data, dict):
+            raise ValueError("payload must be an object")
+        return data
+
+    def _guard(self, fn) -> None:
+        try:
+            fn()
+        except json.JSONDecodeError:
+            self._json(400, {"error": "not json"})
+        except ValueError as e:
+            self._json(400, {"error": str(e)[:200]})
+        except (BrokenPipeError, ConnectionResetError):
+            return
+        except Exception as e:
+            print(f"[http] {self.command} {self.path}: {e}", flush=True)
+            try:
+                self._json(500, {"error": "desk error"})
+            except Exception:
+                pass
 
     def _bytes(self, data: bytes, content_type: str, filename: str) -> None:
         self.send_response(200)
@@ -940,6 +1081,9 @@ class Handler(SimpleHTTPRequestHandler):
         self.wfile.write(data)
 
     def do_GET(self) -> None:
+        self._guard(self._handle_get)
+
+    def _handle_get(self) -> None:
         path = urlparse(self.path).path
         if path in {"/hours", "/hours/"}:
             self.path = "/index.html"
@@ -1166,6 +1310,9 @@ class Handler(SimpleHTTPRequestHandler):
         return SimpleHTTPRequestHandler.do_GET(self)
 
     def do_POST(self) -> None:
+        self._guard(self._handle_post)
+
+    def _handle_post(self) -> None:
         path = urlparse(self.path).path
         data = self._read_json()
         if path == "/api/login":
@@ -1280,6 +1427,58 @@ class Handler(SimpleHTTPRequestHandler):
                 return
             self._json(200, {**stats, "state": db})
             return
+        if path == "/api/drive/pull":
+            if sess.get("role") != "finance":
+                self._json(403, {"error": "only DL can read Drive"})
+                return
+            try:
+                files_out = drive_sync.pull(None, hydrate=False)
+            except drive_sync.DriveSyncError as e:
+                self._json(
+                    409,
+                    {
+                        "error": str(e),
+                        "connected": drive_sync.connected(),
+                        "hasClient": drive_sync.has_client(),
+                    },
+                )
+                return
+            with LOCK:
+                db = load_db()
+                before = {str(t.get("name") or "").strip() for t in db.get("tasks") or []}
+                if mirror_io.ORIGIN_XLSX.exists():
+                    mirror_io.restore_buffer_xlsx()
+                    mirror_io.sync_from_files(db)
+                drive_sync.apply_meta(db, {"drivePulledAt": files_out.get("pulledAt") or utc_now()})
+                fresh = [t for t in (db.get("tasks") or []) if str(t.get("name") or "").strip() not in before]
+                month = data.get("month") or db.get("meta", {}).get("month")
+                specs = [
+                    {
+                        "id": t.get("id"),
+                        "name": str(t.get("name") or "").strip(),
+                        "line": t.get("line") or "",
+                    }
+                    for t in (db.get("tasks") or [])
+                    if (t.get("month") or month) == month
+                    and str(t.get("name") or "").strip()
+                    and not str(t.get("folderUrl") or "").strip()
+                ]
+                save_db(db, origin=True)
+            packs = fill_missing_packs(specs, month) if specs else {"ok": True, "created": 0, "errors": []}
+            with LOCK:
+                db = load_db()
+            self._json(
+                200,
+                {
+                    **files_out,
+                    "added": len(fresh),
+                    "fresh": [str(t.get("name") or "") for t in fresh],
+                    "packs": packs,
+                    "state": db,
+                    "drive": drive_sync.status(),
+                },
+            )
+            return
         with LOCK:
             db = load_db()
             if path == "/api/drive/client":
@@ -1303,40 +1502,6 @@ class Handler(SimpleHTTPRequestHandler):
                     self._json(400, {"error": str(e)})
                     return
                 self._json(200, {"ok": True, "drive": drive_sync.status()})
-                return
-            if path == "/api/drive/pull":
-                if sess.get("role") != "finance":
-                    self._json(403, {"error": "only DL can read Drive"})
-                    return
-                before = {str(t.get("name") or "").strip() for t in db.get("tasks") or []}
-                try:
-                    out = drive_sync.pull(db, hydrate=True)
-                except drive_sync.DriveSyncError as e:
-                    self._json(409, {"error": str(e), "connected": drive_sync.connected(), "hasClient": drive_sync.has_client()})
-                    return
-                fresh = [t for t in (db.get("tasks") or []) if str(t.get("name") or "").strip() not in before]
-                packs = {"ok": True, "created": 0, "errors": []}
-                if fresh:
-                    try:
-                        packs = drive_io.ensure_live_packs(
-                            db, fresh, data.get("month") or db.get("meta", {}).get("month")
-                        )
-                    except drive_io.DriveError as e:
-                        packs = {"ok": False, "created": 0, "errors": [str(e)]}
-                    for task in fresh:
-                        notice_io.on_landed(db, task, str(sess.get("seatId") or ""))
-                save_db(db, origin=bool(out.get("applied")))
-                self._json(
-                    200,
-                    {
-                        **out,
-                        "added": len(fresh),
-                        "fresh": [str(t.get("name") or "") for t in fresh],
-                        "packs": packs,
-                        "state": db,
-                        "drive": drive_sync.status(),
-                    },
-                )
                 return
             if path == "/api/tasks/create":
                 if data.get("role") not in OPS_ROLES:
@@ -2351,6 +2516,8 @@ def main() -> None:
     start_excel_watch()
     ThreadingHTTPServer.allow_reuse_address = True
     httpd = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
+    httpd.daemon_threads = True
+    httpd.timeout = 45
     print(f"LG Board http://127.0.0.1:{PORT}", flush=True)
     print("SuperPlay hours http://127.0.0.1:%s/hours" % PORT, flush=True)
     httpd.serve_forever()

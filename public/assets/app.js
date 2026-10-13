@@ -747,20 +747,30 @@ function setBusy(el, on, label) {
 }
 
 async function api(path, payload) {
-  const res = await fetch(path, {
-    method: payload ? "POST" : "GET",
-    headers: { "Content-Type": "application/json" },
-    credentials: "same-origin",
-    body: payload ? JSON.stringify(payload) : undefined,
-  });
-  const type = res.headers.get("content-type") || "";
-  if (!type.includes("json")) throw new Error("no api");
-  const body = await res.json();
-  if (res.status === 401 && path !== "/api/me" && path !== "/api/login") {
-    writeSession(null);
-    showLogin();
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 25000);
+  try {
+    const res = await fetch(path, {
+      method: payload ? "POST" : "GET",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: payload ? JSON.stringify(payload) : undefined,
+      signal: ctrl.signal,
+    });
+    const type = res.headers.get("content-type") || "";
+    if (!type.includes("json")) return { error: "desk did not answer" };
+    const body = await res.json();
+    if (res.status === 401 && path !== "/api/me" && path !== "/api/login") {
+      writeSession(null);
+      showLogin();
+    }
+    return body;
+  } catch (err) {
+    if (err && err.name === "AbortError") return { error: "desk timed out" };
+    return { error: "desk did not answer" };
+  } finally {
+    clearTimeout(timer);
   }
-  return body;
 }
 
 function calendarMonth() {

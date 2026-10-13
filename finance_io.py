@@ -731,6 +731,16 @@ def write_month(db: dict, ym: str, nbu_rate: float | None = None, path: Path | N
     active_lines = [k for k in ("DX", "DD", "DS") if by_line[k] or k != "DS"]
 
     wb = load_workbook(path)
+    try:
+        return _write_month_body(db, ym, path, wb, client_rate, tax, fx, crew, by_line, active_lines)
+    finally:
+        try:
+            wb.close()
+        except Exception:
+            pass
+
+
+def _write_month_body(db, ym, path, wb, client_rate, tax, fx, crew, by_line, active_lines):
     name = sheet_name_for(ym)
     if name in wb.sheetnames:
         del wb[name]
@@ -851,7 +861,7 @@ def write_month(db: dict, ym: str, nbu_rate: float | None = None, path: Path | N
     for col in range(3, tax_col + 1):
         ws.column_dimensions[get_column_letter(col)].width = 14
     _write_employeers_sheet(wb, db)
-    wb.save(path)
+    _atomic_save(wb, path)
     return path
 
 
@@ -892,6 +902,29 @@ def _write_employeers_sheet(wb, db: dict) -> None:
 def write_employeers(db: dict, path: Path | None = None) -> Path:
     path = Path(path or CALC_PATH)
     wb = load_workbook(path)
-    _write_employeers_sheet(wb, db)
-    wb.save(path)
-    return path
+    try:
+        _write_employeers_sheet(wb, db)
+        _atomic_save(wb, path)
+        return path
+    finally:
+        try:
+            wb.close()
+        except Exception:
+            pass
+
+
+def _atomic_save(wb, path: Path) -> None:
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(suffix=".xlsx", dir=str(path.parent))
+    os.close(fd)
+    tmp_path = Path(tmp)
+    try:
+        wb.save(tmp_path)
+        tmp_path.replace(path)
+    except Exception:
+        try:
+            tmp_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise
