@@ -804,11 +804,6 @@ body.col-resizing * { cursor: col-resize !important; }
   color: var(--ink);
   background: #fff;
 }
-.drawer-x {
-  border: 0; background: transparent; width: 32px; height: 32px; border-radius: 6px;
-  cursor: pointer; color: var(--muted); font-size: 22px; line-height: 1; flex: 0 0 auto;
-}
-.drawer-x:hover { background: #f0f1f5; color: var(--ink); }
 .drawer h2 { margin: 0 0 8px; font-size: 15px; line-height: 1.35; font-weight: 500; }
 .drawer .meta {
   display: flex; flex-wrap: wrap; align-items: center; gap: 6px;

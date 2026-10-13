@@ -3471,7 +3471,6 @@ function openTask(id) {
           ? `<input id="stName" class="task-name-edit" value="${escapeHtml(t.name)}" spellcheck="false" aria-label="Project name" />`
           : `<h2>${escapeHtml(t.name)}</h2>`
       }
-      <button type="button" class="drawer-x" id="closeDrawer" aria-label="Close">×</button>
     </div>
     <div class="meta"><span class="pill line-${t.line}">${t.line}</span> ${t.shifts || 0} shift · ${t.hours || 0} h · <span id="stMetaStatus" class="pill ${st.cls}">${st.label}</span></div>
     <div class="drawer-body">
@@ -3504,7 +3503,6 @@ function openTask(id) {
       </div>
     </div>
   `;
-  $("closeDrawer").onclick = closeDrawer;
   const pendingShots = [];
   function fileToShot(file) {
     return new Promise((resolve) => {
