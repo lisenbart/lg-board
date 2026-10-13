@@ -622,6 +622,36 @@ def _insert_in_section(ws, scan: dict, line: str) -> int:
     return insert_at
 
 
+def _delete_sheet_row(ws, scan: dict, row: int) -> None:
+    ws.delete_rows(row)
+    if scan.get("total_row") and scan["total_row"] > row:
+        scan["total_row"] -= 1
+    for key, r in list(scan["headers"].items()):
+        if r > row:
+            scan["headers"][key] = r - 1
+    gone = [key for key, item in scan["rows"].items() if item["row"] == row]
+    for item in scan["rows"].values():
+        if item["row"] > row:
+            item["row"] -= 1
+    for key in gone:
+        scan["rows"].pop(key, None)
+    scan["last_used"] = max((scan.get("last_used") or 1) - 1, 1)
+
+
+def _drop_dropped_rows(ws, scan: dict, db: dict) -> None:
+    dropped = {str(n).strip() for n in (db.get("droppedNames") or []) if n}
+    dropped_keys = {_id_key(n) for n in dropped if _id_key(n)}
+    if not dropped and not dropped_keys:
+        return
+    victims = []
+    for item in scan["rows"].values():
+        name = str(item.get("name") or "").strip()
+        if name in dropped or (_id_key(name) and _id_key(name) in dropped_keys):
+            victims.append(item["row"])
+    for row in sorted(set(victims), reverse=True):
+        _delete_sheet_row(ws, scan, row)
+
+
 def _refresh_total(ws, scan: dict, columns: list[tuple[int, dict | None]]) -> None:
     total_row = scan.get("total_row")
     if not total_row:
@@ -712,6 +742,7 @@ def write_month(db: dict, ym: str, path: Path | None = None) -> Path:
     if "DX" not in scan["headers"]:
         scan["headers"]["DX"] = 2
     columns = _bind_people_columns(ws, people)
+    _drop_dropped_rows(ws, scan, db)
     id_index = {
         _id_key(item["name"]): item for item in scan["rows"].values() if _id_key(item["name"])
     }
@@ -725,13 +756,6 @@ def write_month(db: dict, ym: str, path: Path | None = None) -> Path:
         if found:
             _write_task_row(ws, found["row"], task, columns)
             continue
-        if str(task.get("source") or "") == "portal":
-            try:
-                has_time = float(task.get("shifts") or 0) or float(task.get("hours") or 0)
-            except (TypeError, ValueError):
-                has_time = 0
-            if not has_time:
-                continue
         line = (task.get("line") or "DD").upper()
         if line not in {"DX", "DD", "DS"}:
             line = "DD"
@@ -739,7 +763,10 @@ def write_month(db: dict, ym: str, path: Path | None = None) -> Path:
             line = "DD" if "DD" in scan["headers"] else next(iter(scan["headers"]), "DX")
         row = _insert_in_section(ws, scan, line)
         _write_task_row(ws, row, task, columns)
-        scan["rows"][key] = {"row": row, "line": line, "name": task.get("name")}
+        rec = {"row": row, "line": line, "name": task.get("name")}
+        scan["rows"][key] = rec
+        if kid:
+            id_index[kid] = rec
     _refresh_total(ws, scan, columns)
     wb.save(path)
     return path

@@ -1038,15 +1038,15 @@ async function confirmDeleteTasks() {
     closeDrawer();
     const n = Number(out.drive?.trashed || 0);
     if (out.drive && out.drive.ok === false) {
-      toast(out.drive.errors?.[0] || "Removed from the board. Drive folder was not trashed.");
+      toast(out.drive.errors?.[0] || "Removed from the board and Excel. Drive folder was not trashed.");
     } else if (n) {
       toast(
         n === 1
-          ? "Deleted on the board and moved the Drive folder to trash"
-          : `Deleted ${list.length} on the board · ${n} Drive folders to trash`
+          ? "Deleted on the board, Excel, and Drive trash"
+          : `Deleted ${list.length} on the board · Excel rows gone · ${n} Drive folders to trash`
       );
     } else {
-      toast("Deleted on the board");
+      toast("Deleted on the board and Excel");
     }
   } finally {
     setBusy(go, false);
@@ -1064,7 +1064,7 @@ async function submitCreateTask() {
   if (err) err.textContent = "";
   const wait = $("createTaskWait");
   if (wait) wait.hidden = false;
-  setBusy(go, true, "Creating on Drive…");
+  setBusy(go, true, "Writing files…");
   const cancel = $("createTaskCancel");
   if (cancel) cancel.disabled = true;
   let payload = {
@@ -1087,7 +1087,12 @@ async function submitCreateTask() {
   }
   applyState(out.state);
   closeCreateTask();
-  toast("Task created · folder + brief Doc on Drive");
+  const excel = out.excel || {};
+  let note = "Task created · Drive folder + brief · Excel row";
+  if (excel.ok === false && (excel.error || excel.reason)) {
+    note += ` · Drive Excel: ${excel.error || excel.reason}`;
+  }
+  toast(note);
   if (out.task?.id) openTask(out.task.id);
 }
 
@@ -4195,7 +4200,7 @@ $("emailApply").onclick = async () => {
     return;
   }
   if (wait) wait.hidden = false;
-  setBusy(go, true, "Creating on Drive…");
+  setBusy(go, true, "Writing files…");
   const cancel = $("emailCancel");
   if (cancel) cancel.disabled = true;
   let out = {};

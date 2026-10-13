@@ -27,7 +27,7 @@ CLIENT_PATH = SECRETS / "google_client.json"
 OAUTH_PATH = SECRETS / "google_oauth.json"
 SA_PATH = SECRETS / "google_service.json"
 TOKEN_PATH = SECRETS / "google_drive_token.txt"
-BUILD = "2026-10-12v"
+BUILD = "2026-10-12w"
 OAUTH_STATE_PATH = SECRETS / "drive_oauth_state.json"
 SCOPE = "https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/documents"
 API = "https://www.googleapis.com/drive/v3"
@@ -35,6 +35,7 @@ TOKEN_URL = "https://oauth2.googleapis.com/token"
 AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 FOLDER_MIME = "application/vnd.google-apps.folder"
 DOC_MIME = "application/vnd.google-apps.document"
+XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 NAME_ID = re.compile(r"^([A-Z]{2}-[A-Z0-9]+-\d+(?:-\d+)?)", re.I)
 INVOICE_DOC = re.compile(r"^invoice(DD|DX)_\d{4}\.\d{2}\.\d{2}\.(docx|pdf)$", re.I)
 _TOKEN_MEM: dict = {"at": 0.0, "value": ""}
@@ -369,6 +370,72 @@ def download_file(token: str, file_id: str) -> bytes:
     )
 
 
+def upload_media(file_id: str, blob: bytes, mime: str) -> dict:
+    """Overwrite an existing Drive file by id (same files pull() downloads)."""
+    token = access_token()
+    if not token:
+        raise DriveSyncError("Drive is not connected on this server")
+    fid = str(file_id or "").strip()
+    if not fid:
+        raise DriveSyncError("Drive file id missing")
+    if not blob:
+        raise DriveSyncError("file is empty")
+    url = (
+        "https://www.googleapis.com/upload/drive/v3/files/"
+        + urllib.parse.quote(fid)
+        + "?uploadType=media&supportsAllDrives=true&fields=id,name,webViewLink"
+    )
+    req = urllib.request.Request(url, data=blob, method="PATCH")
+    req.add_header("Authorization", f"Bearer {token}")
+    req.add_header("Content-Type", mime)
+    req.add_header("Content-Length", str(len(blob)))
+    try:
+        with urllib.request.urlopen(req, timeout=90) as res:
+            raw = res.read().decode("utf-8")
+            return json.loads(raw) if raw else {"id": fid}
+    except urllib.error.HTTPError as e:
+        err = e.read().decode("utf-8", errors="replace")
+        raise DriveSyncError(f"Drive upload {e.code}: {err[:300]}") from e
+
+
+def push_workbooks(*, excel: bool = True, calculator: bool = False) -> dict:
+    """Write local SP_MGX_check / calculator onto the live Drive files."""
+    import excel_io
+
+    if not connected():
+        return {"ok": False, "skipped": True, "reason": "Drive is not connected"}
+    cfg = roots()
+    uploaded = []
+    if excel:
+        path = excel_io.XLSX_PATH
+        fid = str(cfg.get("excel") or "")
+        if not path.exists():
+            raise DriveSyncError(f"Excel missing: {path}")
+        if not fid:
+            raise DriveSyncError("live Excel id is not configured")
+        out = upload_media(fid, path.read_bytes(), XLSX_MIME)
+        uploaded.append(
+            {
+                "name": "SP_MGX_check.xlsx",
+                "id": out.get("id") or fid,
+                "url": out.get("webViewLink") or file_url(fid),
+            }
+        )
+    if calculator:
+        path = finance_io.CALC_PATH
+        fid = str(cfg.get("calculator") or "")
+        if path.exists() and fid:
+            out = upload_media(fid, path.read_bytes(), XLSX_MIME)
+            uploaded.append(
+                {
+                    "name": "SUPERPLAY_MGX_Calculator.xlsx",
+                    "id": out.get("id") or fid,
+                    "url": out.get("webViewLink") or file_url(fid),
+                }
+            )
+    return {"ok": True, "uploaded": uploaded, "count": len(uploaded)}
+
+
 def _kind(name: str, mime: str, path: str) -> str:
     low = name.lower()
     if mime == FOLDER_MIME:
@@ -639,7 +706,7 @@ def apply_meta(db: dict, extra: dict | None = None) -> None:
         meta["driveLiveDS"] = folder_url(cfg["octoberDS"])
         meta["driveOctoberDS"] = meta["driveLiveDS"]
     meta["driveMgxInvoices"] = folder_url(cfg["mgxInvoices"]) if cfg.get("mgxInvoices") else ""
-    meta["driveMode"] = "read"
+    meta["driveMode"] = "live"
     if extra:
         meta.update(extra)
 
@@ -689,7 +756,7 @@ def status() -> dict:
 
 
 def pull(db: dict | None = None, hydrate: bool = True) -> dict:
-    """Download working files. Live Drive is never written."""
+    """Download working files into the portal. Excel writes go the other way via push_workbooks."""
     if not connected():
         raise DriveSyncError("Drive is not connected on this server")
     token = access_token()

@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import json
 import re
+import shutil
 import threading
 import tempfile
 import time
@@ -27,7 +28,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-12v"
+BUILD = "2026-10-12w"
 LOCK = threading.Lock()
 _REV_COND = threading.Condition()
 _MEM_REV = 0
@@ -204,8 +205,8 @@ def parse_tax(val):
     return round(n, 6)
 
 
-def sync_excel(db: dict, month: str | None = None, calculator: bool = False) -> None:
-    """Write the month into SP_MGX_check.xlsx, then read hours back. Disk is the core."""
+def sync_excel(db: dict, month: str | None = None, calculator: bool = False) -> dict:
+    """Write the month into SP_MGX_check.xlsx, read hours back, push the live Drive file."""
     ym = month or db.get("meta", {}).get("month") or "2026-10"
     excel_io.write_month(db, ym)
     parsed = excel_io.parse_workbook(excel_io.XLSX_PATH, ym)
@@ -213,6 +214,23 @@ def sync_excel(db: dict, month: str | None = None, calculator: bool = False) -> 
     if calculator:
         fx = (db.get("meta") or {}).get("nbuRate")
         finance_io.write_month(db, ym, nbu_rate=fx)
+    try:
+        if excel_io.XLSX_PATH.exists():
+            mirror_io.ORIGIN_XLSX.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(excel_io.XLSX_PATH, mirror_io.ORIGIN_XLSX)
+    except OSError as e:
+        print(f"[excel] origin copy failed: {e}", flush=True)
+    drive = {"ok": False, "skipped": True}
+    try:
+        drive = drive_sync.push_workbooks(excel=True, calculator=calculator)
+    except drive_sync.DriveSyncError as e:
+        print(f"[drive] workbook push failed: {e}", flush=True)
+        drive = {"ok": False, "error": str(e)}
+    meta = db.setdefault("meta", {})
+    if drive.get("ok"):
+        meta["drivePushedAt"] = drive_sync.utc_now()
+        meta["mirrorSource"] = "SP_MGX_check.xlsx · portal writes to Drive"
+    return drive
 
 
 def next_pay_order(db: dict) -> int:
@@ -1084,6 +1102,20 @@ class Handler(SimpleHTTPRequestHandler):
                 db.setdefault("events", []).insert(
                     0, {"at": utc_now(), "text": f"Created task {name}"}
                 )
+                try:
+                    excel = sync_excel(db, ym, calculator=True)
+                except FileNotFoundError as e:
+                    save_db(db)
+                    self._json(
+                        500,
+                        {
+                            "error": str(e),
+                            "task": task,
+                            "drive": {"ok": True, "created": True, **pack},
+                            "state": db,
+                        },
+                    )
+                    return
                 save_db(db)
                 self._json(
                     200,
@@ -1091,6 +1123,7 @@ class Handler(SimpleHTTPRequestHandler):
                         "ok": True,
                         "task": task,
                         "drive": {"ok": True, "created": True, **pack},
+                        "excel": excel,
                         "state": db,
                     },
                 )
@@ -1125,8 +1158,18 @@ class Handler(SimpleHTTPRequestHandler):
                 db.setdefault("events", []).insert(
                     0, {"at": utc_now(), "text": f"Deleted {names}"}
                 )
+                excel = {}
+                try:
+                    excel = sync_excel(db, data.get("month") or tasks[0].get("month"), calculator=True)
+                except FileNotFoundError as e:
+                    save_db(db)
+                    self._json(
+                        500,
+                        {"error": str(e), "drive": drive, "excel": excel, "state": db},
+                    )
+                    return
                 save_db(db)
-                self._json(200, {"ok": True, "drive": drive, "state": db})
+                self._json(200, {"ok": True, "drive": drive, "excel": excel, "state": db})
                 return
             if path == "/api/parse-email":
                 if data.get("role") not in OPS_ROLES:
@@ -1595,19 +1638,26 @@ class Handler(SimpleHTTPRequestHandler):
             if path == "/api/excel/save":
                 month = data.get("month") or db.get("meta", {}).get("month") or "2026-10"
                 try:
-                    sync_excel(db, month, calculator=True)
+                    excel = sync_excel(db, month, calculator=True)
                 except FileNotFoundError as e:
                     self._json(500, {"error": str(e)})
                     return
                 save_db(db)
-                drive = db.get("meta", {}).get("driveLiveExcel") or ""
+                live = db.get("meta", {}).get("driveLiveExcel") or ""
+                if excel.get("ok"):
+                    message = "Wrote SP_MGX_check.xlsx and the calculator on disk and Drive."
+                elif excel.get("error"):
+                    message = f"Wrote the local Excel. Drive upload failed: {excel['error']}"
+                else:
+                    message = "Wrote the local Excel. Live Drive was not updated."
                 self._json(
                     200,
                     {
                         "ok": True,
                         "file": str(excel_io.XLSX_PATH),
-                        "drive": drive,
-                        "message": "Wrote the portal buffer only. Live Drive SP_MGX_check.xlsx was not changed.",
+                        "drive": live,
+                        "excel": excel,
+                        "message": message,
                         "state": db,
                     },
                 )
