@@ -27,7 +27,7 @@ CLIENT_PATH = SECRETS / "google_client.json"
 OAUTH_PATH = SECRETS / "google_oauth.json"
 SA_PATH = SECRETS / "google_service.json"
 TOKEN_PATH = SECRETS / "google_drive_token.txt"
-BUILD = "2026-10-12z"
+BUILD = "2026-10-13a"
 OAUTH_STATE_PATH = SECRETS / "drive_oauth_state.json"
 SCOPE = "https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/documents"
 API = "https://www.googleapis.com/drive/v3"
@@ -39,6 +39,7 @@ XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 NAME_ID = re.compile(r"^([A-Z]{2}-[A-Z0-9]+-\d+(?:-\d+)?)", re.I)
 INVOICE_DOC = re.compile(r"^invoice(DD|DX)_\d{4}\.\d{2}\.\d{2}\.(docx|pdf)$", re.I)
 _TOKEN_MEM: dict = {"at": 0.0, "value": ""}
+_EXCEL_FINGERPRINT = ""
 
 
 class DriveSyncError(RuntimeError):
@@ -777,8 +778,34 @@ def status() -> dict:
     }
 
 
-def download_workbooks() -> dict:
-    """Excel + calculator only. Deploy restore uses this after git reset."""
+def excel_fingerprint() -> str:
+    """modifiedTime + checksum of the live SP_MGX_check so we skip unchanged downloads."""
+    token = access_token()
+    if not token:
+        return ""
+    fid = str(roots().get("excel") or "")
+    if not fid:
+        return ""
+    meta = _api(
+        token,
+        f"files/{fid}",
+        {
+            "fields": "modifiedTime,md5Checksum,mimeType,size",
+            "supportsAllDrives": "true",
+        },
+    )
+    return "|".join(
+        [
+            str((meta or {}).get("modifiedTime") or ""),
+            str((meta or {}).get("md5Checksum") or ""),
+            str((meta or {}).get("size") or ""),
+            str((meta or {}).get("mimeType") or ""),
+        ]
+    )
+
+
+def download_excel() -> dict:
+    """Live SP_MGX_check.xlsx onto origin + buffer."""
     import excel_io
 
     if not connected():
@@ -786,16 +813,41 @@ def download_workbooks() -> dict:
     token = access_token()
     if not token:
         raise DriveSyncError("Drive token missing")
-    cfg = roots()
-    downloaded = []
-    excel_id = str(cfg.get("excel") or "")
-    calc_id = str(cfg.get("calculator") or "")
-    if excel_id:
-        blob = download_file(token, excel_id)
-        _write_bytes(mirror_io.ORIGIN_XLSX, blob)
-        _write_bytes(excel_io.XLSX_PATH, blob)
-        downloaded.append("SP_MGX_check.xlsx")
-    if calc_id:
+    excel_id = str(roots().get("excel") or "")
+    if not excel_id:
+        return {"ok": True, "downloaded": []}
+    blob = download_file(token, excel_id)
+    if not blob:
+        raise DriveSyncError("Drive Excel download was empty")
+    _write_bytes(mirror_io.ORIGIN_XLSX, blob)
+    _write_bytes(excel_io.XLSX_PATH, blob)
+    return {"ok": True, "downloaded": ["SP_MGX_check.xlsx"], "bytes": len(blob)}
+
+
+def download_excel_if_changed(*, force: bool = False) -> dict:
+    """Skip the xlsx download when Drive says the file has not changed."""
+    global _EXCEL_FINGERPRINT
+    fp = ""
+    try:
+        fp = excel_fingerprint()
+    except DriveSyncError as e:
+        print(f"[drive] excel fingerprint: {e}", flush=True)
+    if not force and fp and fp == _EXCEL_FINGERPRINT:
+        return {"ok": True, "changed": False, "downloaded": []}
+    out = download_excel()
+    _EXCEL_FINGERPRINT = fp or excel_fingerprint()
+    out["changed"] = True
+    out["fingerprint"] = _EXCEL_FINGERPRINT
+    return out
+
+
+def download_workbooks() -> dict:
+    """Excel + calculator only. Deploy restore uses this after git reset."""
+    out = download_excel()
+    downloaded = list(out.get("downloaded") or [])
+    token = access_token()
+    calc_id = str(roots().get("calculator") or "")
+    if calc_id and token:
         blob = download_file(token, calc_id)
         _write_bytes(finance_io.CALC_PATH, blob)
         downloaded.append("SUPERPLAY_MGX_Calculator.xlsx")

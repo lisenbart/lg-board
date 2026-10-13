@@ -28,12 +28,14 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-12z"
+BUILD = "2026-10-13a"
 LOCK = threading.Lock()
 _REV_COND = threading.Condition()
 _MEM_REV = 0
 _FILES_SYNCED = False
 _BRIEFS_SYNCED = False
+EXCEL_WATCH_SEC = 20
+_EXCEL_WATCH: dict = {"at": "", "added": 0, "parsed": 0, "error": "", "fromDrive": False}
 
 # Name has no spaces. Hours sit at the end after a space, dash, or pipe:
 #   NAME 0.3 shift   /   NAME- 0.3 SHFT   /   NAME - 0.3   /   NAME | 0.3 shifts
@@ -185,6 +187,7 @@ def combat_status() -> dict:
         "excel": excel_io.XLSX_PATH.exists(),
         "calculator": finance_io.CALC_PATH.exists(),
         "backup": latest_backup(),
+        "excelWatch": dict(_EXCEL_WATCH),
     }
 
 
@@ -237,38 +240,157 @@ def sync_excel(db: dict, month: str | None = None, calculator: bool = False) -> 
     return drive
 
 
-def ingest_live_excel(db: dict, ym: str | None = None, *, download: bool = True, create_packs: bool = True) -> dict:
+def _month_task_sig(db: dict, ym: str) -> tuple:
+    rows = []
+    for task in db.get("tasks") or []:
+        if (task.get("month") or ym) != ym:
+            continue
+        try:
+            shifts = round(float(task.get("shifts") or 0), 3)
+        except (TypeError, ValueError):
+            shifts = 0.0
+        try:
+            hours = round(float(task.get("hours") or 0), 3)
+        except (TypeError, ValueError):
+            hours = 0.0
+        rows.append(
+            (
+                str(task.get("name") or "").strip(),
+                str(task.get("line") or ""),
+                shifts,
+                hours,
+                str(task.get("deadline") or ""),
+                str(task.get("assigneeId") or ""),
+            )
+        )
+    return tuple(sorted(rows))
+
+
+def ingest_live_excel(
+    db: dict,
+    ym: str | None = None,
+    *,
+    download: bool = True,
+    create_packs: bool = True,
+    push: bool = False,
+    only_if_changed: bool = False,
+) -> dict:
     """File → portal: live SP_MGX_check.xlsx onto the board, plus Drive folder + brief for new rows."""
     ym = str(ym or db.get("meta", {}).get("month") or "2026-10")
     from_drive = False
+    skipped = False
     if download and drive_sync.connected():
-        drive_sync.download_workbooks()
-        from_drive = True
+        pulled = drive_sync.download_excel_if_changed(force=not only_if_changed)
+        from_drive = bool(pulled.get("changed"))
+        skipped = only_if_changed and not from_drive
+        if skipped:
+            parsed = excel_io.parse_workbook(excel_io.XLSX_PATH, ym) if excel_io.XLSX_PATH.exists() else {}
+            rows = parsed.get("rows") or []
+            return {
+                "fromDrive": False,
+                "unchanged": True,
+                "added": 0,
+                "updated": 0,
+                "fresh": [],
+                "drive": {"ok": True, "created": 0, "errors": []},
+                "sheet": parsed.get("sheet") or "",
+                "parsed": len(rows),
+                "lastNames": [str(r.get("name") or "") for r in rows[-5:]],
+            }
     before = {str(t.get("name") or "").strip() for t in db.get("tasks") or []}
+    before_sig = _month_task_sig(db, ym)
     mirror_io.sync_from_files(db)
     drive_sync.apply_meta(db)
     fresh = [t for t in (db.get("tasks") or []) if str(t.get("name") or "").strip() not in before]
     packs = {"ok": True, "created": 0, "errors": []}
-    if create_packs and fresh:
+    if create_packs and fresh and drive_sync.connected():
         packs = drive_io.ensure_live_packs(db, fresh, ym)
         for task in fresh:
             notice_io.on_landed(db, task, "")
-        try:
-            sync_excel(db, ym, calculator=True)
-        except FileNotFoundError as e:
-            print(f"[excel] place new rows: {e}", flush=True)
+        if push:
+            try:
+                sync_excel(db, ym, calculator=True)
+            except FileNotFoundError as e:
+                print(f"[excel] place new rows: {e}", flush=True)
     parsed = excel_io.parse_workbook(excel_io.XLSX_PATH, ym) if excel_io.XLSX_PATH.exists() else {}
     rows = parsed.get("rows") or []
     return {
         "fromDrive": from_drive,
+        "unchanged": False,
         "added": len(fresh),
         "updated": len(db.get("tasks") or []),
+        "changed": bool(fresh) or before_sig != _month_task_sig(db, ym),
         "fresh": [str(t.get("name") or "") for t in fresh],
         "drive": packs,
         "sheet": parsed.get("sheet") or "",
         "parsed": len(rows),
         "lastNames": [str(r.get("name") or "") for r in rows[-5:]],
     }
+
+
+def watch_live_excel() -> dict:
+    """Background Drive Excel → board cards + October folders. Does not rewrite the xlsx."""
+    global _EXCEL_WATCH
+    with LOCK:
+        db = load_db()
+        try:
+            stats = ingest_live_excel(
+                db,
+                db.get("meta", {}).get("month") or "2026-10",
+                download=True,
+                create_packs=True,
+                push=False,
+                only_if_changed=True,
+            )
+        except Exception as e:
+            _EXCEL_WATCH = {
+                "at": utc_now(),
+                "added": 0,
+                "parsed": 0,
+                "error": str(e)[:240],
+                "fromDrive": False,
+            }
+            print(f"[excel] watch: {e}", flush=True)
+            return _EXCEL_WATCH
+        _EXCEL_WATCH = {
+            "at": utc_now(),
+            "added": int(stats.get("added") or 0),
+            "parsed": int(stats.get("parsed") or 0),
+            "error": "",
+            "fromDrive": bool(stats.get("fromDrive")),
+            "unchanged": bool(stats.get("unchanged")),
+            "fresh": list(stats.get("fresh") or [])[:8],
+        }
+        if stats.get("unchanged"):
+            return stats
+        if stats.get("added") or stats.get("changed"):
+            src = "Drive" if stats.get("fromDrive") else "file"
+            db.setdefault("events", []).insert(
+                0,
+                {
+                    "at": utc_now(),
+                    "text": f"Excel watch {src}: {stats.get('added') or 0} new",
+                },
+            )
+            save_db(db, origin=True)
+            print(
+                f"[excel] watch +{stats.get('added') or 0} {', '.join(stats.get('fresh') or [])}",
+                flush=True,
+            )
+        return stats
+
+
+def start_excel_watch() -> None:
+    def loop() -> None:
+        time.sleep(2)
+        while True:
+            try:
+                watch_live_excel()
+            except Exception as e:
+                print(f"[excel] watch loop: {e}", flush=True)
+            time.sleep(EXCEL_WATCH_SEC)
+
+    threading.Thread(target=loop, name="excel-watch", daemon=True).start()
 
 
 def next_pay_order(db: dict) -> int:
@@ -1661,20 +1783,23 @@ class Handler(SimpleHTTPRequestHandler):
                         db,
                         month,
                         download=True,
-                        create_packs=sess.get("role") in OPS_ROLES,
+                        create_packs=True,
+                        push=True,
+                        only_if_changed=False,
                     )
                 except drive_sync.DriveSyncError as e:
                     self._json(409, {"error": str(e), "state": db})
                     return
-                src = "Drive" if stats.get("fromDrive") else "file"
-                db.setdefault("events", []).insert(
-                    0,
-                    {
-                        "at": utc_now(),
-                        "text": f"Excel pull {month} from {src}: {stats.get('added') or 0} new",
-                    },
-                )
-                save_db(db, origin=True)
+                if stats.get("added") or stats.get("changed"):
+                    src = "Drive" if stats.get("fromDrive") else "file"
+                    db.setdefault("events", []).insert(
+                        0,
+                        {
+                            "at": utc_now(),
+                            "text": f"Excel pull {month} from {src}: {stats.get('added') or 0} new",
+                        },
+                    )
+                    save_db(db, origin=True)
                 self._json(200, {**stats, "state": db})
                 return
             if path == "/api/excel/import":
@@ -2126,6 +2251,7 @@ class Handler(SimpleHTTPRequestHandler):
 def main() -> None:
     load_db()
     auth_io.ensure_pins()
+    start_excel_watch()
     ThreadingHTTPServer.allow_reuse_address = True
     httpd = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
     print(f"LG Board http://127.0.0.1:{PORT}", flush=True)

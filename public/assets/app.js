@@ -183,14 +183,18 @@ function enterStudio() {
 function ingestExcelOnce() {
   if (window.__lgExcelIngest || isClient() || isHoursPage()) return;
   window.__lgExcelIngest = true;
+  ingestExcelQuiet();
+}
+function ingestExcelQuiet() {
+  if (isClient() || isHoursPage() || $("loginGate")?.hidden === false) return;
   api("/api/excel/pull", { month: state.month, role: me().role }).then((out) => {
     if (out.error) {
       toast(out.error);
       return;
     }
-    if (out.state) applyState(out.state);
     const n = Number(out.added || 0);
     const folders = Number(out.drive?.created || 0);
+    if (out.state && (n || out.changed)) applyState(out.state);
     if (!n) return;
     toast(excelIngestNote(out, n, folders));
   });
@@ -952,7 +956,7 @@ function renderToolbar() {
     const drive = state.db?.meta?.driveLiveExcel || "";
     $("toolbar").innerHTML = `
       ${isFinance() ? `<button type="button" class="btn" id="btnDrivePull">Read Drive</button>` : ""}
-      ${isDesigner() ? "" : `<button class="btn" id="btnExcelPull">Refresh from Excel</button>`}
+      <button class="btn" id="btnExcelPull">Refresh from Excel</button>
       ${drive ? `<a class="btn" href="${escapeHtml(drive)}" target="_blank" rel="noreferrer">Open on Drive</a>` : ""}
       <input class="search" placeholder="Search project" />
     `;
@@ -4041,6 +4045,7 @@ function startLiveSync() {
 
 document.addEventListener("visibilitychange", () => {
   if (document.hidden && syncAbort) syncAbort.abort();
+  if (!document.hidden && liveSyncOn) ingestExcelQuiet();
 });
 
 function inboxOpen() {
