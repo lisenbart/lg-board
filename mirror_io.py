@@ -11,9 +11,7 @@ import notice_io
 
 ROOT = Path(__file__).resolve().parent
 DATA = ROOT / "data"
-PUBLIC = ROOT / "public"
 SEED_PATH = DATA / "seed.json"
-PUBLIC_SEED = PUBLIC / "seed.json"
 ORIGIN_XLSX = DATA / "mirror" / "SP_MGX_check.xlsx"
 FOLDERS_PATH = DATA / "mirror" / "live_folders.json"
 BUFFER_XLSX = excel_io.XLSX_PATH
@@ -248,7 +246,6 @@ def restore_buffer_xlsx() -> None:
 def write_seeds(db: dict) -> None:
     blob = json.dumps(db, ensure_ascii=False, indent=2) + "\n"
     SEED_PATH.write_text(blob, encoding="utf-8")
-    PUBLIC_SEED.write_text(blob, encoding="utf-8")
 
 
 def restore(carry_from: dict | None = None) -> dict:

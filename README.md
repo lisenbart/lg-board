@@ -32,15 +32,7 @@ Then:
 
 Studio no longer uses a shared team mailbox. The name on the door is the seat.
 
-## Team demo on GitHub Pages
-
-Share **https://lisenbart.github.io/lg-board/** — not the Cursor Preview URL.
-
-The pack reads `SP_MGX_check.xlsx` and LLC/docs from Google Drive. **Open folder** goes to the real October project. Live Drive is not written.
-
-First names and LP / TL / MD badges are on. **Finance** is behind a PIN (Dmytro only). Client / Studio / Employeers and **Create DD / DX** are visible there. Word + PDF write into the live Superplay MGX invoice folder on Drive when the studio server is running. On the GitHub link the button is visible; the file is created on the VPS.
-
-Do **not** put this on glowl.direct. Live desk: **https://board.lisenbart.games**. GitHub Pages stays a per-browser demo.
+Do **not** put this on glowl.direct. Live desk only: **https://board.lisenbart.games**. There is no GitHub Pages demo.
 
 ## What the desk does
 

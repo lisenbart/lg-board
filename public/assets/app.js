@@ -43,7 +43,6 @@ const LINES = ["DD", "DX", "DS"];
 
 const MONTH_KEY = "lg-month";
 const SESSION_KEY = "lg-session";
-const FIN_GATE_KEY = "lg-fin-gate";
 
 const ACCOUNTS = [
   {
@@ -121,9 +120,6 @@ function isStudioHost() {
     window.__lgStudioApi === true
   );
 }
-function isClientPreview() {
-  return !isStudioHost();
-}
 function probeStudioApi() {
   return fetch("/health", { cache: "no-store" })
     .then((r) => (r.ok ? r.json() : null))
@@ -134,25 +130,6 @@ function probeStudioApi() {
       }
     })
     .catch(() => {});
-}
-function financeUnlocked() {
-  if (isStudioHost()) return true;
-  try {
-    return sessionStorage.getItem(FIN_GATE_KEY) === "ok";
-  } catch {
-    return false;
-  }
-}
-function setFinanceUnlocked() {
-  try {
-    sessionStorage.setItem(FIN_GATE_KEY, "ok");
-  } catch {
-    /* ignore */
-  }
-}
-function financePinOk(raw) {
-  const digits = String(raw || "").replace(/\D/g, "");
-  return digits.length === 4 && Number(digits) === 0xcad;
 }
 function readSession() {
   try {
@@ -406,8 +383,14 @@ function showLogin() {
   }
   showHome();
 }
-function visiblePeople() {
-  return state.db?.people || [];
+function showNeedServer() {
+  openLoginGate();
+  $("loginTitle").hidden = false;
+  $("loginTitle").textContent = "Studio desk";
+  $("loginLead").hidden = false;
+  $("loginLead").textContent = "This board runs on the studio server. Open https://board.lisenbart.games";
+  $("loginCard")?.classList.remove("is-home");
+  $("loginAccounts").innerHTML = "";
 }
 function whoLabel(p) {
   if (p?.role === "finance") return p.name || "Dmytro Lisenbart";
@@ -470,14 +453,10 @@ function person(id) {
 function me() {
   const mine = person(state.roleId);
   if (mine) return mine;
-  if (isClientPreview()) {
-    return visiblePeople()[0] || state.db?.people?.[0] || { id: "", role: "", name: "" };
-  }
   return { id: state.roleId || "", role: "", name: "" };
 }
 function isFinance() {
   if (isHoursPage()) return false;
-  if (isClientPreview() && !financeUnlocked()) return false;
   return me().role === "finance";
 }
 function isClient() {
@@ -768,29 +747,20 @@ function setBusy(el, on, label) {
 }
 
 async function api(path, payload) {
-  if (window.__lgUseLocal && typeof window.LGLocalApi === "function") {
-    return window.LGLocalApi(path, payload);
+  const res = await fetch(path, {
+    method: payload ? "POST" : "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: payload ? JSON.stringify(payload) : undefined,
+  });
+  const type = res.headers.get("content-type") || "";
+  if (!type.includes("json")) throw new Error("no api");
+  const body = await res.json();
+  if (res.status === 401 && path !== "/api/me" && path !== "/api/login") {
+    writeSession(null);
+    showLogin();
   }
-  try {
-    const res = await fetch(path, {
-      method: payload ? "POST" : "GET",
-      headers: { "Content-Type": "application/json" },
-      credentials: "same-origin",
-      body: payload ? JSON.stringify(payload) : undefined,
-    });
-    const type = res.headers.get("content-type") || "";
-    if (!type.includes("json")) throw new Error("no api");
-    const body = await res.json();
-    if (res.status === 401 && path !== "/api/me" && path !== "/api/login") {
-      writeSession(null);
-      showLogin();
-    }
-    return body;
-  } catch (err) {
-    if (typeof window.LGLocalApi !== "function") throw err;
-    window.__lgUseLocal = true;
-    return window.LGLocalApi(path, payload);
-  }
+  return body;
 }
 
 function calendarMonth() {
@@ -863,19 +833,6 @@ function renderWho() {
   const mail = $("whoMail");
   const sel = $("who");
   const out = $("signOut");
-  if (isClientPreview()) {
-    mail.hidden = true;
-    mail.textContent = "";
-    out.hidden = true;
-    sel.hidden = false;
-    sel.innerHTML = visiblePeople()
-      .map(
-        (p) =>
-          `<option value="${p.id}" ${p.id === state.roleId ? "selected" : ""}>${escapeHtml(whoLabel(p))}</option>`
-      )
-      .join("");
-    return;
-  }
   mail.hidden = false;
   mail.textContent = whoLabel(me());
   out.hidden = false;
@@ -979,7 +936,7 @@ function renderToolbar() {
     const drive = state.db?.meta?.driveLiveExcel || "";
     $("toolbar").innerHTML = `
       ${isFinance() ? `<button type="button" class="btn" id="btnDrivePull">Read Drive</button>` : ""}
-      ${isDesigner() || isClientPreview() ? "" : `<button class="btn" id="btnExcelPull">Refresh from file</button>`}
+      ${isDesigner() ? "" : `<button class="btn" id="btnExcelPull">Refresh from file</button>`}
       ${drive ? `<a class="btn" href="${escapeHtml(drive)}" target="_blank" rel="noreferrer">Open on Drive</a>` : ""}
       <input class="search" placeholder="Search project" />
     `;
@@ -2633,7 +2590,6 @@ function driveStrip() {
 }
 
 function ensureFinanceSnapshot() {
-  if (isClientPreview()) return;
   if (state.finApiMonth === state.month && state.finApi) return;
   if (state.finApiLoading === state.month) return;
   state.finApiLoading = state.month;
@@ -2977,10 +2933,6 @@ function openDriveFolder(url) {
 }
 
 async function openInvoiceFolder() {
-  if (isClientPreview()) {
-    toast("Invoice folder is on the studio Drive, not on this GitHub mirror.");
-    return;
-  }
   const out = await api("/api/finance/invoice/reveal", { month: state.month, role: me().role });
   if (out.error || !out.folderUrl) {
     toast(out.error || "Could not open the Drive invoice folder");
@@ -2991,10 +2943,6 @@ async function openInvoiceFolder() {
 }
 
 async function createMonthInvoices() {
-  if (isClientPreview()) {
-    toast("Create DD / DX writes Word + PDF on Drive from the studio server.");
-    return;
-  }
   const btn = $("btnCreateInvoices");
   if (btn?.classList.contains("is-busy")) return;
   setBusy(btn, true, "Writing Word + PDF to Drive…");
@@ -4006,7 +3954,7 @@ async function liveSyncLoop() {
       await waitUntilVisible();
       continue;
     }
-    if (!isStudioHost() || window.__lgUseLocal) {
+    if (!isStudioHost()) {
       stopLiveSync();
       return;
     }
@@ -4044,7 +3992,7 @@ async function liveSyncLoop() {
 
 function startLiveSync() {
   if (liveSyncOn) return;
-  if (!isStudioHost() || window.__lgUseLocal) return;
+  if (!isStudioHost()) return;
   liveSyncOn = true;
   liveSyncLoop();
 }
@@ -4128,56 +4076,8 @@ async function ackNotices(payload) {
   if (out.state) applyState(out.state);
 }
 
-function financeSeat() {
-  return (state.db?.people || []).find((p) => p.role === "finance") || null;
-}
-function openFinanceSeat() {
-  const seat = financeSeat();
-  if (!seat) {
-    toast("Finance login is missing");
-    return;
-  }
-  state.roleId = seat.id;
-  state.view = "close";
-  state.selected.clear();
-  state.designerFilter = null;
-  setInboxOpen(false);
-  render();
-}
-function closeFinancePin() {
-  $("finGateModal")?.classList.remove("show");
-  const pin = $("finGatePin");
-  if (pin) pin.value = "";
-}
-function submitFinancePin() {
-  if (!financePinOk($("finGatePin")?.value)) {
-    toast("Wrong PIN");
-    $("finGatePin")?.select();
-    return;
-  }
-  setFinanceUnlocked();
-  closeFinancePin();
-  openFinanceSeat();
-}
-function requestFinance() {
-  if (!isClientPreview()) {
-    openFinanceSeat();
-    return;
-  }
-  if (financeUnlocked()) {
-    openFinanceSeat();
-    return;
-  }
-  $("finGateModal")?.classList.add("show");
-  setTimeout(() => $("finGatePin")?.focus(), 0);
-}
-
 function render() {
   if (!state.db) return;
-  if (isClientPreview() && me().role === "finance" && !financeUnlocked()) {
-    state.roleId = "manager";
-    if (state.view === "close" || state.view === "team") state.view = "board";
-  }
   if (isClient() && state.view !== "report") state.view = "report";
   renderWho();
   renderChrome();
@@ -4194,11 +4094,6 @@ $("monthLabel").addEventListener("click", () => setMonth(calendarMonth()));
 
 $("who").addEventListener("change", (e) => {
   const next = person(e.target.value);
-  if (isClientPreview() && next?.role === "finance" && !financeUnlocked()) {
-    e.target.value = me().id;
-    requestFinance();
-    return;
-  }
   state.roleId = e.target.value;
   state.selected.clear();
   state.designerFilter = null;
@@ -4206,7 +4101,7 @@ $("who").addEventListener("change", (e) => {
   setInboxOpen(false);
   if (state.session) writeSession({ ...state.session, seatId: e.target.value });
   const account = accountByEmail(state.session?.email);
-  if (isStudioHost() && account && !account.lockRole) {
+  if (account && !account.lockRole) {
     api("/api/seat", { seatId: e.target.value }).then((out) => {
       if (out?.state) applyState(out.state);
     });
@@ -4241,17 +4136,6 @@ $("signOut").addEventListener("click", () => {
     return;
   }
   showLogin();
-});
-$("finGateCancel")?.addEventListener("click", closeFinancePin);
-$("finGateOk")?.addEventListener("click", submitFinancePin);
-$("finGatePin")?.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") {
-    e.preventDefault();
-    submitFinancePin();
-  }
-});
-$("finGateModal")?.addEventListener("click", (e) => {
-  if (e.target === $("finGateModal")) closeFinancePin();
 });
 $("navClose").addEventListener("click", () => {
   if (!isFinance()) return;
@@ -4368,14 +4252,7 @@ document.addEventListener("keydown", (e) => {
 probeStudioApi()
   .then(async () => {
     if (!isStudioHost()) {
-      const db = await api("/api/state");
-      state.db = db;
-      state.month = localStorage.getItem(MONTH_KEY) || calendarMonth() || db.meta?.month || "2026-10";
-      const people = visiblePeople();
-      if (!people.some((p) => p.id === state.roleId)) {
-        state.roleId = people.find((p) => p.role === "manager")?.id || people[0]?.id;
-      }
-      render();
+      showNeedServer();
       return;
     }
     const meOut = await api("/api/me");
@@ -4398,4 +4275,5 @@ probeStudioApi()
   })
   .catch(() => {
     if (isStudioHost()) showLogin();
+    else showNeedServer();
   });

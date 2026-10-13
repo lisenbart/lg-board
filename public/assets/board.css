@@ -367,7 +367,7 @@ a { color: var(--blue); }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-html.studio-host:not(.in-app) .app { display: none; }
+html:not(.in-app) .app { display: none; }
 .login-gate {
   display: none;
   flex: 1;
@@ -379,7 +379,7 @@ html.studio-host:not(.in-app) .app { display: none; }
     var(--bg);
 }
 .login-gate:not([hidden]) { display: flex; }
-html.studio-host.in-app .login-gate { display: none !important; }
+html.in-app .login-gate { display: none !important; }
 .login-card {
   width: min(440px, 100%);
   background: var(--white);
@@ -459,20 +459,6 @@ html.studio-host.in-app .login-gate { display: none !important; }
   .home-doors { grid-template-columns: 1fr; }
   .home-door { min-height: 76px; }
 }
-#finGatePin {
-  width: 100%;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 8px 10px;
-  font-size: 16px;
-  letter-spacing: 0.2em;
-}
-.fin-view-only {
-  margin: 0;
-  color: var(--muted);
-  font-size: 12px;
-}
-
 .kpis { display: flex; gap: 8px; padding: 10px 20px 0; flex-wrap: wrap; }
 .kpi {
   background: var(--white); border: 1px solid var(--line); border-radius: 8px;
