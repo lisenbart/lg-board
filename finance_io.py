@@ -488,6 +488,17 @@ def _which(path: str) -> str | None:
     return found
 
 
+def pdf_engine() -> dict:
+    word = sys.platform == "darwin" and Path("/Applications/Microsoft Word.app").exists()
+    soffice = ""
+    for binary in SOFFICE_BINS:
+        found = _which(binary)
+        if found:
+            soffice = found
+            break
+    return {"ready": bool(word or soffice), "word": bool(word), "soffice": soffice}
+
+
 def _word_mac_pdf(src: Path, dest: Path) -> bytes:
     if sys.platform != "darwin":
         return b""

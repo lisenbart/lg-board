@@ -28,7 +28,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-12w"
+BUILD = "2026-10-12x"
 LOCK = threading.Lock()
 _REV_COND = threading.Condition()
 _MEM_REV = 0
@@ -56,26 +56,10 @@ EMAIL_DASHES = str.maketrans(
         "\u202f": " ",
     }
 )
-SANDBOX_TASK_IDS = frozenset({"t-dd-new-banana"})
-SANDBOX_TASK_NAMES = frozenset({"DD-VEO-068-001_BananaBoat_8s_Resize"})
 
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-
-
-def drop_sandbox_demo_tasks(db: dict) -> bool:
-    tasks = db.get("tasks") or []
-    kept = [
-        t
-        for t in tasks
-        if str(t.get("id") or "") not in SANDBOX_TASK_IDS
-        and str(t.get("name") or "").strip() not in SANDBOX_TASK_NAMES
-    ]
-    if len(kept) == len(tasks):
-        return False
-    db["tasks"] = kept
-    return True
 
 
 def _link_live_briefs(db: dict) -> bool:
@@ -97,7 +81,6 @@ def load_db() -> dict:
     if not DB_PATH.exists():
         db = json.loads(SEED_PATH.read_text(encoding="utf-8"))
         notice_io.ensure(db)
-        drop_sandbox_demo_tasks(db)
         drive_sync.apply_meta(db)
         drive_io.attach_cached_packs(db)
         if mirror_io.ORIGIN_XLSX.exists():
@@ -111,11 +94,8 @@ def load_db() -> dict:
     dirty = notice_io.ensure(db)
     if read_rev(db) < 1:
         dirty = True
-    if drop_sandbox_demo_tasks(db):
+    if drive_sync.apply_meta(db):
         dirty = True
-    if any(k in (db.get("meta") or {}) for k in drive_sync.SANDBOX_META_KEYS):
-        dirty = True
-    drive_sync.apply_meta(db)
     if dirty:
         save_db(db)
     origin = mirror_io.ORIGIN_XLSX
@@ -182,6 +162,30 @@ def save_db(db: dict, origin: bool = False) -> None:
 
 def hours_from_shift(shift: float) -> float:
     return round(shift * 9, 1)
+
+
+BACKUP_DIR = Path.home() / "lg-board-backups"
+
+
+def latest_backup() -> dict:
+    if not BACKUP_DIR.is_dir():
+        return {"ok": False, "dir": str(BACKUP_DIR), "latest": ""}
+    names = sorted((p.name for p in BACKUP_DIR.iterdir() if p.is_dir()), reverse=True)
+    latest = names[0] if names else ""
+    return {"ok": bool(latest), "dir": str(BACKUP_DIR), "latest": latest}
+
+
+def combat_status() -> dict:
+    pdf = finance_io.pdf_engine()
+    return {
+        "ok": True,
+        "build": BUILD,
+        "drive": drive_sync.connected(),
+        "pdf": pdf,
+        "excel": excel_io.XLSX_PATH.exists(),
+        "calculator": finance_io.CALC_PATH.exists(),
+        "backup": latest_backup(),
+    }
 
 
 def parse_money(val):
@@ -679,7 +683,7 @@ class Handler(SimpleHTTPRequestHandler):
             self._json(200, {"ok": True, "build": BUILD})
             return
         if path == "/api/version":
-            self._json(200, {"ok": True, "build": BUILD, "drive": drive_sync.connected()})
+            self._json(200, combat_status())
             return
         if path == "/api/roster":
             with LOCK:
@@ -1279,12 +1283,6 @@ class Handler(SimpleHTTPRequestHandler):
                         "drive": drive,
                         "state": db,
                     },
-                )
-                return
-            if path == "/api/import-monday":
-                self._json(
-                    410,
-                    {"error": "Monday pull is off. Create the task on the portal."},
                 )
                 return
             if path == "/api/drive/ensure":

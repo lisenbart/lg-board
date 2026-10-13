@@ -27,7 +27,7 @@ CLIENT_PATH = SECRETS / "google_client.json"
 OAUTH_PATH = SECRETS / "google_oauth.json"
 SA_PATH = SECRETS / "google_service.json"
 TOKEN_PATH = SECRETS / "google_drive_token.txt"
-BUILD = "2026-10-12w"
+BUILD = "2026-10-12x"
 OAUTH_STATE_PATH = SECRETS / "drive_oauth_state.json"
 SCOPE = "https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/documents"
 API = "https://www.googleapis.com/drive/v3"
@@ -680,7 +680,7 @@ def _latest_templates(index_rows: list[dict]) -> dict[str, dict]:
     return latest
 
 
-SANDBOX_META_KEYS = (
+STALE_META_KEYS = (
     "driveSandbox",
     "driveSandboxOctober",
     "driveSandboxExcel",
@@ -689,11 +689,14 @@ SANDBOX_META_KEYS = (
 )
 
 
-def apply_meta(db: dict, extra: dict | None = None) -> None:
+def apply_meta(db: dict, extra: dict | None = None) -> bool:
     cfg = roots()
     meta = db.setdefault("meta", {})
-    for key in SANDBOX_META_KEYS:
-        meta.pop(key, None)
+    stripped = False
+    for key in STALE_META_KEYS:
+        if key in meta:
+            meta.pop(key, None)
+            stripped = True
     meta["driveDocs"] = folder_url(cfg["docs"]) if cfg.get("docs") else ""
     meta["driveLiveExcel"] = file_url(cfg["excel"]) if cfg.get("excel") else meta.get("driveLiveExcel")
     meta["driveCalculator"] = file_url(cfg["calculator"]) if cfg.get("calculator") else meta.get("driveCalculator")
@@ -709,6 +712,7 @@ def apply_meta(db: dict, extra: dict | None = None) -> None:
     meta["driveMode"] = "live"
     if extra:
         meta.update(extra)
+    return stripped
 
 
 def status() -> dict:
@@ -753,6 +757,31 @@ def status() -> dict:
             }
         ][:40],
     }
+
+
+def download_workbooks() -> dict:
+    """Excel + calculator only. Deploy restore uses this after git reset."""
+    import excel_io
+
+    if not connected():
+        raise DriveSyncError("Drive is not connected on this server")
+    token = access_token()
+    if not token:
+        raise DriveSyncError("Drive token missing")
+    cfg = roots()
+    downloaded = []
+    excel_id = str(cfg.get("excel") or "")
+    calc_id = str(cfg.get("calculator") or "")
+    if excel_id:
+        blob = download_file(token, excel_id)
+        _write_bytes(mirror_io.ORIGIN_XLSX, blob)
+        _write_bytes(excel_io.XLSX_PATH, blob)
+        downloaded.append("SP_MGX_check.xlsx")
+    if calc_id:
+        blob = download_file(token, calc_id)
+        _write_bytes(finance_io.CALC_PATH, blob)
+        downloaded.append("SUPERPLAY_MGX_Calculator.xlsx")
+    return {"ok": True, "downloaded": downloaded}
 
 
 def pull(db: dict | None = None, hydrate: bool = True) -> dict:

@@ -72,5 +72,5 @@ ssh -o BatchMode=yes -o ConnectTimeout=15 board 'echo OK; hostname; curl -sS htt
 echo
 echo "From now on:"
 echo "  ssh board           # shell"
-echo "  ssh board-update    # deploy studio + restart"
-echo "  ssh board-status    # live build"
+echo "  ssh board-update    # backup + deploy studio + restart"
+echo "  ssh board-status    # live build + PDF / Drive / last backup"

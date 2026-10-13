@@ -5,12 +5,81 @@ set -euo pipefail
 ROOT="${HOME}/lg-board"
 cd "$ROOT"
 
+LIVE_FILES=(
+  data/SP_MGX_check.xlsx
+  data/mirror/SP_MGX_check.xlsx
+  data/finance/SUPERPLAY_MGX_Calculator.xlsx
+  data/drive_packs.json
+  data/drive_index.json
+  data/mirror/live_folders.json
+)
+PRESERVE_FLAG="/tmp/lg-board-preserved"
+
+preserve_live() {
+  local stash="/tmp/lg-board-preserve-$$"
+  rm -rf "$stash"
+  mkdir -p "$stash"
+  local copied=0
+  for f in "${LIVE_FILES[@]}"; do
+    if [[ -f "$ROOT/$f" ]]; then
+      mkdir -p "$stash/$(dirname "$f")"
+      cp -a "$ROOT/$f" "$stash/$f"
+      copied=1
+    fi
+  done
+  if [[ "$copied" == "1" ]]; then
+    printf '%s\n' "$stash" > "$PRESERVE_FLAG"
+  else
+    rm -rf "$stash"
+    rm -f "$PRESERVE_FLAG"
+  fi
+}
+
+restore_preserved() {
+  if [[ ! -f "$PRESERVE_FLAG" ]]; then
+    return 0
+  fi
+  local stash
+  stash="$(cat "$PRESERVE_FLAG")"
+  if [[ -d "$stash" ]]; then
+    for f in "${LIVE_FILES[@]}"; do
+      if [[ -f "$stash/$f" ]]; then
+        mkdir -p "$ROOT/$(dirname "$f")"
+        cp -a "$stash/$f" "$ROOT/$f"
+      fi
+    done
+    rm -rf "$stash"
+  fi
+}
+
+ensure_pdf() {
+  if command -v soffice >/dev/null 2>&1 || command -v libreoffice >/dev/null 2>&1; then
+    return 0
+  fi
+  echo "Installing LibreOffice for invoice PDF…"
+  sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq
+  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y libreoffice-writer-nogui
+}
+
 if [[ "${1:-}" != "--restart-only" ]]; then
+  bash "$ROOT/deploy/backup.sh" || true
+  preserve_live
   git fetch origin
   git reset --hard origin/studio
+  restore_preserved
   exec bash "$ROOT/deploy/update.sh" --restart-only
 fi
 
+if [[ ! -f "$PRESERVE_FLAG" ]]; then
+  PY="${ROOT}/.venv/bin/python"
+  if [[ ! -x "$PY" ]]; then
+    PY="$(command -v python3)"
+  fi
+  "$PY" "$ROOT/deploy/restore_workbooks.py" || true
+fi
+rm -f "$PRESERVE_FLAG"
+
+ensure_pdf
 sudo systemctl restart lg-board
 ok=""
 for _ in $(seq 1 20); do

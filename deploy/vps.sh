@@ -4,10 +4,11 @@ set -euo pipefail
 HOST="${LG_BOARD_SSH_HOST:-board}"
 
 usage() {
-  echo "Usage: deploy/vps.sh [shell|update|status|command…]" >&2
+  echo "Usage: deploy/vps.sh [shell|update|status|backup|command…]" >&2
   echo "  shell    ssh board" >&2
   echo "  update   ssh board-update" >&2
   echo "  status   ssh board-status" >&2
+  echo "  backup   snapshot db.json + Excel on the VPS" >&2
   echo "  …        ssh board -- that command" >&2
 }
 
@@ -18,5 +19,6 @@ case "$cmd" in
   shell|ssh|"") exec ssh "$HOST" "$@" ;;
   update) exec ssh board-update ;;
   status) exec ssh board-status ;;
+  backup) exec ssh board -- bash ~/lg-board/deploy/backup.sh ;;
   *) exec ssh "$HOST" -- "$cmd" "$@" ;;
 esac

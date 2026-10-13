@@ -18,11 +18,14 @@ Every time after that:
 
 ```bash
 ssh board           # shell
-ssh board-update    # git reset --hard origin/studio + restart
-ssh board-status    # live build JSON
+ssh board-update    # backup live Excel/db, keep those files across git reset, restart
+ssh board-status    # live build + Drive + PDF engine + last backup
+ssh board 'bash ~/lg-board/deploy/backup.sh'   # extra snapshot, no restart
 ```
 
 Do **not** use a password. Do **not** paste `lg-board-deploy` or any other key. That key is not on the VPS.
+
+Live files that must survive deploy: `data/db.json`, `data/SP_MGX_check.xlsx`, calculator, Drive pack cache. `board-update` copies them aside before `git reset` and puts them back. If this is the first run of that new script, it pulls Excel + calculator from Drive instead.
 
 ## Studio site (public door)
 
@@ -34,4 +37,6 @@ See `site/README.md`. Public face is **https://lisenbart.games** on Netlify. The
 
 `LLC/docs/_clients/SUPERPLAY/invoice/MGX / 10_October`
 
-PDF needs LibreOffice on the VPS (`sudo apt-get install -y libreoffice-writer-nogui`). Do not use the old ZIP download — that was the sandbox.
+PDF needs LibreOffice on the VPS. `board-update` installs `libreoffice-writer-nogui` if `soffice` is missing. `/api/version` shows `"pdf": {"ready": true, "soffice": "/usr/bin/soffice"}`. If `pdf.ready` is false, invoice Word still goes to Drive and PDF is skipped.
+
+Backups land in `~/lg-board-backups/<UTC stamp>/` (last 20 kept).

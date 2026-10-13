@@ -1,16 +1,3 @@
 {
-  "byName": {
-    "DD-test-task_001": {
-      "folderId": "1I7dYgFIGoqHoWa8-9oJdrNGf-gByvTuh",
-      "docId": "1HJmwaI-ySrxv2yr9UAf57z6grJeTJvb1IdYq6mgo860",
-      "folderUrl": "https://drive.google.com/drive/folders/1I7dYgFIGoqHoWa8-9oJdrNGf-gByvTuh",
-      "docUrl": "https://docs.google.com/document/d/1HJmwaI-ySrxv2yr9UAf57z6grJeTJvb1IdYq6mgo860/edit"
-    },
-    "DD-test-task_002": {
-      "folderId": "1iMun7MxiV2YNwfa7pn92u1nytvOoDM-O",
-      "docId": "1JaAFz8VfMxPI_v48_pBtQph_bJdHPDeDLXFMTYnacmw",
-      "folderUrl": "https://drive.google.com/drive/folders/1iMun7MxiV2YNwfa7pn92u1nytvOoDM-O",
-      "docUrl": "https://docs.google.com/document/d/1JaAFz8VfMxPI_v48_pBtQph_bJdHPDeDLXFMTYnacmw/edit"
-    }
-  }
+  "byName": {}
 }

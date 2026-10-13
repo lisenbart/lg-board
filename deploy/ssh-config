@@ -1,7 +1,7 @@
 # One-time: bash deploy/mac-login.sh
 # Then forever:
 #   ssh board              — shell on the VPS
-#   ssh board-update       — git pull studio + restart desk
+#   ssh board-update       — backup + git pull studio + restart desk
 #   ssh board-status       — live build + systemd
 Host board lg-board vps
   HostName 15.235.127.163
