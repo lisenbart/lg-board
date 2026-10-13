@@ -1,13 +1,19 @@
 #!/bin/bash
-# Run on the VPS (ssh board-update). Drops local file edits so git actually updates, then restarts the desk.
+# Run on the VPS (ssh board-update). Pull studio, then re-exec this file so
+# the restart/wait logic is the copy we just fetched — not the one already in memory.
 set -euo pipefail
 ROOT="${HOME}/lg-board"
 cd "$ROOT"
-git fetch origin
-git reset --hard origin/studio
+
+if [[ "${1:-}" != "--restart-only" ]]; then
+  git fetch origin
+  git reset --hard origin/studio
+  exec bash "$ROOT/deploy/update.sh" --restart-only
+fi
+
 sudo systemctl restart lg-board
 ok=""
-for _ in 1 2 3 4 5 6 7 8 9 10; do
+for _ in $(seq 1 20); do
   if out="$(curl -fsS --max-time 2 http://127.0.0.1:43141/api/version 2>/dev/null)"; then
     printf '%s\n' "$out"
     ok=1
