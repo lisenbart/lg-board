@@ -24,11 +24,6 @@ ROOT = Path(__file__).resolve().parent
 CALC_PATH = ROOT / "data" / "finance" / "SUPERPLAY_MGX_Calculator.xlsx"
 TEMPLATE_DIR = ROOT / "data" / "finance" / "templates"
 INVOICES_DIR = ROOT / "data" / "invoices"
-ICLOUD_MGX = (
-    Path.home()
-    / "Library/Mobile Documents/com~apple~CloudDocs/Lisenbart"
-    / "ACCOUNTING/LISENBART GAMES/LLC/docs/_clients/SUPERPLAY/invoice/MGX"
-)
 W_T = re.compile(r"(<w:t(?:\s[^>]*)?>)(.*?)(</w:t>)", re.DOTALL)
 W_P = re.compile(r"<w:p[ >].*?</w:p>", re.DOTALL)
 SOFFICE_BINS = [
@@ -419,17 +414,6 @@ def format_amount(amount: float) -> str:
 def template_path(line: str) -> Path:
     line = (line or "DD").upper()
     key = "DD" if line == "DS" else line
-    if ICLOUD_MGX.exists():
-        found = []
-        for path in ICLOUD_MGX.rglob(f"invoice{key}_*.docx"):
-            if path.name.startswith("~$"):
-                continue
-            m = re.search(r"_(\d{4}\.\d{2}\.\d{2})\.docx$", path.name)
-            stamp = m.group(1) if m else "0000.00.00"
-            found.append((stamp, path.stat().st_mtime, path))
-        if found:
-            found.sort()
-            return found[-1][2]
     bundled = TEMPLATE_DIR / f"invoice{key}.docx"
     if bundled.exists():
         return bundled
@@ -486,40 +470,6 @@ def build_invoice(line: str, hours: float, amount: float, when: datetime | None 
 
 def invoice_destinations(ym: str) -> list[Path]:
     return [INVOICES_DIR / month_folder_name(ym)]
-
-
-def reveal_invoice_dir(ym: str) -> dict:
-    dest = INVOICES_DIR / month_folder_name(ym)
-    dest.mkdir(parents=True, exist_ok=True)
-    if sys.platform == "darwin":
-        cmds = [["open", str(dest)]]
-    elif sys.platform == "win32":
-        cmds = [["explorer", str(dest)]]
-    else:
-        cmds = [
-            ["xdg-open", str(dest)],
-            ["gio", "open", str(dest)],
-            ["nautilus", "--browser", str(dest)],
-        ]
-    for cmd in cmds:
-        try:
-            subprocess.run(cmd, check=True, timeout=8, capture_output=True)
-            return {"ok": True, "opened": True, "folderPath": str(dest)}
-        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError, OSError):
-            continue
-    return {"ok": True, "opened": False, "folderPath": str(dest)}
-
-
-def zip_invoice_dir(ym: str) -> tuple[str, bytes]:
-    dest = INVOICES_DIR / month_folder_name(ym)
-    dest.mkdir(parents=True, exist_ok=True)
-    folder = month_folder_name(ym)
-    buf = BytesIO()
-    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        for path in sorted(dest.iterdir()):
-            if path.is_file() and INVOICE_NAME.match(path.name):
-                zf.write(path, f"{folder}/{path.name}")
-    return f"{folder}.zip", buf.getvalue()
 
 
 def primary_invoice_dir(ym: str) -> Path:

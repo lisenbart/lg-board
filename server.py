@@ -27,7 +27,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-12t"
+BUILD = "2026-10-12u"
 LOCK = threading.Lock()
 _REV_COND = threading.Condition()
 _MEM_REV = 0
@@ -839,18 +839,6 @@ class Handler(SimpleHTTPRequestHandler):
                 else "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             )
             self._bytes(fpath.read_bytes(), ctype, fpath.name)
-            return
-        if path == "/api/finance/invoice/zip":
-            if not finance:
-                self._json(401, {"error": "sign in"})
-                return
-            qs = parse_qs(urlparse(self.path).query)
-            month = (qs.get("month") or [""])[0] or load_db().get("meta", {}).get("month") or "2026-10"
-            name, data = finance_io.zip_invoice_dir(month)
-            if not data:
-                self._json(404, {"error": "no invoices in the sandbox folder yet"})
-                return
-            self._bytes(data, "application/zip", name)
             return
         if path == "/api/finance/calculator":
             if not finance:
