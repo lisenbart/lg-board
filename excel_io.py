@@ -395,6 +395,7 @@ def _help_from_row(row: dict, people: list[dict], by_name: dict, assignee_id: st
 
 
 def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
+    """Every PROJECT NAME row on the month tab is upserted. No row is skipped."""
     people = designers(db)
     by_name = people_by_name(people)
     existing = {
@@ -402,6 +403,11 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
         for t in db.get("tasks") or []
         if (t.get("month") or ym) == ym
     }
+    by_key = {}
+    for task in existing.values():
+        key = _id_key(task.get("name") or "")
+        if key and key not in by_key:
+            by_key[key] = task
     added = 0
     updated = 0
     parsed_names = {str(row.get("name") or "").strip() for row in parsed.get("rows") or []}
@@ -421,7 +427,8 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
             if person:
                 assignee_id = person["id"]
         shares = _resolved_shares(row, people, by_name)
-        task = existing.get(name)
+        key = _id_key(name)
+        task = existing.get(name) or (by_key.get(key) if key else None)
         keep = (task.get("assigneeId") or "") if task else ""
         people_ids = {p["id"] for p in people}
         if keep and keep in people_ids:
@@ -429,6 +436,8 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
         help_rows = [s for s in shares if s["id"] != assignee_id]
         excel_status = row.get("excelStatus") or ""
         if task:
+            old_name = str(task.get("name") or "").strip()
+            task["name"] = name
             task["shifts"] = row["shifts"]
             task["hours"] = row["hours"]
             task["line"] = row["line"]
@@ -436,6 +445,11 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
             task["assigneeId"] = assignee_id
             task["help"] = help_rows
             task["month"] = ym
+            if old_name and old_name != name:
+                existing.pop(old_name, None)
+            existing[name] = task
+            if key:
+                by_key[key] = task
             if excel_status:
                 task["excelStatus"] = excel_status
             current = task.get("studioStatus") or ""
@@ -471,8 +485,17 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
             }
             db.setdefault("tasks", []).append(task)
             existing[name] = task
+            if key:
+                by_key[key] = task
             added += 1
-    return {"added": added, "updated": updated, "people": parsed.get("people") or [], "sheet": parsed.get("sheet")}
+    return {
+        "added": added,
+        "updated": updated,
+        "matched": added + updated,
+        "parsed": len(parsed.get("rows") or []),
+        "people": parsed.get("people") or [],
+        "sheet": parsed.get("sheet"),
+    }
 
 
 def tasks_for_finance(db: dict, ym: str) -> list[dict]:

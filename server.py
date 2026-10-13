@@ -28,7 +28,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-13c"
+BUILD = "2026-10-13d"
 LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
 _REV_COND = threading.Condition()
@@ -299,8 +299,12 @@ def apply_excel_file(db: dict, ym: str) -> dict:
             shutil.copyfile(path, excel_io.XLSX_PATH)
         except OSError as e:
             print(f"[excel] buffer copy: {e}", flush=True)
-    mirror_io.sync_from_files(db, path if path.exists() else None)
+    use = path if path.exists() else excel_io.XLSX_PATH
+    mirror_io.sync_from_files(db, use if use.exists() else None)
     drive_sync.apply_meta(db)
+    parsed = excel_io.parse_workbook(use, ym) if use.exists() else {}
+    rows = parsed.get("rows") or []
+    parsed_names = {str(r.get("name") or "").strip() for r in rows if r.get("name")}
     fresh = [t for t in (db.get("tasks") or []) if str(t.get("name") or "").strip() not in before]
     need_folders = [
         t
@@ -309,25 +313,33 @@ def apply_excel_file(db: dict, ym: str) -> dict:
         and str(t.get("name") or "").strip()
         and not str(t.get("folderUrl") or "").strip()
     ]
-    stats = _excel_parse_stats(ym)
-    stats.update(
-        {
-            "added": len(fresh),
-            "updated": len(db.get("tasks") or []),
-            "changed": bool(fresh) or before_sig != _month_task_sig(db, ym),
-            "fresh": [str(t.get("name") or "") for t in fresh],
-            "needFolders": [str(t.get("name") or "") for t in need_folders],
-            "needSpecs": [
-                {
-                    "id": t.get("id"),
-                    "name": str(t.get("name") or "").strip(),
-                    "line": t.get("line") or "",
-                }
-                for t in need_folders
-            ],
-        }
-    )
-    return stats
+    board_names = {
+        str(t.get("name") or "").strip()
+        for t in (db.get("tasks") or [])
+        if (t.get("month") or ym) == ym and str(t.get("name") or "").strip()
+    }
+    missing = sorted(n for n in parsed_names if n not in board_names)
+    return {
+        "sheet": parsed.get("sheet") or "",
+        "parsed": len(rows),
+        "lastNames": [str(r.get("name") or "") for r in rows[-5:]],
+        "added": len(fresh),
+        "updated": len(board_names),
+        "matched": len(parsed_names & board_names),
+        "board": len(board_names),
+        "changed": bool(fresh) or before_sig != _month_task_sig(db, ym) or bool(missing),
+        "fresh": [str(t.get("name") or "") for t in fresh],
+        "missing": missing,
+        "needFolders": [str(t.get("name") or "") for t in need_folders],
+        "needSpecs": [
+            {
+                "id": t.get("id"),
+                "name": str(t.get("name") or "").strip(),
+                "line": t.get("line") or "",
+            }
+            for t in need_folders
+        ],
+    }
 
 
 def fill_missing_packs(specs: list[dict], ym: str) -> dict:
@@ -402,9 +414,12 @@ def run_excel_ingest(*, download: bool = False, force: bool = False, create_pack
                 "at": utc_now(),
                 "added": int(stats.get("added") or 0),
                 "parsed": int(stats.get("parsed") or 0),
+                "matched": int(stats.get("matched") or 0),
+                "board": int(stats.get("board") or 0),
                 "error": dl_error,
                 "fromDrive": from_drive,
                 "fresh": list(stats.get("fresh") or [])[:8],
+                "missing": list(stats.get("missing") or [])[:8],
                 "lastNames": list(stats.get("lastNames") or [])[-3:],
                 "sheet": stats.get("sheet") or "",
             }
@@ -433,10 +448,13 @@ def run_excel_ingest(*, download: bool = False, force: bool = False, create_pack
             "at": utc_now(),
             "added": int(stats.get("added") or 0),
             "parsed": int(stats.get("parsed") or 0),
+            "matched": int(stats.get("matched") or 0),
+            "board": int(stats.get("board") or 0),
             "error": dl_error or folder_err,
             "fromDrive": from_drive,
             "unchanged": bool(stats.get("unchanged")),
             "fresh": list(stats.get("fresh") or [])[:8],
+            "missing": list(stats.get("missing") or [])[:8],
             "lastNames": list(stats.get("lastNames") or [])[-3:],
             "folders": int(packs.get("created") or 0),
             "sheet": stats.get("sheet") or "",

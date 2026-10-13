@@ -2617,7 +2617,14 @@ function driveStrip() {
   const build = document.documentElement.dataset.build || "";
   const watch = state.db?.meta?.excelWatch || {};
   const watchBits = [];
-  if (watch.parsed) watchBits.push(`${watch.parsed} Excel rows`);
+  if (watch.parsed) {
+    const match = Number(watch.matched || 0);
+    watchBits.push(
+      match && match !== Number(watch.parsed)
+        ? `${match}/${watch.parsed} Excel rows on board`
+        : `${watch.parsed} Excel rows`
+    );
+  }
   const last = (watch.lastNames || watch.fresh || []).filter(Boolean).slice(-1)[0];
   if (last) watchBits.push(last);
   if (watch.error) watchBits.push(String(watch.error));
