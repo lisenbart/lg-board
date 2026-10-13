@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-build="2026-10-12n">
+<html lang="en" data-build="2026-10-12p">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -130,12 +130,14 @@
 
   <div class="modal-bg" id="emailModal">
     <div class="modal">
-      <h3>Paste shift email</h3>
-      <p style="color:#676879;font-size:13px"><code>NAME | 0.3 shifts</code></p>
-      <textarea id="emailText" placeholder="Assign you these HC on Monday:&#10;DD-AIV-202-004_SettAI_HalloweenFireTrial_DD-VEO-059-001_EN_30s | 0.3 shifts"></textarea>
+      <h3>Shift list</h3>
+      <p style="color:#676879;font-size:13px">One project per line. Creates the card, Drive folder, empty brief, and hours.<br /><code>DD-NAME | 0.3 shifts</code></p>
+      <textarea id="emailText" placeholder="DD-AIV-202-004_SettAI_HalloweenFireTrial_DD-VEO-059-001_EN_30s | 0.3 shifts&#10;DX-B-158-002_Riches_NewYearsWin | 0.5 shifts"></textarea>
+      <p class="login-err" id="emailErr"></p>
+      <p class="create-wait" id="emailWait" hidden>Creating folders and briefs on Drive…</p>
       <div class="modal-actions">
         <button class="btn ghost" id="emailCancel">Cancel</button>
-        <button class="btn primary" id="emailApply">Parse and apply</button>
+        <button class="btn primary" id="emailApply">Create tasks</button>
       </div>
     </div>
   </div>
@@ -185,7 +187,7 @@
 
   <div class="toast" id="toast"></div>
   <script src="assets/notices.js?v=3"></script>
-  <script src="assets/store.js?v=73"></script>
-  <script src="assets/app.js?v=135"></script>
+  <script src="assets/store.js?v=75"></script>
+  <script src="assets/app.js?v=137"></script>
 </body>
 </html>

@@ -27,7 +27,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-12n"
+BUILD = "2026-10-12p"
 LOCK = threading.Lock()
 _REV_COND = threading.Condition()
 _MEM_REV = 0
@@ -35,7 +35,7 @@ _FILES_SYNCED = False
 _BRIEFS_SYNCED = False
 
 EMAIL_LINE = re.compile(
-    r"^\s*([A-Z]{2}-[A-Za-z0-9._-]+)\s*\|\s*([\d]+(?:[.,]\d+)?)\s*shifts?\s*$",
+    r"((?:DD|DX|DS)-[A-Za-z0-9._\\-]+)\s*\|\s*([\d]+(?:[.,]\d+)?)\s*(?:shifts?)?",
     re.I,
 )
 SANDBOX_TASK_IDS = frozenset({"t-dd-new-banana"})
@@ -506,21 +506,33 @@ def line_from_name(name: str) -> str:
 
 
 def parse_email(text: str) -> list[dict]:
-    found = []
-    for raw in text.splitlines():
-        m = EMAIL_LINE.match(raw.strip().replace("\\_", "_"))
+    found: list[dict] = []
+    by_name: dict[str, dict] = {}
+    for raw in str(text or "").replace("\r", "").splitlines():
+        line = raw.strip().replace("\\_", "_")
+        if not line:
+            continue
+        m = EMAIL_LINE.search(line)
         if not m:
             continue
-        name = m.group(1).replace("\\_", "_")
-        shift = float(m.group(2).replace(",", "."))
-        found.append(
-            {
-                "name": name,
-                "line": line_from_name(name),
-                "shifts": shift,
-                "hours": hours_from_shift(shift),
-            }
-        )
+        name = m.group(1).replace("\\_", "_").strip()
+        try:
+            shift = float(m.group(2).replace(",", "."))
+        except (TypeError, ValueError):
+            continue
+        if shift < 0:
+            continue
+        row = {
+            "name": name,
+            "line": line_from_name(name),
+            "shifts": shift,
+            "hours": hours_from_shift(shift),
+        }
+        if name in by_name:
+            by_name[name].update(row)
+            continue
+        by_name[name] = row
+        found.append(row)
     return found
 
 
@@ -1114,70 +1126,103 @@ class Handler(SimpleHTTPRequestHandler):
                     self._json(403, {"error": "only Line Producer can parse shift email"})
                     return
                 rows = parse_email(data.get("text") or "")
+                if not rows:
+                    self._json(
+                        400,
+                        {
+                            "error": "no project lines. Use NAME | 0.3 shifts, one per line.",
+                            "added": 0,
+                            "updated": 0,
+                            "parsed": [],
+                        },
+                    )
+                    return
                 added, updated = 0, 0
                 fresh = []
-                for row in rows:
-                    existing = next((t for t in db["tasks"] if t["name"] == row["name"]), None)
+                packs = []
+                ym = task_month(data, db)
+                used = {str(t.get("id") or "") for t in db.get("tasks") or []}
+                n = 1
+                while f"t-new-{n}" in used:
+                    n += 1
+                for row in reversed(rows):
+                    existing = next(
+                        (t for t in db["tasks"] if str(t.get("name") or "").strip() == row["name"]),
+                        None,
+                    )
                     if existing:
                         existing["shifts"] = row["shifts"]
                         existing["hours"] = row["hours"]
                         existing["line"] = row["line"]
-                        existing["source"] = "monday+email" if existing.get("brief") else "email"
+                        existing["month"] = existing.get("month") or ym
                         existing.setdefault("activity", []).append(
-                            {"at": utc_now(), "text": f"From email: {row['shifts']} shifts → {row['hours']} h"}
-                        )
-                        updated += 1
-                    else:
-                        db["tasks"].append(
                             {
-                                "id": f"t-{row['name'][:40]}-{len(db['tasks'])}",
-                                "name": row["name"],
-                                "line": row["line"],
-                                "department": "MGX",
-                                "game": "SettAI",
-                                "shifts": row["shifts"],
-                                "hours": row["hours"],
-                                "deadline": "",
-                                "month": task_month(data, db),
-                                "studioStatus": "new",
-                                "mondayStatus": "Ready to Start",
-                                "assigneeId": "",
-                                "brief": "",
-                                "folderUrl": "",
-                                "docUrl": "",
-                                "resultUrl": "",
-                                "source": "email",
-                                "activity": [
-                                    {
-                                        "at": utc_now(),
-                                        "text": f"From Orit email: {row['shifts']} shifts",
-                                    }
-                                ],
+                                "at": utc_now(),
+                                "text": f"From shift list: {row['shifts']} shifts → {row['hours']} h",
                             }
                         )
-                        added += 1
-                        fresh.append(db["tasks"][-1])
+                        updated += 1
+                        packs.append(existing)
+                        continue
+                    undrop_name(db, row["name"])
+                    while f"t-new-{n}" in used:
+                        n += 1
+                    tid = f"t-new-{n}"
+                    used.add(tid)
+                    n += 1
+                    game = "SettAI" if "SettAI" in row["name"] else ""
+                    task = {
+                        "id": tid,
+                        "name": row["name"],
+                        "line": row["line"],
+                        "department": "MGX",
+                        "game": game,
+                        "shifts": row["shifts"],
+                        "hours": row["hours"],
+                        "deadline": "",
+                        "month": ym,
+                        "studioStatus": "new",
+                        "mondayStatus": "Ready to Start",
+                        "assigneeId": "",
+                        "help": [],
+                        "brief": "",
+                        "folderUrl": "",
+                        "docUrl": "",
+                        "resultUrl": "",
+                        "source": "portal",
+                        "activity": [
+                            {
+                                "at": utc_now(),
+                                "text": f"From shift list: {row['shifts']} shifts",
+                            }
+                        ],
+                    }
+                    db.setdefault("tasks", []).insert(0, task)
+                    added += 1
+                    fresh.append(task)
+                    packs.append(task)
                 actor_id = data.get("actorId") or ""
                 for task in fresh:
                     notice_io.on_landed(db, task, actor_id)
-                drive = drive_io.ensure_live_packs(db, fresh, task_month(data, db))
+                drive = drive_io.ensure_live_packs(db, packs, ym)
                 db.setdefault("events", []).insert(
                     0,
                     {
                         "at": utc_now(),
-                        "text": f"Parsed email: {added} new, {updated} shifts updated",
+                        "text": f"Shift list: {added} new, {updated} hours updated",
                     },
                 )
                 try:
                     sync_excel(db, data.get("month"), calculator=True)
                 except FileNotFoundError as e:
                     save_db(db)
-                    self._json(500, {"error": str(e), "state": db})
+                    self._json(500, {"error": str(e), "state": db, "drive": drive})
                     return
                 save_db(db)
                 self._json(
                     200,
                     {
+                        "ok": True,
                         "added": added,
                         "updated": updated,
                         "parsed": rows,

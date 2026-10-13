@@ -38,7 +38,7 @@ Do **not** put this on glowl.direct. Live desk: **https://board.lisenbart.games*
 
 ## What the desk does
 
-- **Shift email** — Orit format: `NAME | 0.3 shifts`. Hours = shift × 9.
+- **Shift email** — paste Orit’s list (`NAME | 0.3 shifts`). Each new line is the same chain as Create task: card + live Drive folder + empty brief Doc + hours (shift × 9) on the card and in Excel. Names already on the board only get hours updated (and a folder if they still lack one). Monday API is not required.
 - **Files on disk.** The board is the current `SP_MGX_check.xlsx` (hours, people, deadlines) plus pipeline on the cards. **Create task** writes the live `Projects / 10_October / DD|DX|DS` folder and brief Doc.
 - **Briefs on the card** come from the live Google Docs in `Projects / 10_October / DD|DX` (read-only) where we already had the text. **Open folder** is the live October project folder. Naming is the four filenames from those Docs, not invented sizes.
 - The task card is role-first. Brief text stays on the card; **Open brief** / **Open folder** open Drive — raw Doc/folder URL fields are not on the default card. **TL** sees assign first. **MD** sees paste-result then Done. **LP** sees hours and Send to client. Designer pastes the result link, then sets Done. Done is locked until that link is in the card — the work folder is not used as a stand-in. Assignment lives on the board; there is no Telegram copy step.

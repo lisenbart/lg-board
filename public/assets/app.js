@@ -4321,14 +4321,46 @@ $("createTaskModal")?.addEventListener("click", (e) => {
 });
 $("emailCancel").onclick = () => $("emailModal").classList.remove("show");
 $("emailApply").onclick = async () => {
-  const out = await api("/api/parse-email", { text: $("emailText").value, month: state.month, role: me().role, actorId: me().id });
+  const go = $("emailApply");
+  if (go?.classList.contains("is-busy")) return;
+  const err = $("emailErr");
+  const wait = $("emailWait");
+  if (err) err.textContent = "";
+  const text = String($("emailText")?.value || "");
+  if (!text.trim()) {
+    if (err) err.textContent = "Paste NAME | 0.3 shifts, one per line";
+    return;
+  }
+  if (wait) wait.hidden = false;
+  setBusy(go, true, "Creating on Drive…");
+  const cancel = $("emailCancel");
+  if (cancel) cancel.disabled = true;
+  let out = {};
+  try {
+    out = await api("/api/parse-email", {
+      text,
+      month: state.month,
+      role: me().role,
+      actorId: me().id,
+    });
+  } finally {
+    if (wait) wait.hidden = true;
+    setBusy(go, false);
+    if (cancel) cancel.disabled = false;
+  }
   if (out.error || !out.state) {
-    toast(out.error || "Could not parse email");
+    if (err) err.textContent = out.error || "Could not create tasks";
+    toast(out.error || "Could not create tasks");
     return;
   }
   applyState(out.state);
   $("emailModal").classList.remove("show");
-  toast(`Email: ${out.added} new, ${out.updated} shifts updated${driveToast(out.drive)}`);
+  $("emailText").value = "";
+  const driveErr = (out.drive?.errors || []).length;
+  toast(
+    `Created ${out.added || 0} · hours updated ${out.updated || 0}` +
+      (driveErr ? ` · ${driveErr} Drive folder skipped` : driveToast(out.drive))
+  );
 };
 $("drawerBg").addEventListener("click", (e) => {
   if (e.target === $("drawerBg")) closeDrawer();

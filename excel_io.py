@@ -726,7 +726,12 @@ def write_month(db: dict, ym: str, path: Path | None = None) -> Path:
             _write_task_row(ws, found["row"], task, columns)
             continue
         if str(task.get("source") or "") == "portal":
-            continue
+            try:
+                has_time = float(task.get("shifts") or 0) or float(task.get("hours") or 0)
+            except (TypeError, ValueError):
+                has_time = 0
+            if not has_time:
+                continue
         line = (task.get("line") or "DD").upper()
         if line not in {"DX", "DD", "DS"}:
             line = "DD"

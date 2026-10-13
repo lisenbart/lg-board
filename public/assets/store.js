@@ -2,7 +2,7 @@
 (function () {
   const KEY = "lg-board-db-v8";
   const EMAIL_LINE =
-    /^\s*([A-Z]{2}-[A-Za-z0-9._-]+)\s*\|\s*([\d]+(?:[.,]\d+)?)\s*shifts?\s*$/i;
+    /((?:DD|DX|DS)-[A-Za-z0-9._\\-]+)\s*\|\s*([\d]+(?:[.,]\d+)?)\s*(?:shifts?)?/i;
   const OPS_ROLES = new Set(["manager", "finance"]);
   const STATUS_BY_ROLE = {
     designer: new Set(["wip", "done"]),
@@ -198,17 +198,25 @@
 
   function parseEmail(text) {
     const found = [];
+    const byName = {};
     for (const raw of String(text || "").split(/\n/)) {
       const m = EMAIL_LINE.exec(raw.trim().replace(/\\_/g, "_"));
       if (!m) continue;
-      const name = m[1].replace(/\\_/g, "_");
+      const name = m[1].replace(/\\_/g, "_").trim();
       const shift = Number(String(m[2]).replace(",", "."));
-      found.push({
+      if (!Number.isFinite(shift) || shift < 0) continue;
+      const row = {
         name,
         line: lineFromName(name),
         shifts: shift,
         hours: hoursFromShift(shift),
-      });
+      };
+      if (byName[name]) {
+        Object.assign(byName[name], row);
+        continue;
+      }
+      byName[name] = row;
+      found.push(row);
     }
     return found;
   }
@@ -297,53 +305,10 @@
     if (path === "/api/parse-email") {
       if (!OPS_ROLES.has(data.role)) return { error: "only Line Producer can parse shift email" };
       const rows = parseEmail(data.text);
-      let added = 0;
-      let updated = 0;
-      for (const row of rows) {
-        const existing = db.tasks.find((t) => t.name === row.name);
-        if (existing) {
-          existing.shifts = row.shifts;
-          existing.hours = row.hours;
-          existing.line = row.line;
-          existing.source = existing.brief ? "monday+email" : "email";
-          existing.activity = existing.activity || [];
-          existing.activity.push({
-            at: now(),
-            text: `From email: ${row.shifts} shifts → ${row.hours} h`,
-          });
-          updated += 1;
-        } else {
-          db.tasks.push({
-            id: `t-${row.name.slice(0, 40)}-${db.tasks.length}`,
-            name: row.name,
-            line: row.line,
-            department: "MGX",
-            game: "SettAI",
-            shifts: row.shifts,
-            hours: row.hours,
-            deadline: "",
-            month: taskMonth(data, db),
-            studioStatus: "new",
-            mondayStatus: "Ready to Start",
-            assigneeId: "",
-            brief: "",
-            folderUrl: "",
-            docUrl: "",
-            resultUrl: "",
-            source: "email",
-            activity: [{ at: now(), text: `From Orit email: ${row.shifts} shifts` }],
-          });
-          added += 1;
-          if (N()) N().onLanded(db, db.tasks[db.tasks.length - 1], data.actorId);
-        }
+      if (!rows.length) {
+        return { error: "no project lines. Use NAME | 0.3 shifts, one per line." };
       }
-      db.events = db.events || [];
-      db.events.unshift({
-        at: now(),
-        text: `Parsed email: ${added} new, ${updated} shifts updated`,
-      });
-      writeDb(db);
-      return { added, updated, parsed: rows, state: clone(db) };
+      return { error: "Create tasks from a shift list runs on the studio server, not on GitHub Pages." };
     }
 
     if (path === "/api/import-monday") {
