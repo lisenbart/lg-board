@@ -404,12 +404,15 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
     }
     added = 0
     updated = 0
-    dropped = {str(n).strip() for n in (db.get("droppedNames") or []) if n}
-    dropped_keys = {_id_key(n) for n in dropped if _id_key(n)}
+    parsed_names = {str(row.get("name") or "").strip() for row in parsed.get("rows") or []}
+    parsed_keys = {_id_key(n) for n in parsed_names if _id_key(n)}
+    db["droppedNames"] = [
+        n
+        for n in (db.get("droppedNames") or [])
+        if str(n).strip() not in parsed_names and _id_key(n) not in parsed_keys
+    ]
     for row in parsed.get("rows") or []:
         name = row["name"]
-        if name in dropped or _id_key(name) in dropped_keys:
-            continue
         assignee_id = ""
         if row.get("assigneeId") and row["assigneeId"] in {p["id"] for p in people}:
             assignee_id = row["assigneeId"]

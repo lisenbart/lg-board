@@ -1646,6 +1646,11 @@ async function retryDrivePack(t) {
 
 function bindDriveButtons() {
   $("btnDrivePull")?.addEventListener("click", pullDrive);
+  const excelBtn = $("btnExcelPull");
+  if (excelBtn && !excelBtn.dataset.bound) {
+    excelBtn.dataset.bound = "1";
+    excelBtn.addEventListener("click", pullExcel);
+  }
 }
 function timeCell(t) {
   const hours = t.hours || hoursFromShifts(t.shifts || 0);
@@ -2610,16 +2615,27 @@ function driveStrip() {
     )
     .join("");
   const build = document.documentElement.dataset.build || "";
+  const watch = state.db?.meta?.excelWatch || {};
+  const watchBits = [];
+  if (watch.parsed) watchBits.push(`${watch.parsed} Excel rows`);
+  const last = (watch.lastNames || watch.fresh || []).filter(Boolean).slice(-1)[0];
+  if (last) watchBits.push(last);
+  if (watch.error) watchBits.push(String(watch.error));
+  else if (watch.fromDrive) watchBits.push("from Drive");
   const status = d.connected
     ? `Live disk${d.pulledAt ? ` · ${escapeHtml(String(d.pulledAt).replace("T", " ").replace("Z", ""))}` : ""}`
     : "Live disk · Create task writes October DD / DX";
+  const extra = watchBits.length ? ` · ${watchBits.join(" · ")}` : "";
   return `<div class="drive-strip">
     <div>
       <strong>Google Drive</strong>
-      <p>${escapeHtml(status)}${build ? ` · desk ${escapeHtml(build)}` : ""}</p>
+      <p>${escapeHtml(status)}${extra ? escapeHtml(extra) : ""}${build ? ` · desk ${escapeHtml(build)}` : ""}</p>
       <div class="drive-links">${links}</div>
     </div>
-    <div class="drive-actions"><button type="button" class="btn" id="btnDrivePull">Refresh files</button></div>
+    <div class="drive-actions">
+      <button type="button" class="btn" id="btnExcelPull">Refresh from Excel</button>
+      <button type="button" class="btn" id="btnDrivePull">Refresh files</button>
+    </div>
   </div>`;
 }
 

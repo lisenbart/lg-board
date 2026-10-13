@@ -27,7 +27,7 @@ CLIENT_PATH = SECRETS / "google_client.json"
 OAUTH_PATH = SECRETS / "google_oauth.json"
 SA_PATH = SECRETS / "google_service.json"
 TOKEN_PATH = SECRETS / "google_drive_token.txt"
-BUILD = "2026-10-13b"
+BUILD = "2026-10-13c"
 OAUTH_STATE_PATH = SECRETS / "drive_oauth_state.json"
 SCOPE = "https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/documents"
 API = "https://www.googleapis.com/drive/v3"
@@ -367,17 +367,24 @@ def list_children(token: str, parent_id: str) -> list[dict]:
 
 
 def download_file(token: str, file_id: str) -> bytes:
-    """Binary for xlsx, or export if Drive converted the file to a Google Sheet."""
+    """Latest bytes. Prefer headRevisionId so we do not get a stale cached xlsx."""
     mime = ""
+    rev = ""
     try:
         meta = _api(
             token,
             f"files/{file_id}",
-            {"fields": "mimeType,name", "supportsAllDrives": "true"},
+            {
+                "fields": "mimeType,name,headRevisionId,modifiedTime,size",
+                "supportsAllDrives": "true",
+            },
+            timeout=15,
         )
         mime = str((meta or {}).get("mimeType") or "")
+        rev = str((meta or {}).get("headRevisionId") or "")
     except DriveSyncError:
         mime = ""
+        rev = ""
     if mime == "application/vnd.google-apps.spreadsheet":
         return _api(
             token,
@@ -386,6 +393,17 @@ def download_file(token: str, file_id: str) -> bytes:
             raw=True,
             timeout=45,
         )
+    if rev:
+        try:
+            return _api(
+                token,
+                f"files/{file_id}/revisions/{urllib.parse.quote(rev)}",
+                {"alt": "media", "supportsAllDrives": "true"},
+                raw=True,
+                timeout=45,
+            )
+        except DriveSyncError as e:
+            print(f"[drive] revision {rev}: {e}", flush=True)
     return _api(
         token,
         f"files/{file_id}",
@@ -423,6 +441,45 @@ def upload_media(file_id: str, blob: bytes, mime: str) -> dict:
         raise DriveSyncError(f"Drive upload {e.code}: {err[:300]}") from e
 
 
+def _rfc3339_ts(raw: str) -> float:
+    text = str(raw or "").strip()
+    if not text:
+        return 0.0
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        return datetime.fromisoformat(text).timestamp()
+    except ValueError:
+        return 0.0
+
+
+def drive_excel_is_newer_than_local() -> bool:
+    """Do not push a stale VPS copy over rows someone just typed in Drive."""
+    import excel_io
+
+    path = excel_io.XLSX_PATH
+    if not path.exists():
+        return True
+    token = access_token()
+    fid = str(roots().get("excel") or "")
+    if not token or not fid:
+        return False
+    try:
+        meta = _api(
+            token,
+            f"files/{fid}",
+            {"fields": "modifiedTime,size", "supportsAllDrives": "true"},
+            timeout=12,
+        )
+    except DriveSyncError:
+        return False
+    drive_ts = _rfc3339_ts(str((meta or {}).get("modifiedTime") or ""))
+    if not drive_ts:
+        return False
+    local_ts = path.stat().st_mtime
+    return drive_ts > local_ts + 8
+
+
 def push_workbooks(*, excel: bool = True, calculator: bool = False) -> dict:
     """Write local SP_MGX_check / calculator onto the live Drive files."""
     import excel_io
@@ -438,14 +495,17 @@ def push_workbooks(*, excel: bool = True, calculator: bool = False) -> dict:
             raise DriveSyncError(f"Excel missing: {path}")
         if not fid:
             raise DriveSyncError("live Excel id is not configured")
-        out = upload_media(fid, path.read_bytes(), XLSX_MIME)
-        uploaded.append(
-            {
-                "name": "SP_MGX_check.xlsx",
-                "id": out.get("id") or fid,
-                "url": out.get("webViewLink") or file_url(fid),
-            }
-        )
+        if drive_excel_is_newer_than_local():
+            print("[drive] skip Excel push — Drive file is newer than the desk copy", flush=True)
+        else:
+            out = upload_media(fid, path.read_bytes(), XLSX_MIME)
+            uploaded.append(
+                {
+                    "name": "SP_MGX_check.xlsx",
+                    "id": out.get("id") or fid,
+                    "url": out.get("webViewLink") or file_url(fid),
+                }
+            )
     if calculator:
         path = finance_io.CALC_PATH
         fid = str(cfg.get("calculator") or "")
