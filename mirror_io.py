@@ -152,7 +152,7 @@ def attach_live(task: dict, briefs: dict, folders: dict) -> None:
     if excel_status == "closed" or task.get("studioStatus") == "closed":
         task["studioStatus"] = "closed"
         task["mondayStatus"] = "Closed"
-    elif task.get("assigneeId") or excel_status == "wip":
+    elif excel_status == "wip":
         task["studioStatus"] = "wip"
         task["mondayStatus"] = "WIP"
     else:

@@ -37,6 +37,15 @@
       skipActor: true,
       channels: ["portal"],
     },
+    "task.tlcheck": {
+      label: "TL Check",
+      title: "{name}",
+      detail: "Result in · waiting for TL Check",
+      mark: "check",
+      audience: { roles: ["teamlead"] },
+      skipActor: true,
+      channels: ["portal"],
+    },
     "task.ready": {
       label: "Ready to send",
       title: "{name}",
@@ -66,7 +75,7 @@
     },
   };
   const KEEP = 400;
-  const MARK_LABEL = { new: "New", mine: "On you", fix: "Fix", note: "Notes", send: "Send" };
+  const MARK_LABEL = { new: "New", mine: "On you", fix: "Fix", note: "Notes", check: "TL chk", send: "Send" };
 
   const now = () => new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
   const fill = (tpl, payload) =>
@@ -190,9 +199,10 @@
     }
     if (newS && newS !== oldS) {
       if (newS === "revision") emit(db, "task.revision", { actorId, task });
+      if (newS === "tlcheck") emit(db, "task.tlcheck", { actorId, task });
       if (newS === "done") {
         emit(db, "task.ready", { actorId, task });
-        ack(db, actorId, { taskId: task.id, kinds: ["task.revision", "task.assigned"] });
+        ack(db, actorId, { taskId: task.id, kinds: ["task.revision", "task.assigned", "task.tlcheck"] });
       }
       if (newS === "approve") {
         emit(db, "task.sent", { actorId, task });

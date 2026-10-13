@@ -47,6 +47,15 @@ KINDS = {
         "skip_actor": True,
         "channels": ["portal"],
     },
+    "task.tlcheck": {
+        "label": "TL Check",
+        "title": "{name}",
+        "detail": "Result in · waiting for TL Check",
+        "mark": "check",
+        "audience": {"roles": ["teamlead"]},
+        "skip_actor": True,
+        "channels": ["portal"],
+    },
     "task.ready": {
         "label": "Ready to send",
         "title": "{name}",
@@ -249,9 +258,11 @@ def on_task_change(db: dict, task: dict, before: dict | None, actor_id: str = ""
     if new_status and new_status != old_status:
         if new_status == "revision":
             emit(db, "task.revision", actor_id=actor_id, task=task)
+        elif new_status == "tlcheck":
+            emit(db, "task.tlcheck", actor_id=actor_id, task=task)
         elif new_status == "done":
             emit(db, "task.ready", actor_id=actor_id, task=task)
-            ack(db, actor_id, task_id=task.get("id"), kinds=["task.revision", "task.assigned"])
+            ack(db, actor_id, task_id=task.get("id"), kinds=["task.revision", "task.assigned", "task.tlcheck"])
         elif new_status == "approve":
             emit(db, "task.sent", actor_id=actor_id, task=task)
             ack(db, actor_id, task_id=task.get("id"), kinds=["task.ready"])

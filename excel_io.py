@@ -471,7 +471,8 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
             task["line"] = row["line"]
             task["deadline"] = row.get("deadline") or task.get("deadline") or ""
             task["assigneeId"] = assignee_id
-            task["help"] = help_rows
+            if help_rows:
+                task["help"] = help_rows
             task["month"] = ym
             if old_name and old_name != name:
                 existing.pop(old_name, None)
@@ -500,8 +501,8 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
                 "deadline": row.get("deadline") or "",
                 "month": ym,
                 "excelStatus": excel_status,
-                "studioStatus": "closed" if excel_status == "closed" else ("wip" if assignee_id or excel_status == "wip" else "new"),
-                "mondayStatus": "Closed" if excel_status == "closed" else ("WIP" if assignee_id or excel_status == "wip" else "Ready to Start"),
+                "studioStatus": "closed" if excel_status == "closed" else ("wip" if excel_status == "wip" else "new"),
+                "mondayStatus": "Closed" if excel_status == "closed" else ("WIP" if excel_status == "wip" else "Ready to Start"),
                 "assigneeId": assignee_id,
                 "help": help_rows,
                 "brief": "",

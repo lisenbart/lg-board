@@ -2,9 +2,10 @@ const STATUS = {
   new: { label: "Ready to Start", cls: "status-new", order: 1 },
   wip: { label: "WIP", cls: "status-wip", order: 2 },
   revision: { label: "Need Fixing", cls: "status-revision", order: 3 },
-  done: { label: "Done", cls: "status-done", order: 4 },
-  approve: { label: "Senior Approval", cls: "status-approve", order: 5 },
-  closed: { label: "Closed", cls: "status-closed", order: 6 },
+  tlcheck: { label: "TL Check", cls: "status-tlcheck", order: 4 },
+  done: { label: "Done", cls: "status-done", order: 5 },
+  approve: { label: "Senior Approval", cls: "status-approve", order: 6 },
+  closed: { label: "Closed", cls: "status-closed", order: 7 },
 };
 
 const ROLE_LABEL = {
@@ -33,10 +34,10 @@ const NAME_WIDTH_DEFAULT = 412;
 const NAME_WIDTH_MIN = 240;
 
 const STATUS_BY_ROLE = {
-  designer: ["wip", "done"],
-  teamlead: ["new", "wip", "revision", "done"],
-  manager: ["new", "wip", "revision", "done", "closed"],
-  finance: ["new", "wip", "revision", "done", "closed"],
+  designer: ["wip", "tlcheck"],
+  teamlead: ["wip", "tlcheck", "done"],
+  manager: ["revision", "closed"],
+  finance: ["revision", "closed"],
   client: [],
 };
 const LINES = ["DD", "DX", "DS"];
@@ -955,12 +956,10 @@ function renderToolbar() {
     const drive = state.db?.meta?.driveLiveExcel || "";
     $("toolbar").innerHTML = `
       ${isFinance() ? `<button type="button" class="btn" id="btnDrivePull">Read Drive</button>` : ""}
-      <button class="btn" id="btnExcelPull">Refresh from Excel</button>
       ${drive ? `<a class="btn" href="${escapeHtml(drive)}" target="_blank" rel="noreferrer">Open on Drive</a>` : ""}
       <input class="search" placeholder="Search project" />
     `;
     bindSearch();
-    $("btnExcelPull")?.addEventListener("click", pullExcel);
     bindDriveButtons();
     return;
   }
@@ -1123,7 +1122,7 @@ function renderKpis() {
   const tasks = visibleTasks();
   if (isDesigner() && state.view !== "excel") {
     const hours = tasks.reduce((s, t) => s + (Number(t.hours) || 0), 0);
-    const active = tasks.filter((t) => t.studioStatus === "wip" || t.studioStatus === "revision").length;
+    const active = tasks.filter((t) => t.studioStatus === "wip" || t.studioStatus === "revision" || t.studioStatus === "tlcheck").length;
     $("kpis").innerHTML = `
       <div class="kpi"><b>${tasks.length}</b><span>assigned to me</span></div>
       <div class="kpi"><b>${active}</b><span>WIP / Need Fixing</span></div>
@@ -1563,26 +1562,29 @@ function cardJob(t) {
     if (t.studioStatus === "approve") {
       return { tone: "ok", title: "Sent to client", body: "LP already sent this. Nothing else on this card." };
     }
+    if (t.studioStatus === "tlcheck") {
+      return { tone: "wait", title: "Waiting for TL", body: "Result is in. Team Lead checks it, then Done." };
+    }
     if (t.studioStatus === "done") {
-      return { tone: "wait", title: "Waiting for LP", body: "Result is in. Line Producer sends it to the client." };
+      return { tone: "wait", title: "Waiting for LP", body: "TL already checked. Line Producer sends it to the client." };
     }
     if (t.studioStatus === "revision") {
       return {
         tone: "fix",
         title: "Need Fixing",
         body: clientComments(t).length
-          ? "Client notes are under the brief. Fix, paste the new result link, then Done."
-          : "Fix the work, paste the new result link, then Done.",
+            ? "Client notes are under the brief. Fix, paste the new result link, then TL Check."
+          : "Fix the work, paste the new result link, then TL Check.",
       };
     }
     if (!hasResult) {
       return {
         tone: "do",
         title: "Your job",
-        body: "Open the brief, work in the folder, paste the finished-file link, then Done.",
+        body: "Open the brief, set WIP when you start, paste the finished-file link, then TL Check.",
       };
     }
-    return { tone: "do", title: "Mark Done", body: "Result link is in. Set Done and Save." };
+    return { tone: "do", title: "TL Check", body: "Result link is in. Set TL Check so the Team Lead can review." };
   }
   if (role === "teamlead") {
     if (!t.assigneeId) {
@@ -1590,15 +1592,21 @@ function cardJob(t) {
     }
     if (mine && t.studioStatus !== "done" && t.studioStatus !== "approve" && t.studioStatus !== "closed") {
       if (t.studioStatus === "revision") {
-        return { tone: "fix", title: "This is your work · Need Fixing", body: "Fix, paste the new result link, then Done." };
+        return { tone: "fix", title: "This is your work · Need Fixing", body: "Fix, paste the new result link, then TL Check." };
+      }
+      if (t.studioStatus === "tlcheck") {
+        return { tone: "do", title: "Your work · TL Check", body: "Result is in. Set Done when you accept it." };
       }
       if (!hasResult) {
-        return { tone: "do", title: "This is your work", body: "Same as MD: paste the result link, then Done." };
+        return { tone: "do", title: "This is your work", body: "Same as MD: paste the result link, then TL Check." };
       }
-      return { tone: "do", title: "Mark Done", body: "Result link is in. Set Done and Save." };
+      return { tone: "do", title: "TL Check", body: "Result link is in. Set TL Check, then Done." };
+    }
+    if (t.studioStatus === "tlcheck") {
+      return { tone: "do", title: "Your job", body: `${name || "Designer"} submitted. Check the result, then Done.` };
     }
     if (t.studioStatus === "done") {
-      return { tone: "wait", title: "Waiting for LP", body: `${name || "Designer"} finished. You cannot Send to client — that is LP.` };
+      return { tone: "wait", title: "Waiting for LP", body: `${name || "Designer"} passed TL Check. You cannot Send to client — that is LP.` };
     }
     if (t.studioStatus === "closed") {
       return { tone: "ok", title: "Closed", body: "Client accepted. This task is finished." };
@@ -1620,8 +1628,11 @@ function cardJob(t) {
   if (t.studioStatus === "done" && hasResult) {
     return { tone: "do", title: "Your job", body: "Result is in. Send to client — that sets Senior Approval." };
   }
+  if (t.studioStatus === "tlcheck") {
+    return { tone: "wait", title: "Waiting for TL", body: `${name || "Designer"} submitted for TL Check. Send only after TL sets Done.` };
+  }
   if (!t.assigneeId) {
-    return { tone: "wait", title: "Waiting for TL", body: "Set hours if needed. Team Lead assigns. You send only after Done." };
+    return { tone: "wait", title: "Waiting for TL", body: "Set hours if needed. Team Lead assigns. Status stays Ready until MD sets WIP. You send only after Done." };
   }
   if (t.studioStatus === "revision") {
     return { tone: "wait", title: "In Need Fixing", body: `${name || "Designer"} is fixing. Send only after they mark Done again.` };
@@ -2108,10 +2119,11 @@ function renderGuide() {
         <h3>Статуси</h3>
         <p class="guide-lead">Один чіп на проєкт. Читай зверху вниз: що означає і хто з ним працює.</p>
         <div class="guide-status-grid">
-          ${statusCard("ready", "Ready", "Ready to Start", "Хто: TL ставить виконавця", "Таск щойно створили на порталі, підтягнули з Excel або з листа. Людини ще немає — чекає старту.")}
-          ${statusCard("wip", "WIP", "WIP", "Хто: MD робить роботу", "Виконавець уже стоїть. Робота йде. Файл ще не зданий.")}
-          ${statusCard("fix", "Fix", "Need Fixing", "Хто: MD править", "Клієнт або LP відбили. Не Done — треба правка, потім знову здати.")}
-          ${statusCard("done", "Done", "Done", "Хто: MD здав, далі LP", "Дизайнер вставив лінк результату і натиснув Done. Без лінка цей статус не ставиться.")}
+          ${statusCard("ready", "Ready", "Ready to Start", "Хто: LP створює, TL назначає", "Таск щойно створили. Після призначення людини статус лишається Ready — WIP ставить сам MD.")}
+          ${statusCard("wip", "WIP", "WIP", "Хто: MD", "Виконавець почав роботу. Файл ще не зданий.")}
+          ${statusCard("fix", "Fix", "Need Fixing", "Хто: MD править", "Клієнт або LP відбили. Не TL Check — треба правка, потім знову здати.")}
+          ${statusCard("tlcheck", "TL chk", "TL Check", "Хто: MD здав, далі TL", "Лінк результату в картці. MD не ставить Done. TL перевіряє і лише тоді Done.")}
+          ${statusCard("done", "Done", "Done", "Хто: TL перевірив, далі LP", "Team Lead прийняв роботу. LP може Send to client.")}
           ${statusCard("appr", "Appr.", "Senior Approval", "Хто: чекаємо клієнта", "LP натиснув Send to client. Текст для Monday скопійовано. Ще не Closed.")}
           ${statusCard("closed", "Closed", "Closed", "Хто: LP після відповіді клієнта", "Клієнт прийняв. Години лишаються, роботи більше немає.")}
         </div>
@@ -2120,11 +2132,12 @@ function renderGuide() {
         <h3>Пайплайн</h3>
         <p class="guide-lead">П’ять кроків підряд. Кожен крок змінює чіп справа.</p>
         <ol class="guide-pipe">
-          ${pipeStep("1", "LP", "Line Producer", "Таск заходить", `${ui("Create task")} або ${ui("Shift email")} (NAME 0.3 shift — тире, пробіл або |).`, "ready", "Ready")}
-          ${pipeStep("2", "TL", "Team Lead", "Ставить виконавця", `${ui("Who works this")} → ${ui("Save")}. Людина одразу бачить таск у своїй черзі.`, "wip", "WIP")}
-          ${pipeStep("3", "MD", "Motion design", "Здає файл", `${ui("Paste result link here")}, потім ${ui("Done")}. Лінк на файл, не на теку. Поки лінка немає — ${ui("Done")} недоступний.`, "done", "Done")}
-          ${pipeStep("4", "LP", "Line Producer", "Відправляє клієнту", `${ui("Send to client")} лише з ${ui("Done")} + лінк. Копіює текст для External Weekly. ${ui("Appr.")} руками зі списку не ставиться.`, "appr", "Appr.")}
-          ${pipeStep("5", "LP", "Line Producer", "Клієнт прийняв", `${ui("Mark Closed")} після ${ui("Appr.")}. Якщо відбили — ${ui("Need Fixing")}, чіп ${chip("fix", "Fix")}, MD знову крок 3.`, "closed", "Closed")}
+          ${pipeStep("1", "LP", "Line Producer", "Таск заходить", `${ui("Create task")} або ${ui("Shift email")}. Статус одразу ${ui("Ready to Start")}.`, "ready", "Ready")}
+          ${pipeStep("2", "TL", "Team Lead", "Ставить виконавця", `${ui("Who works this")} → ${ui("Save")}. Статус лишається Ready.`, "ready", "Ready")}
+          ${pipeStep("3", "MD", "Motion design", "Починає і здає", `${ui("WIP")}, коли почав. Потім лінк результату і ${ui("TL Check")}. Не ${ui("Done")}.`, "tlcheck", "TL chk")}
+          ${pipeStep("4", "TL", "Team Lead", "Перевіряє", `Після ${ui("TL Check")} TL ставить ${ui("Done")}.`, "done", "Done")}
+          ${pipeStep("5", "LP", "Line Producer", "Відправляє клієнту", `${ui("Send to client")} лише з ${ui("Done")} + лінк. Це ${ui("Appr.")}.`, "appr", "Appr.")}
+          ${pipeStep("6", "LP", "Line Producer", "Клієнт прийняв", `${ui("Closed")} після ${ui("Appr.")}. Якщо відбили — ${ui("Need Fixing")}, MD знову ${ui("TL Check")}.`, "closed", "Closed")}
         </ol>
       </div>
       <div class="guide-grid">
@@ -2317,6 +2330,7 @@ function statusMark(t) {
       new: { cls: "ready", label: "Ready", title },
       wip: { cls: "wip", label: "WIP", title },
       revision: { cls: "fix", label: "Fix", title },
+      tlcheck: { cls: "tlcheck", label: "TL chk", title },
       done: { cls: "done", label: "Done", title },
       approve: { cls: "appr", label: "Appr.", title },
       closed: { cls: "closed", label: "Closed", title },
@@ -2376,40 +2390,62 @@ function rowHtml(t, mode, gap) {
 }
 
 function statusChoices(task) {
-  const keys = [...(STATUS_BY_ROLE[me().role] || STATUS_BY_ROLE.manager)];
-  if (task?.studioStatus && !keys.includes(task.studioStatus)) keys.unshift(task.studioStatus);
-  return keys;
+  return statusActions(task);
 }
 
-const STATUS_KEYS = ["new", "wip", "revision", "done", "approve", "closed"];
+function statusActions(task) {
+  const role = me().role;
+  const cur = task?.studioStatus || "new";
+  const mine = String(task?.assigneeId || "") === String(me().id);
+  if (role === "designer") {
+    if (!mine || ["done", "approve", "closed"].includes(cur)) return [];
+    const out = [];
+    if (cur !== "wip") out.push("wip");
+    if (cur !== "tlcheck") out.push("tlcheck");
+    return out;
+  }
+  if (role === "teamlead") {
+    const out = [];
+    if (mine && !["done", "approve", "closed"].includes(cur)) {
+      if (cur !== "wip") out.push("wip");
+      if (cur !== "tlcheck") out.push("tlcheck");
+    }
+    if (cur === "tlcheck") out.push("done");
+    return out;
+  }
+  if (role === "manager" || role === "finance") {
+    const out = [];
+    if (["wip", "tlcheck", "done", "approve"].includes(cur)) out.push("revision");
+    if (cur === "approve") out.push("closed");
+    return out;
+  }
+  return [];
+}
 
 function statusButtonDisabled(task, key, opts) {
   const on = (task.studioStatus || "new") === key;
-  if (opts.locked && !on) return true;
-  if (!opts.canEdit && !on) return true;
-  if (on) return opts.locked;
-  if (key === "approve") return true;
-  if (key === "closed") return !(canOps() && task.studioStatus === "approve");
-  if (
-    key === "done" &&
-    isTeamLead() &&
-    String(task.assigneeId || "") !== String(me().id) &&
-    !on
-  ) {
-    return true;
-  }
-  if (key === "done" && !on && !hasResultLink(task, opts.typedResult)) return true;
+  if (opts.locked) return true;
+  if (!opts.canEdit) return true;
+  if (on) return true;
+  if (key === "tlcheck" && !hasResultLink(task, opts.typedResult)) return true;
+  if (key === "done" && task.studioStatus !== "tlcheck") return true;
+  if (key === "closed") return task.studioStatus !== "approve";
   return !canSetStatus(key);
 }
 
 function statusButtonsHtml(t, canEdit, lockedStatus) {
   const current = t.studioStatus || "new";
   const opts = { canEdit, locked: lockedStatus };
-  const buttons = STATUS_KEYS.map((key) => {
+  const keys = statusActions(t);
+  if (!keys.length) {
+    return `<input type="hidden" id="stStatus" value="${escapeHtml(current)}" />
+    <p class="status-hint" id="stDoneHint"></p>`;
+  }
+  const buttons = keys.map((key) => {
     const mark = statusMark({ studioStatus: key });
     const on = current === key;
     const disabled = statusButtonDisabled(t, key, opts);
-    return `<button type="button" class="status-btn st-${mark.cls} ${on ? "is-on" : "is-off"}" data-status="${key}" aria-pressed="${on ? "true" : "false"}" ${disabled ? "disabled" : ""} title="${escapeHtml(STATUS[key].label)}">${escapeHtml(mark.label)}</button>`;
+    return `<button type="button" class="status-btn st-${mark.cls} ${on ? "is-on" : "is-off"}" data-status="${key}" aria-pressed="${on ? "true" : "false"}" ${disabled ? "disabled" : ""} title="${escapeHtml(STATUS[key].label)}">${escapeHtml(STATUS[key].label)}</button>`;
   }).join("");
   return `<div class="status-btns" role="group" aria-label="Status">${buttons}</div>
     <input type="hidden" id="stStatus" value="${escapeHtml(current)}" />
@@ -2498,15 +2534,7 @@ function bindSplitter(group) {
 }
 
 function ensureExcelHours() {
-  if (state.excelMonth === state.month) return;
   state.excelMonth = state.month;
-  api("/api/excel/pull", { month: state.month, light: true }).then((out) => {
-    if (out.error) {
-      toast(out.error);
-      return;
-    }
-    if (out.state) applyState(out.state);
-  });
 }
 
 function financeFromApi(snap) {
@@ -2659,7 +2687,6 @@ function driveStrip() {
       <div class="drive-links">${links}</div>
     </div>
     <div class="drive-actions">
-      <button type="button" class="btn" id="btnExcelPull">Refresh from Excel</button>
       <button type="button" class="btn" id="btnDrivePull">Refresh files</button>
     </div>
   </div>`;
@@ -3645,6 +3672,14 @@ function openTask(id) {
     const hint = $("stDoneHint");
     const typed = $("stResult")?.value || "";
     const hasResult = hasResultLink(t, typed);
+    const checkBtn = $("drawer")?.querySelector('.status-btn[data-status="tlcheck"]');
+    if (checkBtn && t.studioStatus !== "tlcheck") {
+      checkBtn.disabled = statusButtonDisabled(t, "tlcheck", {
+        canEdit,
+        locked: lockedStatus,
+        typedResult: typed,
+      });
+    }
     const doneBtn = $("drawer")?.querySelector('.status-btn[data-status="done"]');
     if (doneBtn && t.studioStatus !== "done") {
       doneBtn.disabled = statusButtonDisabled(t, "done", {
@@ -3654,18 +3689,18 @@ function openTask(id) {
       });
     }
     if (hint) {
-      if (performer && !hasResult && t.studioStatus !== "done" && t.studioStatus !== "approve" && t.studioStatus !== "closed") {
-        hint.textContent = "Paste the result link, then tap Done.";
+      if (performer && !hasResult && !["tlcheck", "done", "approve", "closed"].includes(t.studioStatus)) {
+        hint.textContent = "Paste the result link, then TL Check.";
+      } else if (isTeamLead() && t.studioStatus === "tlcheck") {
+        hint.textContent = "Check the result, then Done. LP sends after that.";
       } else if (canOps() && t.studioStatus === "done") {
         hint.textContent = "Send to client — that sets Senior Approval.";
       } else if (canOps() && t.studioStatus === "approve") {
         hint.textContent = "Client accepted → Closed. Need Fixing if they bounce it.";
       } else if (canOps() && t.studioStatus === "closed") {
         hint.textContent = "Closed. Need Fixing only if the client reopens.";
-      } else if (canOps() && t.studioStatus !== "new") {
-        hint.textContent = "Senior Approval is set only by Send to client. Closed is after that.";
-      } else if (isTeamLead() && t.assigneeId && t.assigneeId !== me().id) {
-        hint.textContent = "Need Fixing sends it back to the designer.";
+      } else if (canOps() && t.studioStatus === "tlcheck") {
+        hint.textContent = "Waiting for TL Check. Send only after Done.";
       } else {
         hint.textContent = "";
       }
@@ -3686,8 +3721,12 @@ function openTask(id) {
         toast("Closed is after Senior Approval, when the client accepts");
         return;
       }
-      if (key === "done" && !($("stResult")?.value || t.resultUrl || "").trim()) {
-        toast("Paste the result link before Done");
+      if (key === "tlcheck" && !($("stResult")?.value || t.resultUrl || "").trim()) {
+        toast("Paste the result link before TL Check");
+        return;
+      }
+      if (key === "done" && t.studioStatus !== "tlcheck" && $("stStatus")?.value !== "tlcheck") {
+        toast("Done is after TL Check");
         return;
       }
       if (key !== t.studioStatus && !canSetStatus(key) && !(key === "closed" && canOps() && t.studioStatus === "approve")) {
@@ -3731,8 +3770,16 @@ function openTask(id) {
       toast("Closed is after Senior Approval, when the client accepts");
       return;
     }
+    if (studioStatus === "tlcheck" && !resultUrl) {
+      toast("Paste the result link before TL Check");
+      return;
+    }
     if (studioStatus === "done" && !resultUrl) {
       toast("Paste the result link before Done");
+      return;
+    }
+    if (studioStatus === "done" && t.studioStatus !== "tlcheck" && t.studioStatus !== "done") {
+      toast("Done is after TL Check");
       return;
     }
     const assigneeId = canAssign() && $("stPerson") ? $("stPerson").value : t.assigneeId;
@@ -3980,8 +4027,43 @@ function cardIsDirty() {
   if ($("stResult") && String($("stResult").value || "").trim() !== String(t.resultUrl || "").trim()) {
     return true;
   }
+  if (canEditHelp()) {
+    const now = JSON.stringify(readHelpFromCard($("stPerson")?.value || t.assigneeId));
+    const was = JSON.stringify(helpEntries(t));
+    if (now !== was) return true;
+  }
   return false;
 }
+
+let noticeAudio = null;
+function unlockNoticeSound() {
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return;
+  if (!noticeAudio) noticeAudio = new AC();
+  if (noticeAudio.state === "suspended") noticeAudio.resume().catch(() => {});
+}
+function playNoticeSound() {
+  try {
+    unlockNoticeSound();
+    if (!noticeAudio) return;
+    const t = noticeAudio.currentTime;
+    const osc = noticeAudio.createOscillator();
+    const gain = noticeAudio.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(880, t);
+    osc.frequency.exponentialRampToValueAtTime(1320, t + 0.08);
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(0.14, t + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.32);
+    osc.connect(gain);
+    gain.connect(noticeAudio.destination);
+    osc.start(t);
+    osc.stop(t + 0.34);
+  } catch {
+    /* autoplay blocked until a click */
+  }
+}
+document.addEventListener("pointerdown", unlockNoticeSound, { once: true });
 
 function applyRemoteState(db) {
   const openId = state.openId;
@@ -3989,7 +4071,10 @@ function applyRemoteState(db) {
   const dirty = cardIsDirty();
   const before = unreadCount();
   applyState(db);
-  if (unreadCount() > before) toast("New on the board");
+  if (unreadCount() > before) {
+    playNoticeSound();
+    toast("New on the board");
+  }
   if (!drawerOpen) return;
   const still = (db.tasks || []).some((t) => t.id === openId);
   if (!still) {

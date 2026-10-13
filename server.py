@@ -28,7 +28,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-13f"
+BUILD = "2026-10-13g"
 LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
 _REV_COND = threading.Condition()
@@ -137,9 +137,8 @@ def load_db() -> dict:
     buf = excel_io.XLSX_PATH
     if not _FILES_SYNCED and origin.exists():
         _FILES_SYNCED = True
-        if (not buf.exists()) or origin.stat().st_mtime >= buf.stat().st_mtime:
+        if not buf.exists():
             mirror_io.restore_buffer_xlsx()
-        mirror_io.sync_from_files(db)
         drive_sync.apply_meta(db)
         save_db(db, origin=True)
     if drive_io.attach_cached_packs(db):
@@ -255,11 +254,9 @@ def parse_tax(val):
 
 
 def sync_excel(db: dict, month: str | None = None, calculator: bool = False) -> dict:
-    """Write the month into SP_MGX_check.xlsx, read hours back, push the live Drive file."""
+    """Write the month out from the board. Do not read Excel back — that wiped hours split."""
     ym = month or db.get("meta", {}).get("month") or "2026-10"
     excel_io.write_month(db, ym)
-    parsed = excel_io.parse_workbook(excel_io.XLSX_PATH, ym)
-    excel_io.apply_to_db(db, parsed, ym)
     if calculator:
         try:
             fx = (db.get("meta") or {}).get("nbuRate")
@@ -283,6 +280,17 @@ def sync_excel(db: dict, month: str | None = None, calculator: bool = False) -> 
         meta["drivePushedAt"] = drive_sync.utc_now()
         meta["mirrorSource"] = "SP_MGX_check.xlsx · portal writes to Drive"
     return drive
+
+
+def _sync_files_bg(ym: str | None, calculator: bool = False) -> None:
+    """Excel/Drive after the board already saved. Must not hold the request or LOCK from HTTP."""
+    try:
+        with LOCK:
+            db = load_db()
+            sync_excel(db, ym, calculator=calculator)
+            save_db(db)
+    except Exception as e:
+        print(f"[excel] background: {e}", flush=True)
 
 
 def _month_task_sig(db: dict, ym: str) -> tuple:
@@ -589,16 +597,7 @@ def watch_live_excel() -> dict:
 
 
 def start_excel_watch() -> None:
-    def loop() -> None:
-        time.sleep(1)
-        while True:
-            try:
-                watch_live_excel()
-            except Exception as e:
-                print(f"[excel] watch loop: {e}", flush=True)
-            time.sleep(EXCEL_WATCH_SEC)
-
-    threading.Thread(target=loop, name="excel-watch", daemon=True).start()
+    print("[excel] watch off — board is the source of truth, not the xlsx", flush=True)
 
 
 def next_pay_order(db: dict) -> int:
@@ -647,10 +646,10 @@ def apply_person_job(db: dict, person: dict, job: str, *, check_last: bool = Tru
 
 OPS_ROLES = {"manager", "finance"}
 STATUS_BY_ROLE = {
-    "designer": {"wip", "done"},
-    "teamlead": {"new", "wip", "revision", "done"},
-    "manager": {"new", "wip", "revision", "done", "closed"},
-    "finance": {"new", "wip", "revision", "done", "closed"},
+    "designer": {"wip", "tlcheck"},
+    "teamlead": {"wip", "tlcheck", "done"},
+    "manager": {"revision", "closed"},
+    "finance": {"revision", "closed"},
     "client": set(),
 }
 
@@ -1414,18 +1413,19 @@ class Handler(SimpleHTTPRequestHandler):
             return
         data = self._bind_actor(data, sess)
         if path == "/api/excel/pull":
-            light = bool(data.get("light"))
-            stats = run_excel_ingest(
-                download=not light,
-                force=not light,
-                create_packs=not light,
-            )
             with LOCK:
                 db = load_db()
-            if stats.get("error") and not stats.get("parsed") and not stats.get("added"):
-                self._json(409, {**stats, "state": db, "error": stats.get("error")})
-                return
-            self._json(200, {**stats, "state": db})
+            self._json(
+                200,
+                {
+                    "ok": True,
+                    "skipped": True,
+                    "added": 0,
+                    "parsed": 0,
+                    "matched": 0,
+                    "state": db,
+                },
+            )
             return
         if path == "/api/drive/pull":
             if sess.get("role") != "finance":
@@ -1572,20 +1572,6 @@ class Handler(SimpleHTTPRequestHandler):
                 db.setdefault("events", []).insert(
                     0, {"at": utc_now(), "text": f"Created task {name}"}
                 )
-                try:
-                    excel = sync_excel(db, ym, calculator=True)
-                except FileNotFoundError as e:
-                    save_db(db)
-                    self._json(
-                        500,
-                        {
-                            "error": str(e),
-                            "task": task,
-                            "drive": {"ok": True, "created": True, **pack},
-                            "state": db,
-                        },
-                    )
-                    return
                 save_db(db)
                 self._json(
                     200,
@@ -1593,10 +1579,10 @@ class Handler(SimpleHTTPRequestHandler):
                         "ok": True,
                         "task": task,
                         "drive": {"ok": True, "created": True, **pack},
-                        "excel": excel,
                         "state": db,
                     },
                 )
+                threading.Thread(target=_sync_files_bg, args=(ym, True), daemon=True).start()
                 return
             if path in {"/api/tasks/delete", "/api/tasks/delete-many"}:
                 if data.get("role") not in OPS_ROLES:
@@ -1853,14 +1839,6 @@ class Handler(SimpleHTTPRequestHandler):
                 ):
                     self._json(403, {"error": "only TL or LP can assign"})
                     return
-                if (
-                    role == "teamlead"
-                    and nxt == "done"
-                    and nxt != task.get("studioStatus")
-                    and actor != str(task.get("assigneeId") or "")
-                ):
-                    self._json(403, {"error": "TL can Done only their own work"})
-                    return
                 if nxt == "approve" and nxt != task.get("studioStatus"):
                     self._json(403, {"error": "Senior Approval is set only when you Send to client"})
                     return
@@ -1884,8 +1862,18 @@ class Handler(SimpleHTTPRequestHandler):
                     return
                 status_after = data["studioStatus"] if "studioStatus" in data else task.get("studioStatus")
                 result_after = data["resultUrl"] if "resultUrl" in data else task.get("resultUrl")
+                if status_after == "tlcheck" and not str(result_after or "").strip():
+                    self._json(400, {"error": "paste the result link before TL Check"})
+                    return
                 if status_after == "done" and not str(result_after or "").strip():
                     self._json(400, {"error": "paste the result link before Done"})
+                    return
+                if (
+                    nxt == "done"
+                    and nxt != task.get("studioStatus")
+                    and task.get("studioStatus") != "tlcheck"
+                ):
+                    self._json(403, {"error": "Done is after TL Check"})
                     return
                 if "shifts" in data:
                     if role not in {"manager", "finance"}:
@@ -1997,22 +1985,29 @@ class Handler(SimpleHTTPRequestHandler):
                     task["mondayStatus"] = "Closed"
                 elif nxt == "revision":
                     task["mondayStatus"] = "Need Fixing"
+                elif nxt == "tlcheck":
+                    task["mondayStatus"] = "TL Check"
+                elif nxt == "wip":
+                    task["mondayStatus"] = "WIP"
+                elif nxt == "done":
+                    task["mondayStatus"] = "Done"
+                elif nxt == "new":
+                    task["mondayStatus"] = "Ready to Start"
                 note = data.get("note")
                 if note:
                     task.setdefault("activity", []).append({"at": utc_now(), "text": note})
                 notice_io.on_task_change(db, task, before, data.get("actorId") or "")
                 money = "assigneeId" in data or "shifts" in data or "help" in data
-                try:
-                    sync_excel(db, task.get("month"), calculator=money)
-                except FileNotFoundError as e:
-                    save_db(db)
-                    self._json(500, {"error": str(e), "state": db})
-                    return
                 save_db(db)
                 out_drive = drive or {"ok": True}
                 if drive_rename:
                     out_drive = {**out_drive, "rename": drive_rename}
                 self._json(200, {"task": task, "state": db, "drive": out_drive})
+                threading.Thread(
+                    target=_sync_files_bg,
+                    args=(task.get("month"), money),
+                    daemon=True,
+                ).start()
                 return
             if path == "/api/tasks/comment":
                 role = data.get("role") or ""

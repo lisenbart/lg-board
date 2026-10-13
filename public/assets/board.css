@@ -355,6 +355,7 @@ a { color: var(--blue); }
 .notice-fix { background: #fde8ee; color: #9b2245; }
 .notice-done { background: #e6f9ef; color: #037f4c; }
 .notice-send { background: #efe6fb; color: #6b21a8; }
+.notice-check, .notice-tlcheck { background: #fff3d6; color: #9a6700; }
 .notice-sent, .notice-appr { background: #e7f7ff; color: #0369a1; }
 .notice-closed { background: #037f4c; color: #fff; }
 .notice-none { background: #eef0f5; color: #676879; }
@@ -708,12 +709,14 @@ body.col-resizing * { cursor: col-resize !important; }
 .row.tone-new, .row.tone-new .frozen, .row.tone-new .meta { background: #fff8ee; }
 .row.tone-wip, .row.tone-wip .frozen, .row.tone-wip .meta { background: #f3f8ff; }
 .row.tone-revision, .row.tone-revision .frozen, .row.tone-revision .meta { background: #fdf3f6; }
+.row.tone-tlcheck, .row.tone-tlcheck .frozen, .row.tone-tlcheck .meta { background: #fff8e8; }
 .row.tone-done, .row.tone-done .frozen, .row.tone-done .meta { background: #f1fbf6; }
 .row.tone-approve, .row.tone-approve .frozen, .row.tone-approve .meta { background: #f2fbff; }
 .row.tone-closed, .row.tone-closed .frozen, .row.tone-closed .meta { background: #e3f8ec; }
 .row.tone-new:hover, .row.tone-new:hover .frozen, .row.tone-new:hover .meta { background: #ffefd6; }
 .row.tone-wip:hover, .row.tone-wip:hover .frozen, .row.tone-wip:hover .meta { background: #e7f1ff; }
 .row.tone-revision:hover, .row.tone-revision:hover .frozen, .row.tone-revision:hover .meta { background: #fae6eb; }
+.row.tone-tlcheck:hover, .row.tone-tlcheck:hover .frozen, .row.tone-tlcheck:hover .meta { background: #ffefc9; }
 .row.tone-done:hover, .row.tone-done:hover .frozen, .row.tone-done:hover .meta { background: #e3f7ec; }
 .row.tone-approve:hover, .row.tone-approve:hover .frozen, .row.tone-approve:hover .meta { background: #e3f6ff; }
 .row.tone-closed:hover, .row.tone-closed:hover .frozen, .row.tone-closed:hover .meta { background: #d4f3e0; }
@@ -798,6 +801,7 @@ body.col-resizing * { cursor: col-resize !important; }
 .drawer .meta .status-new,
 .drawer .meta .status-wip,
 .drawer .meta .status-revision,
+.drawer .meta .status-tlcheck,
 .drawer .meta .status-done,
 .drawer .meta .status-approve,
 .drawer .meta .status-closed { width: auto; flex: 1; min-width: 120px; }
@@ -1138,6 +1142,7 @@ body.col-resizing * { cursor: col-resize !important; }
 .status-btn.is-on.st-ready { background: #fff3d6; color: #9a6700; border-color: #e0b34a; }
 .status-btn.is-on.st-wip { background: #579bfc; color: #fff; border-color: #3d7fe0; }
 .status-btn.is-on.st-fix { background: #fde8ee; color: #9b2245; border-color: #e39aab; }
+.status-btn.is-on.st-tlcheck { background: #fff3d6; color: #9a6700; border-color: #e0b34a; }
 .status-btn.is-on.st-done { background: #e6f9ef; color: #037f4c; border-color: #7dcea0; }
 .status-btn.is-on.st-appr { background: #e7f7ff; color: #0369a1; border-color: #7ec8e8; }
 .status-btn.is-on.st-closed { background: #037f4c; color: #fff; border-color: #026a40; }
@@ -1315,6 +1320,7 @@ body.col-resizing * { cursor: col-resize !important; }
 .status-new,
 .status-wip,
 .status-revision,
+.status-tlcheck,
 .status-done,
 .status-approve,
 .status-closed {
@@ -1329,6 +1335,7 @@ body.col-resizing * { cursor: col-resize !important; }
 .status-new { background: #fdab3d; }
 .status-wip { background: #579bfc; }
 .status-revision { background: #bb3354; }
+.status-tlcheck { background: #fdab3d; }
 .status-done { background: #00c875; }
 .status-approve { background: #66ccff; }
 .status-closed { background: #037f4c; font-weight: 600; }
@@ -1373,6 +1380,7 @@ body.col-resizing * { cursor: col-resize !important; }
 .xl-table td.xl-st.st-ready { background: #fff3d6; color: #9a6700; }
 .xl-table td.xl-st.st-wip { background: #59BBFF; color: #083358; }
 .xl-table td.xl-st.st-fix { background: #fde8ee; color: #9b2245; }
+.xl-table td.xl-st.st-tlcheck { background: #fff3d6; color: #9a6700; }
 .xl-table td.xl-st.st-done { background: #e6f9ef; color: #037f4c; }
 .xl-table td.xl-st.st-appr { background: #e7f7ff; color: #0369a1; }
 .xl-table td.xl-st.st-closed { background: #92D050; color: #1d4a12; }
