@@ -7,6 +7,7 @@ import json
 import re
 import threading
 import tempfile
+import time
 from datetime import datetime, timezone
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -26,8 +27,10 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-12m"
+BUILD = "2026-10-12n"
 LOCK = threading.Lock()
+_REV_COND = threading.Condition()
+_MEM_REV = 0
 _FILES_SYNCED = False
 _BRIEFS_SYNCED = False
 
@@ -120,6 +123,7 @@ def bump_rev(db: dict) -> int:
     except (TypeError, ValueError):
         n = 0
     meta["rev"] = n + 1
+    publish_rev(int(meta["rev"]))
     return int(meta["rev"])
 
 
@@ -128,6 +132,24 @@ def read_rev(db: dict) -> int:
         return int((db.get("meta") or {}).get("rev") or 0)
     except (TypeError, ValueError):
         return 0
+
+
+def publish_rev(n: int) -> None:
+    global _MEM_REV
+    with _REV_COND:
+        _MEM_REV = int(n)
+        _REV_COND.notify_all()
+
+
+def wait_for_newer(seen: int, timeout: float) -> int:
+    deadline = time.monotonic() + max(0.0, float(timeout))
+    with _REV_COND:
+        while _MEM_REV == seen:
+            left = deadline - time.monotonic()
+            if left <= 0:
+                return _MEM_REV
+            _REV_COND.wait(timeout=left)
+        return _MEM_REV
 
 
 def save_db(db: dict, origin: bool = False) -> None:
@@ -655,9 +677,20 @@ class Handler(SimpleHTTPRequestHandler):
                 client_rev = int((qs.get("rev") or ["0"])[0] or 0)
             except (TypeError, ValueError):
                 client_rev = 0
+            try:
+                wait_s = int((qs.get("wait") or ["0"])[0] or 0)
+            except (TypeError, ValueError):
+                wait_s = 0
+            wait_s = min(25, max(0, wait_s))
             with LOCK:
                 db = load_db()
                 rev = read_rev(db)
+            publish_rev(rev)
+            if client_rev and client_rev == rev and wait_s:
+                wait_for_newer(client_rev, wait_s)
+                with LOCK:
+                    db = load_db()
+                    rev = read_rev(db)
             if client_rev and client_rev == rev:
                 self._json(200, {"unchanged": True, "rev": rev})
                 return

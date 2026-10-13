@@ -3954,9 +3954,8 @@ function applyState(db, opts = {}) {
   render();
 }
 
-const SYNC_MS = 8000;
-let syncTimer = null;
-let syncing = false;
+let liveSyncOn = false;
+let syncAbort = null;
 
 function unreadCount() {
   const N = window.LGNotices;
@@ -3999,38 +3998,80 @@ function applyRemoteState(db) {
 }
 
 function stopLiveSync() {
-  if (syncTimer) {
-    clearInterval(syncTimer);
-    syncTimer = null;
+  liveSyncOn = false;
+  if (syncAbort) {
+    syncAbort.abort();
+    syncAbort = null;
   }
 }
 
-async function tickLiveSync() {
-  if (syncing || document.hidden) return;
-  if (!isStudioHost() || window.__lgUseLocal) return;
-  if (!state.db || $("loginGate")?.hidden === false) return;
-  syncing = true;
-  try {
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function waitUntilVisible() {
+  if (!document.hidden) return Promise.resolve();
+  return new Promise((resolve) => {
+    const on = () => {
+      if (document.hidden) return;
+      document.removeEventListener("visibilitychange", on);
+      resolve();
+    };
+    document.addEventListener("visibilitychange", on);
+  });
+}
+
+async function liveSyncLoop() {
+  while (liveSyncOn) {
+    if (document.hidden) {
+      await waitUntilVisible();
+      continue;
+    }
+    if (!isStudioHost() || window.__lgUseLocal) {
+      stopLiveSync();
+      return;
+    }
+    if (!state.db || $("loginGate")?.hidden === false) {
+      await sleep(1000);
+      continue;
+    }
+    const ctrl = new AbortController();
+    syncAbort = ctrl;
     const rev = Number(state.db?.meta?.rev || 0) || 0;
-    const out = await api(`/api/sync?rev=${encodeURIComponent(rev)}`);
-    if (!out || out.error || out.unchanged || !out.state) return;
-    applyRemoteState(out.state);
-  } catch {
-    /* next tick */
-  } finally {
-    syncing = false;
+    try {
+      const res = await fetch(`/api/sync?rev=${encodeURIComponent(rev)}&wait=20`, {
+        credentials: "same-origin",
+        headers: { Accept: "application/json" },
+        signal: ctrl.signal,
+      });
+      const type = res.headers.get("content-type") || "";
+      const out = type.includes("json") ? await res.json() : {};
+      if (res.status === 401) {
+        writeSession(null);
+        showLogin();
+        return;
+      }
+      if (out.error) {
+        await sleep(2000);
+        continue;
+      }
+      if (!out.unchanged && out.state) applyRemoteState(out.state);
+    } catch (err) {
+      if (err && err.name === "AbortError") continue;
+      await sleep(2000);
+    }
   }
 }
 
 function startLiveSync() {
-  stopLiveSync();
+  if (liveSyncOn) return;
   if (!isStudioHost() || window.__lgUseLocal) return;
-  tickLiveSync();
-  syncTimer = setInterval(tickLiveSync, SYNC_MS);
+  liveSyncOn = true;
+  liveSyncLoop();
 }
 
 document.addEventListener("visibilitychange", () => {
-  if (!document.hidden) tickLiveSync();
+  if (document.hidden && syncAbort) syncAbort.abort();
 });
 
 function inboxOpen() {
