@@ -192,11 +192,7 @@ function ingestExcelOnce() {
     const n = Number(out.added || 0);
     const folders = Number(out.drive?.created || 0);
     if (!n) return;
-    toast(
-      folders
-        ? `Excel: ${n} new · ${folders} Drive folder${folders === 1 ? "" : "s"} + brief`
-        : `Excel: ${n} new on the board`
-    );
+    toast(excelIngestNote(out, n, folders));
   });
 }
 function openLoginGate() {
@@ -2021,6 +2017,18 @@ function renderExcelSheet() {
   });
 }
 
+function excelIngestNote(out, n, folders) {
+  const src = out.fromDrive ? "Drive Excel" : "Excel";
+  const sheet = out.sheet ? ` ${out.sheet}` : "";
+  if (n) {
+    let note = `${src}${sheet}: ${n} new`;
+    if (folders) note += ` · ${folders} Drive folder${folders === 1 ? "" : "s"} + brief`;
+    if (out.drive?.errors?.length) note += ` · ${out.drive.errors[0].error || out.drive.errors[0]}`;
+    return note;
+  }
+  const last = (out.lastNames || []).filter(Boolean).slice(-2).join(" · ");
+  return `${src}${sheet}: ${out.parsed || 0} rows, 0 new${last ? ` · last ${last}` : ""}`;
+}
 async function pullExcel() {
   const out = await api("/api/excel/pull", { month: state.month, role: me().role });
   if (out.error || !out.state) {
@@ -2030,11 +2038,7 @@ async function pullExcel() {
   applyState(out.state);
   const n = Number(out.added || 0);
   const folders = Number(out.drive?.created || 0);
-  const src = out.fromDrive ? "Drive Excel" : "Excel";
-  let note = `${src}: ${n} new`;
-  if (folders) note += ` · ${folders} Drive folder${folders === 1 ? "" : "s"} + brief`;
-  if (out.drive?.errors?.length) note += ` · ${out.drive.errors[0].error || out.drive.errors[0]}`;
-  toast(note);
+  toast(excelIngestNote(out, n, folders));
 }
 
 function ui(name) {

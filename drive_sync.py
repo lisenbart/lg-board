@@ -27,7 +27,7 @@ CLIENT_PATH = SECRETS / "google_client.json"
 OAUTH_PATH = SECRETS / "google_oauth.json"
 SA_PATH = SECRETS / "google_service.json"
 TOKEN_PATH = SECRETS / "google_drive_token.txt"
-BUILD = "2026-10-12y"
+BUILD = "2026-10-12z"
 OAUTH_STATE_PATH = SECRETS / "drive_oauth_state.json"
 SCOPE = "https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/documents"
 API = "https://www.googleapis.com/drive/v3"
@@ -362,6 +362,24 @@ def list_children(token: str, parent_id: str) -> list[dict]:
 
 
 def download_file(token: str, file_id: str) -> bytes:
+    """Binary for xlsx, or export if Drive converted the file to a Google Sheet."""
+    mime = ""
+    try:
+        meta = _api(
+            token,
+            f"files/{file_id}",
+            {"fields": "mimeType,name", "supportsAllDrives": "true"},
+        )
+        mime = str((meta or {}).get("mimeType") or "")
+    except DriveSyncError:
+        mime = ""
+    if mime == "application/vnd.google-apps.spreadsheet":
+        return _api(
+            token,
+            f"files/{file_id}/export",
+            {"mimeType": XLSX_MIME},
+            raw=True,
+        )
     return _api(
         token,
         f"files/{file_id}",

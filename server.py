@@ -28,7 +28,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-12y"
+BUILD = "2026-10-12z"
 LOCK = threading.Lock()
 _REV_COND = threading.Condition()
 _MEM_REV = 0
@@ -253,12 +253,21 @@ def ingest_live_excel(db: dict, ym: str | None = None, *, download: bool = True,
         packs = drive_io.ensure_live_packs(db, fresh, ym)
         for task in fresh:
             notice_io.on_landed(db, task, "")
+        try:
+            sync_excel(db, ym, calculator=True)
+        except FileNotFoundError as e:
+            print(f"[excel] place new rows: {e}", flush=True)
+    parsed = excel_io.parse_workbook(excel_io.XLSX_PATH, ym) if excel_io.XLSX_PATH.exists() else {}
+    rows = parsed.get("rows") or []
     return {
         "fromDrive": from_drive,
         "added": len(fresh),
         "updated": len(db.get("tasks") or []),
         "fresh": [str(t.get("name") or "") for t in fresh],
         "drive": packs,
+        "sheet": parsed.get("sheet") or "",
+        "parsed": len(rows),
+        "lastNames": [str(r.get("name") or "") for r in rows[-5:]],
     }
 
 

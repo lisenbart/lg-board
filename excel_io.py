@@ -32,6 +32,9 @@ CALIBRI_BOLD = Font(name="Calibri", size=11, bold=True)
 CENTER = Alignment(horizontal="center", vertical="center")
 
 LINE_FILL = {"DX": DX_FILL, "DD": DD_FILL, "DS": DS_FILL}
+LINE_MARKS = {"DX", "DD", "DS"}
+ROW_LABELS = {"mgx", "shifts", "hours", "deadline", "project name", "d.line", "empl"}
+PROJECT_NAME_RE = re.compile(r"^(DD|DX|DS)-.+$", re.I)
 
 
 def _cell_fill_hex(cell) -> str:
@@ -84,12 +87,45 @@ def sheet_name_for(ym: str) -> str:
     return f"{datetime(y, m, 1).strftime('%B')} {str(y)[2:]}"
 
 
+def _sheet_aliases(ym: str) -> set[str]:
+    y, m = [int(x) for x in ym.split("-")]
+    dt = datetime(y, m, 1)
+    yy = str(y)[2:]
+    return {
+        f"{dt.strftime('%B')} {yy}".lower(),
+        f"{dt.strftime('%B')} {y}".lower(),
+        f"{dt.strftime('%b')} {yy}".lower(),
+        f"{dt.strftime('%b')} {y}".lower(),
+    }
+
+
 def find_sheet(wb, ym: str):
-    want = sheet_name_for(ym).strip().lower()
+    want = _sheet_aliases(ym)
     for name in wb.sheetnames:
-        if name.strip().lower() == want:
+        if name.strip().lower() in want:
             return wb[name]
     return None
+
+
+def _looks_like_project(name: str) -> bool:
+    return bool(PROJECT_NAME_RE.match(str(name or "").strip()))
+
+
+def _cell_text(value) -> str:
+    if value in (None, ""):
+        return ""
+    return str(value).strip()
+
+
+def _project_name(col_a: str, col_b: str) -> str:
+    """PROJECT NAME is column B. A project typed only in A still counts."""
+    b = col_b.strip()
+    a = col_a.strip()
+    if b and b.lower() not in ROW_LABELS and b.upper() not in LINE_MARKS:
+        return b
+    if _looks_like_project(a):
+        return a
+    return ""
 
 
 def designers(db: dict) -> list[dict]:
@@ -290,14 +326,14 @@ def parse_workbook(path: Path, ym: str) -> dict:
     rows = []
     line = "DX"
     for r in range(2, ws.max_row + 1):
-        a = ws.cell(r, 1).value
-        b = ws.cell(r, 2).value
-        if a and str(a).strip().upper() in {"DX", "DD", "DS"}:
-            line = str(a).strip().upper()
+        a = _cell_text(ws.cell(r, 1).value)
+        b = _cell_text(ws.cell(r, 2).value)
+        if a.lower() == "total":
             continue
-        if a and str(a).strip().lower() == "total":
-            break
-        name = str(b or "").strip()
+        if a.upper() in LINE_MARKS and (not b or b.lower() in ROW_LABELS):
+            line = a.upper()
+            continue
+        name = _project_name(a, b)
         if not name:
             continue
         shifts_n = _as_shift(ws.cell(r, 3).value)
@@ -576,20 +612,23 @@ def _scan_sheet(ws) -> dict:
     line = "DX"
     last_used = 1
     for r in range(2, (ws.max_row or 1) + 1):
-        a = ws.cell(r, 1).value
-        b = ws.cell(r, 2).value
-        if a and str(a).strip().lower() == "total":
-            total_row = r
-            last_used = r
-            break
-        if a and str(a).strip().upper() in {"DX", "DD", "DS"}:
-            line = str(a).strip().upper()
+        a = _cell_text(ws.cell(r, 1).value)
+        b = _cell_text(ws.cell(r, 2).value)
+        if a.lower() == "total":
+            if total_row is None:
+                total_row = r
+            last_used = max(last_used, r)
+            continue
+        if a.upper() in LINE_MARKS and (not b or b.lower() in ROW_LABELS):
+            line = a.upper()
             headers[line] = r
             last_used = r
             continue
-        if b:
-            rows[_norm_name(b)] = {"row": r, "line": line, "name": str(b).strip()}
-            last_used = r
+        name = _project_name(a, b)
+        if not name:
+            continue
+        rows[_norm_name(name)] = {"row": r, "line": line, "name": name}
+        last_used = r
     return {"headers": headers, "rows": rows, "total_row": total_row, "last_used": last_used}
 
 
@@ -606,7 +645,7 @@ def _insert_in_section(ws, scan: dict, line: str) -> int:
         bound = (scan["last_used"] or 1) + 1
     last_data = start or 1
     for r in range((start or 1) + 1, bound):
-        if ws.cell(r, 2).value:
+        if _project_name(_cell_text(ws.cell(r, 1).value), _cell_text(ws.cell(r, 2).value)):
             last_data = r
     insert_at = last_data + 1
     ws.insert_rows(insert_at)
@@ -749,10 +788,16 @@ def write_month(db: dict, ym: str, path: Path | None = None) -> Path:
     tasks = [t for t in db.get("tasks") or [] if (t.get("month") or ym) == ym]
     for task in tasks:
         key = _norm_name(task.get("name"))
+        kid = _id_key(task.get("name") or "")
         found = scan["rows"].get(key)
-        if not found:
-            kid = _id_key(task.get("name") or "")
-            found = id_index.get(kid) if kid else None
+        if not found and kid:
+            found = id_index.get(kid)
+        if found and scan.get("total_row") and found["row"] > scan["total_row"]:
+            _delete_sheet_row(ws, scan, found["row"])
+            id_index = {
+                _id_key(item["name"]): item for item in scan["rows"].values() if _id_key(item["name"])
+            }
+            found = None
         if found:
             _write_task_row(ws, found["row"], task, columns)
             continue
