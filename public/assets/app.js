@@ -178,6 +178,26 @@ function enterStudio() {
   document.documentElement.classList.add("in-app");
   $("loginGate").hidden = true;
   startLiveSync();
+  ingestExcelOnce();
+}
+function ingestExcelOnce() {
+  if (window.__lgExcelIngest || isClient() || isHoursPage()) return;
+  window.__lgExcelIngest = true;
+  api("/api/excel/pull", { month: state.month, role: me().role }).then((out) => {
+    if (out.error) {
+      toast(out.error);
+      return;
+    }
+    if (out.state) applyState(out.state);
+    const n = Number(out.added || 0);
+    const folders = Number(out.drive?.created || 0);
+    if (!n) return;
+    toast(
+      folders
+        ? `Excel: ${n} new · ${folders} Drive folder${folders === 1 ? "" : "s"} + brief`
+        : `Excel: ${n} new on the board`
+    );
+  });
 }
 function openLoginGate() {
   document.documentElement.classList.remove("in-app");
@@ -936,7 +956,7 @@ function renderToolbar() {
     const drive = state.db?.meta?.driveLiveExcel || "";
     $("toolbar").innerHTML = `
       ${isFinance() ? `<button type="button" class="btn" id="btnDrivePull">Read Drive</button>` : ""}
-      ${isDesigner() ? "" : `<button class="btn" id="btnExcelPull">Refresh from file</button>`}
+      ${isDesigner() ? "" : `<button class="btn" id="btnExcelPull">Refresh from Excel</button>`}
       ${drive ? `<a class="btn" href="${escapeHtml(drive)}" target="_blank" rel="noreferrer">Open on Drive</a>` : ""}
       <input class="search" placeholder="Search project" />
     `;
@@ -1627,7 +1647,7 @@ function fillDrivePackIfMissing(t) {
     const hadDoc = hasDriveDoc(t);
     if (out.state) applyState(out.state);
     if (out.ok && state.openId === t.id) openTask(t.id);
-    else if (out.error && t.source === "portal") toast(out.error);
+    else if (out.error) toast(out.error);
     if (out.ok && out.docUrl && !hadDoc) toast("Linked the brief Doc from Drive");
   });
 }
@@ -2002,13 +2022,19 @@ function renderExcelSheet() {
 }
 
 async function pullExcel() {
-  const out = await api("/api/excel/pull", { month: state.month });
+  const out = await api("/api/excel/pull", { month: state.month, role: me().role });
   if (out.error || !out.state) {
     toast(out.error || "Could not read SP_MGX_check");
     return;
   }
   applyState(out.state);
-  toast(`Excel: ${out.updated || 0} rows updated, ${out.added || 0} new`);
+  const n = Number(out.added || 0);
+  const folders = Number(out.drive?.created || 0);
+  const src = out.fromDrive ? "Drive Excel" : "Excel";
+  let note = `${src}: ${n} new`;
+  if (folders) note += ` · ${folders} Drive folder${folders === 1 ? "" : "s"} + brief`;
+  if (out.drive?.errors?.length) note += ` · ${out.drive.errors[0].error || out.drive.errors[0]}`;
+  toast(note);
 }
 
 function ui(name) {
@@ -2454,7 +2480,7 @@ function bindSplitter(group) {
 function ensureExcelHours() {
   if (state.excelMonth === state.month) return;
   state.excelMonth = state.month;
-  api("/api/excel/pull", { month: state.month }).then((out) => {
+  api("/api/excel/pull", { month: state.month, role: me().role }).then((out) => {
     if (out.error) {
       toast(out.error);
       return;
@@ -2542,7 +2568,14 @@ async function pullDrive() {
   if (out.state) applyState(out.state);
   const names = (out.downloaded || []).join(", ") || "Drive files";
   const briefs = Number(out.briefs || 0);
-  toast(briefs ? `Drive files · ${names} · ${briefs} brief${briefs === 1 ? "" : "s"} from October folders` : `Drive files · ${names}`);
+  const added = Number(out.added || 0);
+  const folders = Number(out.packs?.created || 0);
+  let note = briefs
+    ? `Drive files · ${names} · ${briefs} brief${briefs === 1 ? "" : "s"} from October folders`
+    : `Drive files · ${names}`;
+  if (added) note += ` · ${added} new`;
+  if (folders) note += ` · ${folders} folder${folders === 1 ? "" : "s"} + brief`;
+  toast(note);
   render();
 }
 

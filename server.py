@@ -28,7 +28,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-12x"
+BUILD = "2026-10-12y"
 LOCK = threading.Lock()
 _REV_COND = threading.Condition()
 _MEM_REV = 0
@@ -235,6 +235,31 @@ def sync_excel(db: dict, month: str | None = None, calculator: bool = False) -> 
         meta["drivePushedAt"] = drive_sync.utc_now()
         meta["mirrorSource"] = "SP_MGX_check.xlsx · portal writes to Drive"
     return drive
+
+
+def ingest_live_excel(db: dict, ym: str | None = None, *, download: bool = True, create_packs: bool = True) -> dict:
+    """File → portal: live SP_MGX_check.xlsx onto the board, plus Drive folder + brief for new rows."""
+    ym = str(ym or db.get("meta", {}).get("month") or "2026-10")
+    from_drive = False
+    if download and drive_sync.connected():
+        drive_sync.download_workbooks()
+        from_drive = True
+    before = {str(t.get("name") or "").strip() for t in db.get("tasks") or []}
+    mirror_io.sync_from_files(db)
+    drive_sync.apply_meta(db)
+    fresh = [t for t in (db.get("tasks") or []) if str(t.get("name") or "").strip() not in before]
+    packs = {"ok": True, "created": 0, "errors": []}
+    if create_packs and fresh:
+        packs = drive_io.ensure_live_packs(db, fresh, ym)
+        for task in fresh:
+            notice_io.on_landed(db, task, "")
+    return {
+        "fromDrive": from_drive,
+        "added": len(fresh),
+        "updated": len(db.get("tasks") or []),
+        "fresh": [str(t.get("name") or "") for t in fresh],
+        "drive": packs,
+    }
 
 
 def next_pay_order(db: dict) -> int:
@@ -1029,13 +1054,35 @@ class Handler(SimpleHTTPRequestHandler):
                 if sess.get("role") != "finance":
                     self._json(403, {"error": "only DL can read Drive"})
                     return
+                before = {str(t.get("name") or "").strip() for t in db.get("tasks") or []}
                 try:
                     out = drive_sync.pull(db, hydrate=True)
                 except drive_sync.DriveSyncError as e:
                     self._json(409, {"error": str(e), "connected": drive_sync.connected(), "hasClient": drive_sync.has_client()})
                     return
+                fresh = [t for t in (db.get("tasks") or []) if str(t.get("name") or "").strip() not in before]
+                packs = {"ok": True, "created": 0, "errors": []}
+                if fresh:
+                    try:
+                        packs = drive_io.ensure_live_packs(
+                            db, fresh, data.get("month") or db.get("meta", {}).get("month")
+                        )
+                    except drive_io.DriveError as e:
+                        packs = {"ok": False, "created": 0, "errors": [str(e)]}
+                    for task in fresh:
+                        notice_io.on_landed(db, task, str(sess.get("seatId") or ""))
                 save_db(db, origin=bool(out.get("applied")))
-                self._json(200, {**out, "state": db, "drive": drive_sync.status()})
+                self._json(
+                    200,
+                    {
+                        **out,
+                        "added": len(fresh),
+                        "fresh": [str(t.get("name") or "") for t in fresh],
+                        "packs": packs,
+                        "state": db,
+                        "drive": drive_sync.status(),
+                    },
+                )
                 return
             if path == "/api/tasks/create":
                 if data.get("role") not in OPS_ROLES:
@@ -1600,15 +1647,26 @@ class Handler(SimpleHTTPRequestHandler):
                 return
             if path == "/api/excel/pull":
                 month = data.get("month") or db.get("meta", {}).get("month") or "2026-10"
-                before = len(db.get("tasks") or [])
-                mirror_io.sync_from_files(db)
-                drive_sync.apply_meta(db)
-                added = max(0, len(db.get("tasks") or []) - before)
+                try:
+                    stats = ingest_live_excel(
+                        db,
+                        month,
+                        download=True,
+                        create_packs=sess.get("role") in OPS_ROLES,
+                    )
+                except drive_sync.DriveSyncError as e:
+                    self._json(409, {"error": str(e), "state": db})
+                    return
+                src = "Drive" if stats.get("fromDrive") else "file"
                 db.setdefault("events", []).insert(
-                    0, {"at": utc_now(), "text": f"Excel pull {month} from file"}
+                    0,
+                    {
+                        "at": utc_now(),
+                        "text": f"Excel pull {month} from {src}: {stats.get('added') or 0} new",
+                    },
                 )
                 save_db(db, origin=True)
-                self._json(200, {"updated": len(db.get("tasks") or []), "added": added, "state": db})
+                self._json(200, {**stats, "state": db})
                 return
             if path == "/api/excel/import":
                 month = data.get("month") or db.get("meta", {}).get("month") or "2026-10"
