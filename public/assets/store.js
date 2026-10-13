@@ -281,6 +281,9 @@
     let db = await ensureDb();
 
     if (path === "/api/state") return clone(db);
+    if (String(path || "").startsWith("/api/sync")) {
+      return { unchanged: true, rev: (db.meta && db.meta.rev) || 1 };
+    }
 
     if (path === "/api/reset") {
       const kept = commentsByKey(db);

@@ -200,10 +200,12 @@ function applySession(session) {
 function enterStudio() {
   document.documentElement.classList.add("in-app");
   $("loginGate").hidden = true;
+  startLiveSync();
 }
 function openLoginGate() {
   document.documentElement.classList.remove("in-app");
   $("loginGate").hidden = false;
+  stopLiveSync();
 }
 function showHome() {
   state.loginDoor = null;
@@ -3951,6 +3953,85 @@ function applyState(db, opts = {}) {
   if (opts.render === false) return;
   render();
 }
+
+const SYNC_MS = 8000;
+let syncTimer = null;
+let syncing = false;
+
+function unreadCount() {
+  const N = window.LGNotices;
+  if (!N || !state.db) return 0;
+  return N.forPerson(state.db, me().id, true).length;
+}
+
+function cardIsDirty() {
+  if (!$("drawerBg")?.classList.contains("show") || !state.openId) return false;
+  const t = state.db?.tasks?.find((x) => x.id === state.openId);
+  if (!t) return false;
+  const active = document.activeElement;
+  if (active && $("drawer")?.contains(active) && /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName)) {
+    return true;
+  }
+  if ($("stBrief") && $("stBrief").value !== (t.brief || "")) return true;
+  if ($("stName") && String($("stName").value || "").replace(/\s+/g, " ").trim() !== t.name) return true;
+  if ($("stComment") && String($("stComment").value || "").trim()) return true;
+  if ($("stResult") && String($("stResult").value || "").trim() !== String(t.resultUrl || "").trim()) {
+    return true;
+  }
+  return false;
+}
+
+function applyRemoteState(db) {
+  const openId = state.openId;
+  const drawerOpen = Boolean($("drawerBg")?.classList.contains("show") && openId);
+  const dirty = cardIsDirty();
+  const before = unreadCount();
+  applyState(db);
+  if (unreadCount() > before) toast("New on the board");
+  if (!drawerOpen) return;
+  const still = (db.tasks || []).some((t) => t.id === openId);
+  if (!still) {
+    closeDrawer();
+    toast("This project was removed");
+    return;
+  }
+  if (!dirty) openTask(openId);
+}
+
+function stopLiveSync() {
+  if (syncTimer) {
+    clearInterval(syncTimer);
+    syncTimer = null;
+  }
+}
+
+async function tickLiveSync() {
+  if (syncing || document.hidden) return;
+  if (!isStudioHost() || window.__lgUseLocal) return;
+  if (!state.db || $("loginGate")?.hidden === false) return;
+  syncing = true;
+  try {
+    const rev = Number(state.db?.meta?.rev || 0) || 0;
+    const out = await api(`/api/sync?rev=${encodeURIComponent(rev)}`);
+    if (!out || out.error || out.unchanged || !out.state) return;
+    applyRemoteState(out.state);
+  } catch {
+    /* next tick */
+  } finally {
+    syncing = false;
+  }
+}
+
+function startLiveSync() {
+  stopLiveSync();
+  if (!isStudioHost() || window.__lgUseLocal) return;
+  tickLiveSync();
+  syncTimer = setInterval(tickLiveSync, SYNC_MS);
+}
+
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) tickLiveSync();
+});
 
 function inboxOpen() {
   return $("inboxPanel") && !$("inboxPanel").hidden;

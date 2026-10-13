@@ -26,7 +26,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-12l"
+BUILD = "2026-10-12m"
 LOCK = threading.Lock()
 _FILES_SYNCED = False
 _BRIEFS_SYNCED = False
@@ -88,6 +88,8 @@ def load_db() -> dict:
         return db
     db = json.loads(DB_PATH.read_text(encoding="utf-8"))
     dirty = notice_io.ensure(db)
+    if read_rev(db) < 1:
+        dirty = True
     if drop_sandbox_demo_tasks(db):
         dirty = True
     if any(k in (db.get("meta") or {}) for k in drive_sync.SANDBOX_META_KEYS):
@@ -111,12 +113,30 @@ def load_db() -> dict:
     return db
 
 
+def bump_rev(db: dict) -> int:
+    meta = db.setdefault("meta", {})
+    try:
+        n = int(meta.get("rev") or 0)
+    except (TypeError, ValueError):
+        n = 0
+    meta["rev"] = n + 1
+    return int(meta["rev"])
+
+
+def read_rev(db: dict) -> int:
+    try:
+        return int((db.get("meta") or {}).get("rev") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
 def save_db(db: dict, origin: bool = False) -> None:
     meta = db.setdefault("meta", {})
     if origin:
         meta["bufferDirty"] = False
     elif meta.get("mode") == "mirror":
         meta["bufferDirty"] = True
+    bump_rev(db)
     DB_PATH.write_text(json.dumps(db, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
@@ -624,6 +644,31 @@ class Handler(SimpleHTTPRequestHandler):
             with LOCK:
                 db = load_db()
             self._json(200, auth_io.view_state(db, sess))
+            return
+        if path == "/api/sync":
+            sess = self._session()
+            if not sess:
+                self._json(401, {"error": "sign in"})
+                return
+            qs = parse_qs(urlparse(self.path).query)
+            try:
+                client_rev = int((qs.get("rev") or ["0"])[0] or 0)
+            except (TypeError, ValueError):
+                client_rev = 0
+            with LOCK:
+                db = load_db()
+                rev = read_rev(db)
+            if client_rev and client_rev == rev:
+                self._json(200, {"unchanged": True, "rev": rev})
+                return
+            self._json(
+                200,
+                {
+                    "unchanged": False,
+                    "rev": rev,
+                    "state": auth_io.view_state(db, sess),
+                },
+            )
             return
         sess = self._session()
         studio = bool(sess) and sess.get("role") != "client" and sess.get("email") != auth_io.CLIENT_EMAIL
