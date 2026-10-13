@@ -31,7 +31,7 @@ The board is the source of truth. Excel is written from the portal in the backgr
 
 ## Studio site (public door)
 
-See `site/README.md`. Public face is **https://lisenbart.games** on Netlify: Studio door (`/?door=studio`) and Client door (`/hours`). The board stays on this VPS. Do not serve the homepage from nginx on the desk machine. `ssh board-status` should show `"build": "2026-10-13f"` after update.
+See `site/README.md`. Public face is **https://lisenbart.games** on Netlify: Studio door (`/?door=studio`) and Client door (`/hours`). The board stays on this VPS. Do not serve the homepage from nginx on the desk machine. `ssh board-status` should show `"build": "2026-10-13g"` after update.
 
 ## Invoices
 
