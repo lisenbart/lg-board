@@ -27,3 +27,11 @@ Do **not** use a password. Do **not** paste `lg-board-deploy` or any other key. 
 ## Studio site (public door)
 
 See `site/README.md`. Public face is **https://lisenbart.games** on Netlify. The board stays on this VPS. Do not serve the homepage from nginx on the desk machine.
+
+## Invoices
+
+**Create DD / DX** writes Word + PDF into Drive:
+
+`LLC/docs/_clients/SUPERPLAY/invoice/MGX / 10_October`
+
+PDF needs LibreOffice on the VPS (`sudo apt-get install -y libreoffice-writer-nogui`). Do not use the old ZIP download — that was the sandbox.

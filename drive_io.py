@@ -76,6 +76,10 @@ def folder_url(fid: str) -> str:
     return f"https://drive.google.com/drive/folders/{fid}"
 
 
+def file_url(fid: str) -> str:
+    return f"https://drive.google.com/file/d/{fid}/view"
+
+
 def doc_url(fid: str) -> str:
     return f"https://docs.google.com/document/d/{fid}/edit"
 
@@ -256,6 +260,111 @@ def _ensure_folder(token: str, parent_id: str, title: str) -> tuple[str, bool]:
 def _mkdir(token: str, parent_id: str, title: str) -> str:
     fid, _ = _ensure_folder(token, parent_id, title)
     return fid
+
+
+_DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+_PDF_MIME = "application/pdf"
+
+
+def _http_upload(method: str, path: str, headers: dict, body: bytes) -> tuple[int, str]:
+    conn = http.client.HTTPSConnection(DRIVE_HOST, timeout=90)
+    try:
+        conn.request(method, path, body=body, headers=headers)
+        res = conn.getresponse()
+        raw = res.read().decode("utf-8", errors="replace")
+        return res.status, raw
+    except (http.client.HTTPException, OSError, TimeoutError) as e:
+        raise DriveError(f"Drive upload failed: {e}") from e
+    finally:
+        try:
+            conn.close()
+        except OSError:
+            pass
+
+
+def _upload_file(token: str, parent_id: str, name: str, blob: bytes, mime: str) -> dict:
+    if not blob:
+        raise DriveError(f"{name} is empty")
+    found = _find_child(token, parent_id, name)
+    if found:
+        loc = (
+            f"/upload/drive/v3/files/{found['id']}"
+            f"?uploadType=media&supportsAllDrives=true&fields=id,name,webViewLink"
+        )
+        headers = _headers(token, {"Content-Type": mime, "Content-Length": str(len(blob))})
+        status, raw = _http_upload("PATCH", loc, headers, blob)
+        if status >= 400:
+            raise DriveError(f"Drive API {status}: {raw[:300]}")
+        out = json.loads(raw) if raw else {}
+        fid = str(out.get("id") or found["id"])
+        return {
+            "id": fid,
+            "name": name,
+            "updated": True,
+            "url": out.get("webViewLink") or file_url(fid),
+        }
+    boundary = f"lgboard{os.urandom(8).hex()}"
+    meta = json.dumps({"name": name, "parents": [parent_id]})
+    body = (
+        f"--{boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n{meta}\r\n"
+        f"--{boundary}\r\nContent-Type: {mime}\r\n\r\n"
+    ).encode("utf-8") + blob + f"\r\n--{boundary}--\r\n".encode("utf-8")
+    loc = "/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id,name,webViewLink"
+    headers = _headers(
+        token,
+        {
+            "Content-Type": f"multipart/related; boundary={boundary}",
+            "Content-Length": str(len(body)),
+        },
+    )
+    status, raw = _http_upload("POST", loc, headers, body)
+    if status >= 400:
+        raise DriveError(f"Drive API {status}: {raw[:300]}")
+    out = json.loads(raw) if raw else {}
+    fid = str(out.get("id") or "")
+    if not fid:
+        raise DriveError(f"Drive did not return an id for {name}")
+    return {
+        "id": fid,
+        "name": name,
+        "updated": False,
+        "url": out.get("webViewLink") or file_url(fid),
+    }
+
+
+def ensure_invoice_month_folder(ym: str) -> dict:
+    """LLC/docs/_clients/SUPERPLAY/invoice/MGX / 10_October."""
+    token = drive_token()
+    if not token:
+        raise DriveError("Drive is not connected on this server")
+    import drive_sync
+
+    parent = str((drive_sync.roots() or {}).get("mgxInvoices") or "")
+    if not parent:
+        raise DriveError("MGX invoice folder is not configured")
+    title = month_folder_name(ym)
+    folder_id, created = _ensure_folder(token, parent, title)
+    return {
+        "ok": True,
+        "folderId": folder_id,
+        "folderUrl": folder_url(folder_id),
+        "folder": title,
+        "created": created,
+        "path": f"LLC/docs/_clients/SUPERPLAY/invoice/MGX/{title}",
+    }
+
+
+def publish_invoices(ym: str, files: list[tuple[str, bytes]]) -> dict:
+    """Write Word + PDF into the live Superplay MGX invoice month folder."""
+    pack = ensure_invoice_month_folder(ym)
+    token = drive_token()
+    uploaded = []
+    for name, blob in files:
+        if not name or not blob:
+            continue
+        mime = _PDF_MIME if str(name).lower().endswith(".pdf") else _DOCX_MIME
+        uploaded.append(_upload_file(token, pack["folderId"], name, blob, mime))
+    return {**pack, "uploaded": uploaded, "count": len(uploaded)}
 
 
 def _create_doc(token: str, parent_id: str, title: str, brief: str = "", *, skip_find: bool = False) -> str:

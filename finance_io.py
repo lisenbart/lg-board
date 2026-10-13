@@ -612,7 +612,9 @@ def docx_to_pdf(docx_bytes: bytes, pdf_path: Path) -> bytes:
         data = _soffice_pdf(src, pdf_path, tmp_p)
         if data:
             return data
-    return b""
+    raise FileNotFoundError(
+        "PDF needs LibreOffice on the studio server: sudo apt-get install -y libreoffice-writer-nogui"
+    )
 
 
 def issue_invoice(
@@ -630,17 +632,21 @@ def issue_invoice(
     dests = invoice_destinations(month)
     written: list[Path] = []
     pdf_bytes = b""
+    pdf_error = ""
     for dest in dests:
         dest.mkdir(parents=True, exist_ok=True)
         docx_path = dest / docx_name
         docx_path.write_bytes(docx_bytes)
         written.append(docx_path)
         pdf_path = dest / pdf_name
-        if not pdf_bytes:
-            pdf_bytes = docx_to_pdf(docx_bytes, pdf_path)
+        if not pdf_bytes and not pdf_error:
+            try:
+                pdf_bytes = docx_to_pdf(docx_bytes, pdf_path)
+            except FileNotFoundError as e:
+                pdf_error = str(e)
         elif pdf_bytes:
             pdf_path.write_bytes(pdf_bytes)
-        if pdf_path.exists():
+        if pdf_path.exists() and pdf_path.stat().st_size > 200:
             written.append(pdf_path)
     primary = dests[0] if dests[0].exists() else dests[-1]
     files = [
@@ -669,6 +675,7 @@ def issue_invoice(
         "folderPath": str(primary),
         "docxName": docx_name,
         "pdfName": pdf_name if pdf_bytes else "",
+        "pdfError": pdf_error,
         "files": files,
         "paths": [str(p) for p in written],
         "written": [str(p) for p in written],

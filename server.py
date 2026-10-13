@@ -27,7 +27,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-12r"
+BUILD = "2026-10-12s"
 LOCK = threading.Lock()
 _REV_COND = threading.Condition()
 _MEM_REV = 0
@@ -1708,23 +1708,55 @@ class Handler(SimpleHTTPRequestHandler):
                 ]
                 names = []
                 files = []
+                blobs: list[tuple[str, bytes]] = []
+                pdf_error = ""
                 for item in packs:
                     names.append(item["docxName"])
                     if item.get("pdfName"):
                         names.append(item["pdfName"])
                     files.extend(item.get("files") or [])
+                    pdf_error = pdf_error or item.get("pdfError") or ""
+                    dest = Path(item.get("folderPath") or "")
+                    for name in (item.get("docxName"), item.get("pdfName")):
+                        if not name or not dest:
+                            continue
+                        fpath = dest / name
+                        if fpath.exists() and fpath.stat().st_size > 200:
+                            blobs.append((name, fpath.read_bytes()))
                 first = packs[0]
                 folder_path = first.get("folderPath") or ""
+                drive = {}
+                try:
+                    drive = drive_io.publish_invoices(month, blobs)
+                except drive_io.DriveError as e:
+                    print(f"[drive] invoice upload failed: {e}", flush=True)
+                    self._json(
+                        409,
+                        {
+                            "ok": False,
+                            "error": str(e),
+                            "folder": first["folder"],
+                            "folderPath": folder_path,
+                            "files": files,
+                            "pdfReady": all(bool(p.get("pdfReady")) for p in packs),
+                            "pdfError": pdf_error,
+                        },
+                    )
+                    return
                 self._json(
                     200,
                     {
                         "ok": True,
                         "folder": first["folder"],
                         "folderPath": folder_path,
+                        "folderUrl": drive.get("folderUrl") or "",
+                        "drive": drive,
                         "files": files,
                         "docxName": first["docxName"],
                         "pdfName": first.get("pdfName") or "",
-                        "message": f"Wrote {folder_path}",
+                        "pdfReady": all(bool(p.get("pdfReady")) for p in packs),
+                        "pdfError": pdf_error,
+                        "message": f"Wrote {drive.get('count') or 0} files to {drive.get('path') or folder_path}",
                     },
                 )
                 return
@@ -1733,7 +1765,21 @@ class Handler(SimpleHTTPRequestHandler):
                     self._json(403, {"error": "only finance can open the invoice folder"})
                     return
                 month = data.get("month") or db.get("meta", {}).get("month") or "2026-10"
-                self._json(200, finance_io.reveal_invoice_dir(month))
+                try:
+                    drive = drive_io.ensure_invoice_month_folder(month)
+                except drive_io.DriveError as e:
+                    self._json(409, {"ok": False, "error": str(e)})
+                    return
+                self._json(
+                    200,
+                    {
+                        "ok": True,
+                        "opened": False,
+                        "folderUrl": drive.get("folderUrl") or "",
+                        "folder": drive.get("folder") or "",
+                        "folderPath": drive.get("path") or "",
+                    },
+                )
                 return
             if path == "/api/finance/save":
                 if (data.get("role") or "") != "finance":

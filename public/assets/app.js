@@ -2734,7 +2734,7 @@ function renderClient(fin) {
         <button type="button" class="btn" id="btnOpenFolder">Open folder</button>
         <button type="button" class="btn primary" id="btnCreateInvoices" ${canCreate ? "" : "disabled"}>Create DD / DX</button>
       </div>
-      <p class="fin-view-only">Word + PDF go to the studio invoice folder. Live Drive October is not written.</p>
+      <p class="fin-view-only">Create writes Word + PDF into Superplay / invoice / MGX on Drive, for this month.</p>
     </div>
     <section class="group fin-card">
       <div class="fin-scroll">
@@ -2963,79 +2963,54 @@ function monthFolderName(ym) {
   return `${String(m).padStart(2, "0")}_${name}`;
 }
 
-function downloadInvoiceZip() {
-  const a = document.createElement("a");
-  a.href = `/api/finance/invoice/zip?month=${encodeURIComponent(state.month)}`;
-  a.download = `${monthFolderName(state.month)}.zip`;
-  a.click();
+function openDriveFolder(url) {
+  const href = String(url || "").trim();
+  if (!href) return false;
+  window.open(href, "_blank", "noopener,noreferrer");
+  return true;
 }
 
 async function openInvoiceFolder() {
   if (isClientPreview()) {
-    toast("Open folder needs the studio app. This GitHub link is a mirror and has no invoice disk.");
+    toast("Invoice folder is on the studio Drive, not on this GitHub mirror.");
     return;
   }
-  const res = await fetch("/api/finance/invoice/reveal", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ month: state.month, role: me().role }),
-  });
-  let out = {};
-  try {
-    out = await res.json();
-  } catch {
-    toast("Could not open the folder");
+  const out = await api("/api/finance/invoice/reveal", { month: state.month, role: me().role });
+  if (out.error || !out.folderUrl) {
+    toast(out.error || "Could not open the Drive invoice folder");
     return;
   }
-  if (out.opened && out.folderPath && !String(out.folderPath).startsWith("/workspace")) {
-    toast(`Opened ${out.folderPath}`);
-    return;
-  }
-  downloadInvoiceZip();
-  toast(`Downloaded ${monthFolderName(state.month)}.zip`);
+  openDriveFolder(out.folderUrl);
+  toast(`Opened ${out.folderPath || "the MGX invoice folder"}`);
 }
 
 async function createMonthInvoices() {
   if (isClientPreview()) {
-    toast("Create DD / DX needs the studio app (python3 server.py). This GitHub link is a mirror and does not write Word files.");
+    toast("Create DD / DX writes Word + PDF on Drive from the studio server.");
     return;
   }
   const btn = $("btnCreateInvoices");
-  if (btn) btn.disabled = true;
+  if (btn?.classList.contains("is-busy")) return;
+  setBusy(btn, true, "Writing Word + PDF to Drive…");
   let out = {};
   try {
-    const res = await fetch("/api/finance/invoice", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ line: "BOTH", month: state.month, role: me().role, nbuRate: nbuRate() }),
+    out = await api("/api/finance/invoice", {
+      line: "BOTH",
+      month: state.month,
+      role: me().role,
+      nbuRate: nbuRate(),
     });
-    try {
-      out = await res.json();
-    } catch {
-      toast("Could not build the invoices");
-      return;
-    }
-    if (!res.ok || out.error) {
-      toast(out.error || "Could not build the invoices");
-      return;
-    }
-    const opened = await fetch("/api/finance/invoice/reveal", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ month: state.month, role: me().role }),
-    })
-      .then((r) => r.json())
-      .catch(() => ({}));
-    const path = out.folderPath || opened.folderPath || "/workspace/data/invoices/10_October";
-    if (opened.opened && path && !String(path).startsWith("/workspace")) {
-      toast(`Wrote and opened ${path}`);
-      return;
-    }
-    downloadInvoiceZip();
-    toast(`Wrote ${path}`);
   } finally {
-    if (btn) btn.disabled = false;
+    setBusy(btn, false);
   }
+  if (out.error || !out.ok) {
+    toast(out.error || "Could not create the invoices");
+    return;
+  }
+  const n = (out.drive?.uploaded || out.files || []).length;
+  const pdfNote = out.pdfReady ? "" : ` · ${out.pdfError || "PDF skipped"}`;
+  if (out.folderUrl) openDriveFolder(out.folderUrl);
+  toast(`Created ${n} files in Drive${pdfNote}`);
 }
 
 async function saveNbuRate(opts = {}) {

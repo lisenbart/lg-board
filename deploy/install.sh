@@ -6,6 +6,7 @@ cd "$ROOT"
 python3 -m venv .venv
 .venv/bin/pip install --upgrade pip
 .venv/bin/pip install -r requirements.txt
+sudo DEBIAN_FRONTEND=noninteractive apt-get install -y libreoffice-writer-nogui
 sudo cp deploy/lg-board.service /etc/systemd/system/lg-board.service
 sudo systemctl daemon-reload
 sudo systemctl enable --now lg-board

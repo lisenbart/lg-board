@@ -38,7 +38,7 @@ Share **https://lisenbart.github.io/lg-board/** — not the Cursor Preview URL.
 
 The pack reads `SP_MGX_check.xlsx` and LLC/docs from Google Drive. **Open folder** goes to the real October project. Live Drive is not written.
 
-First names and LP / TL / MD badges are on. **Finance** is behind a PIN (Dmytro only). Client / Studio / Employeers and **Create DD / DX** are visible there. Word + PDF still write on the studio app (`python3 server.py`), not into live Drive. On the GitHub link the button is visible; the file is created when the Python app is running.
+First names and LP / TL / MD badges are on. **Finance** is behind a PIN (Dmytro only). Client / Studio / Employeers and **Create DD / DX** are visible there. Word + PDF write into the live Superplay MGX invoice folder on Drive when the studio server is running. On the GitHub link the button is visible; the file is created on the VPS.
 
 Do **not** put this on glowl.direct. Live desk: **https://board.lisenbart.games**. GitHub Pages stays a per-browser demo.
 
@@ -52,7 +52,7 @@ Do **not** put this on glowl.direct. Live desk: **https://board.lisenbart.games*
 - **Board scan** — the whole row is tinted by studio status (Ready / WIP / Fix / Done / Appr. / Closed). A matching chip sits on the name. **Send to client** is the LP button on Done rows, not a status chip. **Closed** is the last state: client accepted, hours stay, no more work. The bell still lists unread notices; opening a card marks those read. New kinds go in `notice_io.py` + `public/assets/notices.js`.
 - **Send to client** copies `check it please` + the result link for External Weekly. Status becomes Senior Approval. LP marks **Closed** after the client accepts — not from Done, and not instead of Send. Superplay is not on this board, so Send stays until Monday API is connected.
 - **Finance** (Dmytro only) — two inner tabs, same idea as the Excel tab mirroring `SP_MGX_check.xlsx`:
-  - **Client** — totals by direction (DD / DX, and DS if that line has hours), not per task. One **Create DD / DX** writes Word + PDF into `data/invoices/10_October`. **Open folder** reveals that folder when the portal runs on your Mac; in Preview it downloads `10_October.zip`.
+  - **Client** — totals by direction (DD / DX, and DS if that line has hours), not per task. **Create DD / DX** clones the Superplay Word, exports PDF, and writes both into `LLC/docs/_clients/SUPERPLAY/invoice/MGX / 10_October` on Drive. **Open folder** opens that Drive month folder. ZIP download is gone.
   - **Studio** — the calculator block from the bottom-right of the month sheet: CLIENT IN → STUDIO (TAX) → EMPL → STUDIO. Tax % sits on the STUDIO (TAX) row (now 6%). Changing it rewrites `SUPERPLAY_MGX_Calculator.xlsx` so the TAX cell and formulas match. Studio take is STUDIO (TAX) minus people pay. Same hours as `SP_MGX_check`.
   - **Employeers** — same split as the MGX calculator. Line Producer Анастасія Верлинська (LP) is $5 × every task hour this month. Team Lead Настя (TL) is a performer at $15/h on her tasks, not a second finance line. Motion design (MD) $15/h on assigned hours. UAH = USD × NBU. Tax and NBU writes update `SUPERPLAY_MGX_Calculator.xlsx` immediately.
 - **Deadlines** share the Excel `DEADLINE` column (file is the source of truth). Pipeline shows a **Due** cell with the date and a short urgency bar (ok / soon / late). LP edits Due — that writes the xlsx. Closed tasks keep the date, no alarm.
