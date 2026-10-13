@@ -1,0 +1,28 @@
+# One-time: bash deploy/mac-login.sh
+# Then forever:
+#   ssh board              — shell on the VPS
+#   ssh board-update       — git pull studio + restart desk
+#   ssh board-status       — live build + systemd
+Host board lg-board vps
+  HostName 15.235.127.163
+  User ubuntu
+  IdentityFile ~/.ssh/lg_board_ovh
+  IdentitiesOnly yes
+  ServerAliveInterval 30
+  ServerAliveCountMax 4
+
+Host board-update
+  HostName 15.235.127.163
+  User ubuntu
+  IdentityFile ~/.ssh/lg_board_ovh
+  IdentitiesOnly yes
+  RemoteCommand bash ~/lg-board/deploy/update.sh
+  RequestTTY no
+
+Host board-status
+  HostName 15.235.127.163
+  User ubuntu
+  IdentityFile ~/.ssh/lg_board_ovh
+  IdentitiesOnly yes
+  RemoteCommand curl -sS http://127.0.0.1:43141/api/version && echo && sudo systemctl --no-pager --full status lg-board
+  RequestTTY no
