@@ -27,7 +27,7 @@ Do **not** use a password. Do **not** paste `lg-board-deploy` or any other key. 
 
 Live files that must survive deploy: `data/db.json`, `data/SP_MGX_check.xlsx`, calculator, Drive pack cache. `board-update` copies them aside before `git reset` and puts them back. If this is the first run of that new script, it pulls Excel + calculator from Drive instead.
 
-The desk watches live Drive Excel every 20s (`excelWatch` on `/api/version`). A new PROJECT NAME row becomes a board card plus an October DD/DX/DS folder without Create task. `ssh board-status` should show `"build": "2026-10-13a"` after update.
+The desk watches live Drive Excel in the background (`excelWatch` on `/api/version`) without blocking page load. A new PROJECT NAME row becomes a board card plus an October DD/DX/DS folder. `ssh board-status` should show `"build": "2026-10-13b"` after update.
 
 ## Studio site (public door)
 

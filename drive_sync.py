@@ -27,7 +27,7 @@ CLIENT_PATH = SECRETS / "google_client.json"
 OAUTH_PATH = SECRETS / "google_oauth.json"
 SA_PATH = SECRETS / "google_service.json"
 TOKEN_PATH = SECRETS / "google_drive_token.txt"
-BUILD = "2026-10-13a"
+BUILD = "2026-10-13b"
 OAUTH_STATE_PATH = SECRETS / "drive_oauth_state.json"
 SCOPE = "https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/documents"
 API = "https://www.googleapis.com/drive/v3"
@@ -328,17 +328,21 @@ def finish_oauth(code: str, state: str) -> dict:
     return {"ok": True, "connected": True}
 
 
-def _api(token: str, path: str, query: dict | None = None, raw: bool = False):
+def _api(token: str, path: str, query: dict | None = None, raw: bool = False, timeout: int = 25):
     q = dict(query or {})
     url = f"{API}/{path}" + ("?" + urllib.parse.urlencode(q) if q else "")
     req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"}, method="GET")
     try:
-        with urllib.request.urlopen(req, timeout=60) as res:
+        with urllib.request.urlopen(req, timeout=timeout) as res:
             data = res.read()
             return data if raw else json.loads(data.decode("utf-8"))
     except urllib.error.HTTPError as e:
         err = e.read().decode("utf-8", errors="replace")
         raise DriveSyncError(f"Drive API {e.code}: {err[:300]}") from e
+    except TimeoutError as e:
+        raise DriveSyncError(f"Drive API timeout after {timeout}s") from e
+    except urllib.error.URLError as e:
+        raise DriveSyncError(f"Drive API: {e.reason or e}") from e
 
 
 def list_children(token: str, parent_id: str) -> list[dict]:
@@ -380,12 +384,14 @@ def download_file(token: str, file_id: str) -> bytes:
             f"files/{file_id}/export",
             {"mimeType": XLSX_MIME},
             raw=True,
+            timeout=45,
         )
     return _api(
         token,
         f"files/{file_id}",
         {"alt": "media", "supportsAllDrives": "true"},
         raw=True,
+        timeout=45,
     )
 
 
@@ -793,6 +799,7 @@ def excel_fingerprint() -> str:
             "fields": "modifiedTime,md5Checksum,mimeType,size",
             "supportsAllDrives": "true",
         },
+        timeout=12,
     )
     return "|".join(
         [
@@ -832,10 +839,13 @@ def download_excel_if_changed(*, force: bool = False) -> dict:
         fp = excel_fingerprint()
     except DriveSyncError as e:
         print(f"[drive] excel fingerprint: {e}", flush=True)
+        fp = ""
     if not force and fp and fp == _EXCEL_FINGERPRINT:
         return {"ok": True, "changed": False, "downloaded": []}
+    if not force and not fp and _EXCEL_FINGERPRINT:
+        return {"ok": True, "changed": False, "downloaded": [], "unchecked": True}
     out = download_excel()
-    _EXCEL_FINGERPRINT = fp or excel_fingerprint()
+    _EXCEL_FINGERPRINT = fp or excel_fingerprint() or _EXCEL_FINGERPRINT or "ok"
     out["changed"] = True
     out["fingerprint"] = _EXCEL_FINGERPRINT
     return out

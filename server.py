@@ -28,13 +28,14 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-13a"
+BUILD = "2026-10-13b"
 LOCK = threading.Lock()
+_INGEST_LOCK = threading.Lock()
 _REV_COND = threading.Condition()
 _MEM_REV = 0
 _FILES_SYNCED = False
 _BRIEFS_SYNCED = False
-EXCEL_WATCH_SEC = 20
+EXCEL_WATCH_SEC = 30
 _EXCEL_WATCH: dict = {"at": "", "added": 0, "parsed": 0, "error": "", "fromDrive": False}
 
 # Name has no spaces. Hours sit at the end after a space, dash, or pipe:
@@ -266,123 +267,173 @@ def _month_task_sig(db: dict, ym: str) -> tuple:
     return tuple(sorted(rows))
 
 
-def ingest_live_excel(
-    db: dict,
-    ym: str | None = None,
-    *,
-    download: bool = True,
-    create_packs: bool = True,
-    push: bool = False,
-    only_if_changed: bool = False,
-) -> dict:
-    """File → portal: live SP_MGX_check.xlsx onto the board, plus Drive folder + brief for new rows."""
-    ym = str(ym or db.get("meta", {}).get("month") or "2026-10")
-    from_drive = False
-    skipped = False
-    if download and drive_sync.connected():
-        pulled = drive_sync.download_excel_if_changed(force=not only_if_changed)
-        from_drive = bool(pulled.get("changed"))
-        skipped = only_if_changed and not from_drive
-        if skipped:
-            parsed = excel_io.parse_workbook(excel_io.XLSX_PATH, ym) if excel_io.XLSX_PATH.exists() else {}
-            rows = parsed.get("rows") or []
-            return {
-                "fromDrive": False,
-                "unchanged": True,
-                "added": 0,
-                "updated": 0,
-                "fresh": [],
-                "drive": {"ok": True, "created": 0, "errors": []},
-                "sheet": parsed.get("sheet") or "",
-                "parsed": len(rows),
-                "lastNames": [str(r.get("name") or "") for r in rows[-5:]],
-            }
-    before = {str(t.get("name") or "").strip() for t in db.get("tasks") or []}
-    before_sig = _month_task_sig(db, ym)
-    mirror_io.sync_from_files(db)
-    drive_sync.apply_meta(db)
-    fresh = [t for t in (db.get("tasks") or []) if str(t.get("name") or "").strip() not in before]
-    packs = {"ok": True, "created": 0, "errors": []}
-    if create_packs and fresh and drive_sync.connected():
-        packs = drive_io.ensure_live_packs(db, fresh, ym)
-        for task in fresh:
-            notice_io.on_landed(db, task, "")
-        if push:
-            try:
-                sync_excel(db, ym, calculator=True)
-            except FileNotFoundError as e:
-                print(f"[excel] place new rows: {e}", flush=True)
+def _excel_parse_stats(ym: str) -> dict:
     parsed = excel_io.parse_workbook(excel_io.XLSX_PATH, ym) if excel_io.XLSX_PATH.exists() else {}
     rows = parsed.get("rows") or []
     return {
-        "fromDrive": from_drive,
-        "unchanged": False,
-        "added": len(fresh),
-        "updated": len(db.get("tasks") or []),
-        "changed": bool(fresh) or before_sig != _month_task_sig(db, ym),
-        "fresh": [str(t.get("name") or "") for t in fresh],
-        "drive": packs,
         "sheet": parsed.get("sheet") or "",
         "parsed": len(rows),
         "lastNames": [str(r.get("name") or "") for r in rows[-5:]],
     }
 
 
-def watch_live_excel() -> dict:
-    """Background Drive Excel → board cards + October folders. Does not rewrite the xlsx."""
-    global _EXCEL_WATCH
+def apply_excel_file(db: dict, ym: str) -> dict:
+    """Disk SP_MGX_check.xlsx → cards. No Drive calls."""
+    before = {str(t.get("name") or "").strip() for t in db.get("tasks") or []}
+    before_sig = _month_task_sig(db, ym)
+    mirror_io.sync_from_files(db)
+    drive_sync.apply_meta(db)
+    fresh = [t for t in (db.get("tasks") or []) if str(t.get("name") or "").strip() not in before]
+    need_folders = [
+        t
+        for t in (db.get("tasks") or [])
+        if (t.get("month") or ym) == ym
+        and str(t.get("name") or "").strip()
+        and not str(t.get("folderUrl") or "").strip()
+    ]
+    stats = _excel_parse_stats(ym)
+    stats.update(
+        {
+            "added": len(fresh),
+            "updated": len(db.get("tasks") or []),
+            "changed": bool(fresh) or before_sig != _month_task_sig(db, ym),
+            "fresh": [str(t.get("name") or "") for t in fresh],
+            "needFolders": [str(t.get("name") or "") for t in need_folders],
+            "needSpecs": [
+                {
+                    "id": t.get("id"),
+                    "name": str(t.get("name") or "").strip(),
+                    "line": t.get("line") or "",
+                }
+                for t in need_folders
+            ],
+        }
+    )
+    return stats
+
+
+def fill_missing_packs(specs: list[dict], ym: str) -> dict:
+    """Create October DD/DX/DS folders outside the board lock."""
+    if not specs:
+        return {"ok": True, "created": 0, "errors": []}
     with LOCK:
         db = load_db()
+        meta_db = {"meta": dict(db.get("meta") or {})}
+    created = 0
+    errors = []
+    attached = []
+    for spec in specs:
+        name = str(spec.get("name") or "").strip()
+        if not name:
+            continue
         try:
-            stats = ingest_live_excel(
-                db,
-                db.get("meta", {}).get("month") or "2026-10",
-                download=True,
-                create_packs=True,
-                push=False,
-                only_if_changed=True,
-            )
-        except Exception as e:
-            _EXCEL_WATCH = {
-                "at": utc_now(),
-                "added": 0,
-                "parsed": 0,
-                "error": str(e)[:240],
-                "fromDrive": False,
-            }
-            print(f"[excel] watch: {e}", flush=True)
-            return _EXCEL_WATCH
+            pack = drive_io.create_live_pack(meta_db, name, ym, spec.get("line") or "DD")
+            attached.append((spec.get("id"), pack))
+            created += 1
+        except drive_io.DriveError as e:
+            errors.append({"name": name, "error": str(e)})
+            print(f"[excel] folder {name}: {e}", flush=True)
+    n = 0
+    with LOCK:
+        db = load_db()
+        by_id = {t.get("id"): t for t in db.get("tasks") or []}
+        for tid, pack in attached:
+            task = by_id.get(tid)
+            if not task or not pack:
+                continue
+            missing = not (task.get("folderUrl") and task.get("docUrl"))
+            task["folderUrl"] = pack.get("folderUrl") or task.get("folderUrl") or ""
+            task["docUrl"] = pack.get("docUrl") or ""
+            drive_io.apply_work_folder(task)
+            if missing:
+                task.setdefault("activity", []).append(
+                    {
+                        "at": utc_now(),
+                        "text": f"Drive folder + brief Doc in {task.get('line') or 'DD'}",
+                    }
+                )
+                notice_io.on_landed(db, task, "")
+            n += 1
+        if n:
+            save_db(db, origin=True)
+    return {"ok": not errors, "created": created, "linked": 0, "ready": n if attached else 0, "errors": errors}
+
+
+def run_excel_ingest(*, download: bool = False, force: bool = False, create_packs: bool = True) -> dict:
+    """Drive Excel (optional) → board cards, then folders. Drive I/O never holds LOCK."""
+    global _EXCEL_WATCH
+    if not _INGEST_LOCK.acquire(blocking=False):
+        return {"busy": True, "added": 0, "changed": False, "fresh": [], "drive": {"ok": True, "created": 0, "errors": []}}
+    try:
+        from_drive = False
+        dl_error = ""
+        if download and drive_sync.connected():
+            try:
+                pulled = drive_sync.download_excel_if_changed(force=force)
+                from_drive = bool(pulled.get("changed"))
+            except Exception as e:
+                dl_error = str(e)[:240]
+                print(f"[excel] download: {e}", flush=True)
+        with LOCK:
+            db = load_db()
+            ym = str(db.get("meta", {}).get("month") or "2026-10")
+            stats = apply_excel_file(db, ym)
+            specs = list(stats.pop("needSpecs") or [])
+            if stats.get("added") or stats.get("changed"):
+                src = "Drive" if from_drive else "file"
+                db.setdefault("events", []).insert(
+                    0,
+                    {
+                        "at": utc_now(),
+                        "text": f"Excel pull {ym} from {src}: {stats.get('added') or 0} new",
+                    },
+                )
+                save_db(db, origin=True)
+        packs = {"ok": True, "created": 0, "errors": []}
+        if create_packs and specs and drive_sync.connected():
+            packs = fill_missing_packs(specs, ym)
+        stats["fromDrive"] = from_drive
+        stats["unchanged"] = not from_drive and not stats.get("added") and not stats.get("changed")
+        stats["drive"] = packs
+        stats["error"] = dl_error
         _EXCEL_WATCH = {
             "at": utc_now(),
             "added": int(stats.get("added") or 0),
             "parsed": int(stats.get("parsed") or 0),
-            "error": "",
-            "fromDrive": bool(stats.get("fromDrive")),
+            "error": dl_error or ((packs.get("errors") or [{}])[0].get("error") if packs.get("errors") else ""),
+            "fromDrive": from_drive,
             "unchanged": bool(stats.get("unchanged")),
             "fresh": list(stats.get("fresh") or [])[:8],
+            "folders": int(packs.get("created") or 0),
         }
-        if stats.get("unchanged"):
-            return stats
-        if stats.get("added") or stats.get("changed"):
-            src = "Drive" if stats.get("fromDrive") else "file"
-            db.setdefault("events", []).insert(
-                0,
-                {
-                    "at": utc_now(),
-                    "text": f"Excel watch {src}: {stats.get('added') or 0} new",
-                },
-            )
-            save_db(db, origin=True)
+        if stats.get("added") or packs.get("created"):
             print(
-                f"[excel] watch +{stats.get('added') or 0} {', '.join(stats.get('fresh') or [])}",
+                f"[excel] +{stats.get('added') or 0} cards · {packs.get('created') or 0} folders "
+                f"{', '.join(stats.get('fresh') or stats.get('needFolders') or [])}",
                 flush=True,
             )
         return stats
+    except Exception as e:
+        _EXCEL_WATCH = {
+            "at": utc_now(),
+            "added": 0,
+            "parsed": 0,
+            "error": str(e)[:240],
+            "fromDrive": False,
+        }
+        print(f"[excel] ingest: {e}", flush=True)
+        return {"error": str(e), "added": 0, "changed": False, "fresh": [], "drive": {"ok": False, "created": 0, "errors": [str(e)]}}
+    finally:
+        _INGEST_LOCK.release()
+
+
+def watch_live_excel() -> dict:
+    return run_excel_ingest(download=True, force=False, create_packs=True)
 
 
 def start_excel_watch() -> None:
     def loop() -> None:
-        time.sleep(2)
+        time.sleep(1)
         while True:
             try:
                 watch_live_excel()
@@ -1157,6 +1208,20 @@ class Handler(SimpleHTTPRequestHandler):
             self._json(403, {"error": "client cannot edit"})
             return
         data = self._bind_actor(data, sess)
+        if path == "/api/excel/pull":
+            light = bool(data.get("light"))
+            stats = run_excel_ingest(
+                download=not light,
+                force=not light,
+                create_packs=not light,
+            )
+            with LOCK:
+                db = load_db()
+            if stats.get("error") and not stats.get("parsed") and not stats.get("added"):
+                self._json(409, {**stats, "state": db, "error": stats.get("error")})
+                return
+            self._json(200, {**stats, "state": db})
+            return
         with LOCK:
             db = load_db()
             if path == "/api/drive/client":
@@ -1775,32 +1840,6 @@ class Handler(SimpleHTTPRequestHandler):
                 )
                 save_db(db)
                 self._json(200, {"comment": comment, "task": task, "state": db})
-                return
-            if path == "/api/excel/pull":
-                month = data.get("month") or db.get("meta", {}).get("month") or "2026-10"
-                try:
-                    stats = ingest_live_excel(
-                        db,
-                        month,
-                        download=True,
-                        create_packs=True,
-                        push=True,
-                        only_if_changed=False,
-                    )
-                except drive_sync.DriveSyncError as e:
-                    self._json(409, {"error": str(e), "state": db})
-                    return
-                if stats.get("added") or stats.get("changed"):
-                    src = "Drive" if stats.get("fromDrive") else "file"
-                    db.setdefault("events", []).insert(
-                        0,
-                        {
-                            "at": utc_now(),
-                            "text": f"Excel pull {month} from {src}: {stats.get('added') or 0} new",
-                        },
-                    )
-                    save_db(db, origin=True)
-                self._json(200, {**stats, "state": db})
                 return
             if path == "/api/excel/import":
                 month = data.get("month") or db.get("meta", {}).get("month") or "2026-10"

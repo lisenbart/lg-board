@@ -178,26 +178,6 @@ function enterStudio() {
   document.documentElement.classList.add("in-app");
   $("loginGate").hidden = true;
   startLiveSync();
-  ingestExcelOnce();
-}
-function ingestExcelOnce() {
-  if (window.__lgExcelIngest || isClient() || isHoursPage()) return;
-  window.__lgExcelIngest = true;
-  ingestExcelQuiet();
-}
-function ingestExcelQuiet() {
-  if (isClient() || isHoursPage() || $("loginGate")?.hidden === false) return;
-  api("/api/excel/pull", { month: state.month, role: me().role }).then((out) => {
-    if (out.error) {
-      toast(out.error);
-      return;
-    }
-    const n = Number(out.added || 0);
-    const folders = Number(out.drive?.created || 0);
-    if (out.state && (n || out.changed)) applyState(out.state);
-    if (!n) return;
-    toast(excelIngestNote(out, n, folders));
-  });
 }
 function openLoginGate() {
   document.documentElement.classList.remove("in-app");
@@ -2034,8 +2014,16 @@ function excelIngestNote(out, n, folders) {
   return `${src}${sheet}: ${out.parsed || 0} rows, 0 new${last ? ` · last ${last}` : ""}`;
 }
 async function pullExcel() {
-  const out = await api("/api/excel/pull", { month: state.month, role: me().role });
-  if (out.error || !out.state) {
+  const out = await api("/api/excel/pull", { month: state.month });
+  if (out.busy) {
+    toast("Already reading Excel…");
+    return;
+  }
+  if (out.error && !out.state) {
+    toast(out.error);
+    return;
+  }
+  if (!out.state) {
     toast(out.error || "Could not read SP_MGX_check");
     return;
   }
@@ -2488,7 +2476,7 @@ function bindSplitter(group) {
 function ensureExcelHours() {
   if (state.excelMonth === state.month) return;
   state.excelMonth = state.month;
-  api("/api/excel/pull", { month: state.month, role: me().role }).then((out) => {
+  api("/api/excel/pull", { month: state.month, light: true }).then((out) => {
     if (out.error) {
       toast(out.error);
       return;
@@ -4045,7 +4033,6 @@ function startLiveSync() {
 
 document.addEventListener("visibilitychange", () => {
   if (document.hidden && syncAbort) syncAbort.abort();
-  if (!document.hidden && liveSyncOn) ingestExcelQuiet();
 });
 
 function inboxOpen() {
