@@ -12,7 +12,7 @@ One list, not Monday groups. Sorted by studio status:
 
 ## Access
 
-Source of truth for login and URLs: **[deploy/README.md](deploy/README.md)**. Public studio door: **[site/](site/)** (Netlify, `lisenbart.games`) → **https://board.lisenbart.games**.
+Source of truth for login and URLs: **[deploy/README.md](deploy/README.md)**. Public studio door: **[site/](site/)** (Netlify, `lisenbart.games`) — **Studio** and **Client** doors into **https://board.lisenbart.games**.
 
 ```bash
 ssh board           # VPS shell

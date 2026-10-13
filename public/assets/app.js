@@ -381,6 +381,15 @@ function showLogin() {
     showDoorForm("client");
     return;
   }
+  const door = new URLSearchParams(location.search).get("door");
+  if (door === "studio") {
+    showStudioRoster();
+    return;
+  }
+  if (door === "client") {
+    showDoorForm("client");
+    return;
+  }
   showHome();
 }
 function showNeedServer() {
