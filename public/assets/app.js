@@ -2112,7 +2112,7 @@ function renderGuide() {
         <h3>Пайплайн</h3>
         <p class="guide-lead">П’ять кроків підряд. Кожен крок змінює чіп справа.</p>
         <ol class="guide-pipe">
-          ${pipeStep("1", "LP", "Line Producer", "Таск заходить", `${ui("Create task")} або ${ui("Shift email")} (рядок як в Orit: NAME | 0.3 shifts).`, "ready", "Ready")}
+          ${pipeStep("1", "LP", "Line Producer", "Таск заходить", `${ui("Create task")} або ${ui("Shift email")} (NAME 0.3 shift — тире, пробіл або |).`, "ready", "Ready")}
           ${pipeStep("2", "TL", "Team Lead", "Ставить виконавця", `${ui("Who works this")} → ${ui("Save")}. Людина одразу бачить таск у своїй черзі.`, "wip", "WIP")}
           ${pipeStep("3", "MD", "Motion design", "Здає файл", `${ui("Paste result link here")}, потім ${ui("Done")}. Лінк на файл, не на теку. Поки лінка немає — ${ui("Done")} недоступний.`, "done", "Done")}
           ${pipeStep("4", "LP", "Line Producer", "Відправляє клієнту", `${ui("Send to client")} лише з ${ui("Done")} + лінк. Копіює текст для External Weekly. ${ui("Appr.")} руками зі списку не ставиться.`, "appr", "Appr.")}
@@ -2121,7 +2121,7 @@ function renderGuide() {
       </div>
       <div class="guide-grid">
         ${card("manager", "LP", "Line Producer", "Анастасія. Бачить усе.", [
-          `Новий пак: ${ui("Create task")} (тека + бриф на Drive) або ${ui("Shift email")} (рядок як в Orit: NAME | 0.3 shifts).`,
+          `Новий пак: ${ui("Create task")} (тека + бриф на Drive) або ${ui("Shift email")} (NAME 0.3 shift — тире, пробіл або |).`,
           `Бриф на картці пишеться в Google Doc. ${ui("Client notes")} одразу під ним: встав текст і скрін (Ctrl+V) з Monday.`,
           `Години: ${ui("Shifts")} у рядку або в картці. 1 shift = 9 годин. Виконавця ставить TL.`,
           `Рядок фарбується за статусом. Чіп: ${ui("Ready")} / ${ui("WIP")} / ${ui("Fix")} / ${ui("Done")} / ${ui("Appr.")} / ${ui("Closed")}. Не ${ui("Send")}.`,
@@ -4328,7 +4328,7 @@ $("emailApply").onclick = async () => {
   if (err) err.textContent = "";
   const text = String($("emailText")?.value || "");
   if (!text.trim()) {
-    if (err) err.textContent = "Paste NAME | 0.3 shifts, one per line";
+    if (err) err.textContent = "Paste NAME 0.3 shift, one per line";
     return;
   }
   if (wait) wait.hidden = false;

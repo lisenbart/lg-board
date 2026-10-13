@@ -2,7 +2,7 @@
 (function () {
   const KEY = "lg-board-db-v8";
   const EMAIL_LINE =
-    /((?:DD|DX|DS)-[A-Za-z0-9._\\-]+)\s*\|\s*([\d]+(?:[.,]\d+)?)\s*(?:shifts?)?/i;
+    /((?:DD|DX|DS)-[A-Za-z0-9._-]*[A-Za-z0-9._])(?:\s*[|-]?\s+|\s*[|]\s*)(\d+(?:[.,]\d+)?)\s*(?:sh[if]*ts?)?\s*$/i;
   const OPS_ROLES = new Set(["manager", "finance"]);
   const STATUS_BY_ROLE = {
     designer: new Set(["wip", "done"]),
@@ -200,11 +200,17 @@
     const found = [];
     const byName = {};
     for (const raw of String(text || "").split(/\n/)) {
-      const m = EMAIL_LINE.exec(raw.trim().replace(/\\_/g, "_"));
+      const line = raw
+        .replace(/\\_/g, "_")
+        .replace(/[\u2010-\u2014\u2212]/g, "-")
+        .replace(/[\u00a0\u202f]/g, " ")
+        .trim()
+        .replace(/\s+/g, " ");
+      const m = EMAIL_LINE.exec(line);
       if (!m) continue;
-      const name = m[1].replace(/\\_/g, "_").trim();
+      const name = m[1].trim().replace(/[-|]+$/, "");
       const shift = Number(String(m[2]).replace(",", "."));
-      if (!Number.isFinite(shift) || shift < 0) continue;
+      if (!name || !Number.isFinite(shift) || shift < 0) continue;
       const row = {
         name,
         line: lineFromName(name),
@@ -306,7 +312,7 @@
       if (!OPS_ROLES.has(data.role)) return { error: "only Line Producer can parse shift email" };
       const rows = parseEmail(data.text);
       if (!rows.length) {
-        return { error: "no project lines. Use NAME | 0.3 shifts, one per line." };
+        return { error: "no project lines. Example: DX-NAME_EN_30s 0.3 shift" };
       }
       return { error: "Create tasks from a shift list runs on the studio server, not on GitHub Pages." };
     }

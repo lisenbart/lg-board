@@ -27,16 +27,33 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-12p"
+BUILD = "2026-10-12q"
 LOCK = threading.Lock()
 _REV_COND = threading.Condition()
 _MEM_REV = 0
 _FILES_SYNCED = False
 _BRIEFS_SYNCED = False
 
+# Name has no spaces. Hours sit at the end after a space, dash, or pipe:
+#   NAME 0.3 shift   /   NAME- 0.3 SHFT   /   NAME - 0.3   /   NAME | 0.3 shifts
 EMAIL_LINE = re.compile(
-    r"((?:DD|DX|DS)-[A-Za-z0-9._\\-]+)\s*\|\s*([\d]+(?:[.,]\d+)?)\s*(?:shifts?)?",
+    r"((?:DD|DX|DS)-[A-Za-z0-9._-]*[A-Za-z0-9._])"
+    r"(?:\s*[|-]?\s+|\s*[|]\s*)"
+    r"(\d+(?:[.,]\d+)?)"
+    r"\s*(?:sh[if]*ts?)?\s*$",
     re.I,
+)
+EMAIL_DASHES = str.maketrans(
+    {
+        "\u2010": "-",
+        "\u2011": "-",
+        "\u2012": "-",
+        "\u2013": "-",
+        "\u2014": "-",
+        "\u2212": "-",
+        "\xa0": " ",
+        "\u202f": " ",
+    }
 )
 SANDBOX_TASK_IDS = frozenset({"t-dd-new-banana"})
 SANDBOX_TASK_NAMES = frozenset({"DD-VEO-068-001_BananaBoat_8s_Resize"})
@@ -509,13 +526,15 @@ def parse_email(text: str) -> list[dict]:
     found: list[dict] = []
     by_name: dict[str, dict] = {}
     for raw in str(text or "").replace("\r", "").splitlines():
-        line = raw.strip().replace("\\_", "_")
+        line = " ".join(raw.replace("\\_", "_").translate(EMAIL_DASHES).split())
         if not line:
             continue
         m = EMAIL_LINE.search(line)
         if not m:
             continue
-        name = m.group(1).replace("\\_", "_").strip()
+        name = m.group(1).strip().rstrip("-|")
+        if not name:
+            continue
         try:
             shift = float(m.group(2).replace(",", "."))
         except (TypeError, ValueError):
@@ -1130,7 +1149,7 @@ class Handler(SimpleHTTPRequestHandler):
                     self._json(
                         400,
                         {
-                            "error": "no project lines. Use NAME | 0.3 shifts, one per line.",
+                            "error": "no project lines. Example: DX-NAME_EN_30s 0.3 shift",
                             "added": 0,
                             "updated": 0,
                             "parsed": [],
