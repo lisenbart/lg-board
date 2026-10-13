@@ -2715,6 +2715,7 @@ function renderClient(fin) {
         <td class="num">${usd(fin.clientRate)}</td>
         <td class="num"><b>${usd(row.bill)}</b></td>
         <td class="num muted">${share}%</td>
+        <td></td>
       </tr>`;
     })
     .join("");
@@ -2729,19 +2730,24 @@ function renderClient(fin) {
       <div class="kpi"><b>${usd(fin.clientIn)}</b><span>CLIENT IN</span></div>
       <div class="kpi"><b>${usd(fin.studio)}</b><span>STUDIO</span></div>
     </div>
-    <div class="fin-create-bar">
-      <div class="fin-create-actions">
-        <button type="button" class="btn" id="btnOpenFolder">Open folder</button>
-        <button type="button" class="btn primary" id="btnCreateInvoices" ${canCreate ? "" : "disabled"}>Create DD / DX</button>
-      </div>
-      <p class="fin-view-only">Create writes Word + PDF into Superplay / invoice / MGX on Drive, for this month.</p>
-    </div>
     <section class="group fin-card">
       <div class="fin-scroll">
         <table class="fin-table">
-          <thead><tr><th>Line</th><th class="num">Projects</th><th class="num">Shifts</th><th class="num">Hours</th><th class="num">Rate</th><th class="num">CLIENT IN</th><th class="num">Share</th></tr></thead>
+          <thead><tr><th>Line</th><th class="num">Projects</th><th class="num">Shifts</th><th class="num">Hours</th><th class="num">Rate</th><th class="num">CLIENT IN</th><th class="num">Share</th><th></th></tr></thead>
           <tbody>${lineRows}</tbody>
-          <tfoot><tr><td>MGX</td><td class="num">${fin.tasks.length}</td><td class="num">${fin.totalShifts.toFixed(1)}</td><td class="num">${hoursLabel(fin.totalHours)}</td><td></td><td class="num">${usd(fin.clientIn)}</td><td></td></tr></tfoot>
+          <tfoot><tr>
+            <td>MGX</td>
+            <td class="num">${fin.tasks.length}</td>
+            <td class="num">${fin.totalShifts.toFixed(1)}</td>
+            <td class="num">${hoursLabel(fin.totalHours)}</td>
+            <td></td>
+            <td class="num">${usd(fin.clientIn)}</td>
+            <td></td>
+            <td class="fin-foot-actions">
+              <button type="button" class="btn" id="btnOpenFolder">Open folder</button>
+              <button type="button" class="btn primary" id="btnCreateInvoices" ${canCreate ? "" : "disabled"}>Create DD / DX</button>
+            </td>
+          </tr></tfoot>
         </table>
       </div>
     </section>`;

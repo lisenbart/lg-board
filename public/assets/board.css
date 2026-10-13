@@ -1562,6 +1562,17 @@ body.col-resizing * { cursor: col-resize !important; }
 .fin-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .fin-table .muted { color: var(--muted); text-align: left; }
 .fin-table tfoot td { background: #fafbfe; font-weight: 500; }
+.fin-foot-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  font-weight: 400;
+  white-space: nowrap;
+}
+@media (max-width: 980px) {
+  .fin-foot-actions { flex-wrap: wrap; white-space: normal; }
+}
 .fin-table .fin-name {
   max-width: 360px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
