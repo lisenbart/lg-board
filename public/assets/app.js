@@ -41,6 +41,12 @@ const STATUS_BY_ROLE = {
   client: [],
 };
 const LINES = ["DD", "DX", "DS"];
+const STUDIO_ROLES = [
+  { role: "finance", label: "DL", blurb: "" },
+  { role: "manager", label: "LP", blurb: "Line Producer" },
+  { role: "teamlead", label: "TL", blurb: "Team Lead" },
+  { role: "designer", label: "MD", blurb: "Motion design" },
+];
 
 const MONTH_KEY = "lg-month";
 const SESSION_KEY = "lg-session";
@@ -215,7 +221,29 @@ function loginBackHome() {
   }
   showHome();
 }
-async function showStudioRoster(error) {
+function paintStudioSeats(roles, error) {
+  const list = roles && roles.length ? roles : STUDIO_ROLES;
+  $("loginAccounts").innerHTML =
+    `<button type="button" class="btn ghost login-back" id="loginBack">Back</button>` +
+    (error ? `<p class="login-err">${escapeHtml(error)}</p>` : "") +
+    list
+      .map(
+        (r) =>
+          `<button type="button" class="login-seat" data-role="${escapeHtml(r.role)}">
+            <strong>${escapeHtml(r.label)}</strong>
+            ${r.blurb ? `<span>${escapeHtml(r.blurb)}</span>` : ""}
+          </button>`
+      )
+      .join("");
+  $("loginBack")?.addEventListener("click", loginBackHome);
+  $("loginAccounts").querySelectorAll(".login-seat").forEach((el) => {
+    el.addEventListener("click", () => {
+      const role = list.find((r) => r.role === el.dataset.role);
+      if (role) showStudioPin(role);
+    });
+  });
+}
+function showStudioRoster(error) {
   state.loginDoor = "studio";
   state.loginRole = null;
   openLoginGate();
@@ -225,29 +253,7 @@ async function showStudioRoster(error) {
   $("loginTitle").textContent = "Studio";
   $("loginLead").textContent = "Pick a login";
   document.title = "Studio — Lisenbart Board";
-  const out = await api("/api/roster");
-  const roles = out?.studio || [];
-  $("loginAccounts").innerHTML =
-    `<button type="button" class="btn ghost login-back" id="loginBack">Back</button>` +
-    (error ? `<p class="login-err">${escapeHtml(error)}</p>` : "") +
-    (roles.length
-      ? roles
-          .map(
-            (r) =>
-              `<button type="button" class="login-seat" data-role="${escapeHtml(r.role)}">
-                <strong>${escapeHtml(r.label)}</strong>
-                ${r.blurb ? `<span>${escapeHtml(r.blurb)}</span>` : ""}
-              </button>`
-          )
-          .join("")
-      : `<p class="login-err">Could not load logins.</p>`);
-  $("loginBack")?.addEventListener("click", loginBackHome);
-  $("loginAccounts").querySelectorAll(".login-seat").forEach((el) => {
-    el.addEventListener("click", () => {
-      const role = roles.find((r) => r.role === el.dataset.role);
-      if (role) showStudioPin(role);
-    });
-  });
+  paintStudioSeats(STUDIO_ROLES, error);
 }
 function showStudioPin(role, error) {
   state.loginDoor = "studio";
@@ -758,7 +764,8 @@ function setBusy(el, on, label) {
 
 async function api(path, payload) {
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 25000);
+  const ms = payload ? 12000 : 8000;
+  const timer = setTimeout(() => ctrl.abort(), ms);
   try {
     const res = await fetch(path, {
       method: payload ? "POST" : "GET",
@@ -1054,18 +1061,11 @@ async function confirmDeleteTasks() {
     closeTaskDelete();
     applyState(out.state);
     closeDrawer();
-    const n = Number(out.drive?.trashed || 0);
-    if (out.drive && out.drive.ok === false) {
-      toast(out.drive.errors?.[0] || "Removed from the board and Excel. Drive folder was not trashed.");
-    } else if (n) {
-      toast(
-        n === 1
-          ? "Deleted on the board, Excel, and Drive trash"
-          : `Deleted ${list.length} on the board · Excel rows gone · ${n} Drive folders to trash`
-      );
-    } else {
-      toast("Deleted on the board and Excel");
-    }
+    toast(
+      list.length === 1
+        ? "Deleted on the board. Drive trash and Excel catch up in the background."
+        : `Deleted ${list.length} on the board. Drive and Excel catch up in the background.`
+    );
   } finally {
     setBusy(go, false);
   }
@@ -1082,7 +1082,7 @@ async function submitCreateTask() {
   if (err) err.textContent = "";
   const wait = $("createTaskWait");
   if (wait) wait.hidden = false;
-  setBusy(go, true, "Writing files…");
+  setBusy(go, true, "Creating…");
   const cancel = $("createTaskCancel");
   if (cancel) cancel.disabled = true;
   let payload = {
@@ -1105,12 +1105,7 @@ async function submitCreateTask() {
   }
   applyState(out.state);
   closeCreateTask();
-  const excel = out.excel || {};
-  let note = "Task created · Drive folder + brief · Excel row";
-  if (excel.ok === false && (excel.error || excel.reason)) {
-    note += ` · Drive Excel: ${excel.error || excel.reason}`;
-  }
-  toast(note);
+  toast("Task on the board. Drive folder and Excel catch up in the background.");
   if (out.task?.id) openTask(out.task.id);
 }
 
@@ -4356,7 +4351,7 @@ $("emailApply").onclick = async () => {
     return;
   }
   if (wait) wait.hidden = false;
-  setBusy(go, true, "Writing files…");
+  setBusy(go, true, "Adding…");
   const cancel = $("emailCancel");
   if (cancel) cancel.disabled = true;
   let out = {};
@@ -4380,10 +4375,8 @@ $("emailApply").onclick = async () => {
   applyState(out.state);
   $("emailModal").classList.remove("show");
   $("emailText").value = "";
-  const driveErr = (out.drive?.errors || []).length;
   toast(
-    `Created ${out.added || 0} · hours updated ${out.updated || 0}` +
-      (driveErr ? ` · ${driveErr} Drive folder skipped` : driveToast(out.drive))
+    `On the board: ${out.added || 0} new · ${out.updated || 0} hours updated. Drive and Excel catch up in the background.`
   );
 };
 $("drawerBg").addEventListener("click", (e) => {

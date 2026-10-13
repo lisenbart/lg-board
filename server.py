@@ -28,8 +28,9 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-13g"
+BUILD = "2026-10-13h"
 LOCK = threading.Lock()
+_FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
 _REV_COND = threading.Condition()
 _MEM_REV = 0
@@ -63,6 +64,14 @@ EMAIL_DASHES = str.maketrans(
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _clone(obj):
+    return json.loads(json.dumps(obj, default=str))
+
+
+def _spawn(fn, *args) -> None:
+    threading.Thread(target=fn, args=args, daemon=True).start()
 
 
 def _link_live_briefs(db: dict) -> bool:
@@ -283,14 +292,100 @@ def sync_excel(db: dict, month: str | None = None, calculator: bool = False) -> 
 
 
 def _sync_files_bg(ym: str | None, calculator: bool = False) -> None:
-    """Excel/Drive after the board already saved. Must not hold the request or LOCK from HTTP."""
+    """Excel/Drive after the board already saved. Never hold LOCK during xlsx or Drive."""
     try:
-        with LOCK:
-            db = load_db()
-            sync_excel(db, ym, calculator=calculator)
-            save_db(db)
+        with _FILES_LOCK:
+            with LOCK:
+                snapshot = _clone(_read_db_file())
+            drive = sync_excel(snapshot, ym, calculator=calculator)
+            if not drive.get("ok"):
+                return
+            with LOCK:
+                live = _read_db_file()
+                meta = live.setdefault("meta", {})
+                snap_meta = snapshot.get("meta") or {}
+                if snap_meta.get("drivePushedAt"):
+                    meta["drivePushedAt"] = snap_meta["drivePushedAt"]
+                if snap_meta.get("mirrorSource"):
+                    meta["mirrorSource"] = snap_meta["mirrorSource"]
+                save_db(live)
     except Exception as e:
         print(f"[excel] background: {e}", flush=True)
+
+
+def _trash_then_excel(tasks: list, ym: str | None) -> None:
+    for task in tasks or []:
+        try:
+            drive_io.trash_live_pack(task, None)
+        except Exception as e:
+            print(f"[drive] trash {task.get('name')}: {e}", flush=True)
+    _sync_files_bg(ym, calculator=True)
+
+
+def _create_pack_then_excel(task_id: str, name: str, ym: str, line: str) -> None:
+    try:
+        pack = drive_io.create_live_pack({"meta": {"month": ym}}, name, ym, line)
+        with LOCK:
+            db = load_db()
+            task = next((t for t in db.get("tasks") or [] if t.get("id") == task_id), None)
+            if task:
+                task["folderUrl"] = pack.get("folderUrl") or task.get("folderUrl") or ""
+                task["docUrl"] = pack.get("docUrl") or task.get("docUrl") or ""
+                if pack.get("folderUrl"):
+                    task.setdefault("activity", []).append(
+                        {"at": utc_now(), "text": f"Drive folder + brief Doc in {line}"}
+                    )
+                save_db(db)
+    except Exception as e:
+        print(f"[drive] create pack {name}: {e}", flush=True)
+    _sync_files_bg(ym, calculator=True)
+
+
+def _rename_then_excel(old_name: str, task: dict, ym: str | None, brief: bool, money: bool) -> None:
+    live_task = task
+    if old_name:
+        stub = dict(task)
+        stub["name"] = old_name
+        stub["line"] = drive_io.line_from_name(old_name)
+        try:
+            with LOCK:
+                db = _read_db_file()
+            drive_io.rename_live_pack(db, stub, str(task.get("name") or ""))
+        except Exception as e:
+            print(f"[drive] rename {old_name}: {e}", flush=True)
+        try:
+            with LOCK:
+                db = _read_db_file()
+            with _FILES_LOCK:
+                excel_io.rewrite_existing_name(
+                    db,
+                    str(ym or (db.get("meta") or {}).get("month") or "2026-10"),
+                    old_name,
+                    task,
+                )
+        except Exception as e:
+            print(f"[excel] rename {old_name}: {e}", flush=True)
+    if brief:
+        try:
+            with LOCK:
+                db = _read_db_file()
+            live_task = next(
+                (t for t in db.get("tasks") or [] if t.get("id") == task.get("id")),
+                task,
+            )
+            drive_io.sync_task_brief(db, live_task)
+            with LOCK:
+                now = load_db()
+                cur = next((t for t in now.get("tasks") or [] if t.get("id") == live_task.get("id")), None)
+                if cur:
+                    if live_task.get("folderUrl"):
+                        cur["folderUrl"] = live_task["folderUrl"]
+                    if live_task.get("docUrl"):
+                        cur["docUrl"] = live_task["docUrl"]
+                    save_db(now)
+        except Exception as e:
+            print(f"[drive] brief {task.get('name')}: {e}", flush=True)
+    _sync_files_bg(ym, calculator=money)
 
 
 def _month_task_sig(db: dict, ym: str) -> tuple:
@@ -1094,9 +1189,7 @@ class Handler(SimpleHTTPRequestHandler):
             self._json(200, combat_status())
             return
         if path == "/api/roster":
-            with LOCK:
-                people = load_db().get("people") or []
-            self._json(200, auth_io.studio_roster(people))
+            self._json(200, auth_io.studio_roster([]))
             return
         if path == "/api/drive/oauth/callback":
             qs = parse_qs(urlparse(self.path).query)
@@ -1315,10 +1408,31 @@ class Handler(SimpleHTTPRequestHandler):
         path = urlparse(self.path).path
         data = self._read_json()
         if path == "/api/login":
+            pin = str(data.get("pin") or "")
+            door = str(data.get("door") or "")
+            if door == "client":
+                email = auth_io.resolve_email(data.get("email") or "")
+                if email not in {auth_io.CLIENT_EMAIL, "superplay@lg-board"}:
+                    self._json(403, {"error": "wrong login or PIN"})
+                    return
+                if not auth_io.pin_ok_for_role("client", pin) and not auth_io.pin_ok(
+                    auth_io.CLIENT_EMAIL, pin
+                ):
+                    self._json(403, {"error": "wrong login or PIN"})
+                    return
+            elif door == "studio":
+                role = str(data.get("role") or "").strip()
+                if role not in {"finance", "manager", "teamlead", "designer"}:
+                    self._json(403, {"error": "wrong login or PIN"})
+                    return
+                if not auth_io.pin_ok_for_role(role, pin):
+                    self._json(403, {"error": "wrong login or PIN"})
+                    return
+            else:
+                self._json(403, {"error": "wrong login or PIN"})
+                return
             with LOCK:
                 db = load_db()
-                pin = str(data.get("pin") or "")
-                door = str(data.get("door") or "")
                 people = db.get("people") or []
                 email = auth_io.resolve_email(data.get("email") or "")
                 seat = None
@@ -1545,6 +1659,7 @@ class Handler(SimpleHTTPRequestHandler):
                 }
                 given_folder = str(data.get("folderUrl") or "").strip()
                 given_doc = str(data.get("docUrl") or "").strip()
+                need_pack = True
                 if given_folder and given_doc:
                     pack = {
                         "folderUrl": given_folder,
@@ -1555,18 +1670,12 @@ class Handler(SimpleHTTPRequestHandler):
                     if pack["folderId"] and pack["docId"]:
                         drive_io.remember(name, pack["folderId"], pack["docId"])
                     drive_io.remember_live_folder(name, given_folder)
-                else:
-                    try:
-                        pack = drive_io.create_live_pack(db, name, ym, line)
-                    except drive_io.DriveError as e:
-                        print(f"[drive] create failed for {name}: {e}", flush=True)
-                        self._json(409, {"error": str(e), "drive": {"ok": False, "error": str(e)}})
-                        return
-                task["folderUrl"] = pack.get("folderUrl") or ""
-                task["docUrl"] = pack.get("docUrl") or ""
-                task["activity"].append(
-                    {"at": utc_now(), "text": f"Drive folder + brief Doc in {line}"}
-                )
+                    task["folderUrl"] = pack.get("folderUrl") or ""
+                    task["docUrl"] = pack.get("docUrl") or ""
+                    task["activity"].append(
+                        {"at": utc_now(), "text": f"Drive folder + brief Doc in {line}"}
+                    )
+                    need_pack = False
                 db.setdefault("tasks", []).insert(0, task)
                 notice_io.on_landed(db, task, str(data.get("actorId") or ""))
                 db.setdefault("events", []).insert(
@@ -1578,11 +1687,14 @@ class Handler(SimpleHTTPRequestHandler):
                     {
                         "ok": True,
                         "task": task,
-                        "drive": {"ok": True, "created": True, **pack},
+                        "drive": {"ok": True, "queued": need_pack, "created": not need_pack},
                         "state": db,
                     },
                 )
-                threading.Thread(target=_sync_files_bg, args=(ym, True), daemon=True).start()
+                if need_pack:
+                    _spawn(_create_pack_then_excel, task["id"], name, ym, line)
+                else:
+                    _spawn(_sync_files_bg, ym, True)
                 return
             if path in {"/api/tasks/delete", "/api/tasks/delete-many"}:
                 if data.get("role") not in OPS_ROLES:
@@ -1597,35 +1709,26 @@ class Handler(SimpleHTTPRequestHandler):
                 if not tasks:
                     self._json(404, {"error": "not found"})
                     return
-                drive = {"ok": True, "trashed": 0, "errors": []}
                 gone = {str(t.get("id") or "") for t in tasks}
-                for task in tasks:
-                    try:
-                        out = drive_io.trash_live_pack(task, db)
-                        if out.get("trashed"):
-                            drive["trashed"] += 1
-                    except drive_io.DriveError as e:
-                        print(f"[drive] trash failed for {task.get('name')}: {e}", flush=True)
-                        drive["ok"] = False
-                        drive["errors"].append(str(e))
+                snapshot = _clone(tasks)
                 remember_dropped(db, tasks)
                 db["tasks"] = [t for t in (db.get("tasks") or []) if str(t.get("id") or "") not in gone]
                 names = ", ".join(str(t.get("name") or "") for t in tasks)
                 db.setdefault("events", []).insert(
                     0, {"at": utc_now(), "text": f"Deleted {names}"}
                 )
-                excel = {}
-                try:
-                    excel = sync_excel(db, data.get("month") or tasks[0].get("month"), calculator=True)
-                except FileNotFoundError as e:
-                    save_db(db)
-                    self._json(
-                        500,
-                        {"error": str(e), "drive": drive, "excel": excel, "state": db},
-                    )
-                    return
+                ym = data.get("month") or tasks[0].get("month")
                 save_db(db)
-                self._json(200, {"ok": True, "drive": drive, "excel": excel, "state": db})
+                self._json(
+                    200,
+                    {
+                        "ok": True,
+                        "drive": {"ok": True, "queued": True, "trashed": 0},
+                        "excel": {"queued": True},
+                        "state": db,
+                    },
+                )
+                _spawn(_trash_then_excel, snapshot, ym)
                 return
             if path == "/api/parse-email":
                 if data.get("role") not in OPS_ROLES:
@@ -1710,7 +1813,6 @@ class Handler(SimpleHTTPRequestHandler):
                 actor_id = data.get("actorId") or ""
                 for task in fresh:
                     notice_io.on_landed(db, task, actor_id)
-                drive = drive_io.ensure_live_packs(db, packs, ym)
                 db.setdefault("events", []).insert(
                     0,
                     {
@@ -1718,13 +1820,16 @@ class Handler(SimpleHTTPRequestHandler):
                         "text": f"Shift list: {added} new, {updated} hours updated",
                     },
                 )
-                try:
-                    sync_excel(db, data.get("month"), calculator=True)
-                except FileNotFoundError as e:
-                    save_db(db)
-                    self._json(500, {"error": str(e), "state": db, "drive": drive})
-                    return
                 save_db(db)
+                specs = [
+                    {
+                        "id": t.get("id"),
+                        "name": str(t.get("name") or "").strip(),
+                        "line": t.get("line") or "",
+                    }
+                    for t in packs
+                    if str(t.get("name") or "").strip() and not str(t.get("folderUrl") or "").strip()
+                ]
                 self._json(
                     200,
                     {
@@ -1732,10 +1837,15 @@ class Handler(SimpleHTTPRequestHandler):
                         "added": added,
                         "updated": updated,
                         "parsed": rows,
-                        "drive": drive,
+                        "drive": {"ok": True, "queued": True},
                         "state": db,
                     },
                 )
+                def _email_files():
+                    if specs:
+                        fill_missing_packs(specs, ym)
+                    _sync_files_bg(data.get("month") or ym, True)
+                _spawn(_email_files)
                 return
             if path == "/api/drive/ensure":
                 if data.get("role") not in OPS_ROLES:
@@ -1899,7 +2009,7 @@ class Handler(SimpleHTTPRequestHandler):
                         return
                     task["deadline"] = raw[:10] if raw else ""
                 data.pop("comments", None)
-                drive_rename = None
+                pending_rename = ""
                 if "name" in data:
                     if role not in OPS_ROLES:
                         self._json(403, {"error": "only DL or LP can rename a project"})
@@ -1922,23 +2032,9 @@ class Handler(SimpleHTTPRequestHandler):
                         if clash:
                             self._json(409, {"error": "this project is already on the board"})
                             return
-                        try:
-                            drive_rename = drive_io.rename_live_pack(db, task, new_name)
-                        except drive_io.DriveError as e:
-                            print(f"[drive] rename failed for {old_name}: {e}", flush=True)
-                            self._json(409, {"error": str(e), "drive": {"ok": False, "error": str(e)}})
-                            return
+                        pending_rename = old_name
                         task["name"] = new_name
                         task["line"] = drive_io.line_from_name(new_name)
-                        try:
-                            excel_io.rewrite_existing_name(
-                                db,
-                                str(task.get("month") or db.get("meta", {}).get("month") or "2026-10"),
-                                old_name,
-                                task,
-                            )
-                        except Exception as e:
-                            print(f"[excel] rename failed for {old_name}: {e}", flush=True)
                         task.setdefault("activity", []).append(
                             {"at": utc_now(), "text": f"Renamed {old_name} → {new_name}"}
                         )
@@ -1946,16 +2042,11 @@ class Handler(SimpleHTTPRequestHandler):
                 for key in ("studioStatus", "assigneeId", "resultUrl", "brief", "folderUrl", "docUrl"):
                     if key in data:
                         task[key] = data[key]
-                drive = None
                 brief_changed = "brief" in data and str(task.get("brief") or "") != str(brief_before or "")
-                if brief_changed and (
-                    str(task.get("source") or "") == "portal" or task.get("docUrl")
-                ):
-                    try:
-                        drive = drive_io.sync_task_brief(db, task)
-                    except drive_io.DriveError as e:
-                        print(f"[drive] brief failed for {task.get('name')}: {e}", flush=True)
-                        drive = {"ok": False, "error": str(e)}
+                pending_brief = bool(
+                    brief_changed
+                    and (str(task.get("source") or "") == "portal" or task.get("docUrl"))
+                )
                 if "help" in data:
                     if role not in {"manager", "finance", "teamlead"}:
                         self._json(403, {"error": "only TL or LP can split hours"})
@@ -1999,15 +2090,25 @@ class Handler(SimpleHTTPRequestHandler):
                 notice_io.on_task_change(db, task, before, data.get("actorId") or "")
                 money = "assigneeId" in data or "shifts" in data or "help" in data
                 save_db(db)
-                out_drive = drive or {"ok": True}
-                if drive_rename:
-                    out_drive = {**out_drive, "rename": drive_rename}
-                self._json(200, {"task": task, "state": db, "drive": out_drive})
-                threading.Thread(
-                    target=_sync_files_bg,
-                    args=(task.get("month"), money),
-                    daemon=True,
-                ).start()
+                self._json(
+                    200,
+                    {
+                        "task": task,
+                        "state": db,
+                        "drive": {"ok": True, "queued": bool(pending_rename or pending_brief)},
+                    },
+                )
+                if pending_rename or pending_brief:
+                    _spawn(
+                        _rename_then_excel,
+                        pending_rename,
+                        _clone(task),
+                        task.get("month"),
+                        pending_brief,
+                        money,
+                    )
+                else:
+                    _spawn(_sync_files_bg, task.get("month"), money)
                 return
             if path == "/api/tasks/comment":
                 role = data.get("role") or ""
@@ -2481,14 +2582,9 @@ class Handler(SimpleHTTPRequestHandler):
                     if dest:
                         notice_io.on_task_change(db, task, before, actor_id)
                 db["people"] = [p for p in db["people"] if p["id"] != pid]
-                try:
-                    sync_excel(db, calculator=True)
-                except FileNotFoundError as e:
-                    save_db(db)
-                    self._json(500, {"error": str(e), "state": db})
-                    return
                 save_db(db)
                 self._json(200, {"deleted": pid, "reassigned": len(held), "state": db})
+                _spawn(_sync_files_bg, db.get("meta", {}).get("month"), True)
                 return
             if path == "/api/notices/read":
                 person_id = data.get("personId") or ""

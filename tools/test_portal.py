@@ -220,6 +220,36 @@ def test_save_db_atomic() -> None:
             server.DB_PATH = old
 
 
+def test_sync_files_releases_lock() -> None:
+    original = server.sync_excel
+    during = {"locked": None}
+
+    def slow(db, month=None, calculator=False):
+        time.sleep(0.4)
+        during["locked"] = server.LOCK.locked()
+        return {"ok": False, "skipped": True}
+
+    server.sync_excel = slow
+    try:
+        th = threading.Thread(target=lambda: server._sync_files_bg("2026-10", False), daemon=True)
+        th.start()
+        time.sleep(0.08)
+        t0 = time.monotonic()
+        got = server.LOCK.acquire(timeout=0.25)
+        dt = time.monotonic() - t0
+        if got:
+            server.LOCK.release()
+        th.join(timeout=2)
+        check(
+            "excel bg does not hold board LOCK",
+            got is True and dt < 0.2,
+            f"got={got} dt={dt:.3f}s",
+        )
+        check("LOCK.locked() is false during xlsx/Drive", during["locked"] is False, str(during))
+    finally:
+        server.sync_excel = original
+
+
 def test_unreadable_ingest_does_not_wipe() -> None:
     with tempfile.TemporaryDirectory() as raw:
         path = Path(raw) / "bad.xlsx"
@@ -262,6 +292,17 @@ def test_http(base: str) -> str | None:
     code, payload, _ = _http(f"{base}/api/version")
     check("GET /api/version", code == 200 and payload.get("build") == server.BUILD, str(payload.get("build")))
 
+    t0 = time.monotonic()
+    code, payload, _ = _http(f"{base}/api/roster", timeout=2)
+    dt = time.monotonic() - t0
+    roles = [r.get("role") for r in (payload.get("studio") or [])]
+    check("GET /api/roster under 0.4s", code == 200 and dt < 0.4, f"status={code} {dt:.3f}s")
+    check(
+        "roster seats are DL LP TL MD",
+        roles == ["finance", "manager", "teamlead", "designer"],
+        str(roles),
+    )
+
     code, payload, _ = _http(f"{base}/api/login", {"door": "studio", "role": "finance", "pin": "0000"})
     check("wrong PIN is 403", code == 403, str(payload))
 
@@ -280,7 +321,7 @@ def test_http(base: str) -> str | None:
         t0 = time.monotonic()
         code, payload, _ = _http(f"{base}/api/me", cookie=cookie.split(";", 1)[0], timeout=5)
         dt = time.monotonic() - t0
-        check("/api/me under 5s", code == 200 and payload.get("session") and dt < 5, f"status={code} {dt:.3f}s")
+        check("/api/me under 1s", code == 200 and payload.get("session") and dt < 1, f"status={code} {dt:.3f}s")
 
         hits = []
 
@@ -303,6 +344,81 @@ def test_http(base: str) -> str | None:
         slow = [h for h in hits if h[1] >= 5]
         check("16 concurrent /api/me all 200", len(ok_hits) == 16, str(hits[:3]))
         check("concurrent /api/me none hung", not slow and wall < 6, f"wall={wall:.3f}s slow={slow}")
+
+        crash_id = "t-crash-del"
+        with server.LOCK:
+            db = server.load_db()
+            db["tasks"] = [t for t in (db.get("tasks") or []) if t.get("id") != crash_id]
+            db.setdefault("tasks", []).insert(
+                0,
+                {
+                    "id": crash_id,
+                    "name": "DD-CRASH-DEL-13H",
+                    "line": "DD",
+                    "month": "2026-10",
+                    "studioStatus": "new",
+                    "mondayStatus": "Ready to Start",
+                    "shifts": 0,
+                    "hours": 0,
+                    "help": [],
+                    "source": "portal",
+                },
+            )
+            server.save_db(db)
+        t0 = time.monotonic()
+        code, payload, _ = _http(
+            f"{base}/api/tasks/delete",
+            {"id": crash_id, "role": "finance", "actorId": "finance"},
+            cookie=cookie.split(";", 1)[0],
+            timeout=3,
+        )
+        dt = time.monotonic() - t0
+        gone = not any(
+            str(t.get("id") or "") == crash_id for t in ((payload or {}).get("state") or {}).get("tasks") or []
+        )
+        check(
+            "delete returns under 1s",
+            code == 200 and payload.get("ok") is True and dt < 1,
+            f"status={code} {dt:.3f}s err={payload.get('error') if isinstance(payload, dict) else payload}",
+        )
+        check("delete drops the card before Drive", gone, str((payload or {}).get("drive")))
+
+        original_excel = server.sync_excel
+
+        def slow_excel(db, month=None, calculator=False):
+            time.sleep(1.0)
+            return {"ok": False, "skipped": True}
+
+        server.sync_excel = slow_excel
+        try:
+            threading.Thread(target=lambda: server._sync_files_bg("2026-10", False), daemon=True).start()
+            time.sleep(0.05)
+            times = []
+
+            def ping_fast(path):
+                t = time.monotonic()
+                try:
+                    c, body, _ = _http(f"{base}{path}", timeout=1)
+                    times.append((path, c, time.monotonic() - t, body))
+                except Exception as e:
+                    times.append((path, 0, time.monotonic() - t, str(e)))
+
+            workers = [
+                threading.Thread(target=ping_fast, args=("/api/roster",)),
+                threading.Thread(target=ping_fast, args=("/health",)),
+            ]
+            for w in workers:
+                w.start()
+            for w in workers:
+                w.join(timeout=2)
+            slow_hits = [row for row in times if row[2] >= 0.5]
+            check(
+                "roster/health stay instant while excel writes",
+                times and not slow_hits and all(row[1] == 200 for row in times),
+                str(times),
+            )
+        finally:
+            server.sync_excel = original_excel
 
 
 def start_local_server() -> tuple[threading.Thread, str]:
@@ -327,6 +443,7 @@ def main() -> int:
         test_corrupt_db_recovery,
         test_save_db_atomic,
         test_unreadable_ingest_does_not_wipe,
+        test_sync_files_releases_lock,
     ):
         try:
             fn()

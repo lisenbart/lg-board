@@ -37,7 +37,7 @@ Do **not** put this on glowl.direct. Live desk only: **https://board.lisenbart.g
 ## What the desk does
 
 - **Shift email** — paste the shift list as it arrives (`NAME 0.3 shift`, `NAME- 0.3 SHFT`, or `NAME | 0.3 shifts`). Each new line is the same chain as Create task: card + live Drive folder + empty brief Doc + hours (shift × 9) on the card and in Excel. Names already on the board only get hours updated (and a folder if they still lack one). Monday API is not required.
-- **Files on disk.** The portal is the source of truth. **Create task**, Shift email, assign, hours, Due, split, and delete save on the board first; Excel/Drive copy runs in the background so Save does not hang. New Excel rows no longer create tasks. **Create task** still writes the live `Projects / 10_October / DD|DX|DS` folder and an empty brief Doc.
+- **Files on disk.** The portal is the source of truth. **Studio** login seats paint instantly (no wait on `/api/roster`). **Create task**, Shift email, assign, hours, Due, split, Save, and **delete** save on the board first and return immediately; Drive trash/folders and Excel copy run in the background so the desk never waits on Google or xlsx. New Excel rows no longer create tasks.
 - **Briefs on the card** come from the live Google Docs in `Projects / 10_October / DD|DX` (read-only) where we already had the text. **Open folder** is the live October project folder. Naming is the four filenames from those Docs, not invented sizes.
 - The task card is role-first. Brief text stays on the card; **Open brief** / **Open folder** open Drive — raw Doc/folder URL fields are not on the default card. **TL** sees assign first. **MD** sees paste-result then Done. **LP** sees hours and Send to client. Designer pastes the result link, then sets Done. Done is locked until that link is in the card — the work folder is not used as a stand-in. Assignment lives on the board; there is no Telegram copy step.
 - **Hours split** is studio pay only. SuperPlay still sees one SHIFTS / HOURS number. If someone renders because a PC cannot, TL or LP puts 0.5h (or whatever is fair) on the helper. Who stays the owner of Done. Heavy AE cleanup / lost sources is still inside the original hours — that does not add client time.
@@ -65,7 +65,7 @@ Open [http://127.0.0.1:43141](http://127.0.0.1:43141) and sign in with one of th
 
 Data: `data/db.json` (copied from `data/seed.json` on first start). Live Excel is `data/SP_MGX_check.xlsx`; `ssh board-update` snapshots it under `~/lg-board-backups` before git reset.
 
-Crash tests (Excel ingest, login, bad JSON, concurrent `/api/me`):
+Crash tests (Excel ingest, login, roster speed, delete-before-Drive, bad JSON, concurrent `/api/me`):
 
 ```bash
 python3 tools/test_portal.py
