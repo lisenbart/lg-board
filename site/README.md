@@ -1,44 +1,58 @@
-# lisenbart.games — studio door
+# lisenbart.games
 
-Public landing for **https://lisenbart.games**. Two doors into the live desk:
+Public studio site for **Lisenbart Games Animation** — a production motion team for games. One English page: work, services, studio, contact.
 
-- **Studio** → [board.lisenbart.games/?door=studio](https://board.lisenbart.games/?door=studio)
-- **Client** → [board.lisenbart.games/hours](https://board.lisenbart.games/hours)
+This folder is the public face. The Python board in the repo root (`board.lisenbart.games`) is a different product. PIN, hours Excel, Drive, rates and invoices stay off this site.
 
-PIN seats stay on the board. This page never asks for a PIN.
+## Stack
 
-This folder is the public studio site. The Python board in the repo root is a different product.
+Vite + React + TypeScript + Tailwind v4. Node 20.
 
-## Where it should run: Netlify, not the VPS
+**Type:** Syne (display) and DM Sans (body). Syne is tight and slightly industrial — closer to a title card than a SaaS landing. DM Sans stays readable on the service copy. Not Figtree (board) and not the .com serif pairing.
 
-**lisenbart.com** already lives on Netlify. **lisenbart.games** should live there too.
+## What is on the page
 
-| | Netlify (`lisenbart.games`) | Same OVH VPS as the board |
-| --- | --- | --- |
-| What it is | CDN + HTTPS for a static page | nginx next to the studio desk |
-| If the VPS restarts | Homepage stays up | Homepage dies with the board |
-| Looks like a studio | Public door on the same host as `.com` | Internal tool’s box pretending to be a website |
-| Deploy | Git push / Netlify | `ssh board-update` mixes marketing with ops |
+- **Hero** — “Your game. Our next move.” Kyiv · Warsaw.
+- **Gaming reel** — Vimeo `944158555` from the existing lisenbart.com gaming reel. Native player controls. It is not labelled as a playable.
+- **Frames** — stills `01`–`05` from that reel. `06` (logo wall with extra names) and `07` (wordmark only) are not used.
+- **Clients named in text** — Playtika, Voodoo, Moon Active, Plarium. No other names, no SuperPlay / MGX.
+- **Services** — Playable Ads, Game Animation, Video Creatives (UA/ASO), Creative Direction & Storytelling. Playable Ads is a service with no fake interactive case on this page.
+- **Contact** — `mailto:dmytro@lisenbart.games`. No form, no PIN.
+- **Footer (tiny)** — Studio → `board.lisenbart.games/?door=studio` · Hours → `board.lisenbart.games/hours`.
 
-The board is an ops module (PIN seats, Drive, Excel). The homepage is a public face. Keep them on different machines so a desk restart, a Drive hang, or a bot hitting the board cannot take down `lisenbart.games`.
+Wordmark: existing RGB mark. Exterior white was flood-filled to transparent so it sits on dark; the white LISENBART / ANIMATION letters stay opaque — do not `mix-blend` or punch those glyphs.
 
-Use the VPS for **board.lisenbart.games** only.
-
-## DNS (when attaching Netlify)
-
-Leave `board.lisenbart.games` as the A record to `15.235.127.163`.
-
-Point the apex and www at Netlify (Netlify DNS, or ALIAS/ANAME on the apex + CNAME `www`). Do not CNAME `lisenbart.games` at the board.
-
-## Publish
-
-Netlify site, this GitHub repo `lisenbart/lg-board`, branch `studio`:
-
-- Base directory: `site`
-- Publish directory: `site` (or `.` if base is `site`)
-
-Local preview:
+## Run locally
 
 ```bash
-python3 -m http.server 43211 --bind 127.0.0.1 --directory site
+cd site
+npm install
+npm run dev
 ```
+
+Opens on [http://127.0.0.1:43221](http://127.0.0.1:43221).
+
+```bash
+npm run build
+npm run preview
+```
+
+## Netlify (lisenbart.games only)
+
+Attach **this** repo (`lg-board`) as its own Netlify site for the `.games` domain. Do **not** reuse or clone the existing **lisenbart.com** site (`github.com/lisenbart/lisenbart`) — that site already owns `lisenbart.com` / `lisenbart.netlify.app`.
+
+When you agree to publish:
+
+| Setting | Value |
+| --- | --- |
+| Base directory | `site` |
+| Build | `npm run build` |
+| Publish | `dist` |
+| Node | 20 (`netlify.toml`) |
+| SPA fallback | `/*` → `/index.html` `200` (already in `netlify.toml`) |
+
+Leave `board.lisenbart.games` as the A record to the VPS (`15.235.127.163`). Point apex `lisenbart.games` and `www` at this Netlify site — not at the board.
+
+Do not force-redirect `/originals` → `/originals/` (that is a .com rule and loops). Do not copy .com WordPress 410s unless we decide they are needed here.
+
+Production deploy only after you say so. Pushing GitHub branch `studio` is a publish path — do not use it until agreed.
