@@ -28,7 +28,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-13m"
+BUILD = "2026-10-13n"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -1267,6 +1267,37 @@ class Handler(SimpleHTTPRequestHandler):
         sess = self._session()
         studio = bool(sess) and sess.get("role") != "client" and sess.get("email") != auth_io.CLIENT_EMAIL
         finance = bool(sess) and sess.get("role") == "finance"
+        if path == "/api/hours/file":
+            if not sess:
+                self._json(401, {"error": "sign in"})
+                return
+            qs = parse_qs(urlparse(self.path).query)
+            month = str((qs.get("month") or [""])[0] or "").strip()
+            if not re.fullmatch(r"\d{4}-\d{2}", month):
+                with LOCK:
+                    month = str((peek_db().get("meta") or {}).get("month") or "2026-10")
+            with LOCK:
+                db = peek_db()
+                snap = {
+                    "meta": {"shiftHours": (db.get("meta") or {}).get("shiftHours") or 9},
+                    "tasks": [
+                        {
+                            "name": t.get("name"),
+                            "line": t.get("line"),
+                            "month": t.get("month"),
+                            "shifts": t.get("shifts"),
+                            "hours": t.get("hours"),
+                        }
+                        for t in db.get("tasks") or []
+                    ],
+                }
+            data = excel_io.client_hours_bytes(snap, month)
+            self._bytes(
+                data,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                excel_io.client_hours_filename(month),
+            )
+            return
         if path == "/api/drive/status":
             if not sess:
                 self._json(401, {"error": "sign in"})

@@ -29,7 +29,7 @@ Then:
 - **Team lead** — own work plus every designer. Assigns people. No Monday send, no Finance. TL PIN also sits as MD.
 - **Designer** — only their queue, plus a read-only Excel picture of the whole month.
 - **Line producer / Finance** — full pipeline. **Create task** sits left of **Shift email**. The **Done** KPI filters the board to Done cards (same toggle as MD / Unassigned load cards).
-- **Client (SuperPlay)** — **Hours**: PROJECT NAME / SHIFTS / HOURS, sections MGX DX and MGX DD, TOTAL. Same list the invoices are based on. No studio queue, no people, no money.
+- **Client (SuperPlay)** — **Hours**: PROJECT NAME / SHIFTS / HOURS, sections MGX DX and MGX DD, TOTAL. Same list the invoices are based on. **Download Excel** builds a fresh file at click time (no studio people or rates), stamped with Kyiv date and time. No studio queue, no money.
 
 Studio no longer uses a shared team mailbox. The name on the door is the seat.
 

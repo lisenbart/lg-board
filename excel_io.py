@@ -4,10 +4,13 @@ from __future__ import annotations
 import os
 import re
 import tempfile
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
-from openpyxl import load_workbook
+from io import BytesIO
+
+from openpyxl import Workbook, load_workbook
 from openpyxl.comments import Comment
 from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
@@ -867,3 +870,99 @@ def _close_wb(wb) -> None:
         wb.close()
     except Exception:
         pass
+
+
+def _as_float(value, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def client_hours_filename(ym: str) -> str:
+    return f"SUPERPLAY_MGX_hours_{ym}.xlsx"
+
+
+def kyiv_stamp(now: datetime | None = None) -> str:
+    dt = now or datetime.now(ZoneInfo("Europe/Kyiv"))
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc).astimezone(ZoneInfo("Europe/Kyiv"))
+    else:
+        dt = dt.astimezone(ZoneInfo("Europe/Kyiv"))
+    return f"{dt.day} {dt.strftime('%b %Y, %H:%M')} Kyiv"
+
+
+def client_hours_bytes(db: dict, ym: str, *, generated_at: datetime | None = None) -> bytes:
+    """Build a fresh SuperPlay hours xlsx at download time. No people, rates, or status."""
+    ym = str(ym or "").strip()
+    shift_hours = _as_float((db.get("meta") or {}).get("shiftHours"), 9) or 9
+    tasks = [t for t in db.get("tasks") or [] if (t.get("month") or ym) == ym]
+    lines = ["DX", "DD"]
+    if any(str(t.get("line") or "") == "DS" for t in tasks):
+        lines.append("DS")
+    labels = {"DX": "MGX DX", "DD": "MGX DD", "DS": "Playables DS"}
+    year = ym[:4] if len(ym) >= 4 else "2026"
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = sheet_name_for(ym)[:31]
+    stamp = ws.cell(1, 1, f"Generated {kyiv_stamp(generated_at)}")
+    stamp.font = Font(name="Calibri", size=11, color="676879")
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=3)
+    headers = (f"{year} PROJECT NAME", "SHIFTS", "HOURS")
+    for col, title in enumerate(headers, 1):
+        cell = ws.cell(2, col, title)
+        cell.font = CALIBRI_BOLD
+        cell.fill = HEADER_FILL
+        cell.border = THIN
+        cell.alignment = CENTER
+
+    row = 3
+    total_hours = 0.0
+    for line in lines:
+        rows = sorted(
+            [t for t in tasks if t.get("line") == line],
+            key=lambda t: str(t.get("name") or "").lower(),
+        )
+        sec_hours = round(sum(client_hours(t, shift_hours) for t in rows), 1)
+        total_hours += sec_hours
+        ws.cell(row, 1, labels[line])
+        ws.cell(row, 3, sec_hours)
+        for col in range(1, 4):
+            cell = ws.cell(row, col)
+            cell.fill = LINE_FILL.get(line, HEADER_FILL)
+            cell.font = CALIBRI_BOLD
+            cell.border = THIN
+        ws.cell(row, 3).alignment = CENTER
+        row += 1
+        for task in rows:
+            ws.cell(row, 1, str(task.get("name") or ""))
+            ws.cell(row, 2, _as_float(task.get("shifts")))
+            ws.cell(row, 3, client_hours(task, shift_hours))
+            for col in range(1, 4):
+                cell = ws.cell(row, col)
+                cell.font = CALIBRI
+                cell.border = THIN
+            ws.cell(row, 2).alignment = CENTER
+            ws.cell(row, 3).alignment = CENTER
+            row += 1
+
+    row += 1
+    ws.cell(row, 1, "TOTAL")
+    ws.cell(row, 3, round(total_hours, 1))
+    for col in range(1, 4):
+        cell = ws.cell(row, col)
+        cell.font = CALIBRI_BOLD
+        cell.fill = HEADER_FILL
+        cell.border = THIN
+    ws.cell(row, 3).alignment = CENTER
+    ws.column_dimensions["A"].width = 72
+    ws.column_dimensions["B"].width = 12
+    ws.column_dimensions["C"].width = 12
+    ws.freeze_panes = "A3"
+    buf = BytesIO()
+    try:
+        wb.save(buf)
+    finally:
+        _close_wb(wb)
+    return buf.getvalue()

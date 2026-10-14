@@ -10,7 +10,10 @@ import time
 import traceback
 import urllib.error
 import urllib.request
+from datetime import datetime
+from io import BytesIO
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -86,6 +89,35 @@ def _db() -> dict:
         "droppedNames": ["DD-TEST-0000001"],
         "events": [],
     }
+
+
+def test_client_hours_xlsx() -> None:
+    db = {
+        "meta": {"shiftHours": 9, "month": "2026-10"},
+        "tasks": [
+            {"name": "DX-AAA-0001", "line": "DX", "month": "2026-10", "shifts": 0.3, "hours": 2.7},
+            {"name": "DD-BBB-0002", "line": "DD", "month": "2026-10", "shifts": 1, "hours": 9},
+            {"name": "DX-OLD", "line": "DX", "month": "2026-09", "shifts": 9, "hours": 81},
+        ],
+    }
+    at = datetime(2026, 10, 14, 18, 29, tzinfo=ZoneInfo("Europe/Kyiv"))
+    data = excel_io.client_hours_bytes(db, "2026-10", generated_at=at)
+    check("hours workbook is xlsx", data[:2] == b"PK")
+    wb = load_workbook(BytesIO(data))
+    ws = wb.active
+    col_a = [str(ws.cell(r, 1).value or "") for r in range(1, (ws.max_row or 1) + 1)]
+    check("hours stamp is Kyiv time", "Generated 14 Oct 2026, 18:29 Kyiv" in col_a[0], col_a[0])
+    check("hours sheet skips other months", "DX-OLD" not in col_a)
+    check("hours sheet has both lines", "DX-AAA-0001" in col_a and "DD-BBB-0002" in col_a)
+    total = next(ws.cell(r, 3).value for r in range(1, (ws.max_row or 1) + 1) if str(ws.cell(r, 1).value) == "TOTAL")
+    check("hours TOTAL is 11.7", float(total) == 11.7, str(total))
+    empl = any("EMPL" in str(ws.cell(2, c).value or "") for c in range(1, 8))
+    check("hours sheet has no EMPL", not empl)
+    wb.close()
+    later = excel_io.client_hours_bytes(db, "2026-10", generated_at=datetime(2026, 10, 14, 19, 5, tzinfo=ZoneInfo("Europe/Kyiv")))
+    a = load_workbook(BytesIO(data)).active.cell(1, 1).value
+    b = load_workbook(BytesIO(later)).active.cell(1, 1).value
+    check("hours xlsx is generated per download", a != b, f"{a} vs {b}")
 
 
 def test_pin_opens() -> None:
@@ -436,7 +468,30 @@ def test_http(base: str) -> str | None:
     check("finance login", code == 200 and payload.get("ok") is True and payload.get("session"), str(payload.get("error")))
     check("login sets cookie", bool(cookie), str(cookie))
 
+    code, payload, _ = _http(f"{base}/api/hours/file?month=2026-10")
+    check("hours xlsx requires sign in", code == 401)
+
     if cookie:
+        t0 = time.monotonic()
+        code, payload, headers = _http(
+            f"{base}/api/hours/file?month=2026-10",
+            cookie=cookie.split(";", 1)[0],
+            timeout=3,
+        )
+        dt = time.monotonic() - t0
+        check(
+            "hours xlsx built on download",
+            code == 200 and isinstance(payload, (bytes, bytearray)) and payload[:2] == b"PK" and dt < 0.5,
+            f"status={code} {dt:.3f}s type={type(payload).__name__}",
+        )
+        if isinstance(payload, (bytes, bytearray)) and payload[:2] == b"PK":
+            wb = load_workbook(BytesIO(payload))
+            stamp = str(wb.active.cell(1, 1).value or "")
+            names = [str(wb.active.cell(r, 1).value or "") for r in range(1, min(wb.active.max_row or 1, 40) + 1)]
+            wb.close()
+            check("hours xlsx stamp has Kyiv", "Kyiv" in stamp and stamp.startswith("Generated "), stamp)
+            check("hours xlsx has TOTAL", "TOTAL" in names, str(names[-3:]))
+
         t0 = time.monotonic()
         code, payload, _ = _http(f"{base}/api/me", cookie=cookie.split(";", 1)[0], timeout=5)
         dt = time.monotonic() - t0
@@ -577,6 +632,7 @@ def start_local_server() -> tuple[threading.Thread, str]:
 def main() -> int:
     print("Excel / db")
     for fn in (
+        test_client_hours_xlsx,
         test_pin_opens,
         test_parse_past_total,
         test_apply_full_sheet,

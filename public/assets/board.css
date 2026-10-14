@@ -1453,6 +1453,7 @@ body.col-resizing * { cursor: col-resize !important; }
 .sp-head p { margin: 0; color: var(--muted); font-size: 13px; max-width: 62ch; }
 .sp-kpis { display: flex; flex-wrap: wrap; gap: 8px; }
 .sp-kpis .kpi { min-width: 120px; }
+.sp-kpis .sp-stamp { min-width: 132px; }
 .sp-sheet {
   background: #fff;
   border: 1px solid #d0d4e4;

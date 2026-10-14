@@ -970,8 +970,12 @@ function renderToolbar() {
     return;
   }
   if (state.view === "report") {
-    $("toolbar").innerHTML = `<input class="search" placeholder="Search project" />`;
+    $("toolbar").innerHTML = `
+      <button type="button" class="btn" id="btnHoursXlsx">Download Excel</button>
+      <input class="search" placeholder="Search project" />
+    `;
     bindSearch();
+    $("btnHoursXlsx")?.addEventListener("click", downloadHoursXlsx);
     return;
   }
   if (state.view === "excel") {
@@ -1870,6 +1874,71 @@ function fmtReportNum(n, digits) {
   return String(rounded);
 }
 
+function kyivParts(d) {
+  const at = d || new Date();
+  const date = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/Kyiv",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(at);
+  const time = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/Kyiv",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(at);
+  return { date, time };
+}
+let hoursStampTimer = 0;
+function paintHoursStamp() {
+  const el = $("spStamp");
+  if (!el) return false;
+  const { date, time } = kyivParts();
+  el.innerHTML = `<b>${escapeHtml(date)}</b><span>${escapeHtml(time)} Kyiv</span>`;
+  return true;
+}
+function startHoursStamp() {
+  paintHoursStamp();
+  clearInterval(hoursStampTimer);
+  hoursStampTimer = setInterval(() => {
+    if (!paintHoursStamp()) clearInterval(hoursStampTimer);
+  }, 1000);
+}
+function hoursStampKpi() {
+  const { date, time } = kyivParts();
+  return `<div class="kpi sp-stamp" id="spStamp"><b>${escapeHtml(date)}</b><span>${escapeHtml(time)} Kyiv</span></div>`;
+}
+function hoursXlsxName(res) {
+  const raw = res.headers.get("Content-Disposition") || "";
+  const m = raw.match(/filename="([^"]+)"/i);
+  return m ? m[1] : `SUPERPLAY_MGX_hours_${state.month}.xlsx`;
+}
+async function downloadHoursXlsx() {
+  const btn = $("btnHoursXlsx");
+  setBusy(btn, true, "Building…");
+  try {
+    const res = await fetch(`/api/hours/file?month=${encodeURIComponent(state.month)}`, {
+      credentials: "same-origin",
+    });
+    if (res.status === 401) {
+      writeSession(null);
+      showLogin();
+      return;
+    }
+    if (!res.ok) {
+      toast("Could not build the hours table");
+      return;
+    }
+    const blob = await res.blob();
+    triggerNamedDownload(blob, hoursXlsxName(res));
+  } catch {
+    toast("Could not build the hours table");
+  } finally {
+    setBusy(btn, false);
+  }
+}
+
 function reportSections(tasks) {
   const lines = ["DX", "DD"];
   if (tasks.some((t) => t.line === "DS")) lines.push("DS");
@@ -1938,6 +2007,7 @@ function renderClientReport() {
         <div class="kpi"><b>${totalProjects}</b><span>projects</span></div>
         <div class="kpi"><b>${fmtReportNum(totalShifts, 1)}</b><span>shifts</span></div>
         <div class="kpi"><b>${fmtReportNum(totalHours, 1)} h</b><span>hours</span></div>
+        ${hoursStampKpi()}
       </div>
       <div class="sp-sheet">
         <div class="sp-scroll">
@@ -1964,6 +2034,7 @@ function renderClientReport() {
         </div>
       </div>
     </section>`;
+  startHoursStamp();
 }
 
 function renderExcelSheet() {
