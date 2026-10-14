@@ -22,12 +22,13 @@ ssh board-status    # live build
 
 Google Drive is always the live disk ([LLC/docs](https://drive.google.com/drive/folders/191q3zTumkNi-2tc9LCB1SG2lZwtu0pVs)). The VPS stays signed in with a service account file at `data/secrets/google_service.json` (share October DD/DX with that account). **Create task** then makes the folder + brief Doc; **Save** on the card writes the brief into the Doc. To update the live desk: `bash deploy/update.sh` on the VPS, then hard-refresh the browser.
 
-Home: **Client** or **Studio**. Five logins, one PIN each (`data/secrets/pins.json`): Finance, LP, TL, MD, Client. After MD PIN, pick which designer is at the desk.
+Home: **Client** or **Studio**. Five logins, one PIN each (`data/secrets/pins.json`): Finance, LP, TL, MD, Client. LP PIN opens every seat except DL (LP, TL, MD). TL PIN also opens MD seats. After a PIN that matches more than one person, pick who is at the desk.
 
 Then:
 
-- **Team lead** — own work plus every designer. Assigns people. No Monday send, no Finance.
+- **Team lead** — own work plus every designer. Assigns people. No Monday send, no Finance. TL PIN also sits as MD.
 - **Designer** — only their queue, plus a read-only Excel picture of the whole month.
+- **Line producer / Finance** — full pipeline. **Create task** sits left of **Shift email**. The **Done** KPI filters the board to Done cards (same toggle as MD / Unassigned load cards).
 - **Client (SuperPlay)** — **Hours**: PROJECT NAME / SHIFTS / HOURS, sections MGX DX and MGX DD, TOTAL. Same list the invoices are based on. No studio queue, no people, no money.
 
 Studio no longer uses a shared team mailbox. The name on the door is the seat.

@@ -67,6 +67,15 @@ STUDIO_ROLES = (
     {"role": "teamlead", "label": "TL", "blurb": "Team Lead"},
     {"role": "designer", "label": "MD", "blurb": "Motion design"},
 )
+# LP PIN opens every studio seat except DL. TL PIN also opens MD.
+PIN_OPENS = {
+    "finance": ("finance",),
+    "manager": ("manager", "teamlead", "designer"),
+    "teamlead": ("teamlead", "designer"),
+    "designer": ("designer",),
+}
+ROLE_SEAT_ORDER = {"finance": 0, "manager": 1, "teamlead": 2, "designer": 3}
+ROLE_SHORT = {row["role"]: row["label"] for row in STUDIO_ROLES}
 
 LOCK_ROLE = {
     "dmytro@lisenbart.games": "finance",
@@ -133,6 +142,24 @@ def pin_ok_for_role(role: str, pin: str) -> bool:
     return _pin_eq(want, str(pin or "").strip())
 
 
+def pin_owner_roles(pin: str) -> tuple[str, ...]:
+    """Roles this PIN may sit as. LP = all except DL; TL = TL + MD."""
+    for owner in ("manager", "teamlead", "finance", "designer"):
+        if pin_ok_for_role(owner, pin):
+            return PIN_OPENS[owner]
+    return ()
+
+
+def seat_payload(person: dict) -> dict:
+    role = str(person.get("role") or "")
+    return {
+        "id": person.get("id"),
+        "name": person.get("name") or "",
+        "role": role,
+        "label": ROLE_SHORT.get(role, role),
+    }
+
+
 def _sessions() -> dict:
     raw = _load_json(SESSIONS_PATH, {})
     return raw if isinstance(raw, dict) else {}
@@ -185,6 +212,21 @@ def studio_roster(people: list[dict]) -> dict:
 def people_for_role(people: list[dict], role: str) -> list[dict]:
     want = str(role or "").strip()
     return [p for p in people or [] if p.get("role") == want]
+
+
+def people_for_roles(people: list[dict], roles) -> list[dict]:
+    want = {str(r).strip() for r in (roles or []) if r}
+    picked = [p for p in people or [] if p.get("role") in want]
+
+    def key(person: dict):
+        role = str(person.get("role") or "")
+        try:
+            order = int(person.get("payOrder") or 99)
+        except (TypeError, ValueError):
+            order = 99
+        return (ROLE_SEAT_ORDER.get(role, 9), order, str(person.get("name") or "").lower())
+
+    return sorted(picked, key=key)
 
 
 def person_by_id(people: list[dict], seat_id: str) -> dict | None:

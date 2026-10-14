@@ -28,7 +28,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-13l"
+BUILD = "2026-10-13m"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -1432,7 +1432,8 @@ class Handler(SimpleHTTPRequestHandler):
                 if role not in {"finance", "manager", "teamlead", "designer"}:
                     self._json(403, {"error": "wrong login or PIN"})
                     return
-                if not auth_io.pin_ok_for_role(role, pin):
+                unlocked = auth_io.pin_owner_roles(pin)
+                if role not in unlocked:
                     self._json(403, {"error": "wrong login or PIN"})
                     return
             else:
@@ -1468,32 +1469,26 @@ class Handler(SimpleHTTPRequestHandler):
                     if role not in {"finance", "manager", "teamlead", "designer"}:
                         self._json(403, {"error": "wrong login or PIN"})
                         return
-                    if not auth_io.pin_ok_for_role(role, pin):
+                    unlocked = auth_io.pin_owner_roles(pin)
+                    if role not in unlocked:
                         self._json(403, {"error": "wrong login or PIN"})
                         return
-                    matches = auth_io.people_for_role(people, role)
+                    matches = auth_io.people_for_roles(people, unlocked)
                     if not matches:
                         self._json(400, {"error": "no seat for this login"})
                         return
-                    if role == "designer" and not data.get("seatId"):
+                    if not data.get("seatId") and len(matches) > 1:
                         self._json(
                             200,
                             {
                                 "ok": True,
                                 "needSeat": True,
-                                "seats": [
-                                    {
-                                        "id": p.get("id"),
-                                        "name": p.get("name") or "",
-                                        "role": "designer",
-                                    }
-                                    for p in matches
-                                ],
+                                "seats": [auth_io.seat_payload(p) for p in matches],
                             },
                         )
                         return
                     person = auth_io.person_by_id(people, data.get("seatId")) if data.get("seatId") else matches[0]
-                    if not person or person.get("role") != role:
+                    if not person or person.get("role") not in unlocked:
                         self._json(403, {"error": "wrong login or PIN"})
                         return
                     email = auth_io.email_for_person(person)

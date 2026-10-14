@@ -283,22 +283,35 @@ function showStudioPin(role, error) {
   });
   $("loginPin")?.focus();
 }
-function showMdSeats(seats) {
+function showSeatPicker(seats) {
   openLoginGate();
   $("loginTitle").hidden = false;
   $("loginLead").hidden = false;
-  $("loginTitle").textContent = "MD";
-  $("loginLead").textContent = "Who is at the desk?";
+  const roles = [...new Set(seats.map((p) => p.role).filter(Boolean))];
+  const mixed = roles.length > 1;
+  if (!mixed && roles[0] === "designer") {
+    $("loginTitle").textContent = "MD";
+    $("loginLead").textContent = "Who is at the desk?";
+  } else {
+    $("loginTitle").textContent = "Who is at the desk?";
+    const bits = [];
+    if (roles.includes("manager")) bits.push("LP");
+    if (roles.includes("teamlead")) bits.push("TL");
+    if (roles.includes("designer")) bits.push("a designer");
+    $("loginLead").textContent =
+      bits.length > 1 ? `Pick ${bits.slice(0, -1).join(", ")} or ${bits[bits.length - 1]}` : "Pick a seat";
+  }
   $("loginAccounts").innerHTML =
     `<button type="button" class="btn ghost login-back" id="loginBack">Back</button>` +
     seats
-      .map(
-        (p) =>
-          `<button type="button" class="login-seat" data-seat="${escapeHtml(p.id)}">
+      .map((p) => {
+        const badge = JOB_BADGE[p.role] || { code: p.label || "", title: ROLE_LABEL[p.role] || "" };
+        const sub = badge.code && badge.title ? `${badge.code} · ${badge.title}` : badge.title || "Motion design";
+        return `<button type="button" class="login-seat" data-seat="${escapeHtml(p.id)}">
             <strong>${escapeHtml(p.name)}</strong>
-            <span>Motion design</span>
-          </button>`
-      )
+            <span>${escapeHtml(sub)}</span>
+          </button>`;
+      })
       .join("");
   $("loginBack")?.addEventListener("click", () => showStudioPin(state.loginRole));
   $("loginAccounts").querySelectorAll(".login-seat").forEach((el) => {
@@ -363,7 +376,7 @@ async function submitDoorLogin(seatId) {
     return;
   }
   if (out.needSeat) {
-    showMdSeats(out.seats || []);
+    showSeatPicker(out.seats || []);
     return;
   }
   const sess = out.session || {};
@@ -848,7 +861,9 @@ function visibleTasks() {
     if (q && !`${t.name} ${t.brief}`.toLowerCase().includes(q)) return false;
     if (isDesigner() && t.assigneeId !== me().id && !helpedOn(t, me().id)) return false;
     if (!isDesigner() && state.designerFilter) {
-      if (state.designerFilter === "unassigned") {
+      if (state.designerFilter === "done") {
+        if (t.studioStatus !== "done") return false;
+      } else if (state.designerFilter === "unassigned") {
         if (t.assigneeId) return false;
       } else if (t.assigneeId !== state.designerFilter && !helpedOn(t, state.designerFilter)) return false;
     }
@@ -986,6 +1001,7 @@ function renderToolbar() {
   } else {
     $("toolbar").innerHTML = `
       ${isFinance() ? driveStrip() : ""}
+      ${canOps() && state.view === "board" ? `<button type="button" class="btn primary" id="btnCreateTask">Create task</button>` : ""}
       <button class="btn orange" id="btnEmail">Shift email</button>
       ${drive ? `<a class="btn" href="${escapeHtml(drive)}" target="_blank" rel="noreferrer">Open Drive</a>` : ""}
       <button class="btn green" id="btnExport" ${n ? "" : "disabled"}>Send to client (${n})</button>
@@ -994,6 +1010,7 @@ function renderToolbar() {
     `;
   }
   bindSearch();
+  $("btnCreateTask")?.addEventListener("click", openCreateTask);
   $("btnEmail")?.addEventListener("click", () => $("emailModal").classList.add("show"));
   $("btnExport")?.addEventListener("click", exportMonday);
   $("btnClientLink")?.addEventListener("click", copyClientPage);
@@ -1128,11 +1145,19 @@ function renderKpis() {
   const month = monthTasks();
   const hours = month.reduce((s, t) => s + (Number(t.hours) || 0), 0);
   const ready = month.filter((t) => t.studioStatus === "done").length;
+  const doneOn = canOps() && state.designerFilter === "done";
+  const doneKpi = canOps()
+    ? `<button type="button" class="kpi${doneOn ? " on" : ""}" id="kpiDone" aria-pressed="${doneOn ? "true" : "false"}"><b>${ready}</b><span>Done</span></button>`
+    : `<div class="kpi"><b>${ready}</b><span>Done</span></div>`;
   $("kpis").innerHTML = `
     <div class="kpi"><b>${month.length}</b><span>projects</span></div>
     <div class="kpi"><b>${hours.toFixed(1)} h</b><span>hours</span></div>
-    <div class="kpi"><b>${ready}</b><span>Done</span></div>
+    ${doneKpi}
   `;
+  $("kpiDone")?.addEventListener("click", () => {
+    state.designerFilter = state.designerFilter === "done" ? null : "done";
+    render();
+  });
 }
 
 function initials(name) {
@@ -2236,14 +2261,7 @@ function renderBoard() {
       </div>
     </div>`;
 
-  const createBar =
-    canOps() && state.view === "board"
-      ? `<div class="create-bar">
-          <button type="button" class="btn primary" id="btnCreateTask">Create task</button>
-        </div>`
-      : "";
   $("board").innerHTML = `
-    ${createBar}
     <section class="group sheet" style="--name-width:${savedNameWidth()}px">
       <div class="col-splitter" title="Drag to move columns" role="separator" aria-orientation="vertical"></div>
       ${head}
@@ -2259,7 +2277,9 @@ function renderBoard() {
           : `<div class="cell empty" style="padding:12px 16px">${
               isDesigner()
                 ? `Nothing assigned in ${monthLabel(state.month)}`
-                : `No projects in ${monthLabel(state.month)}`
+                : state.designerFilter === "done"
+                  ? `No Done projects in ${monthLabel(state.month)}`
+                  : `No projects in ${monthLabel(state.month)}`
             }</div>`
       }
     </section>`;
@@ -2281,7 +2301,6 @@ function renderBoard() {
     });
   });
   bindSplitter($("board").querySelector(".group"));
-  $("btnCreateTask")?.addEventListener("click", openCreateTask);
   bindTimeEdits();
 }
 

@@ -17,6 +17,7 @@ sys.path.insert(0, str(ROOT))
 
 from openpyxl import Workbook, load_workbook
 
+import auth_io
 import excel_io
 import finance_io
 import server
@@ -85,6 +86,22 @@ def _db() -> dict:
         "droppedNames": ["DD-TEST-0000001"],
         "events": [],
     }
+
+
+def test_pin_opens() -> None:
+    check("LP PIN opens LP TL MD", auth_io.pin_owner_roles("1726") == ("manager", "teamlead", "designer"))
+    check("TL PIN opens TL MD", auth_io.pin_owner_roles("2026") == ("teamlead", "designer"))
+    check("DL PIN opens DL", auth_io.pin_owner_roles("3245") == ("finance",))
+    check("MD PIN opens MD", auth_io.pin_owner_roles("4429") == ("designer",))
+    check("bad PIN opens nothing", auth_io.pin_owner_roles("0000") == ())
+    people = [
+        {"id": "dl", "name": "D", "role": "finance"},
+        {"id": "lp", "name": "A", "role": "manager"},
+        {"id": "tl", "name": "N", "role": "teamlead"},
+        {"id": "md", "name": "M", "role": "designer", "payOrder": 2},
+    ]
+    ids = [p["id"] for p in auth_io.people_for_roles(people, auth_io.PIN_OPENS["manager"])]
+    check("LP seats skip DL", ids == ["lp", "tl", "md"], str(ids))
 
 
 def test_parse_past_total() -> None:
@@ -342,6 +359,72 @@ def test_http(base: str) -> str | None:
     code, payload, _ = _http(f"{base}/api/login", {"door": "studio", "role": "finance", "pin": "0000"})
     check("wrong PIN is 403", code == 403, str(payload))
 
+    code, payload, _ = _http(f"{base}/api/login", {"door": "studio", "role": "finance", "pin": "1726"})
+    check("LP PIN cannot open DL", code == 403, str(payload))
+
+    code, payload, _ = _http(f"{base}/api/login", {"door": "studio", "role": "manager", "pin": "2026"})
+    check("TL PIN cannot open LP", code == 403, str(payload))
+
+    code, payload, _ = _http(f"{base}/api/login", {"door": "studio", "role": "manager", "pin": "1726"})
+    lp_seats = payload.get("seats") or []
+    lp_roles = {s.get("role") for s in lp_seats}
+    check(
+        "LP PIN asks for a seat",
+        code == 200 and payload.get("needSeat") is True and lp_seats,
+        str(payload.get("error") or payload.get("session")),
+    )
+    check("LP PIN seats are LP TL MD not DL", lp_roles == {"manager", "teamlead", "designer"}, str(lp_roles))
+    md_from_lp = next((s for s in lp_seats if s.get("role") == "designer"), None)
+    lp_self = next((s for s in lp_seats if s.get("role") == "manager"), None)
+    if md_from_lp:
+        code, payload, _ = _http(
+            f"{base}/api/login",
+            {"door": "studio", "role": "manager", "pin": "1726", "seatId": md_from_lp["id"]},
+        )
+        sess = payload.get("session") or {}
+        check(
+            "LP PIN sits as MD",
+            code == 200 and sess.get("role") == "designer" and sess.get("seatId") == md_from_lp["id"],
+            str(sess),
+        )
+    if lp_self:
+        code, payload, _ = _http(
+            f"{base}/api/login",
+            {"door": "studio", "role": "manager", "pin": "1726", "seatId": lp_self["id"]},
+        )
+        sess = payload.get("session") or {}
+        check("LP PIN sits as LP", code == 200 and sess.get("role") == "manager", str(sess))
+
+    code, payload, _ = _http(f"{base}/api/login", {"door": "studio", "role": "teamlead", "pin": "2026"})
+    tl_seats = payload.get("seats") or []
+    tl_roles = {s.get("role") for s in tl_seats}
+    check(
+        "TL PIN asks for a seat",
+        code == 200 and payload.get("needSeat") is True and tl_seats,
+        str(payload.get("error") or payload.get("session")),
+    )
+    check("TL PIN seats are TL MD not LP", tl_roles == {"teamlead", "designer"}, str(tl_roles))
+    md_from_tl = next((s for s in tl_seats if s.get("role") == "designer"), None)
+    if md_from_tl:
+        code, payload, _ = _http(
+            f"{base}/api/login",
+            {"door": "studio", "role": "teamlead", "pin": "2026", "seatId": md_from_tl["id"]},
+        )
+        sess = payload.get("session") or {}
+        check(
+            "TL PIN sits as MD",
+            code == 200 and sess.get("role") == "designer" and sess.get("seatId") == md_from_tl["id"],
+            str(sess),
+        )
+
+    code, payload, _ = _http(f"{base}/api/login", {"door": "studio", "role": "designer", "pin": "1726"})
+    door_roles = {s.get("role") for s in (payload.get("seats") or [])}
+    check(
+        "LP PIN works on MD door",
+        code == 200 and payload.get("needSeat") is True and "manager" in door_roles,
+        str(door_roles),
+    )
+
     code, payload, _ = _http(f"{base}/api/login", b"not-json")
     check("bad JSON is 400", code == 400, str(payload))
 
@@ -494,6 +577,7 @@ def start_local_server() -> tuple[threading.Thread, str]:
 def main() -> int:
     print("Excel / db")
     for fn in (
+        test_pin_opens,
         test_parse_past_total,
         test_apply_full_sheet,
         test_write_month_roundtrip,
