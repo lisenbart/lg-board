@@ -48,4 +48,63 @@
       reel.replaceChildren(frame);
     });
   }
+
+  var form = document.querySelector(".brief");
+  var ok = document.querySelector(".form-ok");
+  var email = "dmytro@lisenbart.games";
+
+  function hostedForms() {
+    var host = window.location.hostname;
+    return host === "lisenbart.games" || host.endsWith(".netlify.app");
+  }
+
+  if (form && ok) {
+    form.addEventListener("submit", function (event) {
+      if (form.querySelector("[name='bot-field']").value) {
+        event.preventDefault();
+        return;
+      }
+      if (hostedForms()) return;
+
+      event.preventDefault();
+      var data = new FormData(form);
+      var body = [
+        "Name: " + (data.get("name") || ""),
+        "Email: " + (data.get("email") || ""),
+        "Company: " + (data.get("company") || ""),
+        "Need: " + (data.get("need") || ""),
+        "",
+        data.get("message") || "",
+      ].join("\n");
+      window.location.href =
+        "mailto:" +
+        email +
+        "?subject=" +
+        encodeURIComponent("Brief — Lisenbart Games") +
+        "&body=" +
+        encodeURIComponent(body);
+      form.classList.add("is-sent");
+      ok.hidden = false;
+    });
+  }
+
+  if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    var blocks = document.querySelectorAll("main > section:not(.hero)");
+    if ("IntersectionObserver" in window) {
+      var io = new IntersectionObserver(
+        function (entries) {
+          entries.forEach(function (entry) {
+            if (!entry.isIntersecting) return;
+            entry.target.classList.add("is-in");
+            io.unobserve(entry.target);
+          });
+        },
+        { threshold: 0.12 }
+      );
+      blocks.forEach(function (el) {
+        el.classList.add("reveal");
+        io.observe(el);
+      });
+    }
+  }
 })();
