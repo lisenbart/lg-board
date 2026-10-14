@@ -271,10 +271,10 @@ a { color: var(--blue); }
   border-radius: 10px;
   box-shadow: var(--shadow);
   z-index: 16;
-  display: flex;
   flex-direction: column;
   gap: 8px;
 }
+.sound-panel:not([hidden]) { display: flex; }
 .sound-switch {
   border: 1px solid var(--line);
   border-radius: 8px;
