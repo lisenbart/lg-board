@@ -253,7 +253,41 @@ a { color: var(--blue); }
 }
 .top-end { margin-left: auto; display: flex; align-items: center; gap: 10px; }
 .who { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 400; }
+.inbox-tools { display: flex; align-items: center; gap: 6px; }
 .inbox { position: relative; }
+.sound-ctrl { position: relative; }
+.sound-btn .sound-svg { width: 15px; height: 15px; display: block; color: var(--ink); }
+.sound-btn .sound-off { display: none; }
+.sound-btn.is-off .sound-on { display: none; }
+.sound-btn.is-off .sound-off { display: block; }
+.sound-btn.is-off { color: var(--muted); }
+.sound-panel {
+  position: absolute;
+  right: 0; top: calc(100% + 8px);
+  width: 200px;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  z-index: 16;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sound-switch {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  padding: 7px 10px;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+}
+.sound-switch:hover { background: #eef2fb; }
+.sound-switch.is-on { border-color: #c5d4f5; background: #f4f7ff; }
+.sound-vol-lab { font-size: 11px; color: var(--muted); }
+.sound-vol { width: 100%; margin: 0; accent-color: #3b5bfd; }
 .inbox-btn {
   position: relative;
   width: 36px; height: 32px;

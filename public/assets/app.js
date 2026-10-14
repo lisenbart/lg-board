@@ -4016,6 +4016,50 @@ function cardIsDirty() {
 }
 
 let noticeAudio = null;
+const SOUND_KEY = "lg-notice-sound";
+function loadSoundPrefs() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(SOUND_KEY) || "");
+    const volume = Math.min(1, Math.max(0, Number(raw.volume)));
+    return {
+      on: raw.on !== false,
+      volume: Number.isFinite(volume) ? volume : 0.7,
+    };
+  } catch {
+    return { on: true, volume: 0.7 };
+  }
+}
+let soundPrefs = loadSoundPrefs();
+function saveSoundPrefs() {
+  localStorage.setItem(SOUND_KEY, JSON.stringify(soundPrefs));
+  paintSoundCtrl();
+}
+function soundOpen() {
+  return $("soundPanel") && !$("soundPanel").hidden;
+}
+function setSoundOpen(open) {
+  const panel = $("soundPanel");
+  const btn = $("soundBtn");
+  if (!panel || !btn) return;
+  panel.hidden = !open;
+  btn.setAttribute("aria-expanded", open ? "true" : "false");
+}
+function paintSoundCtrl() {
+  const btn = $("soundBtn");
+  const toggle = $("soundToggle");
+  const vol = $("soundVol");
+  const muted = !soundPrefs.on || soundPrefs.volume <= 0;
+  if (btn) {
+    btn.classList.toggle("is-off", muted);
+    btn.setAttribute("aria-pressed", muted ? "false" : "true");
+    btn.title = muted ? "Notice sound is off" : "Notice sound";
+  }
+  if (toggle) {
+    toggle.textContent = muted ? "Sound off" : "Sound on";
+    toggle.classList.toggle("is-on", !muted);
+  }
+  if (vol) vol.value = String(Math.round(soundPrefs.volume * 100));
+}
 function unlockNoticeSound() {
   const AC = window.AudioContext || window.webkitAudioContext;
   if (!AC) return Promise.resolve();
@@ -4023,7 +4067,9 @@ function unlockNoticeSound() {
   if (noticeAudio.state === "suspended") return noticeAudio.resume().catch(() => {});
   return Promise.resolve();
 }
-function playNoticeSound() {
+function playNoticeSound(opts = {}) {
+  if (!opts.preview && (!soundPrefs.on || soundPrefs.volume <= 0)) return;
+  const level = Math.max(0.04, soundPrefs.volume);
   unlockNoticeSound().then(() => {
     try {
       if (!noticeAudio || noticeAudio.state !== "running") return;
@@ -4034,7 +4080,7 @@ function playNoticeSound() {
         osc.type = "sine";
         osc.frequency.setValueAtTime(freq, t + at);
         gain.gain.setValueAtTime(0.0001, t + at);
-        gain.gain.exponentialRampToValueAtTime(vol, t + at + 0.018);
+        gain.gain.exponentialRampToValueAtTime(vol * level, t + at + 0.018);
         gain.gain.exponentialRampToValueAtTime(0.0001, t + at + dur);
         osc.connect(gain);
         gain.connect(noticeAudio.destination);
@@ -4259,6 +4305,7 @@ $("who").addEventListener("change", (e) => {
 });
 $("inboxBtn")?.addEventListener("click", (e) => {
   e.stopPropagation();
+  setSoundOpen(false);
   setInboxOpen(!inboxOpen());
 });
 $("inboxAll")?.addEventListener("click", async (e) => {
@@ -4266,10 +4313,34 @@ $("inboxAll")?.addEventListener("click", async (e) => {
   await ackNotices({ all: true });
   setInboxOpen(true);
 });
-document.addEventListener("click", (e) => {
-  if (!$("inboxWrap") || $("inboxWrap").contains(e.target)) return;
+$("soundBtn")?.addEventListener("click", (e) => {
+  e.stopPropagation();
   setInboxOpen(false);
+  setSoundOpen(!soundOpen());
 });
+$("soundToggle")?.addEventListener("click", (e) => {
+  e.stopPropagation();
+  soundPrefs.on = !soundPrefs.on;
+  if (soundPrefs.on && soundPrefs.volume <= 0) soundPrefs.volume = 0.7;
+  saveSoundPrefs();
+  if (soundPrefs.on) playNoticeSound({ preview: true });
+});
+let soundPreviewTimer = 0;
+$("soundVol")?.addEventListener("input", () => {
+  const n = Number($("soundVol").value);
+  soundPrefs.volume = Math.min(1, Math.max(0, (Number.isFinite(n) ? n : 70) / 100));
+  soundPrefs.on = soundPrefs.volume > 0;
+  saveSoundPrefs();
+  clearTimeout(soundPreviewTimer);
+  soundPreviewTimer = setTimeout(() => {
+    if (soundPrefs.on && soundPrefs.volume > 0) playNoticeSound({ preview: true });
+  }, 120);
+});
+document.addEventListener("click", (e) => {
+  if (!$("inboxWrap")?.contains(e.target)) setInboxOpen(false);
+  if (!$("soundWrap")?.contains(e.target)) setSoundOpen(false);
+});
+paintSoundCtrl();
 $("signOut").addEventListener("click", () => {
   api("/api/logout", {});
   writeSession(null);

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-build="2026-10-13j">
+<html lang="en" data-build="2026-10-13k">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@300;400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/board.css?v=117" />
+  <link rel="stylesheet" href="assets/board.css?v=118" />
   <script>
     (function () {
       const host = location.hostname;
@@ -68,17 +68,37 @@
             <button type="button" class="month-btn" id="monthNext" title="Next month">›</button>
           </div>
           <div class="top-end">
-            <div class="inbox" id="inboxWrap">
-              <button type="button" class="inbox-btn" id="inboxBtn" aria-label="Notices" aria-expanded="false">
-                <span class="inbox-bell" aria-hidden="true"></span>
-                <span class="inbox-count" id="inboxCount" hidden>0</span>
-              </button>
-              <div class="inbox-panel" id="inboxPanel" hidden>
-                <div class="inbox-head">
-                  <strong>For you</strong>
-                  <button type="button" class="btn ghost inbox-all" id="inboxAll">Mark all read</button>
+            <div class="inbox-tools">
+              <div class="inbox" id="inboxWrap">
+                <button type="button" class="inbox-btn" id="inboxBtn" aria-label="Notices" aria-expanded="false">
+                  <span class="inbox-bell" aria-hidden="true"></span>
+                  <span class="inbox-count" id="inboxCount" hidden>0</span>
+                </button>
+                <div class="inbox-panel" id="inboxPanel" hidden>
+                  <div class="inbox-head">
+                    <strong>For you</strong>
+                    <button type="button" class="btn ghost inbox-all" id="inboxAll">Mark all read</button>
+                  </div>
+                  <div class="inbox-list" id="inboxList"></div>
                 </div>
-                <div class="inbox-list" id="inboxList"></div>
+              </div>
+              <div class="sound-ctrl" id="soundWrap">
+                <button type="button" class="inbox-btn sound-btn" id="soundBtn" aria-label="Notice sound" aria-expanded="false" aria-pressed="true" title="Notice sound">
+                  <svg class="sound-svg sound-on" viewBox="0 0 16 16" aria-hidden="true">
+                    <path d="M2.2 6.2h2L7.4 3.8v8.4L4.2 9.8h-2z" fill="currentColor"/>
+                    <path d="M9.3 6.2a2.3 2.3 0 0 1 0 3.6" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/>
+                    <path d="M10.9 4.6a4.2 4.2 0 0 1 0 6.8" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/>
+                  </svg>
+                  <svg class="sound-svg sound-off" viewBox="0 0 16 16" aria-hidden="true">
+                    <path d="M2.2 6.2h2L7.4 3.8v8.4L4.2 9.8h-2z" fill="currentColor"/>
+                    <path d="M9.4 6.3l4 4M13.4 6.3l-4 4" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round"/>
+                  </svg>
+                </button>
+                <div class="sound-panel" id="soundPanel" hidden>
+                  <button type="button" class="sound-switch" id="soundToggle">Sound on</button>
+                  <label class="sound-vol-lab" for="soundVol">Volume</label>
+                  <input id="soundVol" class="sound-vol" type="range" min="0" max="100" step="1" />
+                </div>
               </div>
             </div>
             <div class="who" id="whoBox">
@@ -172,6 +192,6 @@
 
   <div class="toast" id="toast"></div>
   <script src="assets/notices.js?v=4"></script>
-  <script src="assets/app.js?v=156"></script>
+  <script src="assets/app.js?v=157"></script>
 </body>
 </html>
