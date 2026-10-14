@@ -29,12 +29,7 @@ function GamingReel() {
           onClick={() => setPlaying(true)}
           aria-label="Play gaming reel"
         >
-          <img
-            src="/images/work/01.webp"
-            alt=""
-            width={1280}
-            height={720}
-          />
+          <img src="/images/work/01.webp" alt="" width={1280} height={720} />
           <span className="play-disc" aria-hidden="true">
             Play
           </span>
@@ -53,7 +48,7 @@ export default function App() {
 
       <header className="top">
         <a className="brand" href="/">
-          <img src="/logo.png" width={306} height={193} alt="Lisenbart Games Animation" />
+          <img src="/logo.png" width={322} height={209} alt="Lisenbart Games Animation" />
         </a>
         <nav className="nav" aria-label="Page">
           <a href="#work">Work</a>
@@ -66,38 +61,26 @@ export default function App() {
       </header>
 
       <main>
-        <section className="hero" aria-labelledby="hero-title">
-          <div>
-            <p className="eyebrow">Kyiv · Warsaw</p>
-            <h1 id="hero-title">
-              <span className="line">Your game.</span>
-              <span className="line">Our next</span>
-              <span className="line">
-                <em>move.</em>
-              </span>
-            </h1>
-            <p className="lede">
-              Playable ads, game animation and video creatives for studios, publishers
-              and UA teams. You bring the art and the brief. We assemble the piece
-              that has to land.
-            </p>
-          </div>
-          <div className="hero-aside" aria-hidden="true">
-            <img className="hero-mark" src="/logo.png" width={306} height={193} alt="" />
-            <div className="slash" />
-          </div>
+        <section className="wrap hero" aria-labelledby="hero-title">
+          <p className="eyebrow">Kyiv · Warsaw</p>
+          <h1 id="hero-title">Your game. Our next move.</h1>
+          <p className="lede">
+            Playable ads, game animation and video creatives for studios, publishers
+            and UA teams. You bring the art and the brief. We assemble the piece
+            that has to land.
+          </p>
+          <a className="hero-cta" href={MAILTO}>
+            Start a brief
+          </a>
         </section>
 
-        <section id="work" className="stage">
+        <section id="work" className="wrap block">
           <div className="stage-label">
             <span>Gaming reel</span>
             <span>Shipped game work</span>
           </div>
           <GamingReel />
-        </section>
-
-        <div className="strip-wrap">
-          <div className="strip">
+          <div className="frames">
             {frames.map((frame, index) => (
               <figure key={frame.src}>
                 <img
@@ -107,31 +90,25 @@ export default function App() {
                   height={720}
                   loading={index === 0 ? "eager" : "lazy"}
                 />
-                <figcaption className="sr-only">
-                  Gaming reel frame {index + 1}
-                </figcaption>
               </figure>
             ))}
           </div>
-        </div>
+          <dl className="clients">
+            <dt>Selected clients</dt>
+            <dd>
+              {clients.map((name) => (
+                <span key={name}>{name}</span>
+              ))}
+            </dd>
+          </dl>
+        </section>
 
-        <dl className="clients">
-          <dt>Selected clients</dt>
-          <dd>
-            {clients.map((name) => (
-              <span key={name}>{name}</span>
-            ))}
-          </dd>
-        </dl>
-
-        <section id="services" className="section">
+        <section id="services" className="wrap block">
+          <p className="kicker">Services</p>
           <h2>What we make</h2>
           <div className="services">
             {services.map((item) => (
               <article className="service" key={item.n}>
-                <span className="n" aria-hidden="true">
-                  {item.n}
-                </span>
                 <h3>{item.name}</h3>
                 <p>{item.text}</p>
               </article>
@@ -139,8 +116,8 @@ export default function App() {
           </div>
         </section>
 
-        <section id="studio" className="section">
-          <div className="studio-grid">
+        <section id="studio" className="wrap block">
+          <div className="studio">
             <div>
               <p className="kicker">The studio</p>
               <h2>Kyiv and Warsaw. A production motion team for games.</h2>
@@ -160,7 +137,7 @@ export default function App() {
           </div>
         </section>
 
-        <section id="contact" className="section contact">
+        <section id="contact" className="wrap block contact">
           <p className="kicker">Contact</p>
           <h2>What are you working on?</h2>
           <a className="mail" href={MAILTO}>

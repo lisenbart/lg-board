@@ -8,7 +8,7 @@ This folder is the public face. The Python board in the repo root (`board.lisenb
 
 Vite + React + TypeScript + Tailwind v4. Node 20.
 
-**Type:** Syne (display) and DM Sans (body). Syne is tight and slightly industrial — closer to a title card than a SaaS landing. DM Sans stays readable on the service copy. Not Figtree (board) and not the .com serif pairing.
+**Type:** Montserrat (display, 300–600) and DM Sans (body) — the same pairing as glowl.direct. Light editorial paper, not a dark SaaS stack. Headlines stay at studio size (around 3rem), not poster type.
 
 ## What is on the page
 
@@ -20,7 +20,7 @@ Vite + React + TypeScript + Tailwind v4. Node 20.
 - **Contact** — `mailto:dmytro@lisenbart.games`. No form, no PIN.
 - **Footer (tiny)** — Studio → `board.lisenbart.games/?door=studio` · Hours → `board.lisenbart.games/hours`.
 
-Wordmark: existing RGB mark. Exterior white was flood-filled to transparent so it sits on dark; the white LISENBART / ANIMATION letters stay opaque — do not `mix-blend` or punch those glyphs.
+Wordmark: existing RGB mark on a white plate, used small in the header on the light ground. Do not punch the white LISENBART / ANIMATION letters.
 
 ## Run locally
 
