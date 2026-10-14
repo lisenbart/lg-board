@@ -1,14 +1,18 @@
 <!DOCTYPE html>
-<html lang="en" data-build="2026-10-13p">
+<html lang="en" data-build="2026-10-13q">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>LG Board · 13 Oct</title>
-  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <title>Lisenbart Board</title>
+  <link rel="icon" href="favicon.png?v=13q" type="image/png" sizes="32x32" />
+  <link rel="icon" href="favicon-48.png?v=13q" type="image/png" sizes="48x48" />
+  <link rel="icon" href="favicon.svg?v=13q" type="image/svg+xml" />
+  <link rel="shortcut icon" href="favicon.ico?v=13q" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=13q" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@300;400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/board.css?v=123" />
+  <link rel="stylesheet" href="assets/board.css?v=124" />
   <script>
     (function () {
       const host = location.hostname;
@@ -22,6 +26,7 @@
       }
       if (/^\/hours\/?$/.test(location.pathname)) {
         document.documentElement.classList.add("hours-host");
+        document.title = "Hours — Lisenbart Board";
       }
     })();
   </script>
@@ -189,6 +194,6 @@
 
   <div class="toast" id="toast"></div>
   <script src="assets/notices.js?v=4"></script>
-  <script src="assets/app.js?v=160"></script>
+  <script src="assets/app.js?v=161"></script>
 </body>
 </html>

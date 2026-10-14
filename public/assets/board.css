@@ -405,6 +405,7 @@ a { color: var(--blue); }
   white-space: nowrap;
 }
 html:not(.in-app) .app { display: none; }
+html.hours-host #soundWrap { display: none !important; }
 .login-gate {
   display: none;
   flex: 1;

@@ -184,6 +184,7 @@ function applySession(session) {
 function enterStudio() {
   document.documentElement.classList.add("in-app");
   $("loginGate").hidden = true;
+  document.title = isHoursPage() ? "Hours — Lisenbart Board" : "Lisenbart Board";
   startLiveSync();
 }
 function openLoginGate() {
@@ -330,7 +331,7 @@ function showDoorForm(door, error) {
   $("loginLead").hidden = false;
   $("loginTitle").textContent = "Client";
   $("loginLead").textContent = "Hours for your projects.";
-  document.title = "Client — Lisenbart Board";
+  document.title = isHoursPage() ? "Hours — Lisenbart Board" : "Client — Lisenbart Board";
   $("loginAccounts").innerHTML = `
     <button type="button" class="btn ghost login-back" id="loginBack">Back</button>
     <label class="login-pin-lab" for="loginEmail">Login</label>
@@ -913,6 +914,12 @@ function roleLine() {
 function renderChrome() {
   $("financeNav").hidden = !isFinance();
   if ($("inboxWrap")) $("inboxWrap").hidden = isClient();
+  if ($("soundWrap")) {
+    const hideSound = isClient() || isHoursPage();
+    $("soundWrap").hidden = hideSound;
+    if (hideSound) setSoundOpen(false);
+  }
+  document.title = isHoursPage() ? "Hours — Lisenbart Board" : "Lisenbart Board";
   renderMonth();
   const meta = state.db?.meta || {};
   const brand = $("brandMode");
