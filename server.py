@@ -28,7 +28,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-13r"
+BUILD = "2026-10-13s"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -1044,6 +1044,22 @@ def parse_email(text: str) -> list[dict]:
 
 class Handler(SimpleHTTPRequestHandler):
     timeout = 45
+    extensions_map = {
+        **SimpleHTTPRequestHandler.extensions_map,
+        ".ico": "image/x-icon",
+        ".png": "image/png",
+        ".svg": "image/svg+xml",
+        ".webp": "image/webp",
+    }
+    _ICON_PATHS = {
+        "/favicon.ico",
+        "/favicon.png",
+        "/favicon-16.png",
+        "/favicon-32.png",
+        "/favicon-48.png",
+        "/favicon.svg",
+        "/apple-touch-icon.png",
+    }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(PUBLIC), **kwargs)
@@ -1059,7 +1075,12 @@ class Handler(SimpleHTTPRequestHandler):
         print(f"[{self.log_date_time_string()}] {fmt % args}")
 
     def end_headers(self) -> None:
-        self.send_header("Cache-Control", "no-store")
+        path = urlparse(self.path).path.lower()
+        # Safari will not show a tab icon served as no-store.
+        if path in self._ICON_PATHS:
+            self.send_header("Cache-Control", "public, max-age=86400")
+        else:
+            self.send_header("Cache-Control", "no-store")
         super().end_headers()
 
     def _json(self, code: int, payload, cookie: str | None = None) -> None:

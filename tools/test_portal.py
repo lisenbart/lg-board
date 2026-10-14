@@ -381,6 +381,38 @@ def test_http(base: str) -> str | None:
     code, payload, _ = _http(f"{base}/api/version")
     check("GET /api/version", code == 200 and payload.get("build") == server.BUILD, str(payload.get("build")))
 
+    code, payload, headers = _http(f"{base}/favicon.ico")
+    ico_type = (headers.get("Content-Type") or "").lower()
+    ico_cache = (headers.get("Cache-Control") or "").lower()
+    ico_ok = (
+        code == 200
+        and isinstance(payload, (bytes, bytearray))
+        and bytes(payload[:4]) == b"\x00\x00\x01\x00"
+        and "icon" in ico_type
+        and "no-store" not in ico_cache
+    )
+    check("GET /favicon.ico is a cacheable icon", ico_ok, f"{code} {ico_type} {ico_cache}")
+    code, payload, headers = _http(f"{base}/apple-touch-icon.png")
+    png_type = (headers.get("Content-Type") or "").lower()
+    png_cache = (headers.get("Cache-Control") or "").lower()
+    png_ok = (
+        code == 200
+        and isinstance(payload, (bytes, bytearray))
+        and bytes(payload[:8]) == b"\x89PNG\r\n\x1a\n"
+        and "png" in png_type
+        and "no-store" not in png_cache
+    )
+    check("GET /apple-touch-icon.png is a cacheable PNG", png_ok, f"{code} {png_type} {png_cache}")
+    code, payload, _ = _http(f"{base}/")
+    html = payload.decode("utf-8", errors="replace") if isinstance(payload, (bytes, bytearray)) else str(payload)
+    check(
+        "tab icons are root PNG/ICO for Safari",
+        'href="/favicon.ico"' in html
+        and 'href="/apple-touch-icon.png"' in html
+        and "image/svg+xml" not in html,
+        html[html.find("<title>") : html.find("</title>") + 8] if "<title>" in html else html[:120],
+    )
+
     t0 = time.monotonic()
     code, payload, _ = _http(f"{base}/api/roster", timeout=2)
     dt = time.monotonic() - t0
