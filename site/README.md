@@ -1,6 +1,6 @@
 # lisenbart.games
 
-Public studio site for **Lisenbart Games Animation** — a production motion team for games. One English page: work, services, studio, contact.
+Public studio site for **Lisenbart Games Animation** — a production motion team for games. One English page, one argument: here is the work, this is how we assemble it, write.
 
 This folder is the public face. The Python board in the repo root (`board.lisenbart.games`) is a different product. PIN, hours Excel, Drive, rates and invoices stay off this site.
 
@@ -8,13 +8,12 @@ This folder is the public face. The Python board in the repo root (`board.lisenb
 
 Vite + React + TypeScript + Tailwind v4. Node 20.
 
-**Type:** Montserrat (display, 300–600) and DM Sans (body) — the same pairing as glowl.direct. Light editorial paper, not a dark SaaS stack. Headlines stay at studio size (around 3rem), not poster type.
+**Type:** Montserrat (display, 300–600) and DM Sans (body), on white. The page is one argument: show the gaming reel, name the four offers, give the email. No separate hero, about, and gallery chapters.
 
 ## What is on the page
 
-- **Hero** — “Your game. Our next move.” Kyiv · Warsaw.
-- **Gaming reel** — Vimeo `944158555` from the existing lisenbart.com gaming reel. Native player controls. It is not labelled as a playable.
-- **Frames** — stills `01`–`05` from that reel. `06` (logo wall with extra names) and `07` (wordmark only) are not used.
+- **Work** — gaming reel (Vimeo `944158555`) with stills `02`–`05` attached under it as one film. Frame `01` is the reel poster. `06` (logo wall) and `07` (wordmark) are not used. Not labelled as a playable.
+- **Caption** — “Your game. Our next move.” Kyiv · Warsaw. Clients named beside the line, not as a separate chapter.
 - **Clients named in text** — Playtika, Voodoo, Moon Active, Plarium. No other names, no SuperPlay / MGX.
 - **Services** — Playable Ads, Game Animation, Video Creatives (UA/ASO), Creative Direction & Storytelling. Playable Ads is a service with no fake interactive case on this page.
 - **Contact** — `mailto:dmytro@lisenbart.games`. No form, no PIN.

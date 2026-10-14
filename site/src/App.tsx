@@ -9,6 +9,7 @@ import {
 } from "./content.ts";
 
 const vimeoSrc = `https://player.vimeo.com/video/${VIMEO_ID}?dnt=1&title=0&byline=0&portrait=0`;
+const stills = frames.slice(1);
 
 function GamingReel() {
   const [playing, setPlaying] = useState(false);
@@ -48,102 +49,72 @@ export default function App() {
 
       <header className="top">
         <a className="brand" href="/">
-          <img src="/logo.png" width={322} height={209} alt="Lisenbart Games Animation" />
+          <img
+            src="/logo.png"
+            width={322}
+            height={209}
+            alt="Lisenbart Games Animation"
+          />
         </a>
-        <nav className="nav" aria-label="Page">
-          <a href="#work">Work</a>
-          <a href="#services">Services</a>
-          <a href="#studio">Studio</a>
-          <a className="cta" href={MAILTO}>
-            Start a brief
-          </a>
-        </nav>
+        <a className="cta" href={MAILTO}>
+          Brief
+        </a>
       </header>
 
       <main>
-        <section className="wrap hero" aria-labelledby="hero-title">
-          <p className="eyebrow">Kyiv · Warsaw</p>
-          <h1 id="hero-title">Your game. Our next move.</h1>
-          <p className="lede">
-            Playable ads, game animation and video creatives for studios, publishers
-            and UA teams. You bring the art and the brief. We assemble the piece
-            that has to land.
-          </p>
-          <a className="hero-cta" href={MAILTO}>
-            Start a brief
-          </a>
-        </section>
-
-        <section id="work" className="wrap block">
-          <div className="stage-label">
-            <span>Gaming reel</span>
-            <span>Shipped game work</span>
-          </div>
-          <GamingReel />
-          <div className="frames">
-            {frames.map((frame, index) => (
-              <figure key={frame.src}>
+        <section id="work" className="work">
+          <div className="film">
+            <GamingReel />
+            <div className="stills">
+              {stills.map((frame) => (
                 <img
+                  key={frame.src}
                   src={frame.src}
                   alt={frame.alt}
                   width={1280}
                   height={720}
-                  loading={index === 0 ? "eager" : "lazy"}
+                  loading="lazy"
                 />
-              </figure>
-            ))}
+              ))}
+            </div>
           </div>
-          <dl className="clients">
-            <dt>Selected clients</dt>
-            <dd>
+
+          <div className="caption">
+            <div className="copy">
+              <p className="place">Kyiv · Warsaw</p>
+              <h1>Your game. Our next move.</h1>
+              <p className="lede">
+                You send the artwork and a short brief. We assemble playable
+                ads, game animation and UA / ASO cuts — the piece that has to
+                land.
+              </p>
+            </div>
+            <p className="clients">
               {clients.map((name) => (
                 <span key={name}>{name}</span>
               ))}
-            </dd>
-          </dl>
-        </section>
-
-        <section id="services" className="wrap block">
-          <p className="kicker">Services</p>
-          <h2>What we make</h2>
-          <div className="services">
-            {services.map((item) => (
-              <article className="service" key={item.n}>
-                <h3>{item.name}</h3>
-                <p>{item.text}</p>
-              </article>
-            ))}
+            </p>
           </div>
         </section>
 
-        <section id="studio" className="wrap block">
-          <div className="studio">
-            <div>
-              <p className="kicker">The studio</p>
-              <h2>Kyiv and Warsaw. A production motion team for games.</h2>
-            </div>
-            <div>
-              <p>
-                We are not a platform and not a dashboard. We take the artwork you
-                already have, read the brief, and put a finished piece on the
-                timeline.
-              </p>
-              <p>
-                Full cycle when the project needs it — boards, animation, finish.
-                A single cut when it does not. Creative direction stays in the
-                room, including AI and mixed media, when they serve the frame.
-              </p>
-            </div>
-          </div>
+        <section id="offer" className="offer" aria-label="What we assemble">
+          {services.map((item) => (
+            <article key={item.n}>
+              <h2>{item.name}</h2>
+              <p>{item.text}</p>
+            </article>
+          ))}
         </section>
 
-        <section id="contact" className="wrap block contact">
-          <p className="kicker">Contact</p>
-          <h2>What are you working on?</h2>
+        <section id="contact" className="close">
+          <p>
+            Full cycle when the project needs it. A single cut when it does
+            not.
+          </p>
           <a className="mail" href={MAILTO}>
             {EMAIL}
           </a>
-          <p className="hint">A title, a format, a date. That is enough to start.</p>
+          <p className="hint">A title, a format, a date.</p>
         </section>
       </main>
 
