@@ -1454,6 +1454,8 @@ body.col-resizing * { cursor: col-resize !important; }
 .sp-kpis { display: flex; flex-wrap: wrap; gap: 8px; }
 .sp-kpis .kpi { min-width: 120px; }
 .sp-kpis .sp-stamp { min-width: 132px; }
+.sp-download { padding: 4px 0 8px; }
+.sp-download .btn { padding: 8px 16px; }
 .sp-sheet {
   background: #fff;
   border: 1px solid #d0d4e4;

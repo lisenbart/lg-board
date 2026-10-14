@@ -970,12 +970,8 @@ function renderToolbar() {
     return;
   }
   if (state.view === "report") {
-    $("toolbar").innerHTML = `
-      <button type="button" class="btn" id="btnHoursXlsx">Download Excel</button>
-      <input class="search" placeholder="Search project" />
-    `;
+    $("toolbar").innerHTML = `<input class="search" placeholder="Search project" />`;
     bindSearch();
-    $("btnHoursXlsx")?.addEventListener("click", downloadHoursXlsx);
     return;
   }
   if (state.view === "excel") {
@@ -1874,28 +1870,40 @@ function fmtReportNum(n, digits) {
   return String(rounded);
 }
 
-function kyivParts(d) {
+function viewerZone() {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  } catch {
+    return "UTC";
+  }
+}
+function viewerCity(zone) {
+  const part = String(zone || "UTC").split("/").pop() || "UTC";
+  return part.replace(/_/g, " ");
+}
+function stampParts(d) {
+  const zone = viewerZone();
   const at = d || new Date();
   const date = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Europe/Kyiv",
+    timeZone: zone,
     day: "numeric",
     month: "short",
     year: "numeric",
   }).format(at);
   const time = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Europe/Kyiv",
+    timeZone: zone,
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
   }).format(at);
-  return { date, time };
+  return { date, time, city: viewerCity(zone), zone };
 }
 let hoursStampTimer = 0;
 function paintHoursStamp() {
   const el = $("spStamp");
   if (!el) return false;
-  const { date, time } = kyivParts();
-  el.innerHTML = `<b>${escapeHtml(date)}</b><span>${escapeHtml(time)} Kyiv</span>`;
+  const { date, time, city } = stampParts();
+  el.innerHTML = `<b>${escapeHtml(date)}</b><span>${escapeHtml(time)} ${escapeHtml(city)}</span>`;
   return true;
 }
 function startHoursStamp() {
@@ -1906,19 +1914,23 @@ function startHoursStamp() {
   }, 1000);
 }
 function hoursStampKpi() {
-  const { date, time } = kyivParts();
-  return `<div class="kpi sp-stamp" id="spStamp"><b>${escapeHtml(date)}</b><span>${escapeHtml(time)} Kyiv</span></div>`;
+  const { date, time, city } = stampParts();
+  return `<div class="kpi sp-stamp" id="spStamp"><b>${escapeHtml(date)}</b><span>${escapeHtml(time)} ${escapeHtml(city)}</span></div>`;
 }
 function hoursXlsxName(res) {
   const raw = res.headers.get("Content-Disposition") || "";
   const m = raw.match(/filename="([^"]+)"/i);
   return m ? m[1] : `SUPERPLAY_MGX_hours_${state.month}.xlsx`;
 }
+function bindHoursDownload() {
+  $("btnHoursXlsx")?.addEventListener("click", downloadHoursXlsx);
+}
 async function downloadHoursXlsx() {
   const btn = $("btnHoursXlsx");
   setBusy(btn, true, "Building…");
   try {
-    const res = await fetch(`/api/hours/file?month=${encodeURIComponent(state.month)}`, {
+    const qs = new URLSearchParams({ month: state.month, tz: viewerZone() });
+    const res = await fetch(`/api/hours/file?${qs}`, {
       credentials: "same-origin",
     });
     if (res.status === 401) {
@@ -2033,8 +2045,12 @@ function renderClientReport() {
           </table>
         </div>
       </div>
+      <div class="sp-download">
+        <button type="button" class="btn green" id="btnHoursXlsx">Download Excel</button>
+      </div>
     </section>`;
   startHoursStamp();
+  bindHoursDownload();
 }
 
 function renderExcelSheet() {

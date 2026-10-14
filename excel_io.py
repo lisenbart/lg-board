@@ -883,16 +883,36 @@ def client_hours_filename(ym: str) -> str:
     return f"SUPERPLAY_MGX_hours_{ym}.xlsx"
 
 
-def kyiv_stamp(now: datetime | None = None) -> str:
-    dt = now or datetime.now(ZoneInfo("Europe/Kyiv"))
+TZ_NAME = re.compile(r"^[A-Za-z0-9_+\-/]{1,64}$")
+
+
+def parse_tz(name: str) -> ZoneInfo:
+    raw = str(name or "").strip()
+    if not TZ_NAME.match(raw):
+        return ZoneInfo("UTC")
+    try:
+        return ZoneInfo(raw)
+    except Exception:
+        return ZoneInfo("UTC")
+
+
+def zone_city(tz_name: str) -> str:
+    part = str(tz_name or "UTC").split("/")[-1].replace("_", " ").strip()
+    return part or "UTC"
+
+
+def local_stamp(now: datetime | None = None, tz_name: str = "UTC") -> str:
+    zone = parse_tz(tz_name)
+    dt = now or datetime.now(zone)
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc).astimezone(ZoneInfo("Europe/Kyiv"))
+        dt = dt.replace(tzinfo=timezone.utc).astimezone(zone)
     else:
-        dt = dt.astimezone(ZoneInfo("Europe/Kyiv"))
-    return f"{dt.day} {dt.strftime('%b %Y, %H:%M')} Kyiv"
+        dt = dt.astimezone(zone)
+    city = zone_city(getattr(zone, "key", None) or tz_name)
+    return f"{dt.day} {dt.strftime('%b %Y, %H:%M')} {city}"
 
 
-def client_hours_bytes(db: dict, ym: str, *, generated_at: datetime | None = None) -> bytes:
+def client_hours_bytes(db: dict, ym: str, *, generated_at: datetime | None = None, tz_name: str = "UTC") -> bytes:
     """Build a fresh SuperPlay hours xlsx at download time. No people, rates, or status."""
     ym = str(ym or "").strip()
     shift_hours = _as_float((db.get("meta") or {}).get("shiftHours"), 9) or 9
@@ -906,7 +926,7 @@ def client_hours_bytes(db: dict, ym: str, *, generated_at: datetime | None = Non
     wb = Workbook()
     ws = wb.active
     ws.title = sheet_name_for(ym)[:31]
-    stamp = ws.cell(1, 1, f"Generated {kyiv_stamp(generated_at)}")
+    stamp = ws.cell(1, 1, f"Generated {local_stamp(generated_at, tz_name)}")
     stamp.font = Font(name="Calibri", size=11, color="676879")
     ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=3)
     headers = (f"{year} PROJECT NAME", "SHIFTS", "HOURS")

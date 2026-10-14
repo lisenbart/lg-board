@@ -28,7 +28,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-13n"
+BUILD = "2026-10-13o"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -1273,6 +1273,7 @@ class Handler(SimpleHTTPRequestHandler):
                 return
             qs = parse_qs(urlparse(self.path).query)
             month = str((qs.get("month") or [""])[0] or "").strip()
+            tz_name = str((qs.get("tz") or [""])[0] or "").strip()
             if not re.fullmatch(r"\d{4}-\d{2}", month):
                 with LOCK:
                     month = str((peek_db().get("meta") or {}).get("month") or "2026-10")
@@ -1291,7 +1292,7 @@ class Handler(SimpleHTTPRequestHandler):
                         for t in db.get("tasks") or []
                     ],
                 }
-            data = excel_io.client_hours_bytes(snap, month)
+            data = excel_io.client_hours_bytes(snap, month, tz_name=tz_name)
             self._bytes(
                 data,
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

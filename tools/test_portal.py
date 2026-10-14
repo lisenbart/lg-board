@@ -101,12 +101,14 @@ def test_client_hours_xlsx() -> None:
         ],
     }
     at = datetime(2026, 10, 14, 18, 29, tzinfo=ZoneInfo("Europe/Kyiv"))
-    data = excel_io.client_hours_bytes(db, "2026-10", generated_at=at)
+    data = excel_io.client_hours_bytes(db, "2026-10", generated_at=at, tz_name="Europe/Kyiv")
     check("hours workbook is xlsx", data[:2] == b"PK")
     wb = load_workbook(BytesIO(data))
     ws = wb.active
     col_a = [str(ws.cell(r, 1).value or "") for r in range(1, (ws.max_row or 1) + 1)]
-    check("hours stamp is Kyiv time", "Generated 14 Oct 2026, 18:29 Kyiv" in col_a[0], col_a[0])
+    check("hours stamp uses viewer zone", "Generated 14 Oct 2026, 18:29 Kyiv" in col_a[0], col_a[0])
+    tel = excel_io.local_stamp(at, "Asia/Tel_Aviv")
+    check("hours stamp city follows tz", "Tel Aviv" in tel, tel)
     check("hours sheet skips other months", "DX-OLD" not in col_a)
     check("hours sheet has both lines", "DX-AAA-0001" in col_a and "DD-BBB-0002" in col_a)
     total = next(ws.cell(r, 3).value for r in range(1, (ws.max_row or 1) + 1) if str(ws.cell(r, 1).value) == "TOTAL")
@@ -114,7 +116,9 @@ def test_client_hours_xlsx() -> None:
     empl = any("EMPL" in str(ws.cell(2, c).value or "") for c in range(1, 8))
     check("hours sheet has no EMPL", not empl)
     wb.close()
-    later = excel_io.client_hours_bytes(db, "2026-10", generated_at=datetime(2026, 10, 14, 19, 5, tzinfo=ZoneInfo("Europe/Kyiv")))
+    later = excel_io.client_hours_bytes(
+        db, "2026-10", generated_at=datetime(2026, 10, 14, 19, 5, tzinfo=ZoneInfo("Europe/Kyiv")), tz_name="Europe/Kyiv"
+    )
     a = load_workbook(BytesIO(data)).active.cell(1, 1).value
     b = load_workbook(BytesIO(later)).active.cell(1, 1).value
     check("hours xlsx is generated per download", a != b, f"{a} vs {b}")
@@ -474,7 +478,7 @@ def test_http(base: str) -> str | None:
     if cookie:
         t0 = time.monotonic()
         code, payload, headers = _http(
-            f"{base}/api/hours/file?month=2026-10",
+            f"{base}/api/hours/file?month=2026-10&tz=Europe/Kyiv",
             cookie=cookie.split(";", 1)[0],
             timeout=3,
         )
@@ -489,7 +493,7 @@ def test_http(base: str) -> str | None:
             stamp = str(wb.active.cell(1, 1).value or "")
             names = [str(wb.active.cell(r, 1).value or "") for r in range(1, min(wb.active.max_row or 1, 40) + 1)]
             wb.close()
-            check("hours xlsx stamp has Kyiv", "Kyiv" in stamp and stamp.startswith("Generated "), stamp)
+            check("hours xlsx stamp uses tz", "Kyiv" in stamp and stamp.startswith("Generated "), stamp)
             check("hours xlsx has TOTAL", "TOTAL" in names, str(names[-3:]))
 
         t0 = time.monotonic()
