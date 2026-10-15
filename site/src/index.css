@@ -60,7 +60,7 @@
   --action-bright: #c2ff3d;
   --paper: #f7f5ef;
   --white: #ffffff;
-  --muted: #667085;
+  --muted: var(--ink);
   --line: #d8d9dd;
   --display: "Archivo Black", Impact, sans-serif;
   --body: "Manrope", Arial, sans-serif;
@@ -311,9 +311,10 @@ img {
 }
 
 .hero-lead {
-  color: var(--muted);
+  color: var(--ink);
   font-size: clamp(17px, 1.35vw, 20px);
-  line-height: 1.55;
+  font-weight: 600;
+  line-height: 1.5;
   margin: 30px 0 0;
   max-width: 650px;
 }
@@ -542,9 +543,10 @@ img {
 }
 
 .section-intro > div > p {
-  color: var(--muted);
+  color: var(--ink);
   font-size: 17px;
-  line-height: 1.65;
+  font-weight: 600;
+  line-height: 1.5;
   margin: 25px 0 0;
   max-width: 780px;
 }
@@ -563,10 +565,10 @@ img {
 }
 
 .ai-strip > p:last-child {
-  color: var(--muted);
+  color: var(--ink);
   font-size: 16px;
-  font-weight: 500;
-  line-height: 1.65;
+  font-weight: 600;
+  line-height: 1.5;
   margin: 12px 0 0;
   max-width: 860px;
 }
@@ -648,10 +650,10 @@ img {
 
 .service-card p {
   font-size: 13px;
-  line-height: 1.6;
+  font-weight: 600;
+  line-height: 1.5;
   margin: 0;
   max-width: 450px;
-  opacity: 0.78;
 }
 
 .thinking-section {
@@ -661,9 +663,10 @@ img {
 }
 
 .thinking-lead {
-  color: #b9c4d7;
+  color: #fff;
   font-size: clamp(17px, 1.35vw, 20px);
-  line-height: 1.55;
+  font-weight: 600;
+  line-height: 1.5;
   margin: 22px 0 0;
   max-width: 760px;
   text-transform: none;
@@ -704,9 +707,10 @@ img {
 }
 
 .principle-grid p {
-  color: #b9c4d7;
+  color: #fff;
   font-size: 14px;
-  line-height: 1.65;
+  font-weight: 600;
+  line-height: 1.5;
   margin: 0;
 }
 
@@ -791,8 +795,9 @@ img {
 }
 
 .clients-strip-note {
-  color: var(--muted);
+  color: var(--ink);
   font-size: 11px;
+  font-weight: 600;
   line-height: 1.5;
   margin: 8px 0 0;
 }
@@ -831,9 +836,10 @@ img {
 
 .facts-grid p,
 .founder {
-  color: var(--muted);
+  color: var(--ink);
   font-size: 14px;
-  line-height: 1.65;
+  font-weight: 600;
+  line-height: 1.5;
   margin: 0;
 }
 
@@ -897,7 +903,8 @@ img {
 
 .contact-copy > p:not(.eyebrow) {
   font-size: 17px;
-  line-height: 1.55;
+  font-weight: 600;
+  line-height: 1.5;
   margin: 22px 0 0;
   max-width: 520px;
 }
@@ -942,7 +949,7 @@ img {
 }
 
 .contact-direct small {
-  color: rgba(7, 29, 67, 0.72);
+  color: var(--ink);
   font-size: 12px;
   font-weight: 600;
 }
