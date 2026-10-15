@@ -134,17 +134,18 @@ export default function App() {
   const [formSent, setFormSent] = useState(false);
 
   useEffect(() => {
-    if (!showReel) return;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setShowReel(false);
+    document.body.classList.toggle("no-scroll", menuOpen || showReel);
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setShowReel(false);
+      setMenuOpen(false);
     };
-    document.body.classList.add("no-scroll");
-    window.addEventListener("keydown", closeOnEscape);
+    window.addEventListener("keydown", onKey);
     return () => {
       document.body.classList.remove("no-scroll");
-      window.removeEventListener("keydown", closeOnEscape);
+      window.removeEventListener("keydown", onKey);
     };
-  }, [showReel]);
+  }, [menuOpen, showReel]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -219,7 +220,13 @@ export default function App() {
           <img src={asset("lisenbart-full.png")} alt="Lisenbart Games Animation" />
         </a>
 
-        <nav className={`main-nav ${menuOpen ? "is-open" : ""}`} aria-label="Main navigation">
+        <nav
+          className={`main-nav ${menuOpen ? "is-open" : ""}`}
+          aria-label="Main navigation"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) closeMenu();
+          }}
+        >
           <a href="#showreel" onClick={closeMenu}>
             Showreel
           </a>
@@ -298,14 +305,12 @@ export default function App() {
 
         <section className="services-section" id="services">
           <div className="section-intro">
-            <div>
-              <h2>
-                What we <LogoWord>make</LogoWord>
-              </h2>
-              <p>
-                Think of us as your in-house animation team, without the hiring.
-              </p>
-            </div>
+            <h2>
+              What we <LogoWord>make</LogoWord>
+            </h2>
+            <p>
+              Think of us as your in-house animation team, without the hiring.
+            </p>
           </div>
 
           <div className="service-grid">
@@ -354,7 +359,7 @@ export default function App() {
                 <ul
                   className="clients-strip-names"
                   key={copy}
-                  aria-hidden={copy > 0}
+                  aria-hidden={copy > 0 ? true : undefined}
                 >
                   {clients.map((name) => (
                     <li key={`${copy}-${name}`}>{name}</li>
@@ -542,11 +547,17 @@ export default function App() {
       </footer>
 
       {showReel && (
-        <div className="reel-modal" role="dialog" aria-modal="true" aria-label="Lisenbart Games showreel">
+        <div
+          className="reel-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Lisenbart Games showreel"
+          onClick={() => setShowReel(false)}
+        >
           <button type="button" onClick={() => setShowReel(false)} aria-label="Close showreel">
             Close <span>×</span>
           </button>
-          <div className="video-frame">
+          <div className="video-frame" onClick={(event) => event.stopPropagation()}>
             <iframe
               src="https://player.vimeo.com/video/944158555?autoplay=1&dnt=1&title=0&byline=0&portrait=0"
               allow="autoplay; fullscreen; picture-in-picture"

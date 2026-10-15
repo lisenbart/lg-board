@@ -1,6 +1,6 @@
 # lisenbart.games
 
-Public visiting card for **Lisenbart Games** — the games division of **LISENBART FILM**. Visuals come 1:1 from the Figma Make file (Archivo Black + Manrope, lime CTAs, yellow contact slab). Copy stays the studio brief: reel, what we make, the LISENBART way, write to `info@lisenbart.games`.
+Public visiting card for **Lisenbart Games** — the games division of **Lisenbart Film**. Visuals come 1:1 from the Figma Make file (Archivo Black + Manrope, lime CTAs, yellow contact slab). Copy stays the studio brief: reel, what we make, write to `info@lisenbart.games`.
 
 The Python board in the repo root (`board.lisenbart.games`) is a different product. PIN, hours Excel, Drive, rates and invoices stay off this site.
 
