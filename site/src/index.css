@@ -706,7 +706,7 @@ img {
     6px 6px 0 var(--ink);
 }
 
-.about-heading .title-games {
+.about-heading .title-sells strong {
   color: var(--yellow);
   font-weight: inherit;
 }

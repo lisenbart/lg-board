@@ -341,8 +341,10 @@ export default function App() {
         <section className="about-section" id="about">
           <div className="about-heading">
             <h2>
-              <span className="title-sells">Built</span>{" "}
-              <strong className="title-games">on</strong> LISENBART FILM
+              <span className="title-sells">
+                Built <strong>on</strong>
+              </span>{" "}
+              LISENBART FILM
             </h2>
           </div>
 
