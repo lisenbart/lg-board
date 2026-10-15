@@ -549,11 +549,19 @@ img {
   max-width: 780px;
 }
 
+.production-grid,
 .service-grid {
   border-left: 1px solid var(--ink);
-  border-top: 1px solid var(--ink);
   display: grid;
   grid-template-columns: repeat(3, 1fr);
+}
+
+.production-grid {
+  border-top: 1px solid var(--ink);
+}
+
+.service-grid {
+  border-top: 0;
 }
 
 .ai-strip {
@@ -597,7 +605,8 @@ img {
   text-transform: uppercase;
 }
 
-.service-card {
+.service-card,
+.production-card {
   border-bottom: 1px solid var(--ink);
   border-right: 1px solid var(--ink);
   min-height: 0;
@@ -605,7 +614,8 @@ img {
   position: relative;
 }
 
-.service-card::after {
+.service-card::after,
+.production-card::after {
   background: var(--action);
   bottom: -1px;
   content: "";
@@ -618,11 +628,13 @@ img {
   transition: transform 220ms ease;
 }
 
-.service-card:hover::after {
+.service-card:hover::after,
+.production-card:hover::after {
   transform: scaleX(1);
 }
 
-.service-card.yellow {
+.service-card.yellow,
+.production-card.yellow {
   background: var(--yellow);
 }
 
@@ -630,14 +642,61 @@ img {
   background: white;
 }
 
-.service-card.pink {
+.service-card.pink,
+.production-card.pink {
   background: var(--pink);
   color: white;
 }
 
-.service-card.ink {
+.service-card.ink,
+.production-card.ink {
   background: var(--ink);
   color: white;
+}
+
+.production-card > span {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  margin-bottom: 10px;
+}
+
+.production-card.yellow > span {
+  color: var(--ink);
+}
+
+.production-card.pink > span,
+.production-card.ink > span {
+  color: var(--action);
+}
+
+.production-card h3 {
+  font-family: var(--display);
+  font-size: clamp(22px, 1.7vw, 28px);
+  font-weight: 400;
+  letter-spacing: -0.055em;
+  line-height: 0.95;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.production-card-tagline {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.35;
+  margin: 12px 0 8px;
+}
+
+.production-card p {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.production-card-tagline + p {
+  opacity: 0.92;
 }
 
 .service-card-top {
@@ -646,6 +705,30 @@ img {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 12px;
+}
+
+.service-card-top > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.service-card-group {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1.2;
+  margin: 0 0 8px;
+  text-transform: uppercase;
+}
+
+.service-card.yellow .service-card-group,
+.service-card.white .service-card-group {
+  color: var(--pink);
+}
+
+.service-card.ink .service-card-group,
+.service-card.pink .service-card-group {
+  color: var(--action);
 }
 
 .service-card-icon {
@@ -702,7 +785,6 @@ img {
 }
 
 .service-card h3 {
-  flex: 1;
   font-family: var(--display);
   font-size: clamp(23px, 2.05vw, 32px);
   font-weight: 400;
@@ -1298,35 +1380,41 @@ footer {
 }
 
 @media (max-width: 1150px) {
+  .production-grid {
+    grid-template-columns: 1fr;
+  }
+
   .service-grid {
+    border-top: 1px solid var(--ink);
     grid-template-columns: 1fr 1fr;
   }
 
-  .service-card:nth-child(1) {
+  .service-grid .service-card:nth-child(1) {
     order: 1;
   }
 
-  .service-card:nth-child(2) {
+  .service-grid .service-card:nth-child(2) {
     order: 2;
   }
 
-  .service-card:nth-child(3) {
+  .service-grid .service-card:nth-child(3) {
     order: 4;
   }
 
-  .service-card:nth-child(4) {
+  .service-grid .service-card:nth-child(4) {
     order: 3;
   }
 
-  .service-card:nth-child(5) {
+  .service-grid .service-card:nth-child(5) {
     order: 5;
   }
 
-  .service-card:nth-child(6) {
+  .service-grid .service-card:nth-child(6) {
     order: 6;
   }
 
-  .service-card {
+  .service-card,
+  .production-card {
     min-height: 0;
     padding: 22px 26px 25px;
   }
@@ -1480,16 +1568,18 @@ footer {
     font-size: 16px;
   }
 
+  .production-grid,
   .service-grid {
     grid-template-columns: 1fr;
   }
 
-  .service-card {
+  .service-card,
+  .production-card {
     min-height: 0;
     padding: 21px 22px 24px;
   }
 
-  .service-card:nth-child(n) {
+  .service-grid .service-card:nth-child(n) {
     order: 0;
   }
 

@@ -5,39 +5,69 @@ const asset = (file: string) => {
   return `${base}assets/${file}`;
 };
 
+const productionGroups = [
+  {
+    number: "01",
+    title: "Creative Production",
+    tagline: "Your assets. Our production.",
+    copy: "Video ads, variations, localisation and motion graphics. Fast, consistent production that fits your budget and workflow.",
+    tone: "yellow",
+  },
+  {
+    number: "02",
+    title: "Playable Production",
+    tagline: "From game assets to interactive ads.",
+    copy: "HTML5 playables, adaptations and new variations. Built for testing, optimised for performance.",
+    tone: "pink",
+  },
+  {
+    number: "03",
+    title: "Creative Development",
+    tagline: "Good ideas deserve great execution.",
+    copy: "Concepts, scripts, storyboards, direction and cinematics. We bring storytelling expertise to every stage.",
+    tone: "ink",
+  },
+];
+
 const services = [
   {
     title: "Playable ads",
+    group: "Playable Production",
     copy: "HTML5 playables that let the game sell itself.",
     tone: "yellow",
     icon: "icon-playable.png",
   },
   {
     title: "Ad creatives",
+    group: "Creative Production",
     copy: "UA videos built around the hook, cut for every network.",
     tone: "white",
     icon: "icon-creatives.png",
   },
   {
     title: "Ad variants & localisation",
+    group: "Creative Production",
     copy: "New hooks, resizes and language versions of your best performers, ready for the next test.",
     tone: "ink",
     icon: "icon-variants.png",
   },
   {
     title: "Trailers & cinematics",
+    group: "Creative Development",
     copy: "Launch trailers and story cinematics that make players want in. 2D or 3D.",
     tone: "white",
     icon: "icon-trailers.png",
   },
   {
     title: "Store & ASO assets",
+    group: "Creative Production",
     copy: "App preview videos, screenshots and icons that turn a store visit into an install.",
     tone: "pink",
     icon: "icon-store.png",
   },
   {
     title: "In-game motion & art",
+    group: "Creative Production",
     copy: "Feature reveals, characters and the art that keeps a live game feeling fresh.",
     tone: "white",
     icon: "icon-ingame.png",
@@ -201,7 +231,7 @@ export default function App() {
     const sections = Array.from(document.querySelectorAll("main > section:not(.hero)"));
     const items = Array.from(
       document.querySelectorAll(
-        ".service-card, .principle-grid article, .facts-grid article",
+        ".service-card, .production-card, .principle-grid article, .facts-grid article",
       ),
     );
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -358,15 +388,30 @@ export default function App() {
               What we <LogoWord>make</LogoWord>
             </h2>
             <p>
-              Think of us as your in-house animation team, without the hiring.
+              Your creative production partner. From a single task to a steady
+              flow.
             </p>
+          </div>
+
+          <div className="production-grid">
+            {productionGroups.map((group) => (
+              <article className={`production-card ${group.tone}`} key={group.number}>
+                <span>{group.number}</span>
+                <h3>{group.title}</h3>
+                <p className="production-card-tagline">{group.tagline}</p>
+                <p>{group.copy}</p>
+              </article>
+            ))}
           </div>
 
           <div className="service-grid">
             {services.map((service) => (
               <article className={`service-card ${service.tone}`} key={service.title}>
                 <div className="service-card-top">
-                  <h3>{service.title}</h3>
+                  <div>
+                    <p className="service-card-group">{service.group}</p>
+                    <h3>{service.title}</h3>
+                  </div>
                   <img
                     className="service-card-icon"
                     src={asset(service.icon)}
@@ -502,7 +547,7 @@ export default function App() {
           <div className="contact-copy">
             <p className="eyebrow">Start a project</p>
             <h2>
-              What's next for your <LogoWord>game</LogoWord>?
+              What's your next <LogoWord>project</LogoWord>?
             </h2>
             <p>
               Tell us about your game and what you need.
