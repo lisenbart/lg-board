@@ -106,6 +106,20 @@ function LogoWord({ children }: { children: string }) {
   );
 }
 
+function FilmLockup({ children }: { children: ReactNode }) {
+  return (
+    <span className="film-lockup">
+      {children}
+      <img
+        src={asset("lisenbart-film-mark.png")}
+        alt=""
+        width={146}
+        height={146}
+      />
+    </span>
+  );
+}
+
 export default function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [showReel, setShowReel] = useState(false);
@@ -126,7 +140,6 @@ export default function App() {
 
   useEffect(() => {
     const root = document.documentElement;
-    const header = document.querySelector(".site-header");
     const sections = Array.from(document.querySelectorAll("main > section:not(.hero)"));
     const items = Array.from(
       document.querySelectorAll(
@@ -139,16 +152,10 @@ export default function App() {
     sections.forEach((section) => section.classList.add("reveal-section"));
     items.forEach((item) => item.classList.add("reveal-item"));
 
-    const updateHeader = () => {
-      header?.classList.toggle("is-scrolled", window.scrollY > 12);
-    };
-    updateHeader();
-    window.addEventListener("scroll", updateHeader, { passive: true });
-
     if (reducedMotion || !("IntersectionObserver" in window)) {
       sections.forEach((section) => section.classList.add("is-visible"));
       items.forEach((item) => item.classList.add("is-visible"));
-      return () => window.removeEventListener("scroll", updateHeader);
+      return;
     }
 
     const observer = new IntersectionObserver(
@@ -165,10 +172,7 @@ export default function App() {
     sections.forEach((section) => observer.observe(section));
     items.forEach((item) => observer.observe(item));
 
-    return () => {
-      observer.disconnect();
-      window.removeEventListener("scroll", updateHeader);
-    };
+    return () => observer.disconnect();
   }, []);
 
   const closeMenu = () => setMenuOpen(false);
@@ -343,22 +347,17 @@ export default function App() {
             <h2>
               <span className="title-sells">
                 Built <strong>on</strong>
-              </span>{" "}
-              LISENBART FILM
+              </span>
+              <FilmLockup>LISENBART FILM</FilmLockup>
             </h2>
           </div>
 
-          <div className="about-overview">
-            <div className="about-mark" aria-hidden="true">
-              <img src={asset("lisenbart-film.png")} alt="" />
-            </div>
-            <p className="about-lead">
-              Lisenbart Games is part of Lisenbart Film, an independent
-              animation studio founded in Kyiv in 2006. Everything we learned
-              making commercials and award-winning films now goes into your
-              trailers, ads and playables.
-            </p>
-          </div>
+          <p className="about-lead">
+            Lisenbart Games is part of Lisenbart Film, an independent
+            animation studio founded in Kyiv in 2006. Everything we learned
+            making commercials and award-winning films now goes into your
+            trailers, ads and playables.
+          </p>
 
           <div className="facts-grid">
             {facts.map((fact) => (
@@ -484,7 +483,7 @@ export default function App() {
         <div className="footer-brand">
           <img src={asset("lisenbart-full.png")} alt="" />
           <a href="https://lisenbart.com" target="_blank" rel="noopener noreferrer">
-            Part of Lisenbart Film
+            Part of <FilmLockup>Lisenbart Film</FilmLockup>
           </a>
         </div>
         <div className="footer-links">

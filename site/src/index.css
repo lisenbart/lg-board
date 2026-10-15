@@ -128,21 +128,15 @@ img {
 
 .site-header {
   align-items: center;
-  background: rgba(255, 255, 255, 0.97);
+  background: #fff;
   border-bottom: 1px solid var(--line);
   display: grid;
   grid-template-columns: auto 1fr;
   height: 84px;
   padding: 0 clamp(22px, 4.5vw, 72px);
-  position: fixed;
-  transition: background 180ms ease, box-shadow 180ms ease;
+  position: relative;
   width: 100%;
-  z-index: 20;
-}
-
-.site-header.is-scrolled {
-  background: rgba(255, 255, 255, 0.985);
-  box-shadow: 0 8px 28px rgba(7, 29, 67, 0.08);
+  z-index: 30;
 }
 
 .brand {
@@ -250,7 +244,7 @@ img {
   gap: clamp(45px, 6vw, 95px);
   grid-template-columns: minmax(0, 1.05fr) minmax(420px, 0.95fr);
   min-height: 750px;
-  padding: clamp(135px, 11vw, 170px) clamp(22px, 4.5vw, 72px) clamp(65px, 6vw, 90px);
+  padding: clamp(48px, 5vw, 72px) clamp(22px, 4.5vw, 72px) clamp(65px, 6vw, 90px);
   position: relative;
 }
 
@@ -262,7 +256,7 @@ img {
   left: 0;
   mask-image: linear-gradient(to bottom right, black, transparent 75%);
   position: absolute;
-  top: 84px;
+  top: 0;
   width: 55%;
 }
 
@@ -693,6 +687,10 @@ img {
 }
 
 .about-heading h2 {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.1em 0.28em;
   margin-top: 0;
 }
 
@@ -711,27 +709,17 @@ img {
   font-weight: inherit;
 }
 
-.about-overview {
-  align-items: start;
-  display: grid;
-  gap: clamp(20px, 2.5vw, 36px);
-  grid-template-columns: auto 1fr;
+.film-lockup {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.18em;
+  white-space: nowrap;
 }
 
-.about-mark {
-  background: transparent;
-  border: 0;
-  box-shadow: none;
-  height: 64px;
-  margin: 0;
-  overflow: visible;
-  width: auto;
-}
-
-.about-mark img {
-  height: 64px;
+.film-lockup img {
+  flex: none;
+  height: 0.92em;
   max-width: none;
-  object-fit: contain;
   width: auto;
 }
 
@@ -1056,7 +1044,7 @@ footer {
   gap: 22px;
 }
 
-.footer-brand img {
+.footer-brand > img {
   flex: none;
   height: 130px;
   max-width: none;
@@ -1065,10 +1053,18 @@ footer {
 }
 
 .footer-brand a {
+  align-items: center;
   color: var(--muted);
+  display: inline-flex;
+  flex-wrap: wrap;
   font-size: 11px;
+  gap: 0.35em;
   line-height: 1.5;
-  max-width: 260px;
+  max-width: 280px;
+}
+
+.footer-brand .film-lockup img {
+  height: 22px;
 }
 
 .footer-links {
@@ -1234,7 +1230,7 @@ footer {
 
   .hero {
     grid-template-columns: 1fr;
-    padding-top: 145px;
+    padding-top: 48px;
   }
 
   .hero-copy {
@@ -1255,7 +1251,7 @@ footer {
     grid-template-columns: 1fr;
   }
 
-  .about-overview {
+  .about-lead {
     max-width: 900px;
   }
 
@@ -1279,11 +1275,11 @@ footer {
 
   .hero {
     gap: 55px;
-    padding: 128px 18px 75px;
+    padding: 40px 18px 75px;
   }
 
   .hero::before {
-    top: 84px;
+    top: 0;
     width: 100%;
   }
 
@@ -1382,20 +1378,8 @@ footer {
     flex-direction: column;
   }
 
-  .about-mark {
-    height: 64px;
-    width: auto;
-  }
-
-  .about-mark img {
-    height: 64px;
-    width: auto;
-  }
-
-  .about-overview {
-    align-items: start;
-    gap: 18px;
-    grid-template-columns: auto 1fr;
+  .about-heading h2 {
+    font-size: clamp(32px, 9vw, 44px);
   }
 
   .about-lead {
