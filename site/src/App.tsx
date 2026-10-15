@@ -324,7 +324,9 @@ export default function App() {
           </div>
 
           <aside className="ai-strip" aria-label="AI in our pipeline">
-            <p className="ai-strip-title">AI in our pipeline</p>
+            <p className="ai-strip-title">
+              <strong>AI</strong> in our pipeline
+            </p>
             <p>
               We use AI where it makes the work better: faster concepts, more
               variants, cleaner production. Every frame is still directed and

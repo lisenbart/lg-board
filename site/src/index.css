@@ -575,6 +575,11 @@ img {
   text-transform: uppercase;
 }
 
+.ai-strip-title strong {
+  color: var(--pink);
+  font-weight: inherit;
+}
+
 .ai-strip > p:last-child {
   color: var(--ink);
   font-size: 16px;
