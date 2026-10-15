@@ -355,9 +355,6 @@ export default function App() {
           <p className="clients-strip-names">
             Playtika · Moon Active · Voodoo · Plarium
           </p>
-          <p className="clients-strip-note">
-            plus a mobile games publisher under NDA
-          </p>
         </aside>
 
         <section className="thinking-section">
