@@ -643,9 +643,23 @@ img {
   color: white;
 }
 
-.service-card > span {
+.service-card-top {
+  align-items: flex-start;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.service-card-top > span {
   font-size: 11px;
   font-weight: 700;
+}
+
+.service-card-icon {
+  flex: none;
+  height: 48px;
+  object-fit: contain;
+  width: 48px;
 }
 
 .service-card h3 {
@@ -654,7 +668,7 @@ img {
   font-weight: 400;
   letter-spacing: -0.055em;
   line-height: 1;
-  margin: 34px 0 12px;
+  margin: 22px 0 12px;
   max-width: 510px;
   text-transform: uppercase;
   transition: transform 180ms ease;
