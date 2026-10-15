@@ -347,13 +347,14 @@ export default function App() {
             <h2>
               <span className="title-sells">
                 Built <strong>on</strong>
-              </span>
-              <FilmLockup>LISENBART FILM</FilmLockup>
+              </span>{" "}
+              LISENBART FILM
             </h2>
           </div>
 
           <p className="about-lead">
-            Lisenbart Games is part of Lisenbart Film, an independent
+            <strong className="brand-name">Lisenbart Games</strong> is part of{" "}
+            <strong className="brand-name">Lisenbart Film</strong>, an independent
             animation studio founded in Kyiv in 2006. Everything we learned
             making commercials and award-winning films now goes into your
             trailers, ads and playables.

@@ -687,10 +687,6 @@ img {
 }
 
 .about-heading h2 {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.1em 0.28em;
   margin-top: 0;
 }
 
@@ -729,6 +725,12 @@ img {
   line-height: 1.45;
   margin: 0;
   max-width: 760px;
+}
+
+.about-lead .brand-name {
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
 }
 
 .clients-strip {
@@ -1376,10 +1378,6 @@ footer {
   .about-actions {
     align-items: flex-start;
     flex-direction: column;
-  }
-
-  .about-heading h2 {
-    font-size: clamp(32px, 9vw, 44px);
   }
 
   .about-lead {
