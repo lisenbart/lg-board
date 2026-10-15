@@ -564,6 +564,17 @@ img {
   padding-top: 22px;
 }
 
+.ai-strip-title {
+  color: var(--ink);
+  font-family: var(--display);
+  font-size: clamp(23px, 2.05vw, 32px);
+  font-weight: 400;
+  letter-spacing: -0.055em;
+  line-height: 1;
+  margin: 0;
+  text-transform: uppercase;
+}
+
 .ai-strip > p:last-child {
   color: var(--ink);
   font-size: 16px;
