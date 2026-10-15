@@ -435,7 +435,7 @@ export default function App() {
           <div className="contact-copy">
             <p className="eyebrow">Start a project</p>
             <h2>
-              Got a <LogoWord>game</LogoWord> to launch?
+              What's next for your <LogoWord>game</LogoWord>?
             </h2>
             <p>
               Tell us about your game and what you need.
