@@ -8,8 +8,8 @@ const asset = (file: string) => {
 const services = [
   {
     number: "01",
-    title: "Trailers & cinematics",
-    copy: "Launch trailers and story cinematics that make players want in. 2D or 3D.",
+    title: "Playable ads",
+    copy: "HTML5 playables that let the game sell itself.",
     tone: "yellow",
   },
   {
@@ -26,8 +26,8 @@ const services = [
   },
   {
     number: "04",
-    title: "Playable ads",
-    copy: "HTML5 playables that let the game sell itself.",
+    title: "Trailers & cinematics",
+    copy: "Launch trailers and story cinematics that make players want in. 2D or 3D.",
     tone: "white",
   },
   {
@@ -473,10 +473,10 @@ export default function App() {
                   <option value="" disabled>
                     Select
                   </option>
-                  <option>Trailer / cinematic</option>
+                  <option>Playable ads</option>
                   <option>Ad creatives</option>
                   <option>Ad variants & localisation</option>
-                  <option>Playable ads</option>
+                  <option>Trailer / cinematic</option>
                   <option>Store & ASO assets</option>
                   <option>In-game motion & art</option>
                   <option>Other</option>
