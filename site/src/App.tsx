@@ -128,20 +128,6 @@ function LogoWord({ children }: { children: string }) {
   );
 }
 
-function FilmLockup({ children }: { children: ReactNode }) {
-  return (
-    <span className="film-lockup">
-      {children}
-      <img
-        src={asset("lisenbart-film-mark.png")}
-        alt=""
-        width={146}
-        height={146}
-      />
-    </span>
-  );
-}
-
 export default function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [showReel, setShowReel] = useState(false);
@@ -540,9 +526,6 @@ export default function App() {
       <footer>
         <div className="footer-brand">
           <img src={asset("lisenbart-full.png")} alt="" />
-          <a href="https://lisenbart.com" target="_blank" rel="noopener noreferrer">
-            Part of <FilmLockup>Lisenbart Film</FilmLockup>
-          </a>
         </div>
         <div className="footer-links">
           <span>© {new Date().getFullYear()} Lisenbart Games</span>
