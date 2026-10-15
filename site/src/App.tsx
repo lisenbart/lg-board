@@ -36,7 +36,7 @@ const principles = [
   {
     number: "01",
     title: "Idea before polish",
-    copy: "Every trailer, ad or playable starts with one clear idea: what the player should feel, and why they should care.",
+    copy: "Every trailer, ad or playable starts with one clear idea: what the player should feel, and why they'll want to play.",
   },
   {
     number: "02",
@@ -46,7 +46,7 @@ const principles = [
   {
     number: "03",
     title: "Craft that ships",
-    copy: "Creativity and production aren’t enemies. We plan so the work is both good and on time.",
+    copy: "Creativity and production aren't enemies. We plan so the work is both good and on time.",
   },
 ];
 
@@ -336,12 +336,12 @@ export default function App() {
         </section>
 
         <section className="thinking-section">
-          <div className="quote-block">
-            <p className="eyebrow">The LISENBART way</p>
-            <blockquote>
-              “Every project starts with <em>‘What if?’</em> — and quickly
-              becomes ‘Alright, how do we pull this off?’”
-            </blockquote>
+          <div className="thinking-heading">
+            <h2>How we work</h2>
+            <p className="thinking-lead">
+              Every frame has a job: stop the scroll, show the game, earn the
+              install.
+            </p>
           </div>
 
           <div className="principle-grid">
