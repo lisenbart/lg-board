@@ -17,6 +17,8 @@ python3 -m http.server 43221 --bind 0.0.0.0
 
 Opens on [http://127.0.0.1:43221](http://127.0.0.1:43221).
 
+Sandbox (GitHub Pages, not production): [https://lisenbart.github.io/lisenbart-games/](https://lisenbart.github.io/lisenbart-games/). Repo: [github.com/lisenbart/lisenbart-games](https://github.com/lisenbart/lisenbart-games). This is for looking at the page from any browser. Apex `lisenbart.games` stays off until you say to publish.
+
 ## Netlify (lisenbart.games only)
 
 Attach **this** repo as its own Netlify site for the `.games` domain. Do **not** reuse the **lisenbart.com** site.
