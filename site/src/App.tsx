@@ -239,7 +239,7 @@ export default function App() {
       <main id="top">
         <section className="hero">
           <div className="hero-copy">
-            <p className="eyebrow">For game publishers worldwide · Kyiv / Warsaw</p>
+            <p className="eyebrow">For game publishers worldwide</p>
             <h1 aria-label="Animation that sells games">
               Animation that{" "}
               <span>
