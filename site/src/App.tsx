@@ -44,6 +44,16 @@ const services = [
   },
 ];
 
+const clients = [
+  "Playtika",
+  "Moon Active",
+  "Voodoo",
+  "Plarium",
+  "Youda",
+  "Slotomania",
+  "Beach Boom Games",
+];
+
 const principles = [
   {
     number: "01",
@@ -352,9 +362,21 @@ export default function App() {
 
         <aside className="clients-strip" aria-label="Trusted by teams at">
           <p className="clients-strip-label">Trusted by teams at</p>
-          <p className="clients-strip-names">
-            Playtika · Moon Active · Voodoo · Plarium
-          </p>
+          <div className="clients-marquee">
+            <div className="clients-marquee-track">
+              {[0, 1, 2].map((copy) => (
+                <ul
+                  className="clients-strip-names"
+                  key={copy}
+                  aria-hidden={copy > 0}
+                >
+                  {clients.map((name) => (
+                    <li key={`${copy}-${name}`}>{name}</li>
+                  ))}
+                </ul>
+              ))}
+            </div>
+          </div>
         </aside>
 
         <section className="thinking-section">
