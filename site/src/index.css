@@ -696,6 +696,21 @@ img {
   margin-top: 0;
 }
 
+.about-heading .title-sells {
+  color: var(--white);
+  text-shadow:
+    -2px -2px 0 var(--pink),
+    2px -2px 0 var(--pink),
+    -2px 2px 0 var(--pink),
+    2px 2px 0 var(--pink),
+    6px 6px 0 var(--ink);
+}
+
+.about-heading .title-games {
+  color: var(--yellow);
+  font-weight: inherit;
+}
+
 .about-overview {
   align-items: start;
   display: grid;
