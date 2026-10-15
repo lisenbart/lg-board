@@ -191,14 +191,6 @@ body.is-open {
   color: var(--text-muted);
 }
 
-.hero-parent {
-  margin: 24px 0 0;
-}
-
-.hero-parent .text-link {
-  font-size: 14px;
-}
-
 .actions {
   display: flex;
   flex-wrap: wrap;
@@ -242,6 +234,10 @@ body.is-open {
   width: min(var(--max), calc(100% - var(--pad) * 2));
   margin: 0 auto;
   padding: 0 0 96px;
+}
+
+.showreel .text-link {
+  font-size: 14px;
 }
 
 .clients,
