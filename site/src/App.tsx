@@ -499,7 +499,7 @@ export default function App() {
           <span>© {new Date().getFullYear()} Lisenbart Games</span>
           <div className="footer-nav">
             <a
-              href="https://www.linkedin.com/company/663608"
+              href="https://www.linkedin.com/company/74503932"
               target="_blank"
               rel="noopener noreferrer"
             >
