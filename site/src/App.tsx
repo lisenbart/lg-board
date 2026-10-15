@@ -308,6 +308,16 @@ export default function App() {
           </div>
         </section>
 
+        <aside className="clients-strip" aria-label="Game clients">
+          <p className="clients-strip-label">Trusted by game teams at</p>
+          <p className="clients-strip-names">
+            Playtika · Moon Active · Voodoo · Plarium
+          </p>
+          <p className="clients-strip-note">
+            plus a mobile games publisher under NDA
+          </p>
+        </aside>
+
         <section className="thinking-section">
           <div className="thinking-heading">
             <h2>How we work</h2>
@@ -342,16 +352,6 @@ export default function App() {
               animation studio founded in Kyiv in 2006. Everything we learned
               making commercials and award-winning films now goes into your
               trailers, ads and playables.
-            </p>
-          </div>
-
-          <div className="about-clients">
-            <p className="eyebrow">Game clients</p>
-            <p className="about-client-names">
-              Playtika · Moon Active · Voodoo · Plarium
-            </p>
-            <p className="about-client-note">
-              plus a mobile games publisher under NDA
             </p>
           </div>
 
