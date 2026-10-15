@@ -68,7 +68,7 @@ const facts: { title: string; copy: ReactNode }[] = [
         >
           Unnecessary Things
         </a>
-        {" — animated short, co-produced with Marcus Film. 11 awards and 45 official selections at international festivals, including the top prize at LINOLEUM 2021."}
+        {" — animated short, co-produced with Marcus Film. Golden Goblet nominee at Shanghai International Film Festival 2021, official selection at Huesca (Oscar-qualifying). 11 awards and 45 festival selections worldwide."}
       </>
     ),
   },
