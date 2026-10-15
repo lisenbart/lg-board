@@ -409,9 +409,8 @@ export default function App() {
 
           <div className="about-footer">
             <p className="founder">
-              Founded by Dmytro Lisenbart — 25 years in animation and game
-              cinematics, former head of Ukranimafilm, Ukraine’s national
-              animation studio.
+              Founded by Dmytro Lisenbart, former head of Ukranimafilm, Ukraine's
+              national animation studio.
             </p>
 
             <div className="about-actions">
@@ -442,8 +441,7 @@ export default function App() {
               Got a <LogoWord>game</LogoWord> to launch?
             </h2>
             <p>
-              Tell us about your game and what you need. You'll hear back within
-              one business day.
+              Tell us about your game and what you need.
             </p>
           </div>
 
