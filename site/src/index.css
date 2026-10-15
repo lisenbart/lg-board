@@ -744,35 +744,36 @@ img {
 
 .about-section {
   display: grid;
-  gap: clamp(45px, 5vw, 72px) clamp(55px, 7vw, 110px);
-  grid-template-columns: 0.95fr 1.35fr;
+  gap: clamp(45px, 5vw, 72px);
+  grid-template-columns: 1fr;
 }
 
 .about-heading h2 {
-  margin-top: 25px;
+  margin-top: 0;
 }
 
 .about-overview {
-  align-items: center;
+  align-items: start;
   display: grid;
-  gap: clamp(28px, 3vw, 48px);
-  grid-template-columns: 132px 1fr;
+  gap: clamp(20px, 2.5vw, 36px);
+  grid-template-columns: auto 1fr;
 }
 
 .about-mark {
-  background: white;
-  border: 1px solid var(--line);
-  box-shadow: 5px 5px 0 #b8c6ca;
-  height: 132px;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  height: 64px;
   margin: 0;
-  overflow: hidden;
-  width: 132px;
+  overflow: visible;
+  width: auto;
 }
 
 .about-mark img {
-  height: 132px;
+  height: 64px;
+  max-width: none;
   object-fit: contain;
-  width: 132px;
+  width: auto;
 }
 
 .about-lead {
@@ -787,7 +788,7 @@ img {
   border-top: 1px solid var(--ink);
   display: grid;
   grid-column: 1 / -1;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
 }
 
 .facts-grid article {
@@ -823,6 +824,14 @@ img {
   margin: 0;
 }
 
+.facts-grid .text-link {
+  display: inline;
+  font-size: inherit;
+  font-weight: 700;
+  gap: 0;
+  padding-bottom: 1px;
+}
+
 .about-footer {
   align-items: center;
   display: grid;
@@ -832,10 +841,8 @@ img {
 }
 
 .founder {
-  border-left: 3px solid var(--yellow);
   margin: 0;
   max-width: 820px;
-  padding-left: 18px;
 }
 
 .about-actions {
@@ -1293,25 +1300,12 @@ footer {
     grid-template-columns: 1fr;
   }
 
-  .about-heading {
-    max-width: 760px;
-  }
-
   .about-overview {
     max-width: 900px;
   }
 
   .facts-grid {
     grid-column: auto;
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .facts-grid article:nth-child(2) {
-    border-right: 0;
-  }
-
-  .facts-grid article:nth-child(3) {
-    border-right: 1px solid var(--line);
   }
 
   .about-footer {
@@ -1428,9 +1422,7 @@ footer {
     grid-template-columns: 1fr;
   }
 
-  .facts-grid article,
-  .facts-grid article:nth-child(even),
-  .facts-grid article:nth-child(3) {
+  .facts-grid article {
     border-right: 0;
     min-height: 0;
     padding: 23px 18px 26px;
@@ -1442,19 +1434,19 @@ footer {
   }
 
   .about-mark {
-    height: 104px;
-    width: 104px;
+    height: 64px;
+    width: auto;
   }
 
   .about-mark img {
-    height: 104px;
-    width: 104px;
+    height: 64px;
+    width: auto;
   }
 
   .about-overview {
     align-items: start;
-    gap: 24px;
-    grid-template-columns: 1fr;
+    gap: 18px;
+    grid-template-columns: auto 1fr;
   }
 
   .about-lead {

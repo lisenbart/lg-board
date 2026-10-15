@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, ReactNode, useEffect, useState } from "react";
 
 const asset = (file: string) => `${import.meta.env.BASE_URL}assets/${file}`;
 
@@ -47,22 +47,30 @@ const principles = [
   },
 ];
 
-const facts = [
+const facts: { title: string; copy: ReactNode }[] = [
   {
     title: "Since 2006",
     copy: "An independent animation studio from Kyiv, working for clients in Europe and North America.",
   },
   {
-    title: "Games",
-    copy: "Cinematics, trailers and ad creatives for mobile and PC publishers.",
-  },
-  {
     title: "Brands",
-    copy: "500+ animated commercials, including campaigns for Nestlé, Samsung, McDonald’s and Mastercard.",
+    copy: "500+ animated commercials, including campaigns for Nestlé, Samsung, McDonald's and Mastercard.",
   },
   {
     title: "Film",
-    copy: "Original animated films and IP.",
+    copy: (
+      <>
+        <a
+          className="text-link"
+          href="https://www.imdb.com/title/tt14760808/"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Unnecessary Things
+        </a>
+        {" — animated short, co-produced with Marcus Film. 11 awards and 45 official selections at international festivals, including the top prize at LINOLEUM 2021."}
+      </>
+    ),
   },
 ];
 
@@ -341,7 +349,6 @@ export default function App() {
 
         <section className="about-section" id="about">
           <div className="about-heading">
-            <p className="eyebrow">The studio</p>
             <h2>Built on LISENBART FILM</h2>
           </div>
 
@@ -350,10 +357,10 @@ export default function App() {
               <img src={asset("lisenbart-film.png")} alt="" />
             </div>
             <p className="about-lead">
-              Lisenbart Games is the games division of LISENBART FILM — an
-              animation studio for games, brands and original film since 2006.
-              Everything we make for games comes from the same craft, pipeline
-              and people.
+              Lisenbart Games is the games division of Lisenbart Film, an
+              independent animation studio founded in Kyiv in 2006. We bring
+              the craft behind its commercials and original films to trailers,
+              ads and playables.
             </p>
           </div>
 
