@@ -1565,6 +1565,26 @@ footer {
   .footer-nav {
     flex-wrap: wrap;
   }
+
+  .reel-modal {
+    background: #000;
+    height: 100dvh;
+    padding: 0;
+  }
+
+  .reel-modal > button {
+    right: max(14px, env(safe-area-inset-right));
+    top: max(14px, env(safe-area-inset-top));
+    z-index: 2;
+  }
+
+  .video-frame {
+    aspect-ratio: auto;
+    border: 0;
+    height: 100%;
+    max-height: none;
+    width: 100%;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

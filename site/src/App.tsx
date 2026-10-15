@@ -1,4 +1,4 @@
-import { FormEvent, ReactNode, useEffect, useState } from "react";
+import { FormEvent, ReactNode, useEffect, useRef, useState } from "react";
 
 const asset = (file: string) => {
   const base = import.meta.env.BASE_URL === "/" ? "./" : import.meta.env.BASE_URL;
@@ -132,6 +132,7 @@ export default function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [showReel, setShowReel] = useState(false);
   const [formSent, setFormSent] = useState(false);
+  const reelFrameRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     document.body.classList.toggle("no-scroll", menuOpen || showReel);
@@ -146,6 +147,38 @@ export default function App() {
       window.removeEventListener("keydown", onKey);
     };
   }, [menuOpen, showReel]);
+
+  useEffect(() => {
+    if (!showReel) return;
+    const frame = reelFrameRef.current as
+      | (HTMLDivElement & { webkitRequestFullscreen?: () => void })
+      | null;
+    const phone = window.matchMedia("(max-width: 680px)").matches;
+    if (!phone || !frame) return;
+
+    const enter =
+      frame.requestFullscreen?.bind(frame) ??
+      frame.webkitRequestFullscreen?.bind(frame);
+    try {
+      void Promise.resolve(enter?.()).catch(() => undefined);
+    } catch {
+      /* overlay still fills the phone */
+    }
+
+    const onChange = () => {
+      const active =
+        document.fullscreenElement ??
+        (document as Document & { webkitFullscreenElement?: Element }).webkitFullscreenElement;
+      if (!active) setShowReel(false);
+    };
+    document.addEventListener("fullscreenchange", onChange);
+    document.addEventListener("webkitfullscreenchange", onChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", onChange);
+      document.removeEventListener("webkitfullscreenchange", onChange);
+      if (document.fullscreenElement) void document.exitFullscreen();
+    };
+  }, [showReel]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -557,9 +590,13 @@ export default function App() {
           <button type="button" onClick={() => setShowReel(false)} aria-label="Close showreel">
             Close <span>×</span>
           </button>
-          <div className="video-frame" onClick={(event) => event.stopPropagation()}>
+          <div
+            className="video-frame"
+            ref={reelFrameRef}
+            onClick={(event) => event.stopPropagation()}
+          >
             <iframe
-              src="https://player.vimeo.com/video/944158555?autoplay=1&dnt=1&title=0&byline=0&portrait=0"
+              src="https://player.vimeo.com/video/944158555?autoplay=1&dnt=1&title=0&byline=0&portrait=0&playsinline=0"
               allow="autoplay; fullscreen; picture-in-picture"
               allowFullScreen
               title="Lisenbart Games showreel"
