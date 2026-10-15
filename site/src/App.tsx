@@ -206,14 +206,6 @@ export default function App() {
         <a className="brand" href="#top" aria-label="Lisenbart Games home">
           <img src={asset("lisenbart-full.png")} alt="Lisenbart Games Animation" />
         </a>
-        <a
-          className="parent-brand"
-          href="https://lisenbart.com"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          A LISENBART FILM studio
-        </a>
 
         <nav className={`main-nav ${menuOpen ? "is-open" : ""}`} aria-label="Main navigation">
           <a href="#showreel" onClick={closeMenu}>
@@ -247,7 +239,7 @@ export default function App() {
       <main id="top">
         <section className="hero">
           <div className="hero-copy">
-            <p className="eyebrow">The games division of LISENBART FILM · Kyiv / Warsaw</p>
+            <p className="eyebrow">For game publishers worldwide · Kyiv / Warsaw</p>
             <h1 aria-label="Animation that sells games">
               Animation that{" "}
               <span>
@@ -262,9 +254,6 @@ export default function App() {
             <div className="hero-actions">
               <a className="primary-button" href="#contact">
                 Start a project <ArrowIcon />
-              </a>
-              <a className="text-link" href="#about">
-                Built on LISENBART FILM <span>↓</span>
               </a>
             </div>
           </div>
@@ -294,19 +283,6 @@ export default function App() {
               <span>Play reel</span>
             </span>
           </button>
-        </section>
-
-        <section className="clients" aria-labelledby="clients-title">
-          <p className="eyebrow" id="clients-title">
-            LISENBART FILM has worked with
-          </p>
-          <div className="client-list">
-            <strong>Playtika</strong>
-            <strong>Moon Active</strong>
-            <strong>Voodoo</strong>
-            <strong>Plarium</strong>
-          </div>
-          <p className="client-note">plus a mobile games publisher under NDA</p>
         </section>
 
         <section className="services-section" id="services">
@@ -365,10 +341,20 @@ export default function App() {
               <img src={asset("lisenbart-film.png")} alt="" />
             </div>
             <p className="about-lead">
-              Lisenbart Games is the games division of Lisenbart Film, an
-              independent animation studio founded in Kyiv in 2006. We bring
-              the craft behind its commercials and original films to trailers,
-              ads and playables.
+              Lisenbart Games is part of Lisenbart Film, an independent
+              animation studio founded in Kyiv in 2006. We bring the craft
+              behind its commercials and original films to trailers, ads and
+              playables.
+            </p>
+          </div>
+
+          <div className="about-clients">
+            <p className="eyebrow">Game clients</p>
+            <p className="about-client-names">
+              Playtika · Moon Active · Voodoo · Plarium
+            </p>
+            <p className="about-client-note">
+              plus a mobile games publisher under NDA
             </p>
           </div>
 
@@ -492,7 +478,7 @@ export default function App() {
         <div className="footer-brand">
           <img src={asset("lisenbart-full.png")} alt="" />
           <a href="https://lisenbart.com" target="_blank" rel="noopener noreferrer">
-            Lisenbart Games is the games division of LISENBART FILM
+            Part of LISENBART FILM
           </a>
         </div>
         <div className="footer-links">

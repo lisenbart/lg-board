@@ -131,7 +131,7 @@ img {
   background: rgba(255, 255, 255, 0.97);
   border-bottom: 1px solid var(--line);
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto 1fr;
   height: 84px;
   padding: 0 clamp(22px, 4.5vw, 72px);
   position: fixed;
@@ -160,15 +160,6 @@ img {
   max-width: none;
   object-fit: contain;
   width: 150px;
-}
-
-.parent-brand {
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  margin-left: 22px;
-  text-transform: uppercase;
 }
 
 .main-nav {
@@ -499,38 +490,6 @@ img {
   transform: translate(-48%, -48%) rotate(2deg);
 }
 
-.clients {
-  align-items: center;
-  background: white;
-  border-bottom: 1px solid var(--line);
-  border-top: 1px solid var(--line);
-  display: grid;
-  gap: 30px;
-  grid-template-columns: 1fr 2.7fr 1fr;
-  padding: 28px clamp(22px, 4.5vw, 72px);
-}
-
-.client-list {
-  display: flex;
-  gap: clamp(24px, 4vw, 64px);
-  justify-content: center;
-}
-
-.client-list strong {
-  font-family: var(--display);
-  font-size: clamp(14px, 1.4vw, 19px);
-  font-weight: 400;
-  letter-spacing: -0.04em;
-  text-transform: uppercase;
-}
-
-.client-note {
-  color: var(--muted);
-  font-size: 10px;
-  margin: 0;
-  text-align: right;
-}
-
 .services-section,
 .about-section {
   padding: clamp(72px, 7.5vw, 115px) clamp(22px, 4.5vw, 72px);
@@ -767,6 +726,25 @@ img {
   line-height: 1.45;
   margin: 0;
   max-width: 760px;
+}
+
+.about-clients {
+  max-width: 760px;
+}
+
+.about-client-names {
+  color: var(--muted);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.5;
+  margin: 10px 0 0;
+}
+
+.about-client-note {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+  margin: 8px 0 0;
 }
 
 .facts-grid {
@@ -1164,7 +1142,7 @@ footer {
 
 @media (max-width: 980px) {
   .site-header {
-    grid-template-columns: auto 1fr auto;
+    grid-template-columns: auto 1fr;
     height: 84px;
   }
 
@@ -1176,10 +1154,6 @@ footer {
   .brand img {
     height: 130px;
     width: 130px;
-  }
-
-  .parent-brand {
-    margin-left: 16px;
   }
 
   .menu-button {
@@ -1235,19 +1209,6 @@ footer {
     max-width: 760px;
   }
 
-  .clients {
-    gap: 20px;
-    grid-template-columns: 1fr;
-  }
-
-  .client-list {
-    justify-content: flex-start;
-  }
-
-  .client-note {
-    text-align: left;
-  }
-
   .section-intro {
     grid-template-columns: 0.55fr 2.45fr;
   }
@@ -1279,10 +1240,6 @@ footer {
     padding-inline: 18px;
   }
 
-  .parent-brand {
-    display: none;
-  }
-
   .hero {
     gap: 55px;
     padding: 128px 18px 75px;
@@ -1312,19 +1269,12 @@ footer {
     box-shadow: 8px 8px 0 var(--yellow);
   }
 
-  .clients,
   .services-section,
   .thinking-section,
   .about-section,
   .contact-section {
     padding-left: 18px;
     padding-right: 18px;
-  }
-
-  .client-list {
-    display: grid;
-    gap: 14px 30px;
-    grid-template-columns: 1fr 1fr;
   }
 
   .section-intro {
