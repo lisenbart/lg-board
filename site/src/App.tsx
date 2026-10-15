@@ -302,7 +302,6 @@ export default function App() {
 
         <section className="services-section" id="services">
           <div className="section-intro">
-            <p className="eyebrow">Services</p>
             <div>
               <h2>
                 What we <LogoWord>make</LogoWord>

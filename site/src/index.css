@@ -492,12 +492,10 @@ img {
 
 .services-section {
   padding-bottom: clamp(65px, 6.5vw, 95px);
+  padding-top: clamp(80px, 8.5vw, 125px);
 }
 
 .section-intro {
-  display: grid;
-  gap: 40px;
-  grid-template-columns: 0.8fr 2.2fr;
   margin-bottom: clamp(40px, 4vw, 58px);
 }
 
@@ -1325,10 +1323,6 @@ footer {
     max-width: 760px;
   }
 
-  .section-intro {
-    grid-template-columns: 0.55fr 2.45fr;
-  }
-
   .about-section,
   .contact-section {
     grid-template-columns: 1fr;
@@ -1396,11 +1390,6 @@ footer {
   .clients-strip {
     padding-left: 18px;
     padding-right: 18px;
-  }
-
-  .section-intro {
-    gap: 24px;
-    grid-template-columns: 1fr;
   }
 
   .section-intro h2,
