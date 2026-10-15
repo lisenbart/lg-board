@@ -20,12 +20,24 @@ const services = [
   },
   {
     number: "03",
-    title: "Playable ads",
-    copy: "HTML5 playables that let the game sell itself.",
-    tone: "pink",
+    title: "Ad variants & localisation",
+    copy: "New hooks, resizes and language versions of your best performers, ready for the next test.",
+    tone: "white",
   },
   {
     number: "04",
+    title: "Playable ads",
+    copy: "HTML5 playables that let the game sell itself.",
+    tone: "white",
+  },
+  {
+    number: "05",
+    title: "Store & ASO assets",
+    copy: "App preview videos, screenshots and icons that turn a store visit into an install.",
+    tone: "pink",
+  },
+  {
+    number: "06",
     title: "In-game motion & art",
     copy: "Feature reveals, characters and the art that keeps a live game feeling fresh.",
     tone: "white",
@@ -310,6 +322,20 @@ export default function App() {
               </article>
             ))}
           </div>
+
+          <aside className="ai-strip" aria-label="AI in our pipeline">
+            <p className="eyebrow">AI in our pipeline</p>
+            <p>
+              We use AI where it makes the work better: faster concepts, more
+              variants, cleaner production. Every frame is still directed and
+              finished by our team. Have an AI policy? We'll work within it.
+            </p>
+          </aside>
+
+          <p className="capability-row">
+            2D · 3D · Motion design · Spine · Concept art · Storyboards · Key
+            art · Static ads · UI animation · VFX
+          </p>
         </section>
 
         <aside className="clients-strip" aria-label="Trusted by game teams at">
@@ -449,7 +475,9 @@ export default function App() {
                   </option>
                   <option>Trailer / cinematic</option>
                   <option>Ad creatives</option>
+                  <option>Ad variants & localisation</option>
                   <option>Playable ads</option>
+                  <option>Store & ASO assets</option>
                   <option>In-game motion & art</option>
                   <option>Other</option>
                 </select>
