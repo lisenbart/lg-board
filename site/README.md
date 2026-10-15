@@ -6,7 +6,7 @@ The Python board in the repo root (`board.lisenbart.games`) is a different produ
 
 ## Stack
 
-Static HTML + CSS + a little vanilla JS. No framework. Fonts (Archivo, Figtree) are self-hosted `woff2`.
+Static HTML + CSS + a little vanilla JS. No framework. Visual language follows the Glowl cinematic-editorial light art direction: paper ground `#e8e8e6`, Montserrat + DM Sans (self-hosted `woff2`), 1080px measure, hairline separators, graphite CTA with a yellow–magenta accent bar. Copy and structure stay Lisenbart’s.
 
 ## Run locally
 
