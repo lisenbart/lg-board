@@ -22,7 +22,7 @@ const services = [
     number: "03",
     title: "Ad variants & localisation",
     copy: "New hooks, resizes and language versions of your best performers, ready for the next test.",
-    tone: "white",
+    tone: "ink",
   },
   {
     number: "04",
