@@ -56,17 +56,14 @@ const clients = [
 
 const principles = [
   {
-    number: "01",
     title: "Idea before polish",
     copy: "Before anything gets pretty, we agree with you on one idea: what the player should feel, and why they'll hit install.",
   },
   {
-    number: "02",
     title: "One creative lead, no handoffs",
     copy: "The person who pitches you the idea is the one who delivers it. Nothing gets lost in translation.",
   },
   {
-    number: "03",
     title: "Craft that ships",
     copy: "Beautiful and late is still late. We plan for both: your quality bar and your launch date.",
   },
@@ -414,8 +411,7 @@ export default function App() {
 
           <div className="principle-grid">
             {principles.map((principle) => (
-              <article key={principle.number}>
-                <span>{principle.number}</span>
+              <article key={principle.title}>
                 <h3>{principle.title}</h3>
                 <p>{principle.copy}</p>
               </article>
