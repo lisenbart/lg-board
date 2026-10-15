@@ -56,17 +56,36 @@ const clients = [
 
 const principles = [
   {
-    title: "Idea before polish",
-    copy: "Before anything gets pretty, we agree with you on one idea: what the player should feel, and why they'll hit install.",
+    number: "01",
+    title: "See us in action",
+    copy: "Watch our reel. Or start with a test task and judge our work on your own project.",
   },
   {
-    title: "One creative lead, no handoffs",
-    copy: "The person who pitches you the idea is the one who delivers it. Nothing gets lost in translation.",
+    number: "02",
+    title: "Built around your needs",
+    copy: "One project or ongoing production. We fit your pipeline and scale with you.",
   },
   {
-    title: "Craft that ships",
-    copy: "Beautiful and late is still late. We plan for both: your quality bar and your launch date.",
+    number: "03",
+    title: "Clear terms",
+    copy: "Transparent pricing, agreed scope and realistic deadlines. No surprises.",
   },
+  {
+    number: "04",
+    title: "Your brief. Our craft.",
+    copy: "Bring your brief and assets. We add the storytelling, creative thinking and production expertise. Need more? We can build from scratch.",
+  },
+  {
+    number: "05",
+    title: "Creativity that delivers",
+    copy: "Strong ideas. Beautiful execution. Consistent quality, delivered on time.",
+  },
+];
+
+const workingNotes = [
+  "Dedicated producer. One contact, from brief to delivery.",
+  "Your production portal. Every project, status and deadline in one place.",
+  "Your files, your control. We work on your drive or hand over the project files.",
 ];
 
 const facts: { title: string; copy: ReactNode }[] = [
@@ -404,19 +423,25 @@ export default function App() {
           <div className="thinking-heading">
             <h2>How we work</h2>
             <p className="thinking-lead">
-              Every frame has a job: stop the scroll, show the game, earn the
-              install.
+              Studio-level creative. Production you can plan around.
             </p>
           </div>
 
           <div className="principle-grid">
             {principles.map((principle) => (
-              <article key={principle.title}>
+              <article key={principle.number}>
+                <span>{principle.number}</span>
                 <h3>{principle.title}</h3>
                 <p>{principle.copy}</p>
               </article>
             ))}
           </div>
+
+          <ul className="thinking-list">
+            {workingNotes.map((note) => (
+              <li key={note}>{note}</li>
+            ))}
+          </ul>
         </section>
 
         <section className="about-section" id="about">
