@@ -1094,30 +1094,6 @@ footer {
   font-weight: 700;
 }
 
-.board-link {
-  align-items: center;
-  background: var(--action);
-  border: 1px solid var(--ink);
-  color: var(--ink) !important;
-  display: inline-flex;
-  gap: 12px;
-  padding: 10px 12px;
-  transition: background 160ms ease, transform 160ms ease;
-}
-
-.board-link:hover {
-  background: var(--action-bright);
-  transform: translateY(-2px);
-}
-
-.board-link svg {
-  fill: none;
-  height: 14px;
-  stroke: currentColor;
-  stroke-width: 1.8;
-  width: 14px;
-}
-
 .reel-modal {
   align-items: center;
   background: rgba(7, 20, 48, 0.97);

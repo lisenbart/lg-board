@@ -1,6 +1,9 @@
 import { FormEvent, ReactNode, useEffect, useState } from "react";
 
-const asset = (file: string) => `${import.meta.env.BASE_URL}assets/${file}`;
+const asset = (file: string) => {
+  const base = import.meta.env.BASE_URL === "/" ? "./" : import.meta.env.BASE_URL;
+  return `${base}assets/${file}`;
+};
 
 const services = [
   {
@@ -245,8 +248,8 @@ export default function App() {
         <section className="hero">
           <div className="hero-copy">
             <p className="eyebrow">The games division of LISENBART FILM · Kyiv / Warsaw</p>
-            <h1>
-              Animation that
+            <h1 aria-label="Animation that sells games">
+              Animation that{" "}
               <span>
                 sells <strong>games</strong>
               </span>
@@ -282,7 +285,12 @@ export default function App() {
               <span>Showreel</span>
             </span>
             <span className="play-button">
-              <img src={asset("lisenbart-mark.png")} alt="" />
+              <img
+                src={asset("lisenbart-mark.webp")}
+                alt=""
+                width={128}
+                height={128}
+              />
               <span>Play reel</span>
             </span>
           </button>
@@ -496,14 +504,6 @@ export default function App() {
               rel="noopener noreferrer"
             >
               LinkedIn
-            </a>
-            <a
-              className="board-link"
-              href="https://board.lisenbart.games/?door=studio"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Pipeline board <ArrowIcon />
             </a>
           </div>
         </div>
