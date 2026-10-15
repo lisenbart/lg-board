@@ -1,6 +1,6 @@
 # lisenbart.games
 
-Public visiting card for **Lisenbart Games** — the games division of **LISENBART**. One English page: reel, what we make, how we think, write. Trust sits on [lisenbart.com](https://lisenbart.com). Contact is `dmytro@lisenbart.games` plus a Netlify form (locally the form opens mailto).
+Public visiting card for **Lisenbart Games** — the games division of **LISENBART FILM**. One English page: reel, what we make, how we think, write. Trust sits on [lisenbart.com](https://lisenbart.com). Contact is `info@lisenbart.games` plus a Netlify form (locally the form opens mailto).
 
 The Python board in the repo root (`board.lisenbart.games`) is a different product. PIN, hours Excel, Drive, rates and invoices stay off this site.
 

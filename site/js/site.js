@@ -51,7 +51,7 @@
 
   var form = document.querySelector(".brief");
   var ok = document.querySelector(".form-ok");
-  var email = "dmytro@lisenbart.games";
+  var email = "info@lisenbart.games";
 
   function hostedForms() {
     var host = window.location.hostname;
