@@ -845,6 +845,13 @@ img {
   margin-top: 25px;
 }
 
+.contact-copy > p:not(.eyebrow) {
+  font-size: 17px;
+  line-height: 1.55;
+  margin: 22px 0 0;
+  max-width: 520px;
+}
+
 .contact-direct {
   border-left: 1px solid var(--line);
   margin: 0;

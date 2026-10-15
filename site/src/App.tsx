@@ -9,7 +9,7 @@ const services = [
   {
     number: "01",
     title: "Trailers & cinematics",
-    copy: "Launch trailers and story cinematics, 2D and 3D.",
+    copy: "Launch trailers and story cinematics that make players want in. 2D or 3D.",
     tone: "yellow",
   },
   {
@@ -27,7 +27,7 @@ const services = [
   {
     number: "04",
     title: "In-game motion & art",
-    copy: "Feature reveals, characters, game art and assets.",
+    copy: "Feature reveals, characters and the art that keeps a live game feeling fresh.",
     tone: "white",
   },
 ];
@@ -36,24 +36,24 @@ const principles = [
   {
     number: "01",
     title: "Idea before polish",
-    copy: "Every trailer, ad or playable starts with one clear idea: what the player should feel, and why they'll want to play.",
+    copy: "Before anything gets pretty, we agree with you on one idea: what the player should feel, and why they'll hit install.",
   },
   {
     number: "02",
     title: "One creative lead, no handoffs",
-    copy: "The person who shapes the idea stays with it until the final frame.",
+    copy: "The person who pitches you the idea is the one who delivers it. Nothing gets lost in translation.",
   },
   {
     number: "03",
     title: "Craft that ships",
-    copy: "Creativity and production aren't enemies. We plan so the work is both good and on time.",
+    copy: "Beautiful and late is still late. We plan for both: your quality bar and your launch date.",
   },
 ];
 
 const facts: { title: string; copy: ReactNode }[] = [
   {
     title: "Since 2006",
-    copy: "An independent animation studio from Kyiv, working for clients in Europe and North America.",
+    copy: "Twenty years of animation from Kyiv, for clients across Europe and North America.",
   },
   {
     title: "Brands",
@@ -71,7 +71,7 @@ const facts: { title: string; copy: ReactNode }[] = [
         >
           Unnecessary Things
         </a>
-        {" — animated short, co-produced with Marcus Film. Golden Goblet nominee at Shanghai International Film Festival 2021, official selection at Huesca (Oscar-qualifying). 11 awards and 45 festival selections worldwide."}
+        {". Co-produced with Marcus Film. 11 awards, 45 festival selections, a Golden Goblet nomination at Shanghai and an official selection at Huesca (Oscar-qualifying)."}
       </>
     ),
   },
@@ -239,7 +239,7 @@ export default function App() {
       <main id="top">
         <section className="hero">
           <div className="hero-copy">
-            <p className="eyebrow">For game publishers worldwide</p>
+            <p className="eyebrow">For game studios, publishers & agencies</p>
             <h1 aria-label="Animation that sells games">
               Animation that{" "}
               <span>
@@ -247,9 +247,8 @@ export default function App() {
               </span>
             </h1>
             <p className="hero-lead">
-              Trailers, cinematics, ad creatives, playables and in-game motion
-              for mobile and PC — made to the standard of a full animation
-              studio.
+              Trailers, ad creatives, playables and in-game animation for your
+              mobile and PC games. Crafted like film, built to perform.
             </p>
             <div className="hero-actions">
               <a className="primary-button" href="#contact">
@@ -293,9 +292,7 @@ export default function App() {
                 What we <LogoWord>make</LogoWord>
               </h2>
               <p>
-                We work as part of your team, not as a ticket queue — one
-                creative lead on every project, from the first idea to the final
-                cut.
+                Think of us as your in-house animation team, without the hiring.
               </p>
             </div>
           </div>
@@ -342,9 +339,9 @@ export default function App() {
             </div>
             <p className="about-lead">
               Lisenbart Games is part of Lisenbart Film, an independent
-              animation studio founded in Kyiv in 2006. We bring the craft
-              behind its commercials and original films to trailers, ads and
-              playables.
+              animation studio founded in Kyiv in 2006. Everything we learned
+              making commercials and award-winning films now goes into your
+              trailers, ads and playables.
             </p>
           </div>
 
@@ -381,7 +378,7 @@ export default function App() {
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                Explore LISENBART FILM <ArrowIcon />
+                Explore Lisenbart Film <ArrowIcon />
               </a>
               <a
                 className="text-link"
@@ -401,6 +398,10 @@ export default function App() {
             <h2>
               Got a <LogoWord>game</LogoWord> to launch?
             </h2>
+            <p>
+              Tell us about your game and what you need. You'll hear back within
+              one business day.
+            </p>
           </div>
 
           <form
@@ -436,7 +437,7 @@ export default function App() {
                 <input type="text" name="company" autoComplete="organization" />
               </label>
               <label>
-                <span>What do you need</span>
+                <span>What do you need?</span>
                 <select name="need" defaultValue="">
                   <option value="" disabled>
                     Select
@@ -468,7 +469,7 @@ export default function App() {
                   <ArrowIcon />
                 </a>
               </div>
-              {formSent && <p>Thanks — we’ll reply within one business day.</p>}
+              {formSent && <p>Got it. You'll hear from us within one business day.</p>}
             </div>
           </form>
         </section>
@@ -478,7 +479,7 @@ export default function App() {
         <div className="footer-brand">
           <img src={asset("lisenbart-full.png")} alt="" />
           <a href="https://lisenbart.com" target="_blank" rel="noopener noreferrer">
-            Part of LISENBART FILM
+            Part of Lisenbart Film
           </a>
         </div>
         <div className="footer-links">
