@@ -272,7 +272,6 @@ export default function App() {
             <span className="reel-shade" />
             <span className="reel-meta">
               <span>Showreel</span>
-              <span>2024</span>
             </span>
             <span className="play-button">
               <img src={asset("lisenbart-mark.png")} alt="" />
