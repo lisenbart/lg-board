@@ -19,9 +19,20 @@ function sandboxIndexing(): Plugin {
       );
     },
     async writeBundle(options) {
-      if (!sandbox) return;
       const dir = options.dir ?? path.resolve("dist");
-      await writeFile(path.join(dir, "robots.txt"), "User-agent: *\nDisallow: /\n");
+      if (sandbox) {
+        await writeFile(path.join(dir, "robots.txt"), "User-agent: *\nDisallow: /\n");
+        return;
+      }
+      await writeFile(
+        path.join(dir, "robots.txt"),
+        "User-agent: *\nAllow: /\nSitemap: https://lisenbart.games/sitemap.xml\n",
+      );
+      const lastmod = new Date().toISOString().slice(0, 10);
+      await writeFile(
+        path.join(dir, "sitemap.xml"),
+        `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url>\n    <loc>https://lisenbart.games/</loc>\n    <lastmod>${lastmod}</lastmod>\n  </url>\n</urlset>\n`,
+      );
     },
   };
 }
@@ -43,7 +54,10 @@ function prerenderApp(): Plugin {
           render: () => string;
         };
         let appHtml = render().replace(/"\/assets\//g, '"./assets/');
-        const preloads = [...appHtml.matchAll(/<link rel="preload"[^>]*>/g)].map((match) => match[0]);
+        const allowedPreload = /lisenbart-full\.png|showreel-poster\.jpg/;
+        const preloads = [...appHtml.matchAll(/<link rel="preload"[^>]*>/g)]
+          .map((match) => match[0])
+          .filter((tag) => allowedPreload.test(tag));
         appHtml = appHtml.replace(/<link rel="preload"[^>]*>/g, "");
         const indexPath = path.resolve("dist/index.html");
         let html = await readFile(indexPath, "utf8");

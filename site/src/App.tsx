@@ -325,6 +325,7 @@ export default function App() {
                     width={160}
                     height={160}
                     draggable={false}
+                    loading="lazy"
                   />
                 </div>
                 <p>{service.copy}</p>
