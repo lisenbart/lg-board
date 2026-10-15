@@ -51,7 +51,7 @@ const clients = [
   "Plarium",
   "Youda",
   "Slotomania",
-  "Beach Boom Games",
+  "Beach Bum Games",
 ];
 
 const principles = [
