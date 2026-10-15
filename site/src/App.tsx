@@ -7,42 +7,36 @@ const asset = (file: string) => {
 
 const services = [
   {
-    number: "01",
     title: "Playable ads",
     copy: "HTML5 playables that let the game sell itself.",
     tone: "yellow",
     icon: "icon-playable.png",
   },
   {
-    number: "02",
     title: "Ad creatives",
     copy: "UA videos built around the hook, cut for every network.",
     tone: "white",
     icon: "icon-creatives.png",
   },
   {
-    number: "03",
     title: "Ad variants & localisation",
     copy: "New hooks, resizes and language versions of your best performers, ready for the next test.",
     tone: "ink",
     icon: "icon-variants.png",
   },
   {
-    number: "04",
     title: "Trailers & cinematics",
     copy: "Launch trailers and story cinematics that make players want in. 2D or 3D.",
     tone: "white",
     icon: "icon-trailers.png",
   },
   {
-    number: "05",
     title: "Store & ASO assets",
     copy: "App preview videos, screenshots and icons that turn a store visit into an install.",
     tone: "pink",
     icon: "icon-store.png",
   },
   {
-    number: "06",
     title: "In-game motion & art",
     copy: "Feature reveals, characters and the art that keeps a live game feeling fresh.",
     tone: "white",
@@ -321,9 +315,9 @@ export default function App() {
 
           <div className="service-grid">
             {services.map((service) => (
-              <article className={`service-card ${service.tone}`} key={service.number}>
+              <article className={`service-card ${service.tone}`} key={service.title}>
                 <div className="service-card-top">
-                  <span>{service.number}</span>
+                  <h3>{service.title}</h3>
                   <img
                     className="service-card-icon"
                     src={asset(service.icon)}
@@ -334,7 +328,6 @@ export default function App() {
                     draggable={false}
                   />
                 </div>
-                <h3>{service.title}</h3>
                 <p>{service.copy}</p>
               </article>
             ))}
@@ -357,8 +350,8 @@ export default function App() {
           </p>
         </section>
 
-        <aside className="clients-strip" aria-label="Trusted by game teams at">
-          <p className="clients-strip-label">Trusted by game teams at</p>
+        <aside className="clients-strip" aria-label="Trusted by teams at">
+          <p className="clients-strip-label">Trusted by teams at</p>
           <p className="clients-strip-names">
             Playtika · Moon Active · Voodoo · Plarium
           </p>

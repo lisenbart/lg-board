@@ -648,11 +648,7 @@ img {
   display: flex;
   justify-content: space-between;
   gap: 12px;
-}
-
-.service-card-top > span {
-  font-size: 11px;
-  font-weight: 700;
+  margin-bottom: 12px;
 }
 
 .service-card-icon {
@@ -663,13 +659,15 @@ img {
 }
 
 .service-card h3 {
+  flex: 1;
   font-family: var(--display);
   font-size: clamp(23px, 2.05vw, 32px);
   font-weight: 400;
   letter-spacing: -0.055em;
   line-height: 1;
-  margin: 22px 0 12px;
+  margin: 0;
   max-width: 510px;
+  min-width: 0;
   text-transform: uppercase;
   transition: transform 180ms ease;
 }
