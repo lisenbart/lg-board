@@ -308,7 +308,7 @@ export default function App() {
           </div>
         </section>
 
-        <aside className="clients-strip" aria-label="Game clients">
+        <aside className="clients-strip" aria-label="Trusted by game teams at">
           <p className="clients-strip-label">Trusted by game teams at</p>
           <p className="clients-strip-names">
             Playtika · Moon Active · Voodoo · Plarium
