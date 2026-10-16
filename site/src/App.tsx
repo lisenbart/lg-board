@@ -506,14 +506,6 @@ export default function App() {
               >
                 Explore Lisenbart Film <ArrowIcon />
               </a>
-              <a
-                className="text-link"
-                href="https://www.imdb.com/name/nm11412621/"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                IMDb <ArrowIcon />
-              </a>
             </div>
           </div>
         </section>
