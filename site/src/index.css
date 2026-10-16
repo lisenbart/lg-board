@@ -319,14 +319,6 @@ img {
   max-width: 650px;
 }
 
-.hero-actions {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 28px;
-  margin-top: 36px;
-}
-
 .primary-button {
   background: var(--action);
   border: 1px solid var(--ink);
@@ -595,6 +587,10 @@ img {
   line-height: 1.7;
   margin: 20px 0 0;
   text-transform: uppercase;
+}
+
+.services-cta {
+  margin: 24px 0 0;
 }
 
 .production-card {
@@ -1490,13 +1486,6 @@ footer {
   .hero-lead {
     font-size: 16px;
     margin-top: 18px;
-  }
-
-  .hero-actions {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 16px;
-    margin-top: 22px;
   }
 
   .hero-reel {

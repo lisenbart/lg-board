@@ -320,11 +320,6 @@ export default function App() {
               Trailers, ad creatives, playables and in-game animation for your
               mobile and PC games. Crafted like film, built to perform.
             </p>
-            <div className="hero-actions">
-              <a className="primary-button" href="#contact">
-                Start a project <ArrowIcon />
-              </a>
-            </div>
           </div>
 
           <button
@@ -409,6 +404,12 @@ export default function App() {
           <p className="capability-row">
             2D · 3D · Motion design · Spine · Concept art · Storyboards · Key
             art · Static ads · UI animation · VFX
+          </p>
+
+          <p className="services-cta">
+            <a className="primary-button" href="#contact">
+              Start a project <ArrowIcon />
+            </a>
           </p>
         </section>
 
