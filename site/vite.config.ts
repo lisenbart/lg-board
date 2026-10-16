@@ -20,6 +20,7 @@ function sandboxIndexing(): Plugin {
     },
     async writeBundle(options) {
       const dir = options.dir ?? path.resolve("dist");
+      await writeFile(path.join(dir, "CNAME"), "lisenbart.games\n");
       if (sandbox) {
         await writeFile(
           path.join(dir, "robots.txt"),
