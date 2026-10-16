@@ -12,6 +12,12 @@ const productionGroups = [
     tagline: "Your assets. Our production.",
     copy: "Video ads, variations, localisation and motion graphics. Fast, consistent production that fits your budget and workflow.",
     tone: "yellow",
+    services: [
+      { title: "Ad creatives", icon: "icon-creatives.png" },
+      { title: "Ad variants & localisation", icon: "icon-variants.png" },
+      { title: "Store & ASO assets", icon: "icon-store.png" },
+      { title: "In-game motion & art", icon: "icon-ingame.png" },
+    ],
   },
   {
     number: "02",
@@ -19,6 +25,7 @@ const productionGroups = [
     tagline: "From game assets to interactive ads.",
     copy: "HTML5 playables, adaptations and new variations. Built for testing, optimised for performance.",
     tone: "pink",
+    services: [{ title: "Playable ads", icon: "icon-playable.png" }],
   },
   {
     number: "03",
@@ -26,51 +33,7 @@ const productionGroups = [
     tagline: "Good ideas deserve great execution.",
     copy: "Concepts, scripts, storyboards, direction and cinematics. We bring storytelling expertise to every stage.",
     tone: "ink",
-  },
-];
-
-const services = [
-  {
-    title: "Playable ads",
-    group: "Playable Production",
-    copy: "HTML5 playables that let the game sell itself.",
-    tone: "yellow",
-    icon: "icon-playable.png",
-  },
-  {
-    title: "Ad creatives",
-    group: "Creative Production",
-    copy: "UA videos built around the hook, cut for every network.",
-    tone: "white",
-    icon: "icon-creatives.png",
-  },
-  {
-    title: "Ad variants & localisation",
-    group: "Creative Production",
-    copy: "New hooks, resizes and language versions of your best performers, ready for the next test.",
-    tone: "ink",
-    icon: "icon-variants.png",
-  },
-  {
-    title: "Trailers & cinematics",
-    group: "Creative Development",
-    copy: "Launch trailers and story cinematics that make players want in. 2D or 3D.",
-    tone: "white",
-    icon: "icon-trailers.png",
-  },
-  {
-    title: "Store & ASO assets",
-    group: "Creative Production",
-    copy: "App preview videos, screenshots and icons that turn a store visit into an install.",
-    tone: "pink",
-    icon: "icon-store.png",
-  },
-  {
-    title: "In-game motion & art",
-    group: "Creative Production",
-    copy: "Feature reveals, characters and the art that keeps a live game feeling fresh.",
-    tone: "white",
-    icon: "icon-ingame.png",
+    services: [{ title: "Trailers & cinematics", icon: "icon-trailers.png" }],
   },
 ];
 
@@ -113,9 +76,18 @@ const principles = [
 ];
 
 const workingNotes = [
-  "Dedicated producer. One contact, from brief to delivery.",
-  "Your production portal. Every project, status and deadline in one place.",
-  "Your files, your control. We work on your drive or hand over the project files.",
+  {
+    name: "Dedicated producer.",
+    detail: "One contact, from brief to delivery.",
+  },
+  {
+    name: "Your production portal.",
+    detail: "Every project, status and deadline in one place.",
+  },
+  {
+    name: "Your files, your control.",
+    detail: "We work on your drive or hand over the project files.",
+  },
 ];
 
 const facts: { title: string; copy: ReactNode }[] = [
@@ -231,7 +203,7 @@ export default function App() {
     const sections = Array.from(document.querySelectorAll("main > section:not(.hero)"));
     const items = Array.from(
       document.querySelectorAll(
-        ".service-card, .production-card, .principle-grid article, .facts-grid article",
+        ".production-card, .principle-grid article, .facts-grid article",
       ),
     );
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -400,30 +372,25 @@ export default function App() {
                 <h3>{group.title}</h3>
                 <p className="production-card-tagline">{group.tagline}</p>
                 <p>{group.copy}</p>
-              </article>
-            ))}
-          </div>
-
-          <div className="service-grid">
-            {services.map((service) => (
-              <article className={`service-card ${service.tone}`} key={service.title}>
-                <div className="service-card-top">
-                  <div>
-                    <p className="service-card-group">{service.group}</p>
-                    <h3>{service.title}</h3>
-                  </div>
-                  <img
-                    className="service-card-icon"
-                    src={asset(service.icon)}
-                    alt=""
-                    aria-hidden="true"
-                    width={160}
-                    height={160}
-                    draggable={false}
-                    loading="lazy"
-                  />
-                </div>
-                <p>{service.copy}</p>
+                <ul
+                  className={`production-services${group.services.length === 1 ? " is-single" : ""}`}
+                >
+                  {group.services.map((service) => (
+                    <li key={service.title}>
+                      <img
+                        className="production-service-icon"
+                        src={asset(service.icon)}
+                        alt=""
+                        aria-hidden="true"
+                        width={160}
+                        height={160}
+                        draggable={false}
+                        loading="lazy"
+                      />
+                      <span>{service.title}</span>
+                    </li>
+                  ))}
+                </ul>
               </article>
             ))}
           </div>
@@ -484,7 +451,9 @@ export default function App() {
 
           <ul className="thinking-list">
             {workingNotes.map((note) => (
-              <li key={note}>{note}</li>
+              <li key={note.name}>
+                <strong>{note.name}</strong> {note.detail}
+              </li>
             ))}
           </ul>
         </section>
@@ -499,13 +468,18 @@ export default function App() {
             </h2>
           </div>
 
-          <p className="about-lead">
-            <strong className="brand-name">Lisenbart Games</strong> is part of{" "}
-            <strong className="brand-name">Lisenbart Film</strong>, an independent
-            animation studio founded in Kyiv in 2006. Everything we learned
-            making commercials and award-winning films now goes into your
-            trailers, ads and playables.
-          </p>
+          <div className="about-intro">
+            <p className="about-lead">
+              <strong className="brand-name">Lisenbart Games</strong> is part of{" "}
+              <strong className="brand-name">Lisenbart Film</strong>, an independent
+              animation studio founded in Kyiv in 2006. Everything we learned
+              making commercials and award-winning films now goes into your
+              trailers, ads and playables.
+            </p>
+            <p className="about-cred">
+              20 years in animation. 1,000+ projects delivered.
+            </p>
+          </div>
 
           <div className="facts-grid">
             {facts.map((fact) => (
