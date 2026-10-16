@@ -97,7 +97,7 @@ const facts: { title: string; copy: ReactNode }[] = [
   },
   {
     title: "Brands",
-    copy: "500+ animated commercials, including campaigns for Nestlé, Samsung, McDonald's and Mastercard.",
+    copy: "500+ animated commercials, including campaigns for Nestlé, Samsung, McDonald's, Mastercard, Kraft, Coca-Cola, PepsiCo, P&G and others.",
   },
   {
     title: "Film",
