@@ -12,16 +12,29 @@ function sandboxIndexing(): Plugin {
     name: "sandbox-indexing",
     transformIndexHtml(html) {
       if (!sandbox) return html;
-      if (html.includes('name="robots"')) return html;
+      if (html.includes('name="googlebot"')) return html;
       return html.replace(
         "</head>",
-        '    <meta name="robots" content="noindex" />\n  </head>',
+        '    <meta name="googlebot" content="noindex, nofollow" />\n    <meta name="bingbot" content="noindex, nofollow" />\n  </head>',
       );
     },
     async writeBundle(options) {
       const dir = options.dir ?? path.resolve("dist");
       if (sandbox) {
-        await writeFile(path.join(dir, "robots.txt"), "User-agent: *\nDisallow: /\n");
+        await writeFile(
+          path.join(dir, "robots.txt"),
+          [
+            "User-agent: Googlebot",
+            "Disallow: /",
+            "",
+            "User-agent: Bingbot",
+            "Disallow: /",
+            "",
+            "User-agent: *",
+            "Allow: /",
+            "",
+          ].join("\n"),
+        );
         return;
       }
       await writeFile(
