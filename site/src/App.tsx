@@ -309,7 +309,7 @@ export default function App() {
       <main id="top">
         <section className="hero">
           <div className="hero-copy">
-            <p className="eyebrow">For game studios, publishers & agencies</p>
+            <p className="eyebrow">Creative Playable Cinematics</p>
             <h1 aria-label="Animation that sells games">
               Animation that{" "}
               <span>
