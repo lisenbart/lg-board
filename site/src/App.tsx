@@ -246,7 +246,7 @@ export default function App() {
     }
 
     const host = window.location.hostname;
-    const hostedForms = host === "lisenbart.games" || host.endsWith(".netlify.app");
+    const hostedForms = host.endsWith(".netlify.app");
     if (hostedForms) return;
 
     event.preventDefault();
