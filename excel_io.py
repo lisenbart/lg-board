@@ -74,8 +74,10 @@ _THEME_NAMES = (
     "folHlink",
 )
 _WIP_STATUSES = {
+    "quote",
     "wip",
     "revision",
+    "check",
     "done",
     "approve",
     "new",
@@ -84,6 +86,7 @@ _WIP_STATUSES = {
     "finalart",
     "build",
     "htmlready",
+    "artready",
 }
 
 

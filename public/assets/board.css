@@ -426,6 +426,8 @@ a { color: var(--blue); }
 .notice-final { background: #fde8ee; color: #9b2245; }
 .notice-build { background: #fff3d6; color: #9a6700; }
 .notice-html { background: #e6f9ef; color: #037f4c; }
+.notice-quote { background: #eef0f5; color: #4b5563; }
+.notice-artok { background: #e6f9ef; color: #037f4c; }
 .notice-none { background: #eef0f5; color: #676879; }
 .who select { border: 1px solid var(--line); border-radius: 16px; padding: 4px 8px; background: #fff; font-size: 12px; }
 #whoMail {
@@ -859,6 +861,9 @@ body.col-resizing * { cursor: col-resize !important; }
 .row.tone-finalart, .row.tone-finalart .frozen, .row.tone-finalart .meta { background: #fdf3f6; }
 .row.tone-build, .row.tone-build .frozen, .row.tone-build .meta { background: #fff8e8; }
 .row.tone-htmlready, .row.tone-htmlready .frozen, .row.tone-htmlready .meta { background: #f1fbf6; }
+.row.tone-quote, .row.tone-quote .frozen, .row.tone-quote .meta { background: #f7f8fb; }
+.row.tone-check, .row.tone-check .frozen, .row.tone-check .meta { background: #fff8e8; }
+.row.tone-artready, .row.tone-artready .frozen, .row.tone-artready .meta { background: #f1fbf6; }
 .row.tone-new:hover, .row.tone-new:hover .frozen, .row.tone-new:hover .meta { background: #ffefd6; }
 .row.tone-wip:hover, .row.tone-wip:hover .frozen, .row.tone-wip:hover .meta { background: #e7f1ff; }
 .row.tone-revision:hover, .row.tone-revision:hover .frozen, .row.tone-revision:hover .meta { background: #fae6eb; }
@@ -871,6 +876,9 @@ body.col-resizing * { cursor: col-resize !important; }
 .row.tone-finalart:hover, .row.tone-finalart:hover .frozen, .row.tone-finalart:hover .meta { background: #fae6eb; }
 .row.tone-build:hover, .row.tone-build:hover .frozen, .row.tone-build:hover .meta { background: #ffefc9; }
 .row.tone-htmlready:hover, .row.tone-htmlready:hover .frozen, .row.tone-htmlready:hover .meta { background: #e3f7ec; }
+.row.tone-quote:hover, .row.tone-quote:hover .frozen, .row.tone-quote:hover .meta { background: #eef0f5; }
+.row.tone-check:hover, .row.tone-check:hover .frozen, .row.tone-check:hover .meta { background: #ffefc9; }
+.row.tone-artready:hover, .row.tone-artready:hover .frozen, .row.tone-artready:hover .meta { background: #e3f7ec; }
 .cell { padding: 2px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 400; }
 .row .meta > .cell:first-child { overflow: visible; }
 .name { font-weight: 400; }
@@ -1407,6 +1415,11 @@ body.col-resizing * { cursor: col-resize !important; }
 .status-btn.is-on.st-done { background: #e6f9ef; color: #037f4c; border-color: #7dcea0; }
 .status-btn.is-on.st-appr { background: #e7f7ff; color: #0369a1; border-color: #7ec8e8; }
 .status-btn.is-on.st-closed { background: #037f4c; color: #fff; border-color: #026a40; }
+.status-btn.is-on.st-quote { background: #eef0f5; color: #4b5563; border-color: #c5cad8; }
+.status-btn.is-on.st-check { background: #fff3d6; color: #9a6700; border-color: #e0b34a; }
+.status-btn.is-on.st-artok { background: #e6f9ef; color: #037f4c; border-color: #7dcea0; }
+.status-btn.is-on.st-send { background: #efe6fb; color: #6b21a8; border-color: #c4b0e8; }
+.status-btn.is-on.st-sent { background: #e7f7ff; color: #0369a1; border-color: #7ec8e8; }
 .status-btn:disabled.is-off {
   opacity: 0.4;
   cursor: not-allowed;

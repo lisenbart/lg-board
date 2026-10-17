@@ -46,6 +46,24 @@
       skipActor: true,
       channels: ["portal"],
     },
+    "task.check": {
+      label: "Check",
+      title: "{name}",
+      detail: "Check · send storyboard",
+      mark: "check",
+      audience: { roles: ["manager"] },
+      skipActor: true,
+      channels: ["portal"],
+    },
+    "task.artready": {
+      label: "Art ready",
+      title: "{name}",
+      detail: "Art ready · assign DEV",
+      mark: "done",
+      audience: { roles: ["manager"] },
+      skipActor: true,
+      channels: ["portal"],
+    },
     "task.ready": {
       label: "Ready to send",
       title: "{name}",
@@ -108,7 +126,10 @@
     if (roles.size) {
       for (const p of db.people || []) if (roles.has(p.role)) add(p.id);
     }
-    if (rule.assignee && task) add(task.assigneeId);
+    if (rule.assignee && task) {
+      add(task.assigneeId);
+      add(task.programmerId);
+    }
     for (const pid of rule.person_ids || []) add(pid);
     return spec.skipActor ? ids.filter((id) => id !== actorId) : ids;
   }
@@ -197,16 +218,23 @@
       emit(db, "task.assigned", { actorId, task, payload: { from: oldA, to: newA } });
       ack(db, actorId, { taskId: task.id, kinds: ["task.landed"] });
     }
+    const oldP = prev.programmerId || "";
+    const newP = task.programmerId || "";
+    if (newP && newP !== oldP) {
+      emit(db, "task.assigned", { actorId, task, payload: { from: oldP, to: newP } });
+    }
     if (newS && newS !== oldS) {
       if (newS === "revision") emit(db, "task.revision", { actorId, task });
       if (newS === "tlcheck") emit(db, "task.tlcheck", { actorId, task });
+      if (newS === "check") emit(db, "task.check", { actorId, task });
+      if (newS === "artready") emit(db, "task.artready", { actorId, task });
       if (newS === "done") {
         emit(db, "task.ready", { actorId, task });
-        ack(db, actorId, { taskId: task.id, kinds: ["task.revision", "task.assigned", "task.tlcheck"] });
+        ack(db, actorId, { taskId: task.id, kinds: ["task.revision", "task.assigned", "task.tlcheck", "task.check"] });
       }
       if (newS === "approve") {
         emit(db, "task.sent", { actorId, task });
-        ack(db, actorId, { taskId: task.id, kinds: ["task.ready"] });
+        ack(db, actorId, { taskId: task.id, kinds: ["task.ready", "task.check"] });
       }
       if (newS === "closed") {
         emit(db, "task.closed", { actorId, task });

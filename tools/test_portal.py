@@ -580,7 +580,7 @@ def test_playables_desk() -> None:
         check("LP view keeps assigneeHours", bool(lp_dice and lp_dice.get("assigneeHours")))
         check("LP view hides producerHours", lp_dice is not None and "producerHours" not in lp_dice)
         js = (ROOT / "public" / "assets" / "app.js").read_text(encoding="utf-8")
-        check("LP edits playable crew hours", "playableHoursHtml(t, canEditPlayableCrew())" in js)
+        check("LP edits playable crew hours", "playableHoursHtml(t, canEditPlayableCrew(), playableStatusKey(t) === \"quote\")" in js)
         check("billed buffer is DL only", "const financeStrip = isFinance()" in js and "Studio buffer" in js)
         check("playable card has no Lead AD", "Lead AD" not in js and "Assign lead AD" not in js)
         check(
@@ -664,57 +664,67 @@ def test_playables_desk() -> None:
 
 
 def test_playable_card_pipeline() -> None:
-    leftover = {"studioStatus": "wip", "assigneeId": "artdir1", "programmerId": "programmer1", "department": "Playables"}
-    check("Playables WIP leftover is Ready", direction_io.playable_norm_status("wip") == "new")
+    leftover = {"studioStatus": "storyboard", "assigneeId": "artdir1", "department": "Playables"}
+    check("old Storyboard chip is Check", direction_io.playable_norm_status("storyboard") == "check")
+    check("old HTML ready chip is Done", direction_io.playable_norm_status("htmlready") == "done")
+    check("old Build chip is Art ready", direction_io.playable_norm_status("build") == "artready")
+    check("WIP stays WIP on Playables", direction_io.playable_norm_status("wip") == "wip")
+
+    quote = {"studioStatus": "quote", "assigneeId": "artdir1", "programmerId": "programmer1"}
+    check("LP Quote offers Start", direction_io.playable_next_statuses("manager", quote) == ["new"])
+    check("AD has no status on Quote", direction_io.playable_next_statuses("art_director", quote) == [])
+    check("DEV has no status on Quote", direction_io.playable_next_statuses("programmer", quote) == [])
+    check("AD quote hours are own seat", direction_io.playable_quote_hour_fields("art_director", quote, "artdir1") == {"assigneeHours"})
+    check("DEV quote hours are own seat", direction_io.playable_quote_hour_fields("programmer", quote, "programmer1") == {"programmerHours"})
+    started = dict(quote)
+    dropped = direction_io.playable_start_from_quote(started)
+    check("Hours OK drops DEV until Art ready", dropped and started.get("programmerId") == "" and started["studioStatus"] == "new")
+    check("Hours OK keeps AD", started.get("assigneeId") == "artdir1")
+
+    ad = {"studioStatus": "new", "assigneeId": "artdir1"}
+    check("AD Ready only offers WIP", direction_io.playable_next_statuses("art_director", ad) == ["wip"])
+    check("DEV not assignable before Art ready", not direction_io.playable_may_assign_dev(ad))
+    check("DEV with AD waits on Ready", direction_io.playable_next_statuses("programmer", {**ad, "programmerId": "programmer1"}) == [])
+    ad["studioStatus"] = "wip"
+    check("AD WIP offers Check", direction_io.playable_next_statuses("art_director", ad) == ["check"])
+    ad["studioStatus"] = "check"
+    check("AD waits on Check for LP", direction_io.playable_next_statuses("art_director", ad) == [])
+    check("LP does not chip-set Send", not direction_io.playable_can_set("manager", ad, "approve")[0])
+    check("LP can Mark Closed from Check", direction_io.playable_can_set("manager", ad, "closed")[0])
+
+    bounced = {"studioStatus": "clientart", "assigneeId": "artdir1"}
     check(
-        "AD can Storyboard a leftover WIP card",
-        direction_io.playable_next_statuses("art_director", leftover) == ["storyboard"],
+        "LP Sent bounce or approve board",
+        direction_io.playable_next_statuses("manager", bounced) == ["revision", "finalart"],
     )
-    ad = {"studioStatus": "new", "assigneeId": "artdir1", "programmerId": "programmer1"}
-    check(
-        "AD Ready only offers Storyboard",
-        direction_io.playable_next_statuses("art_director", ad) == ["storyboard"],
-    )
-    check(
-        "AD cannot jump Ready to Build",
-        not direction_io.playable_can_set("art_director", ad, "build", actor_id="artdir1")[0],
-    )
-    ad["studioStatus"] = "storyboard"
-    check("AD waits on Storyboard for LP", direction_io.playable_next_statuses("art_director", ad) == [])
-    ad["studioStatus"] = "clientart"
-    check(
-        "AD Client art is Final art or bounce Storyboard",
-        direction_io.playable_next_statuses("art_director", ad) == ["finalart", "storyboard"],
-    )
+    bounced["studioStatus"] = "revision"
+    check("AD Need Fixing offers WIP", direction_io.playable_next_statuses("art_director", bounced) == ["wip"])
+    check("DEV stays off storyboard Fix", direction_io.playable_next_statuses("programmer", bounced) == [])
+
     ad["studioStatus"] = "finalart"
-    check("AD Final art offers Build", direction_io.playable_next_statuses("art_director", ad) == ["build"])
-    helper_ok, helper_err = direction_io.playable_can_set("art_director", ad, "build", actor_id="artdir2")
+    check("AD Final art offers Art ready", direction_io.playable_next_statuses("art_director", ad) == ["artready"])
+    helper_ok, helper_err = direction_io.playable_can_set("art_director", ad, "artready", actor_id="artdir2")
     check("helper AD cannot set status", not helper_ok, helper_err)
+    ad["studioStatus"] = "artready"
+    check("DEV assign unlocks on Art ready", direction_io.playable_may_assign_dev(ad))
+    check("DEV on Art ready offers WIP", direction_io.playable_next_statuses("programmer", {**ad, "programmerId": "programmer1"}) == ["wip"])
+    check("AD is done at Art ready", direction_io.playable_next_statuses("art_director", ad) == [])
+
+    html = {"studioStatus": "wip", "assigneeId": "artdir1", "programmerId": "programmer1"}
+    check("DEV HTML WIP offers Done", direction_io.playable_next_statuses("programmer", html) == ["done"])
+    check("AD does not drive HTML WIP", direction_io.playable_next_statuses("art_director", html) == [])
+    ok_html, err_html = direction_io.playable_can_set("programmer", html, "done", actor_id="programmer1")
+    check("DEV can pick Done from HTML WIP", ok_html, err_html)
+    html_bounce = {"studioStatus": "approve", "assigneeId": "artdir1", "programmerId": "programmer1"}
+    check("LP HTML bounce is Need Fixing", direction_io.playable_next_statuses("manager", html_bounce) == ["revision"])
+    html_bounce["studioStatus"] = "revision"
+    check("DEV HTML Fix offers WIP", direction_io.playable_next_statuses("programmer", html_bounce) == ["wip"])
+    check("AD does not take HTML Fix", direction_io.playable_next_statuses("art_director", html_bounce) == [])
+
     dev_only = {"studioStatus": "new", "programmerId": "programmer1"}
-    check(
-        "DEV-only Ready offers Build and HTML ready",
-        direction_io.playable_next_statuses("programmer", dev_only) == ["build", "htmlready"],
-    )
-    check(
-        "DEV with AD waits until Build",
-        direction_io.playable_next_statuses("programmer", ad) == [],
-    )
-    ad["studioStatus"] = "build"
-    check(
-        "DEV on Build offers HTML ready",
-        direction_io.playable_next_statuses("programmer", ad) == ["htmlready"],
-    )
-    no_link = dict(ad)
-    ok_html, err_html = direction_io.playable_can_set("programmer", no_link, "htmlready", actor_id="programmer1")
-    check("DEV can pick HTML ready from Build", ok_html, err_html)
-    lp_send = {"studioStatus": "storyboard", "assigneeId": "artdir1"}
-    check("LP does not chip-set Send", not direction_io.playable_can_set("manager", lp_send, "approve")[0])
-    check("LP can Mark Closed from Storyboard", direction_io.playable_can_set("manager", lp_send, "closed")[0])
-    bounced = {"studioStatus": "approve", "assigneeId": "artdir1", "programmerId": "programmer1"}
-    check(
-        "LP bounce after Send is Final art or Build",
-        direction_io.playable_next_statuses("manager", bounced) == ["finalart", "build"],
-    )
+    check("DEV-only Ready offers WIP", direction_io.playable_next_statuses("programmer", dev_only) == ["wip"])
+    check("DEV-only can be assigned from Ready", direction_io.playable_may_assign_dev(dev_only))
+
     check("MD has no Playables status", direction_io.playable_next_statuses("designer", ad) == [])
     check("TL has no Playables status", direction_io.playable_next_statuses("teamlead", ad) == [])
     split = {
@@ -726,9 +736,10 @@ def test_playable_card_pipeline() -> None:
     js = (ROOT / "public" / "assets" / "app.js").read_text(encoding="utf-8")
     check("card uses next-step Playables statuses", "function playableNextStatuses" in js and "function playableStatusActions" in js)
     check("Playables assign is LP/DL", "function canAssignPlayable" in js and "play ? canAssignPlayable() : canAssign()" in js)
-    check("Playables guide names the pipeline", "Ready → Storyboard → Client art → Final art → Build → HTML ready → Send → Closed" in js)
+    check("Playables guide names the pipeline", "Quote → Ready → WIP → Check → Sent → Final art → Art ready → WIP → Done → Send → Closed" in js)
     check("AD owns Playables status copy", "AD owns status — you do not change it" in js)
     check("DEV HTML paste is owner-only", "isProgrammer() && String(t.programmerId || \"\") === String(me().id)" in js)
+    check("Hours OK start is on the Quote card", "Hours OK — start" in js)
     check("designer Playables status set is empty", "designer: []" in js.split("const PLAY_STATUS_BY_ROLE")[1].split("const LINES")[0])
 
 

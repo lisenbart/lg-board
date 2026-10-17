@@ -56,6 +56,24 @@ KINDS = {
         "skip_actor": True,
         "channels": ["portal"],
     },
+    "task.check": {
+        "label": "Check",
+        "title": "{name}",
+        "detail": "Check · send storyboard",
+        "mark": "check",
+        "audience": {"roles": ["manager"]},
+        "skip_actor": True,
+        "channels": ["portal"],
+    },
+    "task.artready": {
+        "label": "Art ready",
+        "title": "{name}",
+        "detail": "Art ready · assign DEV",
+        "mark": "done",
+        "audience": {"roles": ["manager"]},
+        "skip_actor": True,
+        "channels": ["portal"],
+    },
     "task.ready": {
         "label": "Ready to send",
         "title": "{name}",
@@ -125,6 +143,7 @@ def resolve_audience(db: dict, spec: dict, task: dict | None, actor_id: str) -> 
                 add(person.get("id"))
     if audience_spec.get("assignee") and task:
         add(task.get("assigneeId"))
+        add(task.get("programmerId"))
     for pid in audience_spec.get("person_ids") or []:
         add(pid)
     if spec.get("skip_actor"):
@@ -255,17 +274,31 @@ def on_task_change(db: dict, task: dict, before: dict | None, actor_id: str = ""
             payload={"from": old_assignee, "to": new_assignee},
         )
         ack(db, actor_id, task_id=task.get("id"), kinds=["task.landed"])
+    old_prog = before.get("programmerId") or ""
+    new_prog = task.get("programmerId") or ""
+    if new_prog and new_prog != old_prog:
+        emit(
+            db,
+            "task.assigned",
+            actor_id=actor_id,
+            task=task,
+            payload={"from": old_prog, "to": new_prog},
+        )
     if new_status and new_status != old_status:
         if new_status == "revision":
             emit(db, "task.revision", actor_id=actor_id, task=task)
         elif new_status == "tlcheck":
             emit(db, "task.tlcheck", actor_id=actor_id, task=task)
+        elif new_status == "check":
+            emit(db, "task.check", actor_id=actor_id, task=task)
+        elif new_status == "artready":
+            emit(db, "task.artready", actor_id=actor_id, task=task)
         elif new_status == "done":
             emit(db, "task.ready", actor_id=actor_id, task=task)
-            ack(db, actor_id, task_id=task.get("id"), kinds=["task.revision", "task.assigned", "task.tlcheck"])
+            ack(db, actor_id, task_id=task.get("id"), kinds=["task.revision", "task.assigned", "task.tlcheck", "task.check"])
         elif new_status == "approve":
             emit(db, "task.sent", actor_id=actor_id, task=task)
-            ack(db, actor_id, task_id=task.get("id"), kinds=["task.ready"])
+            ack(db, actor_id, task_id=task.get("id"), kinds=["task.ready", "task.check"])
         elif new_status == "closed":
             emit(db, "task.closed", actor_id=actor_id, task=task)
             ack(db, actor_id, task_id=task.get("id"), kinds=["task.sent", "task.ready"])

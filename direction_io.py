@@ -26,23 +26,26 @@ PERFORMERS = {"designer", "teamlead", "art_director", "programmer"}
 PLAY_CREW = {"art_director", "programmer", "designer"}
 
 PLAY_STATUS = {
+    "quote": "Quote",
     "new": "Ready",
-    "storyboard": "Storyboard",
+    "wip": "WIP",
+    "check": "Check",
+    "revision": "Need Fixing",
     "clientart": "Client art",
     "finalart": "Final art",
-    "build": "Build",
-    "htmlready": "HTML ready",
+    "artready": "Art ready",
+    "done": "Done",
     "approve": "Send",
     "closed": "Closed",
 }
 
 PLAY_STATUS_BY_ROLE = {
-    "art_director": {"storyboard", "finalart", "build"},
-    "programmer": {"build", "htmlready"},
+    "art_director": {"wip", "check", "artready"},
+    "programmer": {"wip", "done"},
     "designer": set(),
     "teamlead": set(),
-    "manager": {"storyboard", "finalart", "build", "closed"},
-    "finance": {"storyboard", "finalart", "build", "closed"},
+    "manager": {"new", "revision", "finalart", "closed"},
+    "finance": {"new", "revision", "finalart", "closed"},
     "client": set(),
 }
 
@@ -124,20 +127,20 @@ def is_playables(task: dict | None) -> bool:
 
 
 PLAY_STATUS_KEYS = set(PLAY_STATUS)
-_MGX_ON_PLAYABLE = {
-    "wip": "new",
-    "revision": "new",
-    "tlcheck": "build",
-    "done": "build",
+_LEGACY_PLAYABLE = {
+    "storyboard": "check",
+    "htmlready": "done",
+    "build": "artready",
+    "tlcheck": "check",
 }
 
 
 def playable_norm_status(st) -> str:
-    """Map leftover MGX statuses so Playables cards stay on the HTML pipeline."""
+    """Map leftover chips onto the two-loop Playables pipeline."""
     key = str(st or "new")
     if key in PLAY_STATUS:
         return key
-    return _MGX_ON_PLAYABLE.get(key, "new")
+    return _LEGACY_PLAYABLE.get(key, "new")
 
 
 def playable_has_ad(task: dict | None) -> bool:
@@ -163,33 +166,86 @@ def on_playable_seat(task: dict | None, actor_id: str) -> bool:
     return False
 
 
+def playable_in_html(task: dict | None) -> bool:
+    """HTML loop: DEV is on the card, or status is already past Art ready."""
+    task = task or {}
+    st = playable_norm_status(task.get("studioStatus"))
+    if st in {"done", "approve", "closed"}:
+        return True
+    if st in {"wip", "revision"} and str(task.get("programmerId") or "").strip():
+        return True
+    return False
+
+
+def playable_may_assign_dev(task: dict | None) -> bool:
+    """DEV for hours on Quote, or for build only after Art ready / code-only."""
+    task = task or {}
+    st = playable_norm_status(task.get("studioStatus"))
+    if st == "quote":
+        return True
+    if not playable_has_ad(task):
+        return True
+    if str(task.get("programmerId") or "").strip():
+        return True
+    return st in {"artready", "done", "approve", "closed"}
+
+
+def playable_quote_hour_fields(role: str, task: dict | None, actor_id: str = "") -> set[str]:
+    task = task or {}
+    if playable_norm_status(task.get("studioStatus")) != "quote":
+        return set()
+    actor = str(actor_id or "")
+    if role == "art_director" and actor and actor == str(task.get("assigneeId") or ""):
+        return {"assigneeHours"}
+    if role == "programmer" and actor and actor == str(task.get("programmerId") or ""):
+        return {"programmerHours"}
+    return set()
+
+
+def playable_start_from_quote(task: dict | None) -> bool:
+    """Client approved hours: Ready, keep AD, drop DEV until Art ready."""
+    task = task or {}
+    dropped = False
+    if playable_has_ad(task) and str(task.get("programmerId") or "").strip():
+        task["programmerId"] = ""
+        dropped = True
+    task["studioStatus"] = "new"
+    task["mondayStatus"] = PLAY_STATUS["new"]
+    return dropped
+
+
 def playable_next_statuses(role: str, task: dict | None) -> list[str]:
     """Forward and bounce only. Send / Closed stay LP footer actions, not chips."""
     task = task or {}
     st = playable_norm_status(task.get("studioStatus"))
     has_ad = playable_has_ad(task)
+    html = playable_in_html(task)
     if role in {"manager", "finance"}:
+        if st == "quote":
+            return ["new"]
         if st == "clientart":
-            return ["storyboard"]
-        if st == "htmlready":
-            return ["build"]
+            return ["revision", "finalart"]
         if st == "approve":
-            return ["finalart", "build"]
+            return ["revision"]
         return []
     if role == "art_director":
+        if html:
+            return []
         return {
-            "new": ["storyboard"],
-            "clientart": ["finalart", "storyboard"],
-            "finalart": ["build"],
-            "build": ["finalart"],
+            "new": ["wip"],
+            "wip": ["check"],
+            "revision": ["wip"],
+            "finalart": ["artready"],
         }.get(st, [])
     if role == "programmer":
-        if st == "htmlready":
-            return ["build"]
-        if st == "build":
-            return ["htmlready"]
-        if not has_ad and st in {"new", "storyboard", "clientart", "finalart"}:
-            return ["build", "htmlready"]
+        if st == "artready":
+            return ["wip"]
+        if not has_ad and st == "new":
+            return ["wip"]
+        if st == "wip" and (html or not has_ad):
+            return ["done"]
+        if st == "revision" and (html or not has_ad):
+            return ["wip"]
         return []
     return []
 
@@ -197,8 +253,11 @@ def playable_next_statuses(role: str, task: dict | None) -> list[str]:
 def playable_can_set(role: str, task: dict | None, nxt: str, *, actor_id: str = "") -> tuple[bool, str]:
     task = task or {}
     cur = playable_norm_status(task.get("studioStatus"))
-    nxt = str(nxt or "")
-    if not nxt or nxt == cur:
+    raw = str(nxt or "")
+    if not raw:
+        return True, ""
+    nxt = playable_norm_status(raw)
+    if nxt == cur:
         return True, ""
     if nxt == "approve":
         return False, "Send is set only when you Send to client"

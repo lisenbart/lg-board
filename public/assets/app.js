@@ -1,16 +1,19 @@
 const STATUS = {
+  quote: { label: "Quote", cls: "status-new", order: 0 },
   new: { label: "Ready to Start", cls: "status-new", order: 1 },
   wip: { label: "WIP", cls: "status-wip", order: 2 },
   revision: { label: "Need Fixing", cls: "status-revision", order: 3 },
   tlcheck: { label: "TL Check", cls: "status-tlcheck", order: 4 },
+  check: { label: "Check", cls: "status-tlcheck", order: 4 },
   done: { label: "Done", cls: "status-done", order: 5 },
   approve: { label: "Senior Approval", cls: "status-approve", order: 6 },
   closed: { label: "Closed", cls: "status-closed", order: 7 },
-  storyboard: { label: "Storyboard", cls: "status-wip", order: 2 },
-  clientart: { label: "Client art", cls: "status-approve", order: 3 },
+  clientart: { label: "Sent", cls: "status-approve", order: 3 },
   finalart: { label: "Final art", cls: "status-revision", order: 4 },
-  build: { label: "Build", cls: "status-tlcheck", order: 5 },
-  htmlready: { label: "HTML ready", cls: "status-done", order: 6 },
+  artready: { label: "Art ready", cls: "status-done", order: 4.5 },
+  storyboard: { label: "Check", cls: "status-tlcheck", order: 4 },
+  build: { label: "Art ready", cls: "status-done", order: 4.5 },
+  htmlready: { label: "Done", cls: "status-done", order: 5 },
 };
 
 const ROLE_LABEL = {
@@ -49,17 +52,17 @@ const STATUS_BY_ROLE = {
   teamlead: ["wip", "tlcheck", "done"],
   manager: ["revision", "closed"],
   finance: ["revision", "closed"],
-  art_director: ["new", "storyboard", "finalart", "build"],
-  programmer: ["build", "htmlready"],
+  art_director: ["new", "wip", "check", "artready"],
+  programmer: ["wip", "done"],
   client: [],
 };
 const PLAY_STATUS_BY_ROLE = {
-  art_director: ["storyboard", "finalart", "build"],
-  programmer: ["build", "htmlready"],
+  art_director: ["wip", "check", "artready"],
+  programmer: ["wip", "done"],
   designer: [],
   teamlead: [],
-  manager: ["storyboard", "finalart", "build", "closed"],
-  finance: ["storyboard", "finalart", "build", "closed"],
+  manager: ["new", "revision", "finalart", "closed"],
+  finance: ["new", "revision", "finalart", "closed"],
   client: [],
 };
 const LINES = ["DD", "DX", "DS"];
@@ -928,6 +931,8 @@ function statusText(key, t) {
     const playKey = playableStatusKey({ studioStatus: key, department: t.department, direction: t.direction });
     if (playKey === "new") return "Ready";
     if (playKey === "approve") return "Send";
+    if (playKey === "revision") return "Need Fixing";
+    if (playKey === "clientart") return "Sent";
     return STATUS[playKey]?.label || STATUS[key]?.label || key;
   }
   return STATUS[key]?.label || key;
@@ -938,8 +943,9 @@ function isExecView() {
 function isSendable(t) {
   if (!t) return false;
   if (isPlayables(t)) {
-    if (t.studioStatus === "storyboard") return true;
-    return t.studioStatus === "htmlready" && Boolean(String(t.resultUrl || "").trim());
+    const st = playableStatusKey(t);
+    if (st === "check") return true;
+    return st === "done" && Boolean(String(t.resultUrl || "").trim());
   }
   return t.studioStatus === "done" && Boolean(String(t.resultUrl || "").trim());
 }
@@ -1133,7 +1139,7 @@ function visibleTasks() {
     if ((isArtDirector() || isProgrammer()) && !onMyPlayable(t)) return false;
     if (!isPerformer() && state.designerFilter) {
       if (state.designerFilter === "done") {
-        const want = state.direction === "playables" ? "htmlready" : "done";
+        const want = "done";
         if (t.studioStatus !== want) return false;
       } else if (state.designerFilter === "unassigned") {
         if (isPlayables(t) ? playableAdId(t) || t.programmerId : t.assigneeId) return false;
@@ -1449,7 +1455,7 @@ function renderKpis() {
   if (isPerformer() && state.view !== "excel") {
     const hours = tasks.reduce((s, t) => s + hoursForPerson(t, me().id), 0);
     const active = tasks.filter((t) =>
-      ["wip", "revision", "tlcheck", "storyboard", "finalart", "build"].includes(t.studioStatus)
+      ["wip", "revision", "tlcheck", "check", "finalart"].includes(playableStatusKey(t))
     ).length;
     $("kpis").innerHTML = `
       <div class="kpi"><b>${tasks.length}</b><span>assigned to me</span></div>
@@ -1460,8 +1466,8 @@ function renderKpis() {
   }
   const month = monthTasks();
   const hours = month.reduce((s, t) => s + (Number(t.hours) || 0), 0);
-  const readyKey = state.direction === "playables" ? "htmlready" : "done";
-  const readyLabel = state.direction === "playables" ? "HTML ready" : "Done";
+  const readyKey = "done";
+  const readyLabel = "Done";
   const ready = month.filter((t) => t.studioStatus === readyKey).length;
   const doneOn = canOps() && state.designerFilter === "done";
   const doneKpi = canOps()
@@ -1895,7 +1901,7 @@ function resultHtml(t, performer, canPaste) {
   const play = isPlayables(t);
   const body = canPaste
     ? `<input id="stResult" value="${escapeHtml(t.resultUrl || "")}" placeholder="${play ? "Paste HTML / playable link" : "Paste finished file link"}" />
-        <p class="io-hint">${play ? "HTML ready needs this link." : performer ? "The file, not the folder." : "Needed before Send to client."}</p>`
+        <p class="io-hint">${play ? "Done needs this HTML link." : performer ? "The file, not the folder." : "Needed before Send to client."}</p>`
     : t.resultUrl
       ? `<a class="pin-link" href="${escapeHtml(t.resultUrl)}" target="_blank" rel="noreferrer">Open result</a>`
       : `<p class="io-empty">Waiting for ${escapeHtml(person(t.programmerId || t.assigneeId)?.name || "designer")}</p>`;
@@ -2019,48 +2025,64 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
   const st = playableStatusKey(t);
   const prog = person(t.programmerId);
   const progName = prog ? displayName(prog) : "";
+  const html = playableInHtml(t);
   if (role === "art_director") {
     if (!mine && helpedOn(t, me().id)) {
       return { tone: "ok", title: "You helped", body: `${hoursForPerson(t, me().id)}h on this playable. ${name || "AD"} owns the card.` };
     }
+    if (st === "quote") return { tone: "do", title: "Quote", body: "Type your hours. LP sends the total to the client. Work starts after Hours OK." };
     if (st === "closed") return { tone: "ok", title: "Closed", body: "Client accepted. This playable is finished." };
     if (st === "approve") return { tone: "ok", title: "Sent to client", body: "LP already sent the HTML. Nothing else on this card." };
-    if (st === "htmlready") return { tone: "wait", title: "Waiting for LP", body: "HTML is in. Line Producer sends it to the client." };
-    if (st === "build") return { tone: "wait", title: "In Build", body: `${progName || "Programmer"} builds the HTML.` };
-    if (st === "clientart") return { tone: "do", title: "Client art", body: "Storyboard is with the client. If they bounce it, set Storyboard. If they approve, set Final art." };
-    if (st === "finalart") return { tone: "do", title: "Final art", body: "Finish art, then set Build when DEV can start." };
-    if (st === "storyboard") return { tone: "wait", title: "Waiting for LP", body: "Storyboard is ready. LP sends it. Only LP talks to the client." };
-    return { tone: "do", title: "Your job", body: "Open the brief. Set Storyboard when the board is ready for the client." };
+    if (st === "done" || html) return { tone: "wait", title: "Waiting for DEV / LP", body: "Art is done. Programmer builds HTML. LP sends it." };
+    if (st === "clientart") return { tone: "wait", title: "Sent", body: "Storyboard is with the client. LP sets Need Fixing if they bounce it, or Final art when they approve." };
+    if (st === "check") return { tone: "wait", title: "Waiting for LP", body: "Storyboard is ready. LP sends it. Only LP talks to the client." };
+    if (st === "finalart") return { tone: "do", title: "Final art", body: "Finish art, then Art ready so LP can assign DEV." };
+    if (st === "artready") return { tone: "wait", title: "Art ready", body: "LP assigns DEV. You are done with this stage." };
+    if (st === "revision") return { tone: "fix", title: "Need Fixing", body: "Fix the storyboard, set WIP, then Check when it is back with LP." };
+    if (st === "wip") return { tone: "do", title: "WIP", body: "Finish the storyboard, then Check so LP can send it." };
+    return { tone: "do", title: "Your job", body: "Open the brief. Set WIP when you start the storyboard." };
   }
   if (role === "programmer") {
     const onDev = String(t.programmerId || "") === String(me().id);
     if (st === "closed" || st === "approve") return { tone: "ok", title: st === "closed" ? "Closed" : "Sent to client", body: "Nothing else on this card." };
-    if (!onDev) return { tone: "wait", title: "Not on you yet", body: "You see this when LP puts you on DEV." };
-    if (st === "htmlready") return { tone: "wait", title: "Waiting for LP", body: "HTML link is in. Line Producer sends it. Set Build if the HTML needs another pass." };
-    if (st === "build" || !playableAdId(t)) {
-      if (!hasResult) return { tone: "do", title: "Your job", body: "Build the playable, paste the HTML link, then HTML ready." };
-      return { tone: "do", title: "HTML ready", body: "Link is in. Set HTML ready so LP can send." };
+    if (st === "quote" && onDev) return { tone: "do", title: "Quote", body: "Type your hours. LP sends the total to the client. You start the HTML only after Art ready." };
+    if (!onDev) return { tone: "wait", title: "Not on you yet", body: "LP assigns you after Art ready — not while AD is still on the board." };
+    if (st === "done") return { tone: "wait", title: "Waiting for LP", body: "HTML link is in. Line Producer sends it. Need Fixing if the client bounces it." };
+    if (st === "wip" || st === "revision" || !playableAdId(t)) {
+      if (st === "revision") return { tone: "fix", title: "Need Fixing", body: "Fix the HTML, set WIP, paste a new link, then Done." };
+      if (!hasResult) return { tone: "do", title: "Your job", body: "Build the playable, paste the HTML link, then Done." };
+      return { tone: "do", title: "Done", body: "Link is in. Set Done so LP can send." };
     }
-    return { tone: "wait", title: "Art is still in progress", body: "You start when AD sets Build." };
+    if (st === "artready") return { tone: "do", title: "Art ready", body: "Art is in. Set WIP and start the HTML." };
+    return { tone: "wait", title: "Art is still in progress", body: "You start when AD sets Art ready and LP puts you on DEV." };
   }
   if (role === "designer") {
     return { tone: "ok", title: "Art help", body: `${hoursForPerson(t, me().id) || 0}h on this playable. AD owns status — you do not change it.` };
   }
   if (role === "teamlead") {
     if (st === "closed") return { tone: "ok", title: "Closed", body: "Client accepted. This playable is finished." };
-    if (st === "approve" || st === "htmlready") return { tone: "wait", title: "With LP", body: "AD / DEV finished this step. Only LP sends to SuperPlay." };
+    if (st === "approve" || st === "done") return { tone: "wait", title: "With LP", body: "AD / DEV finished this step. Only LP sends to SuperPlay." };
     return { tone: "wait", title: "Playables seats are LP", body: "Read the card. LP assigns AD / DEV. You do not set Playables status." };
   }
+  if (st === "quote") {
+    return { tone: "do", title: "Quote", body: "AD and DEV type hours. Email the total to the client. Hours OK — start when they approve. DEV comes off until Art ready." };
+  }
   if (st === "closed") return { tone: "ok", title: "Closed", body: "Client accepted. Hours stay on this month." };
-  if (st === "approve") return { tone: "ok", title: "Already sent", body: "HTML is with the client. Mark Closed when they accept. Final art or Build if they bounce it." };
-  if (st === "htmlready" && hasResult) return { tone: "do", title: "Your job", body: "HTML is in. Send to client, or Mark Closed if they already accepted. Build if the HTML is wrong." };
-  if (st === "storyboard") return { tone: "do", title: "Your job", body: "Storyboard is ready. Send to client — only LP talks to SuperPlay." };
-  if (st === "clientart") return { tone: "wait", title: "Client art", body: "Waiting on the client. Storyboard if they bounce it. AD sets Final art when they approve." };
-  if (st === "build") return { tone: "wait", title: "In Build", body: `${progName || "Programmer"} is on HTML. Send after HTML ready.` };
-  if (st === "finalart") return { tone: "wait", title: "Final art", body: `${name || "Art Director"} is finishing art.` };
+  if (st === "approve") return { tone: "ok", title: "Already sent", body: "HTML is with the client. Mark Closed when they accept. Need Fixing if they bounce it." };
+  if (st === "done" && hasResult) return { tone: "do", title: "Your job", body: "HTML is in. Send to client, or Mark Closed if they already accepted." };
+  if (st === "check") return { tone: "do", title: "Your job", body: "Storyboard is ready. Send to client — only LP talks to SuperPlay." };
+  if (st === "clientart") return { tone: "wait", title: "Sent", body: "Waiting on the client. Need Fixing if they bounce it. Final art when they approve the board." };
+  if (st === "artready") {
+    return t.programmerId
+      ? { tone: "wait", title: "Art ready", body: `${progName || "Programmer"} can set WIP and start HTML.` }
+      : { tone: "do", title: "Assign DEV", body: "Art is ready. Put a programmer on the card. Not earlier — they are busy on other work." };
+  }
+  if (html && t.programmerId) return { tone: "wait", title: "In WIP", body: `${progName || "Programmer"} is on HTML. Send after Done.` };
+  if (st === "finalart") return { tone: "wait", title: "Final art", body: `${name || "Art Director"} is finishing art. Then Art ready, then you assign DEV.` };
+  if (st === "revision") return { tone: "wait", title: "Need Fixing", body: html ? `${progName || "Programmer"} is fixing HTML.` : `${name || "Art Director"} is fixing the storyboard.` };
   const ad = playableAdId(t);
   if (!ad && !t.programmerId) {
-    return { tone: "do", title: "Assign AD", body: "The playable starts when an Art Director is on the card. One DEV is enough if this is code-only." };
+    return { tone: "do", title: "Assign AD", body: "Put an Art Director on for the quote / storyboard. One DEV is enough if this is code-only." };
   }
   if (!ad && t.programmerId) {
     return {
@@ -2069,26 +2091,21 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
       body: `${progName || "Programmer"} is on this. One DEV is enough — put AD on only if art starts.`,
     };
   }
-  if (!t.programmerId && ["clientart", "finalart", "build", "htmlready"].includes(st)) {
-    return { tone: "do", title: "Assign DEV", body: "Art is approved. Put a programmer on the card. Extra DEV during revisions is a split." };
-  }
+  if (st === "wip") return { tone: "wait", title: "WIP", body: `${name || "Art Director"} is on the storyboard. You send after Check.` };
   if (st === "new") {
     return {
       tone: "wait",
       title: "Waiting for AD",
-      body: `${name || "Art Director"} sets Storyboard. You send it after that. DEV starts when AD sets Build.`,
+      body: `${name || "Art Director"} sets WIP, then Check. You send the board. DEV is assigned only after Art ready.`,
     };
   }
-  if (!t.programmerId) {
-    return { tone: "wait", title: "In progress", body: `${name || "Art Director"} is on this. Assign DEV after the client approves.` };
-  }
-  return { tone: "wait", title: "In progress", body: `${name || "Art Director"} is on this. Send storyboard, then HTML.` };
+  return { tone: "wait", title: "In progress", body: `${name || "Art Director"} is on this. Send the storyboard, then HTML.` };
 }
 function showResultField(t) {
   if (String(t.resultUrl || "").trim()) return true;
   if (isPlayables(t)) {
     if (isProgrammer() && String(t.programmerId || "") === String(me().id)) return true;
-    if (canOps() && ["build", "htmlready", "approve", "closed"].includes(t.studioStatus)) return true;
+    if (canOps() && ["artready", "wip", "revision", "done", "approve", "closed"].includes(playableStatusKey(t)) && (t.programmerId || playableInHtml(t))) return true;
     return false;
   }
   if (t.assigneeId === me().id && (isDesigner() || isTeamLead())) return true;
@@ -2707,56 +2724,60 @@ function renderGuide() {
     <section class="guide">
       <div class="guide-intro">
         <h2>Як працює Playables</h2>
-        <p>Пайплайн HTML-креативів. Чіп біля назви — статус. ${ui("Send to client")} — кнопка LP, не бейдж. AD веде арт, DEV — HTML. MD лише години.</p>
+        <p>Два кола як у MGX: спочатку арт / сторіборд, потім HTML. ${ui("Send to client")} — кнопка LP, не бейдж. DEV на роботу ставимо лише після ${ui("Art ready")}. MD лише години.</p>
       </div>
       <div class="guide-block">
         <h3>Статуси</h3>
-        <p class="guide-lead">Один наступний крок на картці. Не стрибай через пайплайн.</p>
+        <p class="guide-lead">Один наступний крок на картці. WIP / Check / Done — ті самі слова, що в MGX.</p>
         <div class="guide-status-grid">
-          ${statusCard("ready", "Ready", "Ready", "Хто: LP створює, ставить AD або DEV", "Картка щойно з’явилась. AD ставить Storyboard. Якщо арт не потрібен — достатньо DEV.")}
-          ${statusCard("board", "Board", "Storyboard", "Хто: AD здав, далі LP", "Борд готовий. Тільки LP шле клієнту — це стає Client art.")}
-          ${statusCard("art", "Art", "Client art", "Хто: чекаємо клієнта", "Борд у клієнта. Відбили → Storyboard. Прийняли → AD ставить Final art.")}
-          ${statusCard("final", "Final", "Final art", "Хто: AD", "Фінальний арт. Коли DEV може збирати — AD ставить Build.")}
-          ${statusCard("build", "Build", "Build", "Хто: DEV", "DEV збирає HTML. Вставляє лінк, потім HTML ready. Арт змінився → Final art.")}
-          ${statusCard("html", "HTML", "HTML ready", "Хто: DEV здав, далі LP", "Лінк у картці. LP шле клієнту або Closed. HTML кривий → Build.")}
-          ${statusCard("send", "Send", "Send", "Хто: чекаємо клієнта", "LP натиснув Send to client. Відбили → Final art або Build. Прийняли → Closed.")}
+          ${statusCard("quote", "Quote", "Quote", "Хто: AD і DEV рахують години", "Прорахунок до Monday. LP шле суму клієнту. Hours OK — start, коли клієнт ок.")}
+          ${statusCard("ready", "Ready", "Ready", "Хто: LP стартувала, AD ще не почав", "Години затверджені. AD ставить WIP. DEV з картки знятий, поки не Art ready.")}
+          ${statusCard("wip", "WIP", "WIP", "Хто: хто в колонці Who", "AD малює сторіборд, або DEV збирає HTML після Art ready.")}
+          ${statusCard("check", "Check", "Check", "Хто: AD здав борд, далі LP", "Сторіборд готовий. Тільки LP шле клієнту — це стає Sent.")}
+          ${statusCard("fix", "Fix", "Need Fixing", "Хто: відбій клієнта", "Сторіборд — AD править, знову Check. HTML — DEV править, знову Done.")}
+          ${statusCard("sent", "Sent", "Sent", "Хто: чекаємо клієнта по борду", "LP відправила сторіборд. Відбили → Need Fixing. Прийняли → LP ставить Final art.")}
+          ${statusCard("final", "Final", "Final art", "Хто: AD", "Клієнт прийняв борд. AD фіналізує арт і ставить Art ready.")}
+          ${statusCard("artok", "Art OK", "Art ready", "Хто: AD здав, далі LP", "Арт готовий. Тут LP ставить DEV. Не раніше.")}
+          ${statusCard("done", "Done", "Done", "Хто: DEV здав HTML, далі LP", "Лінк у картці. LP шле клієнту або одразу Closed.")}
+          ${statusCard("send", "Send", "Send", "Хто: чекаємо клієнта по HTML", "LP натиснула Send to client. Відбили → Need Fixing. Прийняли → Closed.")}
           ${statusCard("closed", "Closed", "Closed", "Хто: LP", "Клієнт прийняв. Години лишаються.")}
         </div>
       </div>
       <div class="guide-block">
         <h3>Пайплайн</h3>
-        <p class="guide-lead">Ready → Storyboard → Client art → Final art → Build → HTML ready → Send → Closed</p>
+        <p class="guide-lead">Quote → Ready → WIP → Check → Sent → Final art → Art ready → WIP → Done → Send → Closed</p>
         <ol class="guide-pipe">
-          ${pipeStep("1", "LP", "Line Producer", "Картка заходить", `${ui("Create task")} або ${ui("Hours list")}. Ставить AD. DEV — після арт-апруву, або одразу якщо код-онлі.`, "ready", "Ready")}
-          ${pipeStep("2", "AD", "Art Director", "Здає борд", `Бриф → ${ui("Storyboard")} → ${ui("Save")}. Не стрибає в Build.`, "board", "Board")}
-          ${pipeStep("3", "LP", "Line Producer", "Шле борд", `${ui("Send to client")} зі ${ui("Storyboard")}. Статус стає ${ui("Client art")}.`, "art", "Art")}
-          ${pipeStep("4", "AD", "Art Director", "Фінальний арт", `Клієнт прийняв борд → ${ui("Final art")}. Потім ${ui("Build")}, коли DEV може стартувати.`, "build", "Build")}
-          ${pipeStep("5", "DEV", "Programmer", "Збирає HTML", `Лінк у ${ui("HTML")}, потім ${ui("HTML ready")}. Без лінка кнопка не жива.`, "html", "HTML")}
-          ${pipeStep("6", "LP", "Line Producer", "Шле HTML", `${ui("Send to client")} з ${ui("HTML ready")} + лінк. Це ${ui("Send")}. ${ui("Closed")} коли клієнт прийняв.`, "send", "Send")}
+          ${pipeStep("0", "LP", "Line Producer", "Прорахунок", `${ui("Create task")} відкриває ${ui("Quote")}. Ставить AD і DEV лише на години. Після листа клієнту — ${ui("Hours OK — start")}.`, "quote", "Quote")}
+          ${pipeStep("1", "AD", "Art Director", "Сторіборд", `${ui("WIP")} → малює борд → ${ui("Check")}.`, "check", "Check")}
+          ${pipeStep("2", "LP", "Line Producer", "Шле борд", `${ui("Send to client")} з ${ui("Check")}. Статус стає ${ui("Sent")}. Відбій → ${ui("Need Fixing")}. Апрув → ${ui("Final art")}.`, "sent", "Sent")}
+          ${pipeStep("3", "AD", "Art Director", "Фінальний арт", `Доробляє арт → ${ui("Art ready")}. Це сигнал LP ставити DEV.`, "artok", "Art OK")}
+          ${pipeStep("4", "LP", "Line Producer", "Ставить DEV", `Лише на ${ui("Art ready")}. DEV бачить, що арт готовий, і ставить ${ui("WIP")}.`, "wip", "WIP")}
+          ${pipeStep("5", "DEV", "Programmer", "Збирає HTML", `Лінк у ${ui("HTML")}, потім ${ui("Done")}. Без лінка кнопка не жива.`, "done", "Done")}
+          ${pipeStep("6", "LP", "Line Producer", "Шле HTML", `${ui("Send to client")} з ${ui("Done")} + лінк, або одразу ${ui("Closed")}. Відбій HTML → ${ui("Need Fixing")} для DEV.`, "send", "Send")}
         </ol>
       </div>
       <div class="guide-grid">
         ${card("art_director", "AD", "Art Director", "Анна, Юля. Лише свої playable.", [
-          `Черга — картки, де ти AD або спліт. Статус ставить власник картки, не хелпер.`,
-          `Ready → лише ${ui("Storyboard")}. Після ${ui("Client art")}: відбій ${ui("Storyboard")} або ${ui("Final art")}.`,
-          `${ui("Final art")} → ${ui("Build")} для DEV. З Build можна повернути в ${ui("Final art")}, якщо арт знову їде.`,
-          `HTML лінк не твій — його вставляє DEV. ${ui("Send to client")} у AD немає.`,
+          `На ${ui("Quote")} пишеш свої години. Робота стартує після Hours OK.`,
+          `Ready → ${ui("WIP")} → ${ui("Check")}. Після відбою: ${ui("WIP")} знову, потім ${ui("Check")}.`,
+          `${ui("Final art")} → ${ui("Art ready")}. HTML лінк не твій — його вставляє DEV.`,
+          `${ui("Send to client")} у AD немає.`,
         ])}
         ${card("programmer", "DEV", "Programmer", "Богдан. Лише свої playable.", [
-          `Починаєш, коли статус ${ui("Build")} — або одразу, якщо на картці немає AD (код-онлі).`,
-          `${ui("Paste HTML / playable link")} → ${ui("HTML ready")} → ${ui("Save")}. Без лінка HTML ready не ставиться.`,
-          `Якщо HTML треба пересобрати — ${ui("Build")} з ${ui("HTML ready")}.`,
-          `Поки AD на Storyboard / Final art — чекаєш. Статус не перескакуєш.`,
+          `На ${ui("Quote")} пишеш години. Потім зникаєш з картки, поки AD не поставить ${ui("Art ready")}.`,
+          `Коли LP знову поставить тебе — ${ui("WIP")}, лінк, ${ui("Done")}. Без лінка Done не ставиться.`,
+          `Код-онлі (немає AD) — ${ui("WIP")} одразу з Ready.`,
+          `Відбій HTML — ${ui("Need Fixing")} → ${ui("WIP")} → ${ui("Done")}.`,
         ])}
         ${card("designer", "MD", "Motion design", "Сергій на Playables. Години, не статус.", [
           `Картка з’являється, якщо LP поставив тобі години на арт-спліт.`,
           `Статус не чіпаєш — ним володіє AD. Бриф читаєш, роботу здаєш AD.`,
         ])}
         ${card("manager", "LP", "Line Producer", "Анастасія. Обидві дошки.", [
-          `Сама ставить AD і DEV. TL на Playables виконавців не назначає.`,
-          `${ui("Send to client")} зі ${ui("Storyboard")} (борд) і з ${ui("HTML ready")} (лінк).`,
-          `${ui("Client art")}: відбій → ${ui("Storyboard")}. Після ${ui("Send")}: відбій → ${ui("Final art")} або ${ui("Build")}.`,
-          `${ui("Mark Closed")} коли клієнт прийняв. ${ui("Hours split")} AD/DEV — студійна оплата. Billed buffer лише DL.`,
+          `Quote: AD + DEV на години. ${ui("Hours OK — start")} після апруву клієнта. DEV знімається до Art ready.`,
+          `${ui("Send to client")} з ${ui("Check")} (борд) і з ${ui("Done")} (HTML + лінк).`,
+          `Sent: відбій → ${ui("Need Fixing")}. Апрув борду → ${ui("Final art")}. DEV ставиш лише на ${ui("Art ready")}.`,
+          `${ui("Mark Closed")} можна без Send, як у MGX. Hours split — студійна оплата. Billed buffer лише DL.`,
         ])}
       </div>
     </section>`;
@@ -3058,18 +3079,21 @@ function statusMark(t) {
   const title = (STATUS[key] || STATUS.new).label;
   return (
     {
+      quote: { cls: "quote", label: "Quote", title },
       new: { cls: "ready", label: "Ready", title },
       wip: { cls: "wip", label: "WIP", title },
       revision: { cls: "fix", label: "Fix", title },
       tlcheck: { cls: "tlcheck", label: "TL chk", title },
+      check: { cls: "check", label: "Check", title },
       done: { cls: "done", label: "Done", title },
       approve: { cls: isPlayables(t) ? "send" : "appr", label: isPlayables(t) ? "Send" : "Appr.", title },
       closed: { cls: "closed", label: "Closed", title },
-      storyboard: { cls: "board", label: "Board", title },
-      clientart: { cls: "art", label: "Art", title },
+      clientart: { cls: "sent", label: "Sent", title },
       finalart: { cls: "final", label: "Final", title },
-      build: { cls: "build", label: "Build", title },
-      htmlready: { cls: "html", label: "HTML", title },
+      artready: { cls: "artok", label: "Art OK", title },
+      storyboard: { cls: "check", label: "Check", title },
+      build: { cls: "artok", label: "Art OK", title },
+      htmlready: { cls: "done", label: "Done", title },
     }[key] || { cls: "ready", label: "Ready", title: STATUS.new.label }
   );
 }
@@ -3131,34 +3155,51 @@ function statusChoices(task) {
 
 function playableStatusKey(t) {
   const st = t?.studioStatus || "new";
-  if (["new", "storyboard", "clientart", "finalart", "build", "htmlready", "approve", "closed"].includes(st)) return st;
-  if (st === "wip" || st === "revision") return "new";
-  if (st === "tlcheck" || st === "done") return "build";
+  if (["quote", "new", "wip", "check", "revision", "clientart", "finalart", "artready", "done", "approve", "closed"].includes(st)) return st;
+  if (st === "storyboard" || st === "tlcheck") return "check";
+  if (st === "htmlready") return "done";
+  if (st === "build") return "artready";
   return "new";
+}
+function playableInHtml(t) {
+  const st = playableStatusKey(t);
+  if (["done", "approve", "closed"].includes(st)) return true;
+  if (["wip", "revision"].includes(st) && String(t?.programmerId || "").trim()) return true;
+  return false;
+}
+function playableDevUnlocked(t) {
+  const st = playableStatusKey(t);
+  if (st === "quote") return true;
+  if (!playableAdId(t)) return true;
+  if (String(t?.programmerId || "").trim()) return true;
+  return ["artready", "done", "approve", "closed"].includes(st);
 }
 function playableNextStatuses(role, t) {
   const st = playableStatusKey(t);
   const hasAd = Boolean(playableAdId(t));
+  const html = playableInHtml(t);
   if (role === "manager" || role === "finance") {
-    if (st === "clientart") return ["storyboard"];
-    if (st === "htmlready") return ["build"];
-    if (st === "approve") return ["finalart", "build"];
+    if (st === "quote") return ["new"];
+    if (st === "clientart") return ["revision", "finalart"];
+    if (st === "approve") return ["revision"];
     return [];
   }
   if (role === "art_director") {
+    if (html) return [];
     return (
       {
-        new: ["storyboard"],
-        clientart: ["finalart", "storyboard"],
-        finalart: ["build"],
-        build: ["finalart"],
+        new: ["wip"],
+        wip: ["check"],
+        revision: ["wip"],
+        finalart: ["artready"],
       }[st] || []
     );
   }
   if (role === "programmer") {
-    if (st === "htmlready") return ["build"];
-    if (st === "build") return ["htmlready"];
-    if (!hasAd && ["new", "storyboard", "clientart", "finalart"].includes(st)) return ["build", "htmlready"];
+    if (st === "artready") return ["wip"];
+    if (!hasAd && st === "new") return ["wip"];
+    if (st === "wip" && (html || !hasAd)) return ["done"];
+    if (st === "revision" && (html || !hasAd)) return ["wip"];
     return [];
   }
   return [];
@@ -3206,7 +3247,7 @@ function statusButtonDisabled(task, key, opts) {
   if (!opts.canEdit) return true;
   if (on) return true;
   if (isPlayables(task)) {
-    if (key === "htmlready" && !hasResultLink(task, opts.typedResult)) return true;
+    if (key === "done" && !hasResultLink(task, opts.typedResult)) return true;
     return !canSetStatus(key, task);
   }
   if (key === "tlcheck" && !hasResultLink(task, opts.typedResult)) return true;
@@ -3226,7 +3267,7 @@ function statusButtonsHtml(t, canEdit, lockedStatus) {
     const mark = statusMark({ studioStatus: key, department: t.department, direction: t.direction });
     const on = current === key;
     const disabled = statusButtonDisabled(t, key, opts);
-    const label = statusText(key, t);
+    const label = key === "new" && playableStatusKey(t) === "quote" ? "Start" : statusText(key, t);
     return `<button type="button" class="status-btn st-${mark.cls} ${on ? "is-on" : "is-off"}" data-status="${key}" aria-pressed="${on ? "true" : "false"}" ${disabled ? "disabled" : ""} title="${escapeHtml(label)}">${escapeHtml(label)}</button>`;
   }).join("");
   return `<div class="status-btns" role="group" aria-label="Status">${buttons}</div>
@@ -4248,26 +4289,27 @@ function playableSeatHtml(kind, t, editable) {
          <div class="play-seat-who">${playableOwnerHtml(ownerId, empty)}</div>
          <span class="help-h">${ownerId ? `${hours || 0}h` : "—"}</span>
        </div>`;
+  const splitEdit = editable && canEditPlayableCrew();
   const splitRows = splits
     .map((row) =>
-      editable
+      splitEdit
         ? playableSplitRowHtml(kind, row, taken)
         : `<div class="play-seat-row"><span>${personCell(row.id)}</span><span class="help-h">${row.hours}h</span></div>`
     )
     .join("");
   const blank =
-    editable && !splits.length ? playableSplitRowHtml(kind, { id: "", hours: "" }, taken) : "";
+    splitEdit && !splits.length ? playableSplitRowHtml(kind, { id: "", hours: "" }, taken) : "";
   const roster = isAd ? artDirectors() : programmers();
   const spare = roster.filter((p) => p.id !== ownerId);
   const note =
-    editable && spare.length === 0
+    splitEdit && spare.length === 0
       ? `<p class="play-seat-note">${
           roster.length
             ? `Only ${escapeHtml(person(ownerId)?.name || title)} is on the team as ${title}. DL adds another in Team, then pick them here.`
             : `No ${title} on the team yet. DL adds one in Team.`
         }</p>`
       : "";
-  const add = editable ? `<button type="button" class="play-seat-add" id="${addId}">Add ${title}</button>` : "";
+  const add = splitEdit ? `<button type="button" class="play-seat-add" id="${addId}">Add ${title}</button>` : "";
   return `<div class="play-seat play-seat-${kind}">
       <div class="play-seat-head">
         <span class="job-badge job-${kind}">${title}</span>
@@ -4279,7 +4321,7 @@ function playableSeatHtml(kind, t, editable) {
       ${add}
     </div>`;
 }
-function playableHoursHtml(t, editable) {
+function playableHoursHtml(t, editable, quote = false) {
   const billed = hoursOf(t);
   const crew = playableCrewTotal(t);
   const buffer = Math.max(0, roundHours(billed - crew));
@@ -4287,8 +4329,10 @@ function playableHoursHtml(t, editable) {
   const adId = playableAdId(t);
   const ads = playableAdSplits(t);
   const devs = playableDevSplits(t);
-  if (!editable && !adId && !t.programmerId && !ads.length && !devs.length) return "";
-  if (!editable && isPerformer() && !mine) return "";
+  const adHours = editable || (quote && isArtDirector() && adId === me().id);
+  const devHours = editable || (quote && isProgrammer() && String(t.programmerId || "") === String(me().id));
+  if (!editable && !adHours && !devHours && !adId && !t.programmerId && !ads.length && !devs.length) return "";
+  if (!editable && !adHours && !devHours && isPerformer() && !mine) return "";
   const you =
     !editable && mine && hoursForPerson(t, me().id)
       ? `<span class="play-crew-you">you ${hoursForPerson(t, me().id)}h</span>`
@@ -4303,8 +4347,8 @@ function playableHoursHtml(t, editable) {
     : "";
   return `<section class="help-split play-crew">
       <label>Hours split</label>
-      ${playableSeatHtml("ad", t, editable)}
-      ${playableSeatHtml("dev", t, editable)}
+      ${playableSeatHtml("ad", t, adHours)}
+      ${playableSeatHtml("dev", t, devHours)}
       <div class="play-crew-foot"><span>Crew ${you}</span><b id="playCrew">${crew}h</b></div>
     </section>${financeStrip}`;
 }
@@ -4373,7 +4417,8 @@ function refreshPlayableSplitSelects() {
   });
 }
 function bindPlayableCrew(t) {
-  if (!canEditPlayableCrew()) return;
+  const quoteMine = playableStatusKey(t) === "quote" && onMyPlayable(t) && (isArtDirector() || isProgrammer());
+  if (!canEditPlayableCrew() && !quoteMine) return;
   const box = $("drawer")?.querySelector(".play-crew");
   if (!box) return;
   const paint = () => {
@@ -4385,7 +4430,7 @@ function bindPlayableCrew(t) {
   $("stHours")?.addEventListener("input", paint);
   const keepOutgoing = (sel, rowsId, kind, prevId, prevHours) => {
     const next = sel?.value || "";
-    const started = (t.studioStatus || "new") !== "new";
+    const started = !["quote", "new"].includes(playableStatusKey(t));
     if (!started || !prevId || !next || next === prevId) return;
     const taken = new Set([next, ...readPlayableSplits(kind, next).map((row) => row.id)]);
     if (taken.has(prevId)) return;
@@ -4597,7 +4642,13 @@ function openTask(id) {
     ? play
       ? `<div class="who-assign who-play">
           <div><label>Art Director</label>${mayAssign ? assignSelect : personCell(adId)}</div>
-          <div><label>Programmer</label>${mayAssign ? devSelect : t.programmerId ? personCell(t.programmerId) : `<span class="empty">after client approves</span>`}</div>
+          <div><label>Programmer</label>${
+            mayAssign && playableDevUnlocked(t)
+              ? devSelect
+              : t.programmerId
+                ? personCell(t.programmerId)
+                : `<span class="empty">${playableStatusKey(t) === "quote" ? "for quote hours" : "after Art ready"}</span>`
+          }</div>
         </div>`
       : `<div class="who-assign"><label>Who works this</label>${mayAssign ? assignSelect : personCell(t.assigneeId)}</div>`
     : "";
@@ -4645,11 +4696,12 @@ function openTask(id) {
     ${notesHtml(t)}
     ${sourceBlock || resultBlock ? `<div class="io-stack">${sourceBlock}${resultBlock}</div>` : ""}
     ${whoBlock}
-    ${play ? playableHoursHtml(t, canEditPlayableCrew()) : helpSplitHtml(t, canEditHelp())}
+    ${play ? playableHoursHtml(t, canEditPlayableCrew(), playableStatusKey(t) === "quote") : helpSplitHtml(t, canEditHelp())}
     ${opsTime ? `<div class="card-ops">${opsTime}</div>` : ""}
     </div>
     <div class="drawer-actions">
       <div class="drawer-actions-main">
+        ${canOps() && play && playableStatusKey(t) === "quote" ? `<button type="button" class="btn green" id="startQuote">Hours OK — start</button>` : ""}
         ${canOps() && isSendable(t) ? `<button type="button" class="btn green" id="exportOne">Send this to client</button>` : ""}
         ${canOps() && isClientCopyable(t) ? `<button type="button" class="btn" id="copyOne">Copy for client</button>` : ""}
         ${canOps() && t.studioStatus !== "closed" ? `<button type="button" class="btn" id="closeOne">Mark Closed</button>` : ""}
@@ -4815,34 +4867,43 @@ function openTask(id) {
         typedResult: typed,
       });
     }
-    const htmlBtn = $("drawer")?.querySelector('.status-btn[data-status="htmlready"]');
-    if (htmlBtn && t.studioStatus !== "htmlready") {
-      htmlBtn.disabled = statusButtonDisabled(t, "htmlready", {
+    const htmlBtn = $("drawer")?.querySelector('.status-btn[data-status="done"]');
+    if (htmlBtn && playableStatusKey(t) !== "done") {
+      htmlBtn.disabled = statusButtonDisabled(t, "done", {
         canEdit,
         locked: lockedStatus,
         typedResult: typed,
       });
     }
     if (hint) {
+      const playSt = playableStatusKey(t);
       if (isPlayables(t)) {
-        if (isProgrammer() && !hasResult && t.studioStatus === "build") {
-          hint.textContent = "Paste the HTML link, then HTML ready.";
-        } else if (isArtDirector() && t.studioStatus === "new") {
-          hint.textContent = "Storyboard when the board is ready for the client.";
-        } else if (isArtDirector() && t.studioStatus === "clientart") {
-          hint.textContent = "Client bounced → Storyboard. Client approved → Final art.";
-        } else if (isArtDirector() && t.studioStatus === "finalart") {
-          hint.textContent = "Set Build when DEV can start.";
-        } else if (isProgrammer() && t.studioStatus === "htmlready") {
-          hint.textContent = "LP sends this. Build if the HTML needs another pass.";
-        } else if (canOps() && t.studioStatus === "storyboard") {
-          hint.textContent = "Send to client — that sets Client art. Only LP talks to SuperPlay.";
-        } else if (canOps() && t.studioStatus === "htmlready") {
-          hint.textContent = "Send to client, or Mark Closed if they already accepted. Build if the HTML is wrong.";
-        } else if (canOps() && t.studioStatus === "approve") {
-          hint.textContent = "Client accepted → Closed. Bounced → Final art or Build.";
-        } else if (canOps() && t.studioStatus === "clientart") {
-          hint.textContent = "Waiting on the client. Storyboard if they bounce it.";
+        if (playSt === "quote") {
+          hint.textContent = canOps()
+            ? "AD and DEV type hours. Hours OK — start when the client approves the total."
+            : "Type your hours. LP sends the total to the client.";
+        } else if (isProgrammer() && !hasResult && (playSt === "wip" || playSt === "revision" || playSt === "artready")) {
+          hint.textContent = "Paste the HTML link, then Done.";
+        } else if (isArtDirector() && playSt === "new") {
+          hint.textContent = "WIP when you start the storyboard. Check when it is ready for LP.";
+        } else if (isArtDirector() && playSt === "wip") {
+          hint.textContent = "Check when the storyboard is ready for the client.";
+        } else if (isArtDirector() && playSt === "revision") {
+          hint.textContent = "Fix, set WIP, then Check.";
+        } else if (isArtDirector() && playSt === "finalart") {
+          hint.textContent = "Art ready when DEV can start. LP assigns DEV after that.";
+        } else if (isProgrammer() && playSt === "done") {
+          hint.textContent = "LP sends this. Need Fixing if the HTML needs another pass.";
+        } else if (canOps() && playSt === "check") {
+          hint.textContent = "Send to client — that sets Sent. Only LP talks to SuperPlay.";
+        } else if (canOps() && playSt === "done") {
+          hint.textContent = "Send to client, or Mark Closed if they already accepted.";
+        } else if (canOps() && playSt === "approve") {
+          hint.textContent = "Client accepted → Closed. Bounced → Need Fixing for DEV.";
+        } else if (canOps() && playSt === "clientart") {
+          hint.textContent = "Need Fixing if they bounce it. Final art when they approve the board.";
+        } else if (canOps() && playSt === "artready" && !t.programmerId) {
+          hint.textContent = "Assign DEV now. Not earlier.";
         } else {
           hint.textContent = "";
         }
@@ -4878,15 +4939,15 @@ function openTask(id) {
         toast("Only LP can mark Closed");
         return;
       }
-      if (key === "htmlready" && !($("stResult")?.value || t.resultUrl || "").trim()) {
-        toast("Paste the HTML link before HTML ready");
+      if (isPlayables(t) && key === "done" && !($("stResult")?.value || t.resultUrl || "").trim()) {
+        toast("Paste the HTML link before Done");
         return;
       }
       if (key === "tlcheck" && !($("stResult")?.value || t.resultUrl || "").trim()) {
         toast("Paste the result link before TL Check");
         return;
       }
-      if (key === "done" && t.studioStatus !== "tlcheck" && $("stStatus")?.value !== "tlcheck") {
+      if (!isPlayables(t) && key === "done" && t.studioStatus !== "tlcheck" && $("stStatus")?.value !== "tlcheck") {
         toast("Done is after TL Check");
         return;
       }
@@ -4931,19 +4992,19 @@ function openTask(id) {
       toast("Only LP can mark Closed");
       return;
     }
-    if (studioStatus === "htmlready" && !resultUrl) {
-      toast("Paste the HTML link before HTML ready");
+    if (isPlayables(t) && studioStatus === "done" && !resultUrl) {
+      toast("Paste the HTML link before Done");
       return;
     }
     if (studioStatus === "tlcheck" && !resultUrl) {
       toast("Paste the result link before TL Check");
       return;
     }
-    if (studioStatus === "done" && !resultUrl) {
+    if (!isPlayables(t) && studioStatus === "done" && !resultUrl) {
       toast("Paste the result link before Done");
       return;
     }
-    if (studioStatus === "done" && t.studioStatus !== "tlcheck" && t.studioStatus !== "done") {
+    if (!isPlayables(t) && studioStatus === "done" && t.studioStatus !== "tlcheck" && t.studioStatus !== "done") {
       toast("Done is after TL Check");
       return;
     }
@@ -4974,6 +5035,13 @@ function openTask(id) {
       const programmerId = patch.programmerId !== undefined ? patch.programmerId : t.programmerId;
       patch.programmerHours = roundHours(String($("stProgHours")?.value || "").replace(",", "."));
       patch.programmerHelp = readPlayableSplits("dev", programmerId);
+    } else if (isPlayables(t) && playableStatusKey(t) === "quote") {
+      if (isArtDirector() && playableAdId(t) === me().id && $("stAdHours")) {
+        patch.assigneeHours = roundHours(String($("stAdHours").value || "").replace(",", "."));
+      }
+      if (isProgrammer() && String(t.programmerId || "") === String(me().id) && $("stProgHours")) {
+        patch.programmerHours = roundHours(String($("stProgHours").value || "").replace(",", "."));
+      }
     } else if (!isPlayables(t) && canEditHelp()) {
       const help = readHelpFromCard(assigneeId);
       const total = patch.shifts !== undefined ? hoursFromShifts(patch.shifts) : hoursOf(t);
@@ -5058,6 +5126,12 @@ function openTask(id) {
       if (hint) hint.hidden = true;
       actions.forEach((btn) => setBusy(btn, false));
     }
+  });
+  $("startQuote")?.addEventListener("click", () => {
+    const save = $("saveTask");
+    if (!save) return;
+    paintStatusButtons("new");
+    save.click();
   });
   $("exportOne")?.addEventListener("click", async () => {
     const btn = $("exportOne");
@@ -5156,7 +5230,7 @@ async function sendToClient(ids) {
   const picked = state.db.tasks.filter((t) => ids.includes(t.id));
   const ready = picked.filter(isSendable);
   if (!ready.length) {
-    toast("Send only works on Done / Storyboard / HTML ready projects");
+    toast("Send only works on Check / Done projects");
     return;
   }
   const out = await api("/api/export-monday", { ids: ready.map((t) => t.id), role: me().role, actorId: me().id });

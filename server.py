@@ -30,7 +30,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-17w"
+BUILD = "2026-10-17x"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -1048,11 +1048,11 @@ def make_comment(
 
 
 def is_sendable(task: dict) -> bool:
-    status = task.get("studioStatus")
+    status = direction_io.playable_norm_status(task.get("studioStatus")) if direction_io.is_playables(task) else task.get("studioStatus")
     if direction_io.is_playables(task):
-        if status == "storyboard":
+        if status == "check":
             return True
-        return status == "htmlready" and bool(str(task.get("resultUrl") or "").strip())
+        return status == "done" and bool(str(task.get("resultUrl") or "").strip())
     return status == "done" and bool(str(task.get("resultUrl") or "").strip())
 
 
@@ -1991,8 +1991,8 @@ class Handler(SimpleHTTPRequestHandler):
                     "hours": 0,
                     "deadline": "",
                     "month": ym,
-                    "studioStatus": "new",
-                    "mondayStatus": "Ready to Start",
+                    "studioStatus": "quote" if direction == direction_io.PLAYABLES else "new",
+                    "mondayStatus": "Quote" if direction == direction_io.PLAYABLES else "Ready to Start",
                     "assigneeId": "",
                     "assigneeHours": 0,
                     "programmerId": "",
@@ -2220,7 +2220,7 @@ class Handler(SimpleHTTPRequestHandler):
                     if task["id"] not in ids or not is_sendable(task):
                         continue
                     before = {"studioStatus": task.get("studioStatus"), "assigneeId": task.get("assigneeId")}
-                    if direction_io.is_playables(task) and task.get("studioStatus") == "storyboard":
+                    if direction_io.is_playables(task) and direction_io.playable_norm_status(task.get("studioStatus")) == "check":
                         task["studioStatus"] = "clientart"
                         task["mondayStatus"] = "Client art"
                         sent_as = "Client art"
@@ -2246,7 +2246,7 @@ class Handler(SimpleHTTPRequestHandler):
                     self._json(
                         400,
                         {
-                            "error": "Send only works on Done / Storyboard / HTML ready projects",
+                            "error": "Send only works on Check / Done projects",
                             "exported": [],
                             "state": db,
                         },
@@ -2271,6 +2271,7 @@ class Handler(SimpleHTTPRequestHandler):
                 before = {
                     "studioStatus": task.get("studioStatus"),
                     "assigneeId": task.get("assigneeId"),
+                    "programmerId": task.get("programmerId"),
                 }
                 nxt = data.get("studioStatus")
                 role = data.get("role") or ""
@@ -2312,6 +2313,16 @@ class Handler(SimpleHTTPRequestHandler):
                 ):
                     self._json(403, {"error": "only TL or LP can assign"})
                     return
+                if playable and "programmerId" in data:
+                    wanted = str(data.get("programmerId") or "")
+                    trial = dict(task)
+                    if "assigneeId" in data:
+                        trial["assigneeId"] = data.get("assigneeId")
+                    if "studioStatus" in data:
+                        trial["studioStatus"] = data.get("studioStatus")
+                    if wanted and wanted != str(task.get("programmerId") or "") and not direction_io.playable_may_assign_dev(trial):
+                        self._json(403, {"error": "Assign DEV after Art ready"})
+                        return
                 if playable and nxt and nxt != task.get("studioStatus"):
                     ok, err = direction_io.playable_can_set(role, task, nxt, actor_id=actor)
                     if not ok:
@@ -2344,8 +2355,8 @@ class Handler(SimpleHTTPRequestHandler):
                     ):
                         self._json(403, {"error": "Done is after TL Check"})
                         return
-                elif status_after == "htmlready" and not str(result_after or "").strip():
-                    self._json(400, {"error": "paste the HTML link before HTML ready"})
+                elif playable and status_after == "done" and not str(result_after or "").strip():
+                    self._json(400, {"error": "paste the HTML link before Done"})
                     return
                 if "hours" in data and playable:
                     if role not in {"manager", "finance"}:
@@ -2416,8 +2427,10 @@ class Handler(SimpleHTTPRequestHandler):
                             {"at": utc_now(), "text": f"Renamed {old_name} → {new_name}"}
                         )
                 if playable and role not in {"finance", "manager", "teamlead"}:
+                    quote_hours = direction_io.playable_quote_hour_fields(role, task, actor)
                     for key in ("assigneeHours", "programmerHours", "motionHours", "producerHours"):
-                        data.pop(key, None)
+                        if key not in quote_hours:
+                            data.pop(key, None)
                     data.pop("help", None)
                     data.pop("programmerHelp", None)
                 elif playable and role != "finance":
@@ -2505,7 +2518,21 @@ class Handler(SimpleHTTPRequestHandler):
                     motion = excel_io.round_hours(task.get("motionHours"))
                     task["producerHours"] = round(art + help_h + prog + split_dev + motion, 1)
                 if playable:
-                    st = task.get("studioStatus")
+                    st = direction_io.playable_norm_status(task.get("studioStatus"))
+                    task["studioStatus"] = st
+                    if (
+                        direction_io.playable_norm_status(before.get("studioStatus")) == "quote"
+                        and st == "new"
+                    ):
+                        dropped = direction_io.playable_start_from_quote(task)
+                        st = "new"
+                        if dropped:
+                            task.setdefault("activity", []).append(
+                                {
+                                    "at": utc_now(),
+                                    "text": "Hours OK — started. DEV comes back after Art ready.",
+                                }
+                            )
                     if st in direction_io.PLAY_STATUS:
                         task["mondayStatus"] = direction_io.PLAY_STATUS[st]
                 elif task.get("studioStatus") == "closed":
