@@ -730,6 +730,13 @@ function playableCrewTotal(t) {
   const motionH = roundHours(t?.motionHours);
   return roundHours(artH + adH + progH + devH + motionH);
 }
+function deskHours(t) {
+  if (isPlayables(t) && !isFinance()) {
+    const crew = playableCrewTotal(t);
+    if (crew) return crew;
+  }
+  return hoursOf(t);
+}
 function playableCardMeta(t) {
   const crew = playableCrewTotal(t);
   const billed = hoursOf(t);
@@ -1463,7 +1470,7 @@ function renderKpis() {
     return;
   }
   const month = monthTasks();
-  const hours = month.reduce((s, t) => s + (Number(t.hours) || 0), 0);
+  const hours = month.reduce((s, t) => s + deskHours(t), 0);
   const readyKey = "done";
   const readyLabel = "Done";
   const ready = month.filter((t) => t.studioStatus === readyKey).length;
@@ -2052,7 +2059,7 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
   if (role === "programmer") {
     const onDev = String(t.programmerId || "") === String(me().id);
     if (st === "closed" || st === "approve") return { tone: "ok", title: st === "closed" ? "Closed" : "Sent to client", body: "Nothing else on this card." };
-    if (!onDev) return { tone: "wait", title: "Not on you yet", body: "LP assigns you after Art ready — not while AD is still on the board." };
+    if (!onDev) return { tone: "wait", title: "Not on you yet", body: "You are not on this card. LP can assign you from Ready — you start HTML after Art ready." };
     if (st === "done") return { tone: "wait", title: "Waiting for LP", body: "HTML link is in. Line Producer sends it. Need Fixing if the client bounces it." };
     if (st === "wip" || st === "revision" || !playableAdId(t)) {
       if (st === "revision") return { tone: "fix", title: "Need Fixing", body: "Fix the HTML, set WIP, paste a new link, then Done." };
@@ -2078,14 +2085,14 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
   if (st === "artready") {
     return t.programmerId
       ? { tone: "wait", title: "Art ready", body: `${progName || "Programmer"} can set WIP and start HTML.` }
-      : { tone: "do", title: "Assign DEV", body: "Art is ready. Put a programmer on the card. Not earlier — they are busy on other work." };
+      : { tone: "do", title: "Assign DEV", body: "Art is ready. Put a programmer on the card if they are not there yet. They can sit on the card from Ready." };
   }
   if (html && t.programmerId) return { tone: "wait", title: "In WIP", body: `${progName || "Programmer"} is on HTML. Send after Done.` };
-  if (st === "finalart") return { tone: "wait", title: "Final art", body: `${name || "Art Director"} is finishing art. Then Art ready, then you assign DEV.` };
+  if (st === "finalart") return { tone: "wait", title: "Final art", body: `${name || "Art Director"} is finishing art. Then Art ready. DEV can already sit on the card.` };
   if (st === "revision") return { tone: "wait", title: "Need Fixing", body: html ? `${progName || "Programmer"} is fixing HTML.` : `${name || "Art Director"} is fixing the storyboard.` };
   const ad = playableAdId(t);
   if (!ad && !t.programmerId) {
-    return { tone: "do", title: "Assign AD", body: "Put an Art Director on the card. One DEV is enough if this is code-only." };
+    return { tone: "do", title: "Assign people", body: "Put AD and DEV on the card now. Hours sit next to the person. One DEV is enough if this is code-only." };
   }
   if (!ad && t.programmerId) {
     return {
@@ -2099,7 +2106,7 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
     return {
       tone: "wait",
       title: "Waiting for AD",
-      body: `${name || "Art Director"} sets WIP, then Check. You send the board. DEV is assigned only after Art ready.`,
+      body: `${name || "Art Director"} sets WIP, then Check. You can already put DEV on the card — they start HTML after Art ready.`,
     };
   }
   return { tone: "wait", title: "In progress", body: `${name || "Art Director"} is on this. Send the storyboard, then HTML.` };
@@ -2153,10 +2160,11 @@ function bindDriveButtons() {
 function timeCell(t) {
   const hours = t.hours || hoursFromShifts(t.shifts || 0);
   if (isPlayables(t)) {
-    if (canEditTime()) {
+    if (isFinance() && canEditTime()) {
       return `<span class="time-edit">${deskNumInput("hours-in", t.id, t.hours, "Billed hours")}</span>`;
     }
-    return hours ? `${hours}h` : `<span class="empty">—</span>`;
+    const shown = isFinance() ? hoursOf(t) : playableCrewTotal(t);
+    return shown ? `${shown}h` : `<span class="empty">—</span>`;
   }
   if (canEditTime()) {
     return `<span class="time-edit">
@@ -2215,7 +2223,7 @@ function renderLoad() {
     return { person: p, mine, count: mine.length, hours };
   });
   const unassigned = tasks.filter((t) => (isPlayables(t) ? !playableAdId(t) && !t.programmerId : !t.assigneeId));
-  const unHours = unassigned.reduce((s, t) => s + (Number(t.hours) || 0), 0);
+  const unHours = unassigned.reduce((s, t) => s + deskHours(t), 0);
   const assignedHours = rows.reduce((s, r) => s + r.hours, 0);
   const fair = people.length ? assignedHours / people.length : 0;
   const maxH = Math.max(fair, ...rows.map((r) => r.hours), 0.1);
@@ -2741,7 +2749,7 @@ function renderGuide() {
           ${statusCard("fix", "Fix", "Need Fixing", "Хто: відбій клієнта", "Сторіборд — AD править, знову Check. HTML — DEV править, знову Done.")}
           ${statusCard("sent", "Sent", "Sent", "Хто: чекаємо клієнта по борду", "LP відправила сторіборд. Відбили → Need Fixing. Прийняли → LP ставить Final art.")}
           ${statusCard("final", "Final", "Final art", "Хто: AD", "Клієнт прийняв борд. AD фіналізує арт і ставить Art ready.")}
-          ${statusCard("artok", "Art OK", "Art ready", "Хто: AD здав, далі LP", "Арт готовий. Тут LP ставить DEV. Не раніше.")}
+          ${statusCard("artok", "Art OK", "Art ready", "Хто: AD здав, далі DEV", "Арт готовий. DEV ставить WIP. LP могла посадити DEV ще на Ready.")}
           ${statusCard("done", "Done", "Done", "Хто: DEV здав HTML, далі LP", "Лінк у картці. LP шле клієнту або одразу Closed.")}
           ${statusCard("send", "Send", "Send", "Хто: чекаємо клієнта по HTML", "LP натиснула Send to client. Відбили → Need Fixing. Прийняли → Closed.")}
           ${statusCard("closed", "Closed", "Closed", "Хто: LP", "Клієнт прийняв. Години лишаються.")}
@@ -2751,11 +2759,11 @@ function renderGuide() {
         <h3>Пайплайн</h3>
         <p class="guide-lead">Ready → WIP → Check → Sent → Final art → Art ready → WIP → Done → Send → Closed</p>
         <ol class="guide-pipe">
-          ${pipeStep("1", "LP", "Line Producer", "Картка заходить", `${ui("Create task")} після апруву годин. Ставить AD. Години з Telegram — на картку сама.`, "ready", "Ready")}
+          ${pipeStep("1", "LP", "Line Producer", "Картка заходить", `${ui("Create task")} після апруву годин. Ставить AD і DEV одразу, години — на людей.`, "ready", "Ready")}
           ${pipeStep("2", "AD", "Art Director", "Сторіборд", `${ui("WIP")} → лінк на борд → ${ui("Check")}.`, "check", "Check")}
           ${pipeStep("3", "LP", "Line Producer", "Шле борд", `${ui("Send to client")} з ${ui("Check")}. Статус стає ${ui("Sent")}. Відбій → ${ui("Need Fixing")}. Апрув → ${ui("Final art")}.`, "sent", "Sent")}
-          ${pipeStep("4", "AD", "Art Director", "Фінальний арт", `Доробляє арт → ${ui("Art ready")}. Це сигнал LP ставити DEV.`, "artok", "Art OK")}
-          ${pipeStep("5", "LP", "Line Producer", "Ставить DEV", `Лише на ${ui("Art ready")}. DEV бачить, що арт готовий, і ставить ${ui("WIP")}.`, "wip", "WIP")}
+          ${pipeStep("4", "AD", "Art Director", "Фінальний арт", `Доробляє арт → ${ui("Art ready")}. DEV уже може бути на картці.`, "artok", "Art OK")}
+          ${pipeStep("5", "DEV", "Programmer", "Бере HTML", `На ${ui("Art ready")} ставить ${ui("WIP")}. LP могла посадити його ще на Ready.`, "wip", "WIP")}
           ${pipeStep("6", "DEV", "Programmer", "Збирає HTML", `Лінк у ${ui("HTML")}, потім ${ui("Done")}. Без лінка кнопка не жива.`, "done", "Done")}
           ${pipeStep("7", "LP", "Line Producer", "Шле HTML", `${ui("Send to client")} з ${ui("Done")} + лінк, або одразу ${ui("Closed")}. Відбій HTML → ${ui("Need Fixing")} для DEV.`, "send", "Send")}
         </ol>
@@ -2768,7 +2776,7 @@ function renderGuide() {
           `${ui("Send to client")} у AD немає.`,
         ])}
         ${card("programmer", "DEV", "Programmer", "Богдан. Лише свої playable.", [
-          `Картка з’являється після ${ui("Art ready")}, коли LP поставить тебе DEV.`,
+          `LP може посадити тебе DEV з Ready. HTML починаєш після ${ui("Art ready")}.`,
           `${ui("WIP")}, лінк, ${ui("Done")}. Без лінка Done не ставиться.`,
           `Код-онлі (немає AD) — ${ui("WIP")} одразу з Ready.`,
           `Відбій HTML — ${ui("Need Fixing")} → ${ui("WIP")} → ${ui("Done")}.`,
@@ -2778,7 +2786,7 @@ function renderGuide() {
           `Статус не чіпаєш — ним володіє AD. Бриф читаєш, роботу здаєш AD.`,
         ])}
         ${card("manager", "LP", "Line Producer", "Анастасія. Обидві дошки.", [
-          `${ui("Create task")} після апруву годин у Telegram. Ставить AD. DEV — лише на ${ui("Art ready")}.`,
+          `${ui("Create task")} після апруву годин у Telegram. AD і DEV садить одразу, години — на людей. DEV починає HTML після ${ui("Art ready")}.`,
           `${ui("Send to client")} з ${ui("Check")} (борд) і з ${ui("Done")} (HTML + лінк).`,
           `Sent: відбій → ${ui("Need Fixing")}. Апрув борду → ${ui("Final art")}.`,
           `${ui("Mark Closed")} можна без Send, як у MGX. Hours split — студійна оплата. Billed buffer лише DL.`,
@@ -4267,6 +4275,31 @@ function playableSplitRowHtml(kind, row, taken) {
       <button type="button" class="btn ghost help-del" title="Remove">×</button>
     </div>`;
 }
+function takePlayableOwner(ownerId, ownerHours, splits, extraIds) {
+  const id = String(ownerId || "").trim();
+  const hours = roundHours(ownerHours);
+  const rest = Array.isArray(splits) ? splits.filter((row) => row && row.id) : [];
+  if (id) return { ownerId: id, ownerHours: hours, splits: rest.filter((row) => row.id !== id) };
+  const first = rest[0] || (extraIds?.[0] ? { id: extraIds[0], hours: 0 } : null);
+  if (!first?.id) return { ownerId: "", ownerHours: hours, splits: rest };
+  return {
+    ownerId: first.id,
+    ownerHours: hours || first.hours,
+    splits: rest.filter((row) => row.id !== first.id),
+  };
+}
+function readPlayableSplitIds(kind) {
+  const box = kind === "dev" ? $("devSplitRows") : $("adSplitRows");
+  const ids = [];
+  const seen = new Set();
+  box?.querySelectorAll(".play-split-person").forEach((sel) => {
+    const id = sel.value || "";
+    if (!id || seen.has(id)) return;
+    seen.add(id);
+    ids.push(id);
+  });
+  return ids;
+}
 function playableSeatHtml(kind, t, editable) {
   const isAd = kind === "ad";
   const ownerId = isAd ? playableAdId(t) : String(t.programmerId || "");
@@ -4278,13 +4311,24 @@ function playableSeatHtml(kind, t, editable) {
   const title = isAd ? "AD" : "DEV";
   const empty = isAd ? "No AD" : "No DEV";
   const hoursId = isAd ? "stAdHours" : "stProgHours";
-  const ownerEl = isAd ? "stAdOwner" : "stDevOwner";
   const rowsId = isAd ? "adSplitRows" : "devSplitRows";
   const addId = isAd ? "adSplitAdd" : "devSplitAdd";
   const sumId = isAd ? "playAdTotal" : "playDevTotal";
+  const roster = isAd ? artDirectors() : programmers();
+  const ownerPick = canAssignPlayable()
+    ? `<select id="${isAd ? "stPerson" : "stProgrammer"}" class="play-owner-pick" aria-label="${title}">
+        <option value="">— ${title}</option>
+        ${roster
+          .map(
+            (p) =>
+              `<option value="${p.id}" ${ownerId === p.id ? "selected" : ""}>${escapeHtml(p.name)} · ${jobMeta(p).code}</option>`
+          )
+          .join("")}
+      </select>`
+    : `<div class="play-seat-who">${playableOwnerHtml(ownerId, empty)}</div>`;
   const ownerRow = editable
     ? `<div class="play-seat-row is-owner">
-         <div class="play-seat-who" id="${ownerEl}">${playableOwnerHtml(ownerId, empty)}</div>
+         ${ownerPick}
          <input id="${hoursId}" type="number" min="0" step="0.1" value="${hours || ""}" aria-label="${title} hours" />
        </div>`
     : `<div class="play-seat-row is-owner">
@@ -4299,9 +4343,6 @@ function playableSeatHtml(kind, t, editable) {
         : `<div class="play-seat-row"><span>${personCell(row.id)}</span><span class="help-h">${row.hours}h</span></div>`
     )
     .join("");
-  const blank =
-    splitEdit && !splits.length ? playableSplitRowHtml(kind, { id: "", hours: "" }, taken) : "";
-  const roster = isAd ? artDirectors() : programmers();
   const spare = roster.filter((p) => p.id !== ownerId);
   const note =
     splitEdit && spare.length === 0
@@ -4318,7 +4359,7 @@ function playableSeatHtml(kind, t, editable) {
         <b class="play-seat-sum" id="${sumId}">${sum}h</b>
       </div>
       ${ownerRow}
-      <div id="${rowsId}">${splitRows}${blank}</div>
+      <div id="${rowsId}">${splitRows}</div>
       ${note}
       ${add}
     </div>`;
@@ -4348,7 +4389,7 @@ function playableHoursHtml(t, editable) {
     </section>`
     : "";
   return `<section class="help-split play-crew">
-      <label>Hours split</label>
+      <label>Who · hours</label>
       ${playableSeatHtml("ad", t, adHours)}
       ${playableSeatHtml("dev", t, devHours)}
       <div class="play-crew-foot"><span>Crew ${you}</span><b id="playCrew">${crew}h</b></div>
@@ -4382,8 +4423,6 @@ function refreshPlayableCrew(t) {
   const adSum = roundHours(artH + readPlayableSplits("ad", adId).reduce((s, row) => s + row.hours, 0));
   const devSum = roundHours(progH + readPlayableSplits("dev", devId).reduce((s, row) => s + row.hours, 0));
   const crew = roundHours(adSum + devSum);
-  if ($("stAdOwner")) $("stAdOwner").innerHTML = playableOwnerHtml(adId, "No AD");
-  if ($("stDevOwner")) $("stDevOwner").innerHTML = playableOwnerHtml(devId, "No DEV");
   if ($("playAdTotal")) $("playAdTotal").textContent = `${adSum}h`;
   if ($("playDevTotal")) $("playDevTotal").textContent = `${devSum}h`;
   if ($("playCrew")) $("playCrew").textContent = `${crew}h`;
@@ -4607,51 +4646,27 @@ function openTask(id) {
   const performer = mine && (isDesigner() || isTeamLead() || isArtDirector() || isProgrammer());
   const canPaste = canPasteResult(t);
   const assignHero = isTeamLead() && !t.assigneeId && !play;
-  const peopleOpts = play ? artDirectors() : designers();
-  const adId = play ? playableAdId(t) : t.assigneeId;
   const mayAssign = play ? canAssignPlayable() : canAssign();
-  const assignSelect = mayAssign
+  const assignSelect = !play && mayAssign
     ? `<select id="stPerson">
-        <option value="">— ${play ? "AD" : "unassigned"}</option>
-        ${peopleOpts
+        <option value="">— unassigned</option>
+        ${designers()
           .map(
             (p) =>
-              `<option value="${p.id}" ${adId === p.id ? "selected" : ""}>${escapeHtml(p.name)} · ${jobMeta(p).code}</option>`
+              `<option value="${p.id}" ${t.assigneeId === p.id ? "selected" : ""}>${escapeHtml(p.name)} · ${jobMeta(p).code}</option>`
           )
           .join("")}
       </select>`
-    : personCell(adId);
-  const devSelect = mayAssign
-    ? `<select id="stProgrammer">
-        <option value="">— DEV</option>
-        ${programmers()
-          .map(
-            (p) =>
-              `<option value="${p.id}" ${t.programmerId === p.id ? "selected" : ""}>${escapeHtml(p.name)} · DEV</option>`
-          )
-          .join("")}
-      </select>`
-    : personCell(t.programmerId);
+    : personCell(t.assigneeId);
   const heroAssign = assignHero
     ? `<div class="field field-focus">
         <label>Who works this</label>
         ${assignSelect}
       </div>`
     : "";
-  const showAssignee = !isPerformer() && !assignHero;
+  const showAssignee = !isPerformer() && !assignHero && !play;
   const whoAssign = showAssignee
-    ? play
-      ? `<div class="who-assign who-play">
-          <div><label>Art Director</label>${mayAssign ? assignSelect : personCell(adId)}</div>
-          <div><label>Programmer</label>${
-            mayAssign && playableDevUnlocked(t)
-              ? devSelect
-              : t.programmerId
-                ? personCell(t.programmerId)
-                : `<span class="empty">after Art ready</span>`
-          }</div>
-        </div>`
-      : `<div class="who-assign"><label>Who works this</label>${mayAssign ? assignSelect : personCell(t.assigneeId)}</div>`
+    ? `<div class="who-assign"><label>Who works this</label>${mayAssign ? assignSelect : personCell(t.assigneeId)}</div>`
     : "";
   const opsTime = canEditTime() && !play
     ? `<div class="ops-item"><label>Shifts</label>
@@ -4887,7 +4902,7 @@ function openTask(id) {
         } else if (isArtDirector() && playSt === "revision") {
           hint.textContent = "Fix, set WIP, then Check.";
         } else if (isArtDirector() && playSt === "finalart") {
-          hint.textContent = "Art ready when DEV can start. LP assigns DEV after that.";
+          hint.textContent = "Art ready when DEV can start HTML.";
         } else if (isProgrammer() && playSt === "done") {
           hint.textContent = "LP sends this. Need Fixing if the HTML needs another pass.";
         } else if (canOps() && playSt === "check") {
@@ -4899,7 +4914,7 @@ function openTask(id) {
         } else if (canOps() && playSt === "clientart") {
           hint.textContent = "Need Fixing if they bounce it. Final art when they approve the board.";
         } else if (canOps() && playSt === "artready" && !t.programmerId) {
-          hint.textContent = "Assign DEV now. Not earlier.";
+          hint.textContent = "Assign DEV if they are not on the card yet.";
         } else {
           hint.textContent = "";
         }
@@ -5008,15 +5023,6 @@ function openTask(id) {
     let assigneeId = mayAssign && $("stPerson") ? $("stPerson").value : isPlayables(t) ? playableAdId(t) : t.assigneeId;
     const patch = { studioStatus, role: me().role };
     if (isPlayables(t) && mayAssign && $("stProgrammer")) patch.programmerId = $("stProgrammer").value;
-    if (
-      isPlayables(t) &&
-      assigneeId &&
-      (assigneeId === (patch.programmerId !== undefined ? patch.programmerId : t.programmerId) ||
-        (person(assigneeId)?.role && person(assigneeId).role !== "art_director"))
-    ) {
-      assigneeId = "";
-    }
-    if (mayAssign) patch.assigneeId = assigneeId;
     if (isPlayables(t) && canEditPlayableCrew() && $("stAdHours")) {
       if (isFinance() && $("stHours")) {
         const hours = parseShifts($("stHours").value);
@@ -5026,12 +5032,38 @@ function openTask(id) {
         }
         patch.hours = hours;
       }
-      patch.assigneeHours = roundHours(String($("stAdHours")?.value || "").replace(",", "."));
-      patch.help = readPlayableSplits("ad", assigneeId);
+      const adHours = roundHours(String($("stAdHours")?.value || "").replace(",", "."));
+      const adSeat = takePlayableOwner(
+        assigneeId,
+        adHours,
+        readPlayableSplits("ad", assigneeId),
+        readPlayableSplitIds("ad")
+      );
+      assigneeId = adSeat.ownerId;
+      patch.assigneeHours = adSeat.ownerHours;
+      patch.help = adSeat.splits;
       const programmerId = patch.programmerId !== undefined ? patch.programmerId : t.programmerId;
-      patch.programmerHours = roundHours(String($("stProgHours")?.value || "").replace(",", "."));
-      patch.programmerHelp = readPlayableSplits("dev", programmerId);
-    } else if (!isPlayables(t) && canEditHelp()) {
+      const devHours = roundHours(String($("stProgHours")?.value || "").replace(",", "."));
+      const devSeat = takePlayableOwner(
+        programmerId,
+        devHours,
+        readPlayableSplits("dev", programmerId),
+        readPlayableSplitIds("dev")
+      );
+      patch.programmerId = devSeat.ownerId;
+      patch.programmerHours = devSeat.ownerHours;
+      patch.programmerHelp = devSeat.splits;
+    }
+    if (
+      isPlayables(t) &&
+      assigneeId &&
+      (assigneeId === (patch.programmerId !== undefined ? patch.programmerId : t.programmerId) ||
+        (person(assigneeId)?.role && person(assigneeId).role !== "art_director"))
+    ) {
+      assigneeId = "";
+    }
+    if (mayAssign) patch.assigneeId = assigneeId;
+    if (!isPlayables(t) && canEditHelp()) {
       const help = readHelpFromCard(assigneeId);
       const total = patch.shifts !== undefined ? hoursFromShifts(patch.shifts) : hoursOf(t);
       const given = help.reduce((s, row) => s + row.hours, 0);

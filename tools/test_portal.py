@@ -589,6 +589,15 @@ def test_playables_desk() -> None:
         )
         check("playable hours sit in AD and DEV blocks", "play-seat-${kind}" in js and "function playableSeatHtml" in js)
         check("DEV split picker is on the hours block", "— ${label}" in js and "pick DEV" in js)
+        check(
+            "Playables pick AD/DEV on hours seats",
+            'class="play-owner-pick"' in js and "function takePlayableOwner" in js and "function deskHours" in js,
+        )
+        check(
+            "pipeline Time uses crew hours for LP",
+            "playableCrewTotal(t)" in js.split("function timeCell")[1].split("function statusRank")[0]
+            and "Billed hours" in js.split("function timeCell")[1].split("function statusRank")[0],
+        )
         check("playable AD is never the programmer", "function playableAdId" in js and "if (id === String(t?.programmerId || \"\")) return \"\"" in js)
         check("playable hoursOwned is assigneeHours", "if (isPlayables(t)) return roundHours(t?.assigneeHours)" in js)
         check("hours split AD uses playableAdId", "const adId = playableAdId(t)" in js and "person(t.assigneeId)?.name || \"Unassigned\")" not in js.split("function playableHoursHtml")[1].split("function readPlayableSplits")[0])
@@ -599,6 +608,7 @@ def test_playables_desk() -> None:
             and 'playable and role != "finance"' in py,
         )
         check("save strips programmer from playable AD", "playables_io.ad_id" in py)
+        check("LP/DL skip Art-ready DEV assign gate", "playable_may_assign_dev(trial, role)" in py)
         css = (ROOT / "public" / "assets" / "board.css").read_text(encoding="utf-8")
         check("DS line is not Need Fixing burgundy", ".line-DS { background: #0d9488" in css and ".line-DS { background: #bb3354" not in css)
         check("client hours report splits MGX and Playable totals", "MGX TOTAL" in js and "Playable TOTAL" in js)
@@ -683,7 +693,9 @@ def test_playable_card_pipeline() -> None:
 
     ad = {"studioStatus": "new", "assigneeId": "artdir1"}
     check("AD Ready only offers WIP", direction_io.playable_next_statuses("art_director", ad) == ["wip"])
-    check("DEV not assignable before Art ready", not direction_io.playable_may_assign_dev(ad))
+    check("DEV work still waits before Art ready", not direction_io.playable_may_assign_dev(ad))
+    check("LP may assign DEV on Ready", direction_io.playable_may_assign_dev(ad, "manager"))
+    check("DL may assign DEV on Ready", direction_io.playable_may_assign_dev(ad, "finance"))
     check("DEV with AD waits on Ready", direction_io.playable_next_statuses("programmer", {**ad, "programmerId": "programmer1"}) == [])
     ad["studioStatus"] = "wip"
     check("AD WIP offers Check", direction_io.playable_next_statuses("art_director", ad) == ["check"])
@@ -736,6 +748,7 @@ def test_playable_card_pipeline() -> None:
     js = (ROOT / "public" / "assets" / "app.js").read_text(encoding="utf-8")
     check("card uses next-step Playables statuses", "function playableNextStatuses" in js and "function playableStatusActions" in js)
     check("Playables assign is LP/DL", "function canAssignPlayable" in js and "play ? canAssignPlayable() : canAssign()" in js)
+    check("LP seats DEV from Ready in copy", "You can already put DEV on the card" in js)
     check("Playables guide names the pipeline", "Ready → WIP → Check → Sent → Final art → Art ready → WIP → Done → Send → Closed" in js)
     check("AD owns Playables status copy", "AD owns status — you do not change it" in js)
     check("DEV HTML paste is owner-only", "isProgrammer() && String(t.programmerId || \"\") === String(me().id)" in js)
@@ -969,6 +982,81 @@ def test_http(base: str) -> str | None:
         str(payload.get("error") or sess),
     )
     check("login sets cookie", bool(cookie), str(cookie))
+
+    code, payload, headers = _http(f"{base}/api/login", {"door": "studio", "role": "manager", "pin": "1726"})
+    lp_cookie = headers.get("Set-Cookie") if hasattr(headers, "get") else None
+    lp_sess = payload.get("session") or {}
+    check(
+        "LP login for playable crew save",
+        code == 200 and lp_sess.get("role") == "manager" and bool(lp_cookie),
+        str(payload.get("error") or lp_sess),
+    )
+    if lp_cookie:
+        lp_ck = lp_cookie.split(";", 1)[0]
+        stamp = datetime.utcnow().strftime("%H%M%S")
+        play_name = f"DS-P-TEST-CREW-{stamp}"
+        code, payload, _ = _http(
+            f"{base}/api/tasks/create",
+            {"name": play_name, "month": "2026-10", "role": "manager", "actorId": "manager", "direction": "playables"},
+            cookie=lp_ck,
+        )
+        created = (payload or {}).get("task") or {}
+        play_id = str(created.get("id") or "")
+        check(
+            "LP creates Playables task",
+            code == 200 and play_id.startswith("t-") and created.get("studioStatus") == "new",
+            str(payload.get("error") or created),
+        )
+        code, payload, _ = _http(
+            f"{base}/api/tasks/update",
+            {
+                "id": play_id,
+                "role": "manager",
+                "actorId": "manager",
+                "studioStatus": "new",
+                "assigneeId": "artdir1",
+                "assigneeHours": 10,
+                "programmerId": "programmer1",
+                "programmerHours": 25,
+                "help": [],
+                "programmerHelp": [],
+            },
+            cookie=lp_ck,
+        )
+        saved = (payload or {}).get("task") or {}
+        check(
+            "LP save keeps AD, DEV, and crew hours",
+            code == 200
+            and saved.get("assigneeId") == "artdir1"
+            and saved.get("programmerId") == "programmer1"
+            and abs(float(saved.get("assigneeHours") or 0) - 10) < 0.05
+            and abs(float(saved.get("programmerHours") or 0) - 25) < 0.05
+            and abs(float(saved.get("producerHours") or 0) - 35) < 0.05,
+            str(payload.get("error") or {k: saved.get(k) for k in ("assigneeId", "assigneeHours", "programmerId", "programmerHours", "producerHours")}),
+        )
+        code, payload, _ = _http(f"{base}/api/me", cookie=lp_ck)
+        reopened = next(
+            (
+                t
+                for t in ((payload.get("state") or {}).get("tasks") or [])
+                if str(t.get("id") or "") == play_id
+            ),
+            None,
+        )
+        check(
+            "reopen keeps AD and DEV on the card",
+            bool(reopened)
+            and reopened.get("assigneeId") == "artdir1"
+            and reopened.get("programmerId") == "programmer1"
+            and abs(float(reopened.get("assigneeHours") or 0) - 10) < 0.05
+            and abs(float(reopened.get("programmerHours") or 0) - 25) < 0.05,
+            str({k: (reopened or {}).get(k) for k in ("assigneeId", "assigneeHours", "programmerId", "programmerHours")}),
+        )
+        _http(
+            f"{base}/api/tasks/delete",
+            {"id": play_id, "role": "manager", "actorId": "manager"},
+            cookie=lp_ck,
+        )
 
     code, payload, _ = _http(f"{base}/api/hours/file?month=2026-10")
     check("hours xlsx requires sign in", code == 401)

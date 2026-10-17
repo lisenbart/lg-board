@@ -30,7 +30,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-17z"
+BUILD = "2026-10-18a"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -2320,7 +2320,7 @@ class Handler(SimpleHTTPRequestHandler):
                         trial["assigneeId"] = data.get("assigneeId")
                     if "studioStatus" in data:
                         trial["studioStatus"] = data.get("studioStatus")
-                    if wanted and wanted != str(task.get("programmerId") or "") and not direction_io.playable_may_assign_dev(trial):
+                    if wanted and wanted != str(task.get("programmerId") or "") and not direction_io.playable_may_assign_dev(trial, role):
                         self._json(403, {"error": "Assign DEV after Art ready"})
                         return
                 if playable and nxt and nxt != task.get("studioStatus"):

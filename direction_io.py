@@ -177,8 +177,10 @@ def playable_in_html(task: dict | None) -> bool:
     return False
 
 
-def playable_may_assign_dev(task: dict | None) -> bool:
-    """DEV for build only after Art ready, or immediately if there is no AD."""
+def playable_may_assign_dev(task: dict | None, role: str | None = None) -> bool:
+    """LP/DL may seat DEV at any status. DEV work still waits for Art ready when AD is on the card."""
+    if role in {"manager", "finance"}:
+        return True
     task = task or {}
     st = playable_norm_status(task.get("studioStatus"))
     if not playable_has_ad(task):
