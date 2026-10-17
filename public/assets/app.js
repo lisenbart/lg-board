@@ -692,12 +692,7 @@ function hoursForPerson(t, personId) {
     if (p?.role === "manager") {
       const ph = roundHours(t?.producerHours);
       if (ph) return ph;
-      return roundHours(
-        roundHours(t?.assigneeHours) +
-          helpHoursTotal(t) +
-          roundHours(t?.programmerHours) +
-          roundHours(t?.motionHours)
-      );
+      return playableCrewTotal(t);
     }
     if (id === String(t?.programmerId || "")) return roundHours(t?.programmerHours);
     if (id === String(t?.motionId || "")) return roundHours(t?.motionHours);
@@ -732,7 +727,8 @@ function playableCrewTotal(t) {
   return roundHours(artH + adH + progH + devH + motionH);
 }
 function deskHours(t) {
-  if (isPlayables(t) && !isFinance()) {
+  if (isPlayables(t)) {
+    if (isPerformer()) return hoursForPerson(t, me().id);
     const crew = playableCrewTotal(t);
     if (crew) return crew;
   }
@@ -2168,10 +2164,7 @@ function bindDriveButtons() {
 function timeCell(t) {
   const hours = t.hours || hoursFromShifts(t.shifts || 0);
   if (isPlayables(t)) {
-    if (isFinance() && canEditTime()) {
-      return `<span class="time-edit">${deskNumInput("hours-in", t.id, t.hours, "Billed hours")}</span>`;
-    }
-    const shown = isFinance() ? hoursOf(t) : playableCrewTotal(t);
+    const shown = isPerformer() ? hoursForPerson(t, me().id) : playableCrewTotal(t);
     return shown ? `${shown}h` : `<span class="empty">—</span>`;
   }
   if (canEditTime()) {
@@ -2575,7 +2568,8 @@ function renderExcelSheet() {
     .sort((a, b) => String(a.line).localeCompare(String(b.line)) || String(a.name).localeCompare(String(b.name)));
   const hoursOfPerson = (personId) =>
     tasks.reduce((s, t) => s + hoursForPerson(t, personId), 0);
-  const allHours = tasks.reduce((s, t) => s + (Number(t.hours) || 0), 0);
+  const projectHours = (t) => (play ? playableCrewTotal(t) : Number(t.hours) || 0);
+  const allHours = tasks.reduce((s, t) => s + projectHours(t), 0);
   const allShifts = tasks.reduce((s, t) => s + (Number(t.shifts) || 0), 0);
   const nameHeads = people.map((p) => `<th class="xl-person">${escapeHtml(p.name)}</th>`).join("");
   const usedSeats = {};
@@ -2595,7 +2589,7 @@ function renderExcelSheet() {
       .join("");
     const mark = statusMark(t);
     const meta = play
-      ? `<td class="xl-num">${fmtHours(t.hours)}</td>`
+      ? `<td class="xl-num">${fmtHours(projectHours(t))}</td>`
       : `<td class="xl-num">${t.shifts ?? ""}</td>
       <td class="xl-num">${fmtHours(t.hours)}</td>
       <td class="xl-num">${escapeHtml(excelDate(t.deadline))}</td>`;

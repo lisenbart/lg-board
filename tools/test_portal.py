@@ -633,9 +633,14 @@ def test_playables_desk() -> None:
             'class="play-owner-pick"' in js and "function takePlayableOwner" in js and "function deskHours" in js,
         )
         check(
-            "pipeline Time uses crew hours for LP",
+            "pipeline Time uses crew hours, not billed",
             "playableCrewTotal(t)" in js.split("function timeCell")[1].split("function statusRank")[0]
-            and "Billed hours" in js.split("function timeCell")[1].split("function statusRank")[0],
+            and "Billed hours" not in js.split("function timeCell")[1].split("function statusRank")[0]
+            and "hoursForPerson(t, me().id)" in js.split("function timeCell")[1].split("function statusRank")[0],
+        )
+        check(
+            "Playables Excel HOURS is crew total",
+            "play ? playableCrewTotal(t)" in js.split("function renderExcelSheet")[1].split("function statusMark")[0],
         )
         check("playable AD is never the programmer", "function playableAdId" in js and "if (id === String(t?.programmerId || \"\")) return \"\"" in js)
         check("playable hoursOwned is assigneeHours", "if (isPlayables(t)) return roundHours(t?.assigneeHours)" in js)
@@ -684,7 +689,7 @@ def test_playables_desk() -> None:
         check("hours final numbers are darker", ".sp-dir-total td.sp-hours" in css and "background: var(--sp-total-sum)" in css)
         check("hours Excel classifies by name prefix", "def hours_direction" in (ROOT / "excel_io.py").read_text(encoding="utf-8"))
         check("pipeline hours cell is 5.5ch", ".hours-in {" in css and "5.5ch" in css)
-        check("pipeline hours input takes a comma", 'deskNumInput("hours-in"' in js and 'type="text"' in js and "fmtDeskNum" in js)
+        check("pipeline hours input takes a comma", 'deskNumInput("shift-in"' in js and 'type="text"' in js and "fmtDeskNum" in js)
         check("pipeline hours has step arrows", "num-step-up" in js and "num-step-down" in css)
         check("hours arrows save on pointerup not mousedown", "pointerup" in js and "pointerdown" in js and 'bindNumStep(el, commit, 1)' in js)
         check(
