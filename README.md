@@ -34,7 +34,7 @@ Then:
 - **Designer** — only their queue, plus a read-only Excel picture of the month. Сергій sits Playables as well as MGX.
 - **Art Director / Programmer** — Playables queue only. Two ADs on one playable is a split: primary AD is required. DEV pastes the HTML link, then HTML ready.
 - **Line producer / Finance** — both boards. **Create task** sits left of **Shift email** (Playables: **Hours list**). Only LP talks to the client. Playables Send works on Storyboard (External Weekly `DS-P-…`) and on HTML ready.
-- **Client (SuperPlay)** — **Hours**: PROJECT NAME / SHIFTS / HOURS, sections MGX DX/DD and Playable DX/DD/DS, TOTAL. Same list the invoices are based on. A green **Download Excel** under the table builds a fresh file at click time (no studio people or rates), stamped with the viewer’s local date, time, and city. No studio queue, no money.
+- **Client (SuperPlay)** — **Hours**: PROJECT NAME / SHIFTS / HOURS, sections MGX DX/DD and Playable DX/DD/DS, with a separate **MGX TOTAL** and **Playable TOTAL**. A green **Download Excel** under the table builds a fresh file at click time (no studio people or rates), stamped with the viewer’s local date, time, and city. No studio queue, no money.
 
 Studio no longer uses a shared team mailbox. The name on the door is the seat.
 

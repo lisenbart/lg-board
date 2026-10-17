@@ -1076,9 +1076,6 @@ def client_hours_bytes(db: dict, ym: str, *, generated_at: datetime | None = Non
         cell.alignment = CENTER
 
     row = 3
-    meta = db.get("meta") or {}
-    mgx_rate = _as_float(meta.get("clientRateUsd"), 35) or 35
-    play_rate = _as_float(meta.get("playableClientRateUsd"), 40) or 40
 
     def write_dir_total(label: str, hours: float) -> None:
         nonlocal row
@@ -1092,9 +1089,9 @@ def client_hours_bytes(db: dict, ym: str, *, generated_at: datetime | None = Non
         ws.cell(row, 3).alignment = CENTER
         row += 1
 
-    grouped = (("MGX", "MGX TOTAL", mgx_rate), ("Playable", "Playable TOTAL", play_rate))
+    grouped = (("MGX", "MGX TOTAL"), ("Playable", "Playable TOTAL"))
     wrote = 0
-    for prefix, total_label, rate in grouped:
+    for prefix, total_label in grouped:
         block = [(label, line, rows) for label, line, rows in sections if str(label).startswith(prefix + " ")]
         if not block:
             continue
@@ -1125,7 +1122,7 @@ def client_hours_bytes(db: dict, ym: str, *, generated_at: datetime | None = Non
                 ws.cell(row, 2).alignment = CENTER
                 ws.cell(row, 3).alignment = CENTER
                 row += 1
-        write_dir_total(f"{total_label} · ${rate:g}/h", dir_hours)
+        write_dir_total(total_label, dir_hours)
         wrote += 1
     ws.column_dimensions["A"].width = 72
     ws.column_dimensions["B"].width = 12

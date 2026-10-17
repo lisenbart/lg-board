@@ -1093,19 +1093,9 @@ function setMonth(ym) {
 
 function roleLine() {
   const p = me();
+  if (!p || p.role === "client") return "";
   const b = jobMeta(p);
-  if (p.role === "designer") return `${b.code} ${b.title} · your queue · paste the result, then Done`;
-  if (p.role === "art_director") return `${b.code} ${b.title} · storyboard → final art → Build`;
-  if (p.role === "programmer") return `${b.code} ${b.title} · Build → paste HTML, then HTML ready`;
-  if (p.role === "teamlead") return `${b.code} ${b.title} · assign people · your own tasks like MD`;
-  if (p.role === "manager") {
-    return state.direction === "playables"
-      ? `${b.code} ${b.title} · billed hours · Send storyboard, then HTML`
-      : `${b.code} ${b.title} · hours · Send to client after Done`;
-  }
-  if (p.role === "finance") return `${b.code} ${b.title} · studio money · MGX and Playables on one tab`;
-  if (p.role === "client") return `Hours this month · MGX and Playables · the list invoices are based on`;
-  return "";
+  return [b.code, b.title].filter(Boolean).join(" ");
 }
 
 function renderChrome() {
@@ -2262,11 +2252,6 @@ async function downloadHoursXlsx() {
   }
 }
 
-function clientRateUsd(dir) {
-  const meta = state.db?.meta || {};
-  if (dir === "playables") return Number(meta.playableClientRateUsd) || 40;
-  return Number(meta.clientRateUsd) || 35;
-}
 function reportSections(tasks) {
   const sections = [];
   for (const dir of ["mgx", "playables"]) {
@@ -2296,7 +2281,7 @@ function reportDirBlock(sections, dir) {
   const rows = sections.filter((sec) => sec.dir === dir);
   const hours = rows.reduce((s, sec) => s + sec.hours, 0);
   const shifts = rows.reduce((s, sec) => s + sec.shifts, 0);
-  return { rows, hours, shifts, rate: clientRateUsd(dir) };
+  return { rows, hours, shifts };
 }
 
 function renderClientReport() {
@@ -2340,7 +2325,7 @@ function renderClientReport() {
   const dirTotalRow = (label, block, playable) =>
     block.rows.length
       ? `<tr class="sp-dir-total${playable ? " sp-dir-play" : ""}">
-            <td class="sp-name">${escapeHtml(label)} · $${block.rate}/h</td>
+            <td class="sp-name">${escapeHtml(label)}</td>
             <td class="sp-num">${fmtReportNum(block.shifts, 1)}</td>
             <td class="sp-num">${fmtReportNum(block.hours, 1)}</td>
             <td></td>
@@ -2355,20 +2340,16 @@ function renderClientReport() {
   ].join("");
   $("board").innerHTML = `
     <section class="sp-report">
-      <header class="sp-head">
-        <h2>Hours report</h2>
-        <p>Every task billed in ${escapeHtml(monthLabel(state.month))}. MGX is $${mgx.rate}/h, Playables are $${play.rate}/h — hours stay on separate totals. PROJECT NAME / SHIFTS / HOURS — the same list the invoices are based on.</p>
-      </header>
       <div class="sp-kpis">
         <div class="kpi"><b>${totalProjects}</b><span>projects</span></div>
         ${
           mgx.rows.length
-            ? `<div class="kpi"><b>${fmtReportNum(mgx.hours, 1)} h</b><span>MGX · $${mgx.rate}/h</span></div>`
+            ? `<div class="kpi"><b>${fmtReportNum(mgx.hours, 1)} h</b><span>MGX</span></div>`
             : ""
         }
         ${
           play.rows.length
-            ? `<div class="kpi"><b>${fmtReportNum(play.hours, 1)} h</b><span>Playable · $${play.rate}/h</span></div>`
+            ? `<div class="kpi"><b>${fmtReportNum(play.hours, 1)} h</b><span>Playable</span></div>`
             : ""
         }
         ${hoursStampKpi()}
@@ -3180,29 +3161,15 @@ function driveStrip() {
         `<a class="drive-link" href="${escapeHtml(href)}" target="_blank" rel="noreferrer">${escapeHtml(label)}</a>`
     )
     .join("");
-  const build = document.documentElement.dataset.build || "";
   const watch = state.db?.meta?.excelWatch || {};
-  const watchBits = [];
-  if (watch.parsed) {
-    const match = Number(watch.matched || 0);
-    watchBits.push(
-      match && match !== Number(watch.parsed)
-        ? `${match}/${watch.parsed} Excel rows on board`
-        : `${watch.parsed} Excel rows`
-    );
-  }
-  const last = (watch.lastNames || watch.fresh || []).filter(Boolean).slice(-1)[0];
-  if (last) watchBits.push(last);
-  if (watch.error) watchBits.push(String(watch.error));
-  else if (watch.fromDrive) watchBits.push("from Drive");
-  const status = d.connected
-    ? `Live disk${d.pulledAt ? ` · ${escapeHtml(String(d.pulledAt).replace("T", " ").replace("Z", ""))}` : ""}`
-    : "Live disk · Create task writes October DD / DX";
-  const extra = watchBits.length ? ` · ${watchBits.join(" · ")}` : "";
+  const bits = [];
+  if (d.pulledAt) bits.push(String(d.pulledAt).replace("T", " ").replace("Z", ""));
+  if (watch.error) bits.push(String(watch.error));
+  const status = bits.length ? `<p>${escapeHtml(bits.join(" · "))}</p>` : "";
   return `<div class="drive-strip">
     <div>
       <strong>Google Drive</strong>
-      <p>${escapeHtml(status)}${extra ? escapeHtml(extra) : ""}${build ? ` · desk ${escapeHtml(build)}` : ""}</p>
+      ${status}
       <div class="drive-links">${links}</div>
     </div>
     <div class="drive-actions">
@@ -4149,11 +4116,11 @@ function openTask(id) {
         <p class="status-hint" id="stHoursHint">${hoursFromShifts(t.shifts || 0)} h</p></div>
        <div class="ops-item"><label>Deadline</label>
         <input id="stDeadline" type="date" value="${parseDeadlineIso(t.deadline)}" />
-        <p class="status-hint">Same as Excel DEADLINE</p></div>`
+        </div>`
     : canEditTime() && play
       ? `<div class="ops-item"><label>Deadline</label>
         <input id="stDeadline" type="date" value="${parseDeadlineIso(t.deadline)}" />
-        <p class="status-hint">Same as Excel DEADLINE</p></div>`
+        </div>`
       : "";
   const whoBlock = `<section class="who-block">
       ${whoAssign}

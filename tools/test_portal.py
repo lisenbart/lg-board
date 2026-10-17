@@ -134,6 +134,11 @@ def test_client_hours_xlsx() -> None:
     )
     check("hours MGX TOTAL is 11.7", float(mgx_total) == 11.7, str(mgx_total))
     check("hours Playable TOTAL is 30", float(play_total) == 30, str(play_total))
+    check(
+        "hours totals omit rates",
+        all("$" not in n and "/h" not in n for n in col_a if "TOTAL" in n),
+        str([n for n in col_a if "TOTAL" in n]),
+    )
     check("hours sheet has no mixed TOTAL", "TOTAL" not in col_a)
     empl = any("EMPL" in str(ws.cell(2, c).value or "") for c in range(1, 8))
     check("hours sheet has no EMPL", not empl)
@@ -478,6 +483,15 @@ def test_playables_desk() -> None:
         css = (ROOT / "public" / "assets" / "board.css").read_text(encoding="utf-8")
         check("DS line is not Need Fixing burgundy", ".line-DS { background: #0d9488" in css and ".line-DS { background: #bb3354" not in css)
         check("client hours report splits MGX and Playable totals", "MGX TOTAL" in js and "Playable TOTAL" in js)
+        check("hours table totals omit rates", "MGX TOTAL · $" not in js and "Playable TOTAL · $" not in js)
+        check(
+            "chrome drops slogan copy",
+            "studio money" not in js
+            and "Create task writes" not in js
+            and "desk ${" not in js
+            and "on one tab" not in js
+            and "invoices are based on" not in js,
+        )
         with tempfile.TemporaryDirectory() as raw:
             path = Path(raw) / "pl.xlsx"
             shutil.copy(playables_io.XLSX_PATH, path)
