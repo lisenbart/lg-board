@@ -139,6 +139,11 @@ def test_client_hours_xlsx() -> None:
         all("$" not in n and "/h" not in n for n in col_a if "TOTAL" in n),
         str([n for n in col_a if "TOTAL" in n]),
     )
+    mgx_row = next(r for r in range(1, (ws.max_row or 1) + 1) if str(ws.cell(r, 1).value or "") == "MGX TOTAL")
+    play_row = next(r for r in range(1, (ws.max_row or 1) + 1) if str(ws.cell(r, 1).value or "") == "Playable TOTAL")
+    mgx_fill = str(getattr(ws.cell(mgx_row, 3).fill.fgColor, "rgb", "") or "")
+    check("hours MGX TOTAL is dark", mgx_fill.upper().endswith("111111"), mgx_fill)
+    check("hours blocks are separate", play_row - mgx_row >= 3, f"{mgx_row} → {play_row}")
     check("hours sheet has no mixed TOTAL", "TOTAL" not in col_a)
     empl = any("EMPL" in str(ws.cell(2, c).value or "") for c in range(1, 8))
     check("hours sheet has no EMPL", not empl)
@@ -484,6 +489,9 @@ def test_playables_desk() -> None:
         check("DS line is not Need Fixing burgundy", ".line-DS { background: #0d9488" in css and ".line-DS { background: #bb3354" not in css)
         check("client hours report splits MGX and Playable totals", "MGX TOTAL" in js and "Playable TOTAL" in js)
         check("hours table totals omit rates", "MGX TOTAL · $" not in js and "Playable TOTAL · $" not in js)
+        check("hours report is two direction sheets", "sp-sheet-${kind}" in js and 'sheetHtml("mgx"' in js and 'sheetHtml("play"' in js)
+        check("hours KPIs filter a direction", 'data-hours-dir="' in js and "state.hoursDir" in js)
+        check("hours totals use black cells", ".sp-dir-total td {" in css and "background: #111" in css)
         check(
             "chrome drops slogan copy",
             "studio money" not in js

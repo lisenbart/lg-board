@@ -111,6 +111,7 @@ const state = {
   selected: new Set(),
   openId: null,
   designerFilter: null,
+  hoursDir: null,
   month: "2026-10",
   teamDrafts: {},
   session: null,
@@ -1087,6 +1088,7 @@ function setMonth(ym) {
   state.month = ym;
   state.selected.clear();
   state.designerFilter = null;
+  state.hoursDir = null;
   localStorage.setItem(MONTH_KEY, ym);
   render();
 }
@@ -2284,6 +2286,12 @@ function reportDirBlock(sections, dir) {
   return { rows, hours, shifts };
 }
 
+function hoursKpiHtml(value, label, dir) {
+  const on = dir ? state.hoursDir === dir : !state.hoursDir;
+  const key = dir || "";
+  return `<button type="button" class="kpi${on ? " on" : ""}" data-hours-dir="${escapeHtml(key)}" aria-pressed="${on ? "true" : "false"}"><b>${value}</b><span>${escapeHtml(label)}</span></button>`;
+}
+
 function renderClientReport() {
   const q = searchQuery();
   const all = monthTasks({ all: true });
@@ -2303,6 +2311,10 @@ function renderClientReport() {
   const sections = reportSections(tasks);
   const mgx = reportDirBlock(sections, "mgx");
   const play = reportDirBlock(sections, "playables");
+  if (state.hoursDir === "mgx" && !mgx.rows.length) state.hoursDir = null;
+  if (state.hoursDir === "playables" && !play.rows.length) state.hoursDir = null;
+  const showMgx = (!state.hoursDir || state.hoursDir === "mgx") && mgx.rows.length;
+  const showPlay = (!state.hoursDir || state.hoursDir === "playables") && play.rows.length;
   const totalProjects = sections.reduce((s, sec) => s + sec.rows.length, 0);
   const sectionHtml = (sec) => {
     const rows = sec.rows
@@ -2322,39 +2334,15 @@ function renderClientReport() {
           <th class="sp-num">${fmtReportNum(sec.hours, 1)}</th>
         </tr>${rows}`;
   };
-  const dirTotalRow = (label, block, playable) =>
-    block.rows.length
-      ? `<tr class="sp-dir-total${playable ? " sp-dir-play" : ""}">
+  const dirTotalRow = (label, block) =>
+    `<tr class="sp-dir-total">
             <td class="sp-name">${escapeHtml(label)}</td>
             <td class="sp-num">${fmtReportNum(block.shifts, 1)}</td>
-            <td class="sp-num">${fmtReportNum(block.hours, 1)}</td>
-            <td></td>
-          </tr>`
-      : "";
-  const body = [
-    ...mgx.rows.map(sectionHtml),
-    dirTotalRow("MGX TOTAL", mgx, false),
-    mgx.rows.length && play.rows.length ? `<tr class="sp-gap"><td colspan="4"></td></tr>` : "",
-    ...play.rows.map(sectionHtml),
-    dirTotalRow("Playable TOTAL", play, true),
-  ].join("");
-  $("board").innerHTML = `
-    <section class="sp-report">
-      <div class="sp-kpis">
-        <div class="kpi"><b>${totalProjects}</b><span>projects</span></div>
-        ${
-          mgx.rows.length
-            ? `<div class="kpi"><b>${fmtReportNum(mgx.hours, 1)} h</b><span>MGX</span></div>`
-            : ""
-        }
-        ${
-          play.rows.length
-            ? `<div class="kpi"><b>${fmtReportNum(play.hours, 1)} h</b><span>Playable</span></div>`
-            : ""
-        }
-        ${hoursStampKpi()}
-      </div>
-      <div class="sp-sheet">
+            <td class="sp-num sp-hours">${fmtReportNum(block.hours, 1)}</td>
+            <td class="sp-num sp-hours">${fmtReportNum(block.hours, 1)}</td>
+          </tr>`;
+  const sheetHtml = (kind, label, block) =>
+    `<div class="sp-sheet sp-sheet-${kind}">
         <div class="sp-scroll">
           <table class="sp-table">
             <thead>
@@ -2365,14 +2353,39 @@ function renderClientReport() {
                 <th class="sp-sum-h"></th>
               </tr>
             </thead>
-            <tbody>${body}</tbody>
+            <tbody>
+              ${block.rows.map(sectionHtml).join("")}
+              ${dirTotalRow(label, block)}
+            </tbody>
           </table>
         </div>
+      </div>`;
+  const sheets = [
+    showMgx ? sheetHtml("mgx", "MGX TOTAL", mgx) : "",
+    showPlay ? sheetHtml("play", "Playable TOTAL", play) : "",
+  ]
+    .filter(Boolean)
+    .join("");
+  $("board").innerHTML = `
+    <section class="sp-report">
+      <div class="sp-kpis">
+        ${hoursKpiHtml(totalProjects, "projects")}
+        ${mgx.rows.length ? hoursKpiHtml(`${fmtReportNum(mgx.hours, 1)} h`, "MGX", "mgx") : ""}
+        ${play.rows.length ? hoursKpiHtml(`${fmtReportNum(play.hours, 1)} h`, "Playable", "playables") : ""}
+        ${hoursStampKpi()}
       </div>
+      <div class="sp-blocks">${sheets}</div>
       <div class="sp-download">
         <button type="button" class="btn green" id="btnHoursXlsx">Download Excel</button>
       </div>
     </section>`;
+  $("board").querySelectorAll("[data-hours-dir]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const next = btn.dataset.hoursDir || "";
+      state.hoursDir = !next || state.hoursDir === next ? null : next;
+      render();
+    });
+  });
   startHoursStamp();
   bindHoursDownload();
 }
@@ -4977,6 +4990,7 @@ $("who").addEventListener("change", (e) => {
   state.roleId = e.target.value;
   state.selected.clear();
   state.designerFilter = null;
+  state.hoursDir = null;
   state.view = next?.role === "finance" ? "close" : next?.role === "client" ? "report" : "board";
   setInboxOpen(false);
   if (state.session) writeSession({ ...state.session, seatId: e.target.value });
@@ -5034,6 +5048,7 @@ $("signOut").addEventListener("click", () => {
   state.view = "board";
   state.selected.clear();
   state.designerFilter = null;
+  state.hoursDir = null;
   state.openId = null;
   $("drawerBg").classList.remove("show");
   if (isHoursPage()) {

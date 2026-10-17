@@ -34,6 +34,8 @@ THIN = Border(
 )
 CALIBRI = Font(name="Calibri", size=11)
 CALIBRI_BOLD = Font(name="Calibri", size=11, bold=True)
+CALIBRI_TOTAL = Font(name="Calibri", size=12, bold=True, color="FFFFFF")
+TOTAL_FILL = PatternFill("solid", fgColor="111111")
 CENTER = Alignment(horizontal="center", vertical="center")
 
 LINE_FILL = {"DX": DX_FILL, "DD": DD_FILL, "DS": DS_FILL}
@@ -1083,8 +1085,8 @@ def client_hours_bytes(db: dict, ym: str, *, generated_at: datetime | None = Non
         ws.cell(row, 3, round(hours, 1))
         for col in range(1, 4):
             cell = ws.cell(row, col)
-            cell.font = CALIBRI_BOLD
-            cell.fill = HEADER_FILL
+            cell.font = CALIBRI_TOTAL
+            cell.fill = TOTAL_FILL
             cell.border = THIN
         ws.cell(row, 3).alignment = CENTER
         row += 1
@@ -1096,7 +1098,7 @@ def client_hours_bytes(db: dict, ym: str, *, generated_at: datetime | None = Non
         if not block:
             continue
         if wrote:
-            row += 1
+            row += 2
         dir_hours = 0.0
         for label, line, rows in block:
             rows = sorted(rows, key=lambda t: str(t.get("name") or "").lower())

@@ -1479,12 +1479,19 @@ body.col-resizing * { cursor: col-resize !important; }
 .sp-kpis .sp-stamp { min-width: 132px; }
 .sp-download { padding: 4px 0 8px; }
 .sp-download .btn { padding: 8px 16px; }
+.sp-blocks {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
 .sp-sheet {
   background: #fff;
   border: 1px solid #d0d4e4;
   overflow: hidden;
 }
-.sp-scroll { overflow: auto; max-height: calc(100vh - 280px); }
+.sp-sheet-mgx { border-left: 4px solid #2563eb; }
+.sp-sheet-play { border-left: 4px solid #0d9488; }
+.sp-scroll { overflow: auto; }
 .sp-table {
   border-collapse: collapse;
   width: max-content;
@@ -1527,7 +1534,12 @@ body.col-resizing * { cursor: col-resize !important; }
   font-weight: 600;
   text-align: center;
 }
-.sp-sec th.sp-num { font-weight: 700; background: #fff; }
+.sp-sec th.sp-num {
+  font-weight: 700;
+  background: #111;
+  color: #fff;
+  border-color: #111;
+}
 .sp-row td.sp-name { background: #fff; }
 .sp-gap td { background: #d8d8d8; height: 10px; padding: 0; border-color: #d8d8d8; }
 .sp-total td {
@@ -1536,12 +1548,17 @@ body.col-resizing * { cursor: col-resize !important; }
   background: #fff;
 }
 .sp-dir-total td {
-  font-weight: 600;
+  background: #111;
+  color: #fff;
+  font-weight: 700;
   text-align: center;
-  background: #eef2ff;
+  border-color: #111;
 }
-.sp-dir-total.sp-dir-play td { background: #ecfdf8; }
 .sp-dir-total td.sp-name { text-align: left; }
+.sp-dir-total td.sp-hours {
+  font-size: 16px;
+  letter-spacing: -0.02em;
+}
 .sp-empty {
   padding: 28px 16px;
   color: var(--muted);
