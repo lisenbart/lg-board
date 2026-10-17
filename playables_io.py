@@ -337,8 +337,8 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
                 task["studioStatus"] = "closed"
                 task["mondayStatus"] = "Closed"
             elif excel_status == "wip" and current in {"", "new"}:
-                task["studioStatus"] = "wip"
-                task["mondayStatus"] = "WIP"
+                task["studioStatus"] = "new"
+                task["mondayStatus"] = "Ready"
             after = (
                 task.get("hours"),
                 task.get("assigneeId"),
@@ -374,8 +374,8 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
                 "deadline": "",
                 "month": ym,
                 "excelStatus": excel_status,
-                "studioStatus": "closed" if excel_status == "closed" else ("wip" if excel_status == "wip" else "new"),
-                "mondayStatus": "Closed" if excel_status == "closed" else ("WIP" if excel_status == "wip" else "Ready"),
+                "studioStatus": "closed" if excel_status == "closed" else "new",
+                "mondayStatus": "Closed" if excel_status == "closed" else "Ready",
                 "assigneeId": excel_ad,
                 "help": help_rows,
                 "brief": "",

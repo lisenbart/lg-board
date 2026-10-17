@@ -32,7 +32,7 @@ Then:
 
 - **Team lead** — MGX: own work plus every designer. Assigns people. No Monday send, no Finance.
 - **Designer** — only their queue, plus a read-only Excel picture of the month. Сергій sits Playables as well as MGX.
-- **Art Director / Programmer** — Playables queue only. Two ADs on one playable is a split: primary AD is required. DEV pastes the HTML link, then HTML ready.
+- **Art Director / Programmer** — Playables queue only. The card shows the next step only: AD Ready→Storyboard, Client art→Final art or bounce Storyboard, Final art→Build; DEV Build→HTML ready (or immediately if there is no AD). DEV pastes the HTML link, then HTML ready. LP Send and Closed stay footer buttons. MD on Playables has hours, not status.
 - **Line producer / Finance** — both boards. **Create task** sits left of **Shift email** (Playables: **Hours list**). Only LP talks to the client. Playables Send works on Storyboard (External Weekly `DS-P-…`) and on HTML ready.
 - **Client (SuperPlay)** — **Hours**: MGX and Playable sit in two separate tables with the same three number columns. Tap the MGX or Playable hours KPI to show only that table (tap again, or **projects**, to show both). Fills are a pastel tone ladder — header light, section a step darker, totals darker still, final hours the darkest. A green **Download Excel** under the tables builds a fresh file at click time (no studio people or rates), stamped with the viewer’s local date, time, and city. `DS-P-` / `DD-P-` / `DX-P-` rows stay in the Playable block even if department is missing. No studio queue, no money.
 

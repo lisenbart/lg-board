@@ -30,7 +30,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-17v"
+BUILD = "2026-10-17w"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -801,8 +801,8 @@ STATUS_BY_ROLE = {
     "teamlead": {"wip", "tlcheck", "done"},
     "manager": {"revision", "closed"},
     "finance": {"revision", "closed"},
-    "art_director": {"new", "storyboard", "finalart", "build"},
-    "programmer": {"build", "htmlready"},
+    "art_director": set(),
+    "programmer": set(),
     "client": set(),
 }
 
@@ -2284,27 +2284,43 @@ class Handler(SimpleHTTPRequestHandler):
                     self._json(403, {"error": "client cannot edit tasks"})
                     return
                 if role in {"designer", "art_director", "programmer"}:
-                    mine = actor in {
-                        str(task.get("assigneeId") or ""),
-                        str(task.get("programmerId") or ""),
-                        str(task.get("motionId") or ""),
-                    } or any(str((row or {}).get("id") or "") == actor for row in (task.get("help") or []))
+                    mine = (
+                        direction_io.on_playable_seat(task, actor)
+                        if playable
+                        else actor
+                        in {
+                            str(task.get("assigneeId") or ""),
+                            str(task.get("motionId") or ""),
+                        }
+                        or any(str((row or {}).get("id") or "") == actor for row in (task.get("help") or []))
+                    )
                     if not mine:
                         self._json(403, {"error": "you can only edit your own tasks"})
                         return
                     for locked in ("brief", "folderUrl", "docUrl", "assigneeId", "name", "programmerId"):
                         data.pop(locked, None)
-                if (
+                if playable:
+                    for field in ("assigneeId", "programmerId"):
+                        if field in data and str(data.get(field) or "") != str(task.get(field) or ""):
+                            if role not in {"manager", "finance"}:
+                                self._json(403, {"error": "only LP can assign Playables AD / DEV"})
+                                return
+                elif (
                     "assigneeId" in data
                     and str(data.get("assigneeId") or "") != str(task.get("assigneeId") or "")
                     and role not in {"teamlead", "manager", "finance"}
                 ):
                     self._json(403, {"error": "only TL or LP can assign"})
                     return
-                if nxt == "approve" and nxt != task.get("studioStatus"):
+                if playable and nxt and nxt != task.get("studioStatus"):
+                    ok, err = direction_io.playable_can_set(role, task, nxt, actor_id=actor)
+                    if not ok:
+                        self._json(403, {"error": err})
+                        return
+                elif nxt == "approve" and nxt != task.get("studioStatus"):
                     self._json(403, {"error": "Send / Senior Approval is set only when you Send to client"})
                     return
-                if (
+                elif (
                     nxt
                     and nxt != task.get("studioStatus")
                     and role in allowed

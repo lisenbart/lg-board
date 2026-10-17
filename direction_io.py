@@ -37,12 +37,12 @@ PLAY_STATUS = {
 }
 
 PLAY_STATUS_BY_ROLE = {
-    "art_director": {"new", "storyboard", "finalart", "build"},
+    "art_director": {"storyboard", "finalart", "build"},
     "programmer": {"build", "htmlready"},
-    "designer": {"storyboard", "finalart"},
-    "teamlead": {"storyboard", "finalart", "build"},
-    "manager": {"storyboard", "clientart", "closed"},
-    "finance": {"storyboard", "clientart", "closed"},
+    "designer": set(),
+    "teamlead": set(),
+    "manager": {"storyboard", "finalart", "build", "closed"},
+    "finance": {"storyboard", "finalart", "build", "closed"},
     "client": set(),
 }
 
@@ -121,6 +121,98 @@ def of_task(task: dict | None) -> str:
 
 def is_playables(task: dict | None) -> bool:
     return of_task(task) == PLAYABLES
+
+
+PLAY_STATUS_KEYS = set(PLAY_STATUS)
+_MGX_ON_PLAYABLE = {
+    "wip": "new",
+    "revision": "new",
+    "tlcheck": "build",
+    "done": "build",
+}
+
+
+def playable_norm_status(st) -> str:
+    """Map leftover MGX statuses so Playables cards stay on the HTML pipeline."""
+    key = str(st or "new")
+    if key in PLAY_STATUS:
+        return key
+    return _MGX_ON_PLAYABLE.get(key, "new")
+
+
+def playable_has_ad(task: dict | None) -> bool:
+    aid = str((task or {}).get("assigneeId") or "").strip()
+    pid = str((task or {}).get("programmerId") or "").strip()
+    return bool(aid and aid != pid)
+
+
+def on_playable_seat(task: dict | None, actor_id: str) -> bool:
+    actor = str(actor_id or "")
+    if not actor or not task:
+        return False
+    if actor in {
+        str(task.get("assigneeId") or ""),
+        str(task.get("programmerId") or ""),
+        str(task.get("motionId") or ""),
+    }:
+        return True
+    for key in ("help", "programmerHelp"):
+        for row in task.get(key) or []:
+            if str((row or {}).get("id") or "") == actor:
+                return True
+    return False
+
+
+def playable_next_statuses(role: str, task: dict | None) -> list[str]:
+    """Forward and bounce only. Send / Closed stay LP footer actions, not chips."""
+    task = task or {}
+    st = playable_norm_status(task.get("studioStatus"))
+    has_ad = playable_has_ad(task)
+    if role in {"manager", "finance"}:
+        if st == "clientart":
+            return ["storyboard"]
+        if st == "htmlready":
+            return ["build"]
+        if st == "approve":
+            return ["finalart", "build"]
+        return []
+    if role == "art_director":
+        return {
+            "new": ["storyboard"],
+            "clientart": ["finalart", "storyboard"],
+            "finalart": ["build"],
+            "build": ["finalart"],
+        }.get(st, [])
+    if role == "programmer":
+        if st == "htmlready":
+            return ["build"]
+        if st == "build":
+            return ["htmlready"]
+        if not has_ad and st in {"new", "storyboard", "clientart", "finalart"}:
+            return ["build", "htmlready"]
+        return []
+    return []
+
+
+def playable_can_set(role: str, task: dict | None, nxt: str, *, actor_id: str = "") -> tuple[bool, str]:
+    task = task or {}
+    cur = playable_norm_status(task.get("studioStatus"))
+    nxt = str(nxt or "")
+    if not nxt or nxt == cur:
+        return True, ""
+    if nxt == "approve":
+        return False, "Send is set only when you Send to client"
+    if nxt == "closed":
+        if role in {"manager", "finance"}:
+            return True, ""
+        return False, "Only LP can mark Closed"
+    if role == "art_director" and actor_id and str(task.get("assigneeId") or "") != str(actor_id):
+        return False, "Only the AD on the card sets art status"
+    if role == "programmer" and actor_id and str(task.get("programmerId") or "") != str(actor_id):
+        return False, "Only the DEV on the card sets HTML status"
+    if nxt not in playable_next_statuses(role, task):
+        return False, f"{role} cannot set {nxt}"
+    return True, ""
 
 
 def is_mgx(task: dict | None) -> bool:
@@ -297,5 +389,14 @@ def ensure_crew(db: dict) -> bool:
             dirty = True
     for spec in PLAYABLE_CREW:
         if _ensure_person(db, spec):
+            dirty = True
+    for task in db.get("tasks") or []:
+        if not is_playables(task):
+            continue
+        st = str(task.get("studioStatus") or "new")
+        nxt = playable_norm_status(st)
+        if nxt != st:
+            task["studioStatus"] = nxt
+            task["mondayStatus"] = PLAY_STATUS.get(nxt, task.get("mondayStatus"))
             dirty = True
     return dirty

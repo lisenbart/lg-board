@@ -542,8 +542,8 @@ def test_playables_desk() -> None:
             str({k: (dice or {}).get(k) for k in ("assigneeId", "assigneeHours", "help")}),
         )
         check(
-            "Playables blue theme fill is WIP",
-            bool(dice and dice.get("studioStatus") == "wip" and dice.get("excelStatus") == "wip"),
+            "Playables Excel WIP stays on the board as Ready",
+            bool(dice and dice.get("studioStatus") == "new" and dice.get("excelStatus") == "wip"),
             str({k: (dice or {}).get(k) for k in ("studioStatus", "excelStatus")}),
         )
         check(
@@ -661,6 +661,75 @@ def test_playables_desk() -> None:
             lp and float(lp.get("payUsdMgx") or 0) > 0 and float(lp.get("payUsdPlay") or 0) > 0,
             str({k: (lp or {}).get(k) for k in ("payUsdMgx", "payUsdPlay", "hoursMgx", "hoursPlay")}),
         )
+
+
+def test_playable_card_pipeline() -> None:
+    leftover = {"studioStatus": "wip", "assigneeId": "artdir1", "programmerId": "programmer1", "department": "Playables"}
+    check("Playables WIP leftover is Ready", direction_io.playable_norm_status("wip") == "new")
+    check(
+        "AD can Storyboard a leftover WIP card",
+        direction_io.playable_next_statuses("art_director", leftover) == ["storyboard"],
+    )
+    ad = {"studioStatus": "new", "assigneeId": "artdir1", "programmerId": "programmer1"}
+    check(
+        "AD Ready only offers Storyboard",
+        direction_io.playable_next_statuses("art_director", ad) == ["storyboard"],
+    )
+    check(
+        "AD cannot jump Ready to Build",
+        not direction_io.playable_can_set("art_director", ad, "build", actor_id="artdir1")[0],
+    )
+    ad["studioStatus"] = "storyboard"
+    check("AD waits on Storyboard for LP", direction_io.playable_next_statuses("art_director", ad) == [])
+    ad["studioStatus"] = "clientart"
+    check(
+        "AD Client art is Final art or bounce Storyboard",
+        direction_io.playable_next_statuses("art_director", ad) == ["finalart", "storyboard"],
+    )
+    ad["studioStatus"] = "finalart"
+    check("AD Final art offers Build", direction_io.playable_next_statuses("art_director", ad) == ["build"])
+    helper_ok, helper_err = direction_io.playable_can_set("art_director", ad, "build", actor_id="artdir2")
+    check("helper AD cannot set status", not helper_ok, helper_err)
+    dev_only = {"studioStatus": "new", "programmerId": "programmer1"}
+    check(
+        "DEV-only Ready offers Build and HTML ready",
+        direction_io.playable_next_statuses("programmer", dev_only) == ["build", "htmlready"],
+    )
+    check(
+        "DEV with AD waits until Build",
+        direction_io.playable_next_statuses("programmer", ad) == [],
+    )
+    ad["studioStatus"] = "build"
+    check(
+        "DEV on Build offers HTML ready",
+        direction_io.playable_next_statuses("programmer", ad) == ["htmlready"],
+    )
+    no_link = dict(ad)
+    ok_html, err_html = direction_io.playable_can_set("programmer", no_link, "htmlready", actor_id="programmer1")
+    check("DEV can pick HTML ready from Build", ok_html, err_html)
+    lp_send = {"studioStatus": "storyboard", "assigneeId": "artdir1"}
+    check("LP does not chip-set Send", not direction_io.playable_can_set("manager", lp_send, "approve")[0])
+    check("LP can Mark Closed from Storyboard", direction_io.playable_can_set("manager", lp_send, "closed")[0])
+    bounced = {"studioStatus": "approve", "assigneeId": "artdir1", "programmerId": "programmer1"}
+    check(
+        "LP bounce after Send is Final art or Build",
+        direction_io.playable_next_statuses("manager", bounced) == ["finalart", "build"],
+    )
+    check("MD has no Playables status", direction_io.playable_next_statuses("designer", ad) == [])
+    check("TL has no Playables status", direction_io.playable_next_statuses("teamlead", ad) == [])
+    split = {
+        "assigneeId": "artdir1",
+        "programmerId": "programmer1",
+        "programmerHelp": [{"id": "programmer2", "hours": 1}],
+    }
+    check("DEV split is on the playable seat", direction_io.on_playable_seat(split, "programmer2"))
+    js = (ROOT / "public" / "assets" / "app.js").read_text(encoding="utf-8")
+    check("card uses next-step Playables statuses", "function playableNextStatuses" in js and "function playableStatusActions" in js)
+    check("Playables assign is LP/DL", "function canAssignPlayable" in js and "play ? canAssignPlayable() : canAssign()" in js)
+    check("Playables guide names the pipeline", "Ready → Storyboard → Client art → Final art → Build → HTML ready → Send → Closed" in js)
+    check("AD owns Playables status copy", "AD owns status — you do not change it" in js)
+    check("DEV HTML paste is owner-only", "isProgrammer() && String(t.programmerId || \"\") === String(me().id)" in js)
+    check("designer Playables status set is empty", "designer: []" in js.split("const PLAY_STATUS_BY_ROLE")[1].split("const LINES")[0])
 
 
 def test_lp_can_close_without_send() -> None:
@@ -1102,6 +1171,7 @@ def main() -> int:
         test_sync_files_releases_lock,
         test_employeers_pay_details,
         test_playables_desk,
+        test_playable_card_pipeline,
         test_lp_can_close_without_send,
         test_finance_reads_board_not_xlsx,
     ):
