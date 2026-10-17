@@ -96,11 +96,19 @@ def _db() -> dict:
 
 def test_client_hours_xlsx() -> None:
     db = {
-        "meta": {"shiftHours": 9, "month": "2026-10"},
+        "meta": {"shiftHours": 9, "month": "2026-10", "clientRateUsd": 35, "playableClientRateUsd": 40},
         "tasks": [
             {"name": "DX-AAA-0001", "line": "DX", "month": "2026-10", "shifts": 0.3, "hours": 2.7},
             {"name": "DD-BBB-0002", "line": "DD", "month": "2026-10", "shifts": 1, "hours": 9},
             {"name": "DX-OLD", "line": "DX", "month": "2026-09", "shifts": 9, "hours": 81},
+            {
+                "name": "DS-P-060_MergeSolitaire",
+                "line": "DS",
+                "month": "2026-10",
+                "department": "Playables",
+                "shifts": 0,
+                "hours": 30,
+            },
         ],
     }
     at = datetime(2026, 10, 14, 18, 29, tzinfo=ZoneInfo("Europe/Kyiv"))
@@ -114,8 +122,19 @@ def test_client_hours_xlsx() -> None:
     check("hours stamp city follows tz", "Tel Aviv" in tel, tel)
     check("hours sheet skips other months", "DX-OLD" not in col_a)
     check("hours sheet has both lines", "DX-AAA-0001" in col_a and "DD-BBB-0002" in col_a)
-    total = next(ws.cell(r, 3).value for r in range(1, (ws.max_row or 1) + 1) if str(ws.cell(r, 1).value) == "TOTAL")
-    check("hours TOTAL is 11.7", float(total) == 11.7, str(total))
+    mgx_total = next(
+        ws.cell(r, 3).value
+        for r in range(1, (ws.max_row or 1) + 1)
+        if str(ws.cell(r, 1).value or "").startswith("MGX TOTAL")
+    )
+    play_total = next(
+        ws.cell(r, 3).value
+        for r in range(1, (ws.max_row or 1) + 1)
+        if str(ws.cell(r, 1).value or "").startswith("Playable TOTAL")
+    )
+    check("hours MGX TOTAL is 11.7", float(mgx_total) == 11.7, str(mgx_total))
+    check("hours Playable TOTAL is 30", float(play_total) == 30, str(play_total))
+    check("hours sheet has no mixed TOTAL", "TOTAL" not in col_a)
     empl = any("EMPL" in str(ws.cell(2, c).value or "") for c in range(1, 8))
     check("hours sheet has no EMPL", not empl)
     wb.close()
@@ -404,6 +423,7 @@ def test_playables_desk() -> None:
     names = [str(wb.active.cell(r, 1).value or "") for r in range(1, (wb.active.max_row or 1) + 1)]
     wb.close()
     check("hours xlsx has MGX and Playable sections", any(n.startswith("MGX ") for n in names) and any(n.startswith("Playable ") for n in names), str(names))
+    check("hours xlsx splits MGX and Playable totals", any(n.startswith("MGX TOTAL") for n in names) and any(n.startswith("Playable TOTAL") for n in names), str(names[-8:]))
     rows = server.parse_email("DS-P-061-001_Stickerpuzzle 26\nDX-AAA-0001 0.3 shift")
     play_row = next(r for r in rows if r["name"].startswith("DS-P-"))
     mgx_row = next(r for r in rows if r["name"].startswith("DX-"))
@@ -455,6 +475,9 @@ def test_playables_desk() -> None:
         check("DL view keeps producerHours", bool(dl_dice and dl_dice.get("producerHours")))
         js = (ROOT / "public" / "assets" / "app.js").read_text(encoding="utf-8")
         check("PLAYABLE HOURS card is finance only", "isFinance() ? playableHoursHtml" in js)
+        css = (ROOT / "public" / "assets" / "board.css").read_text(encoding="utf-8")
+        check("DS line is not Need Fixing burgundy", ".line-DS { background: #0d9488" in css and ".line-DS { background: #bb3354" not in css)
+        check("client hours report splits MGX and Playable totals", "MGX TOTAL" in js and "Playable TOTAL" in js)
         with tempfile.TemporaryDirectory() as raw:
             path = Path(raw) / "pl.xlsx"
             shutil.copy(playables_io.XLSX_PATH, path)
@@ -804,7 +827,11 @@ def test_http(base: str) -> str | None:
             names = [str(wb.active.cell(r, 1).value or "") for r in range(1, min(wb.active.max_row or 1, 40) + 1)]
             wb.close()
             check("hours xlsx stamp uses tz", "Kyiv" in stamp and stamp.startswith("Generated "), stamp)
-            check("hours xlsx has TOTAL", "TOTAL" in names, str(names[-3:]))
+            check(
+                "hours xlsx has direction totals",
+                any(n.startswith("MGX TOTAL") for n in names) or any(n.startswith("Playable TOTAL") for n in names),
+                str(names[-6:]),
+            )
 
         t0 = time.monotonic()
         code, payload, _ = _http(f"{base}/api/me", cookie=cookie.split(";", 1)[0], timeout=5)

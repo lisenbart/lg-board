@@ -100,7 +100,17 @@ LOCK_ROLE = {
     CLIENT_EMAIL: "client",
 }
 
-CLIENT_META = ("client", "board", "month", "shiftHours", "mode", "bufferDirty", "rev")
+CLIENT_META = (
+    "client",
+    "board",
+    "month",
+    "shiftHours",
+    "mode",
+    "bufferDirty",
+    "rev",
+    "clientRateUsd",
+    "playableClientRateUsd",
+)
 
 
 def utc_now() -> str:

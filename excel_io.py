@@ -1076,41 +1076,57 @@ def client_hours_bytes(db: dict, ym: str, *, generated_at: datetime | None = Non
         cell.alignment = CENTER
 
     row = 3
-    total_hours = 0.0
-    for label, line, rows in sections:
-        rows = sorted(rows, key=lambda t: str(t.get("name") or "").lower())
-        sec_hours = round(sum(client_hours(t, shift_hours) for t in rows), 1)
-        total_hours += sec_hours
+    meta = db.get("meta") or {}
+    mgx_rate = _as_float(meta.get("clientRateUsd"), 35) or 35
+    play_rate = _as_float(meta.get("playableClientRateUsd"), 40) or 40
+
+    def write_dir_total(label: str, hours: float) -> None:
+        nonlocal row
         ws.cell(row, 1, label)
-        ws.cell(row, 3, sec_hours)
+        ws.cell(row, 3, round(hours, 1))
         for col in range(1, 4):
             cell = ws.cell(row, col)
-            cell.fill = LINE_FILL.get(line, HEADER_FILL)
             cell.font = CALIBRI_BOLD
+            cell.fill = HEADER_FILL
             cell.border = THIN
         ws.cell(row, 3).alignment = CENTER
         row += 1
-        for task in rows:
-            ws.cell(row, 1, str(task.get("name") or ""))
-            ws.cell(row, 2, _as_float(task.get("shifts")))
-            ws.cell(row, 3, client_hours(task, shift_hours))
+
+    grouped = (("MGX", "MGX TOTAL", mgx_rate), ("Playable", "Playable TOTAL", play_rate))
+    wrote = 0
+    for prefix, total_label, rate in grouped:
+        block = [(label, line, rows) for label, line, rows in sections if str(label).startswith(prefix + " ")]
+        if not block:
+            continue
+        if wrote:
+            row += 1
+        dir_hours = 0.0
+        for label, line, rows in block:
+            rows = sorted(rows, key=lambda t: str(t.get("name") or "").lower())
+            sec_hours = round(sum(client_hours(t, shift_hours) for t in rows), 1)
+            dir_hours += sec_hours
+            ws.cell(row, 1, label)
+            ws.cell(row, 3, sec_hours)
             for col in range(1, 4):
                 cell = ws.cell(row, col)
-                cell.font = CALIBRI
+                cell.fill = LINE_FILL.get(line, HEADER_FILL)
+                cell.font = CALIBRI_BOLD
                 cell.border = THIN
-            ws.cell(row, 2).alignment = CENTER
             ws.cell(row, 3).alignment = CENTER
             row += 1
-
-    row += 1
-    ws.cell(row, 1, "TOTAL")
-    ws.cell(row, 3, round(total_hours, 1))
-    for col in range(1, 4):
-        cell = ws.cell(row, col)
-        cell.font = CALIBRI_BOLD
-        cell.fill = HEADER_FILL
-        cell.border = THIN
-    ws.cell(row, 3).alignment = CENTER
+            for task in rows:
+                ws.cell(row, 1, str(task.get("name") or ""))
+                ws.cell(row, 2, _as_float(task.get("shifts")))
+                ws.cell(row, 3, client_hours(task, shift_hours))
+                for col in range(1, 4):
+                    cell = ws.cell(row, col)
+                    cell.font = CALIBRI
+                    cell.border = THIN
+                ws.cell(row, 2).alignment = CENTER
+                ws.cell(row, 3).alignment = CENTER
+                row += 1
+        write_dir_total(f"{total_label} · ${rate:g}/h", dir_hours)
+        wrote += 1
     ws.column_dimensions["A"].width = 72
     ws.column_dimensions["B"].width = 12
     ws.column_dimensions["C"].width = 12

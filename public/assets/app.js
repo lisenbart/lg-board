@@ -2262,6 +2262,11 @@ async function downloadHoursXlsx() {
   }
 }
 
+function clientRateUsd(dir) {
+  const meta = state.db?.meta || {};
+  if (dir === "playables") return Number(meta.playableClientRateUsd) || 40;
+  return Number(meta.clientRateUsd) || 35;
+}
 function reportSections(tasks) {
   const sections = [];
   for (const dir of ["mgx", "playables"]) {
@@ -2276,6 +2281,7 @@ function reportSections(tasks) {
         .sort((a, b) => String(a.name).localeCompare(String(b.name)));
       if (!rows.length) continue;
       sections.push({
+        dir,
         line,
         label: `${prefix} ${line}`,
         rows,
@@ -2285,6 +2291,12 @@ function reportSections(tasks) {
     }
   }
   return sections;
+}
+function reportDirBlock(sections, dir) {
+  const rows = sections.filter((sec) => sec.dir === dir);
+  const hours = rows.reduce((s, sec) => s + sec.hours, 0);
+  const shifts = rows.reduce((s, sec) => s + sec.shifts, 0);
+  return { rows, hours, shifts, rate: clientRateUsd(dir) };
 }
 
 function renderClientReport() {
@@ -2304,39 +2316,61 @@ function renderClientReport() {
     return;
   }
   const sections = reportSections(tasks);
-  const totalHours = sections.reduce((s, sec) => s + sec.hours, 0);
-  const totalShifts = sections.reduce((s, sec) => s + sec.shifts, 0);
+  const mgx = reportDirBlock(sections, "mgx");
+  const play = reportDirBlock(sections, "playables");
   const totalProjects = sections.reduce((s, sec) => s + sec.rows.length, 0);
-  const body = sections
-    .map((sec) => {
-      const rows = sec.rows
-        .map(
-          (t) => `<tr class="sp-row">
+  const sectionHtml = (sec) => {
+    const rows = sec.rows
+      .map(
+        (t) => `<tr class="sp-row">
             <td class="sp-name" title="${escapeHtml(t.name)}">${escapeHtml(t.name)}</td>
             <td class="sp-num">${fmtReportNum(t.shifts, 3)}</td>
             <td class="sp-num">${fmtReportNum(hoursOf(t), 1)}</td>
             <td></td>
           </tr>`
-        )
-        .join("");
-      return `<tr class="sp-sec">
+      )
+      .join("");
+    return `<tr class="sp-sec">
           <th>${escapeHtml(sec.label)}</th>
           <th></th>
           <th></th>
           <th class="sp-num">${fmtReportNum(sec.hours, 1)}</th>
         </tr>${rows}`;
-    })
-    .join("");
+  };
+  const dirTotalRow = (label, block, playable) =>
+    block.rows.length
+      ? `<tr class="sp-dir-total${playable ? " sp-dir-play" : ""}">
+            <td class="sp-name">${escapeHtml(label)} · $${block.rate}/h</td>
+            <td class="sp-num">${fmtReportNum(block.shifts, 1)}</td>
+            <td class="sp-num">${fmtReportNum(block.hours, 1)}</td>
+            <td></td>
+          </tr>`
+      : "";
+  const body = [
+    ...mgx.rows.map(sectionHtml),
+    dirTotalRow("MGX TOTAL", mgx, false),
+    mgx.rows.length && play.rows.length ? `<tr class="sp-gap"><td colspan="4"></td></tr>` : "",
+    ...play.rows.map(sectionHtml),
+    dirTotalRow("Playable TOTAL", play, true),
+  ].join("");
   $("board").innerHTML = `
     <section class="sp-report">
       <header class="sp-head">
         <h2>Hours report</h2>
-        <p>Every task billed in ${escapeHtml(monthLabel(state.month))}. MGX and Playables on one list. PROJECT NAME / SHIFTS / HOURS — the same list the invoices are based on.</p>
+        <p>Every task billed in ${escapeHtml(monthLabel(state.month))}. MGX is $${mgx.rate}/h, Playables are $${play.rate}/h — hours stay on separate totals. PROJECT NAME / SHIFTS / HOURS — the same list the invoices are based on.</p>
       </header>
       <div class="sp-kpis">
         <div class="kpi"><b>${totalProjects}</b><span>projects</span></div>
-        <div class="kpi"><b>${fmtReportNum(totalShifts, 1)}</b><span>shifts</span></div>
-        <div class="kpi"><b>${fmtReportNum(totalHours, 1)} h</b><span>hours</span></div>
+        ${
+          mgx.rows.length
+            ? `<div class="kpi"><b>${fmtReportNum(mgx.hours, 1)} h</b><span>MGX · $${mgx.rate}/h</span></div>`
+            : ""
+        }
+        ${
+          play.rows.length
+            ? `<div class="kpi"><b>${fmtReportNum(play.hours, 1)} h</b><span>Playable · $${play.rate}/h</span></div>`
+            : ""
+        }
         ${hoursStampKpi()}
       </div>
       <div class="sp-sheet">
@@ -2351,15 +2385,6 @@ function renderClientReport() {
               </tr>
             </thead>
             <tbody>${body}</tbody>
-            <tfoot>
-              <tr class="sp-gap"><td colspan="4"></td></tr>
-              <tr class="sp-total">
-                <td>TOTAL</td>
-                <td></td>
-                <td class="sp-num">${fmtReportNum(totalHours, 1)}</td>
-                <td></td>
-              </tr>
-            </tfoot>
           </table>
         </div>
       </div>
