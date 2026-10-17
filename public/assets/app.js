@@ -592,6 +592,12 @@ function formatCard(raw) {
   const digits = String(raw || "").replace(/\D/g, "");
   return digits.replace(/(\d{4})(?=\d)/g, "$1 ").trim();
 }
+function normalizeCard(raw) {
+  return String(raw || "").replace(/\D/g, "");
+}
+function normalizeIban(raw) {
+  return String(raw || "").replace(/\s+/g, "").toUpperCase();
+}
 function hoursLabel(n) {
   return `${(Number(n) || 0).toFixed(1)} h`;
 }
@@ -2863,7 +2869,8 @@ function renderClose() {
   $("board").querySelectorAll(".fin-copy").forEach((btn) => {
     btn.addEventListener("click", async (e) => {
       e.preventDefault();
-      const ok = await copyText(btn.dataset.copy || "");
+      const copy = payCopyFromRow(btn.closest("tr"));
+      const ok = copy ? await copyText(copy.value) : false;
       toast(ok ? "Copied" : "Could not copy");
     });
   });
@@ -3020,24 +3027,42 @@ async function saveTaxPct(opts = {}) {
 }
 
 function payCopy(row) {
-  const card = String(row.person.bankCard || "").replace(/\D/g, "");
+  const card = normalizeCard(row.person.bankCard);
   if (card) return { label: formatCard(card), value: card, kind: "card" };
-  const iban = String(row.person.iban || "").replace(/\s/g, "");
+  const iban = normalizeIban(row.person.iban);
   if (iban) return { label: iban, value: iban, kind: "iban" };
   return null;
+}
+
+function payCopyFromRow(tr) {
+  if (!tr) return null;
+  const card = normalizeCard(tr.querySelector(".fin-card-input")?.value);
+  if (card) return { label: formatCard(card), value: card, kind: "card" };
+  const iban = normalizeIban(tr.querySelector(".fin-iban-input")?.value);
+  if (iban) return { label: iban, value: iban, kind: "iban" };
+  return null;
+}
+
+function refreshPayCopyButton(tr) {
+  const btn = tr?.querySelector(".fin-copy");
+  if (!btn) return;
+  const copy = payCopyFromRow(tr);
+  btn.disabled = !copy;
+  btn.textContent = copy ? `Copy ${copy.kind}` : "Copy";
 }
 
 function renderEmployees(fin) {
   const payRows = fin.payroll
     .map((row) => {
       const fallback = rolePayRate(row.person);
+      const card = normalizeCard(row.person.bankCard);
+      const iban = normalizeIban(row.person.iban);
       const copy = payCopy(row);
-      const payCell = copy
-        ? `<div class="fin-pay">
-            <code class="fin-pan">${escapeHtml(copy.label)}</code>
-            <button type="button" class="btn ghost fin-copy" data-copy="${escapeHtml(copy.value)}">Copy ${copy.kind}</button>
-          </div>`
-        : `<span class="empty">—</span>`;
+      const payCell = `<div class="fin-pay">
+            <input class="fin-pay-input fin-card-input" data-id="${row.person.id}" data-kind="card" value="${escapeHtml(card ? formatCard(card) : "")}" placeholder="Card" spellcheck="false" autocomplete="off" inputmode="numeric" />
+            <input class="fin-pay-input fin-iban-input" data-id="${row.person.id}" data-kind="iban" value="${escapeHtml(iban)}" placeholder="IBAN" spellcheck="false" autocomplete="off" />
+            <button type="button" class="btn ghost fin-copy"${copy ? "" : " disabled"}>${copy ? `Copy ${copy.kind}` : "Copy"}</button>
+          </div>`;
       const legal = String(row.person.legalName || "").trim();
       const title = jobMeta(row.person).title;
       const who = `<div class="fin-who">
@@ -3068,7 +3093,7 @@ function renderEmployees(fin) {
       </div>
       <div class="fin-scroll">
         <table class="fin-table">
-          <thead><tr><th>Person</th><th class="num">Hours</th><th class="num">$/h</th><th class="num">Hours × $/h</th><th class="num">UAH</th><th>Card</th></tr></thead>
+          <thead><tr><th>Person</th><th class="num">Hours</th><th class="num">$/h</th><th class="num">Hours × $/h</th><th class="num">UAH</th><th>Card / IBAN</th></tr></thead>
           <tbody>${payRows}${unRow}</tbody>
           <tfoot><tr><td>EMPL</td><td class="num" data-empl-hours></td><td></td><td class="num" data-empl-usd>${usd(fin.empl)}</td><td class="num" data-empl-uah>${uah(fin.emplUah)}</td><td></td></tr></tfoot>
         </table>
@@ -3111,6 +3136,19 @@ function bindEmployeePay() {
   root.querySelectorAll(".fin-person-rate").forEach((el) => {
     el.addEventListener("input", refreshEmployeePay);
     el.addEventListener("change", () => saveEmployeeRates({ silent: true }));
+  });
+  root.querySelectorAll(".fin-card-input, .fin-iban-input").forEach((el) => {
+    el.addEventListener("input", () => refreshPayCopyButton(el.closest("tr")));
+    el.addEventListener("change", () => saveEmployeeRates({ silent: true }));
+    el.addEventListener("blur", () => {
+      if (el.classList.contains("fin-card-input")) {
+        const digits = normalizeCard(el.value);
+        el.value = digits ? formatCard(digits) : "";
+      } else {
+        el.value = normalizeIban(el.value);
+      }
+      refreshPayCopyButton(el.closest("tr"));
+    });
   });
   $("finNbu")?.addEventListener("input", refreshEmployeePay);
   $("finNbu")?.addEventListener("change", () => saveNbuRate({ silent: true }));
@@ -3209,7 +3247,13 @@ async function saveEmployeeRates(opts = {}) {
       return;
     }
     const rate = parsed === null ? rolePayRate(p) : parsed;
-    people.push({ id: p.id, rateUsd: rate });
+    const row = el.closest("tr");
+    people.push({
+      id: p.id,
+      rateUsd: rate,
+      bankCard: normalizeCard(row?.querySelector(".fin-card-input")?.value),
+      iban: normalizeIban(row?.querySelector(".fin-iban-input")?.value),
+    });
   }
   if (!people.length) return;
   const out = await api("/api/people/update", { role: me().role, people });

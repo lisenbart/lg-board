@@ -192,6 +192,31 @@ def pay_people(db: dict) -> list[dict]:
     return empl_people(db)
 
 
+_STALE_BANK_CARDS = {
+    "432345037851582": "4323345037851582",
+}
+
+
+def normalize_bank_card(raw) -> str:
+    return re.sub(r"\D", "", str(raw or ""))
+
+
+def normalize_iban(raw) -> str:
+    return "".join(str(raw or "").split()).upper()
+
+
+def apply_bank_card_fixes(db: dict) -> bool:
+    """One-shot typo fixes so a later Employeers write does not undo a sheet edit."""
+    dirty = False
+    for person in db.get("people") or []:
+        raw = normalize_bank_card(person.get("bankCard"))
+        nxt = _STALE_BANK_CARDS.get(raw)
+        if nxt:
+            person["bankCard"] = nxt
+            dirty = True
+    return dirty
+
+
 def _pay_row(person: dict, meta: dict | None = None) -> dict:
     return {
         "id": person.get("id"),
@@ -900,8 +925,14 @@ def _write_employeers_sheet(wb, db: dict) -> None:
             mail = ""
         ws.cell(r, 4, mail or None)
         ws.cell(r, 5, person.get("bank") or None)
-        ws.cell(r, 6, person.get("bankCard") or None)
-        ws.cell(r, 7, person.get("iban") or None)
+        card = normalize_bank_card(person.get("bankCard"))
+        card_cell = ws.cell(r, 6, card or None)
+        if card:
+            card_cell.number_format = "@"
+        iban = normalize_iban(person.get("iban"))
+        iban_cell = ws.cell(r, 7, iban or None)
+        if iban:
+            iban_cell.number_format = "@"
         ws.cell(r, 8, person.get("taxId") or None)
 
 

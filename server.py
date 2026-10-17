@@ -28,7 +28,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-13s"
+BUILD = "2026-10-17a"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -139,6 +139,8 @@ def load_db() -> dict:
     if read_rev(db) < 1:
         dirty = True
     if drive_sync.apply_meta(db):
+        dirty = True
+    if finance_io.apply_bank_card_fixes(db):
         dirty = True
     if dirty:
         save_db(db)
@@ -2497,9 +2499,13 @@ class Handler(SimpleHTTPRequestHandler):
                         if err:
                             self._json(400, {"error": err})
                             return
-                    for key in ("legalName", "bank", "bankCard", "iban", "phone"):
+                    for key in ("legalName", "bank", "phone"):
                         if key in item and item.get(key) is not None:
                             person[key] = str(item.get(key) or "").strip()
+                    if "bankCard" in item and item.get("bankCard") is not None:
+                        person["bankCard"] = finance_io.normalize_bank_card(item.get("bankCard"))
+                    if "iban" in item and item.get("iban") is not None:
+                        person["iban"] = finance_io.normalize_iban(item.get("iban"))
                     updated.append(person)
                 if not updated and data.get("id"):
                     self._json(404, {"error": "not found"})

@@ -274,6 +274,41 @@ def test_save_db_atomic() -> None:
             server.DB_PATH = old
 
 
+def test_employeers_pay_details() -> None:
+    db = {
+        "people": [
+            {
+                "id": "designer5",
+                "name": "Олекса",
+                "role": "designer",
+                "payOrder": 6,
+                "jobTitle": "Motion design",
+                "legalName": "Злотко Олексій",
+                "bankCard": "4323 3450 3785 1582",
+                "iban": "ua94 3077 7000 0002 6208 7139 43056",
+                "rateUsd": 15,
+            }
+        ]
+    }
+    check("stale Oleksa card is rewritten", finance_io.apply_bank_card_fixes({"people": [{"bankCard": "432345037851582"}]}))
+    fixed = {"people": [{"bankCard": "432345037851582"}]}
+    finance_io.apply_bank_card_fixes(fixed)
+    check("stale Oleksa card becomes 16 digits", fixed["people"][0]["bankCard"] == "4323345037851582")
+    check("spaces stripped from card", finance_io.normalize_bank_card("4323 3450 3785 1582") == "4323345037851582")
+    check("iban compacted", finance_io.normalize_iban("ua94 3077700000026208713943056") == "UA943077700000026208713943056")
+    with tempfile.TemporaryDirectory() as raw:
+        path = Path(raw) / "calc.xlsx"
+        Workbook().save(path)
+        finance_io.write_employeers(db, path)
+        wb = load_workbook(path)
+        ws = wb["Employeers"]
+        cards = [ws.cell(r, 6).value for r in range(7, 16)]
+        ibans = [ws.cell(r, 7).value for r in range(7, 16)]
+        wb.close()
+        check("Employeers writes Oleksa card as text", "4323345037851582" in [str(v) for v in cards if v], str(cards))
+        check("Employeers writes Oleksa IBAN", "UA943077700000026208713943056" in [str(v) for v in ibans if v], str(ibans))
+
+
 def test_finance_reads_board_not_xlsx() -> None:
     called = {"n": 0}
     orig = excel_io.parse_workbook
@@ -542,6 +577,37 @@ def test_http(base: str) -> str | None:
             f"status={code} {dt:.3f}s err={payload.get('error') if isinstance(payload, dict) else payload}",
         )
 
+        ck = cookie.split(";", 1)[0]
+        with server.LOCK:
+            oleksa = next((p for p in (server.peek_db().get("people") or []) if p.get("id") == "designer5"), None)
+            before_card = (oleksa or {}).get("bankCard") or ""
+            before_iban = (oleksa or {}).get("iban") or ""
+        if oleksa:
+            code, payload, _ = _http(
+                f"{base}/api/people/update",
+                {
+                    "role": "finance",
+                    "people": [{"id": "designer5", "bankCard": "4323 3450 3785 1582", "iban": before_iban}],
+                },
+                cookie=ck,
+            )
+            saved = next((p for p in (payload.get("people") or []) if p.get("id") == "designer5"), None)
+            check(
+                "finance can edit bank card",
+                code == 200 and (saved or {}).get("bankCard") == "4323345037851582",
+                str(saved),
+            )
+            restore = {"people": [{"bankCard": before_card}]}
+            finance_io.apply_bank_card_fixes(restore)
+            _http(
+                f"{base}/api/people/update",
+                {
+                    "role": "finance",
+                    "people": [{"id": "designer5", "bankCard": restore["people"][0]["bankCard"], "iban": before_iban}],
+                },
+                cookie=ck,
+            )
+
         t0 = time.monotonic()
         code, payload, _ = _http(
             f"{base}/api/excel/save",
@@ -679,6 +745,7 @@ def main() -> int:
         test_save_db_atomic,
         test_unreadable_ingest_does_not_wipe,
         test_sync_files_releases_lock,
+        test_employeers_pay_details,
         test_finance_reads_board_not_xlsx,
     ):
         try:

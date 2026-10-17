@@ -47,7 +47,7 @@ Do **not** put this on glowl.direct. Live desk only: **https://board.lisenbart.g
 - **Finance** (Dmytro only) — two inner tabs, same idea as the Excel tab mirroring `SP_MGX_check.xlsx`:
   - **Client** — totals by direction (DD / DX, and DS if that line has hours), not per task. **Create DD / DX** clones the Superplay Word, exports PDF, and writes both into `LLC/docs/_clients/SUPERPLAY/invoice/MGX / 10_October` on Drive. **Open folder** opens that Drive month folder. ZIP download is gone.
   - **Studio** — the calculator block from the bottom-right of the month sheet: CLIENT IN → STUDIO (TAX) → EMPL → STUDIO. Tax % sits on the STUDIO (TAX) row (now 6%). Changing it rewrites `SUPERPLAY_MGX_Calculator.xlsx` so the TAX cell and formulas match. Studio take is STUDIO (TAX) minus people pay. Same hours as `SP_MGX_check`.
-  - **Employeers** — same split as the MGX calculator. Line Producer Анастасія Верлинська (LP) is $5 × every task hour this month. Team Lead Настя (TL) is a performer at $15/h on her tasks, not a second finance line. Motion design (MD) $15/h on assigned hours. UAH = USD × NBU. Tax and NBU writes update `SUPERPLAY_MGX_Calculator.xlsx` immediately.
+  - **Employeers** — same split as the MGX calculator. Line Producer Анастасія Верлинська (LP) is $5 × every task hour this month. Team Lead Настя (TL) is a performer at $15/h on her tasks, not a second finance line. Motion design (MD) $15/h on assigned hours. UAH = USD × NBU. Card / IBAN cells are editable and write back to the calculator sheet. Tax and NBU writes update `SUPERPLAY_MGX_Calculator.xlsx` immediately.
 - **Deadlines** share the Excel `DEADLINE` column (file is the source of truth). Pipeline shows a **Due** cell with the date and a short urgency bar (ok / soon / late). LP edits Due — that writes the xlsx. Closed tasks keep the date, no alarm.
 - **Disk is the core.** `data/SP_MGX_check.xlsx` holds hours, deadlines, and assignees. Portal writes (create / assign / hours / Due / delete) go into that sheet and then up to the live Drive file. A new Excel row is enough — no Create task click. Hours in the file still win on Refresh / watch. Invoices and Employeers pay are calculated from that sheet, not from a second set of numbers. Assign / tax / NBU also update `SUPERPLAY_MGX_Calculator.xlsx` for the same month.
 - **People identity.** Names can change; role / посада cannot. EMPL columns are bound to a stable person id (header comment `lg-id:…`). Rename updates the visible header on the same column — hours stay. Add a designer or team lead → a new EMPL column. Remove someone → the column stays empty so neighbouring hours do not shift. The calculator month sheet is rebuilt from the current crew (manager $5 on every hour, then performers).
@@ -74,7 +74,7 @@ python3 tools/test_portal.py
 
 ## Try it
 
-1. **Dmytro** — Finance → Client (Word invoices) and Employeers (UAH + copy card).
+1. **Dmytro** — Finance → Client (Word invoices) and Employeers (UAH, edit/copy card or IBAN).
 2. **Anastasiia** — full pipeline, no Finance tab.
 3. **lisenbart.games@gmail.com** → Team lead — assign a designer.
 4. Same mailbox → a designer — own queue, Excel is the month picture.
