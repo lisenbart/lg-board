@@ -497,7 +497,8 @@ def test_playables_desk() -> None:
         check("hours KPIs filter a direction", 'data-hours-dir="' in js and "state.hoursDir" in js)
         check("hours totals use WIP blue", ".sp-dir-total td {" in css and "background: var(--wip)" in css)
         check("pipeline hours cell is 4ch", ".hours-in {" in css and "4ch" in css)
-        check("pipeline hours input takes a comma", 'class="hours-in"' in js and 'type="text"' in js and "fmtDeskNum" in js)
+        check("pipeline hours input takes a comma", 'deskNumInput("hours-in"' in js and 'type="text"' in js and "fmtDeskNum" in js)
+        check("pipeline hours has step arrows", "num-step-up" in js and "num-step-down" in css)
         check(
             "chrome drops slogan copy",
             "studio money" not in js

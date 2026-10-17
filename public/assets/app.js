@@ -611,6 +611,20 @@ function fmtDeskNum(n) {
   if (!Number.isFinite(x)) return "";
   return String(x).replace(".", ",");
 }
+function deskNumInput(cls, id, value, title) {
+  return `<span class="num-step">
+      <input class="${cls}" data-id="${escapeHtml(id)}" type="text" inputmode="decimal" maxlength="4" lang="uk" value="${escapeHtml(fmtDeskNum(value))}" title="${escapeHtml(title)}" />
+      <span class="num-step-btns">
+        <button type="button" class="num-step-up" tabindex="-1" aria-label="Up">▴</button>
+        <button type="button" class="num-step-down" tabindex="-1" aria-label="Down">▾</button>
+      </span>
+    </span>`;
+}
+function stepDeskNum(el, dir) {
+  const n = parseShifts(el.value) ?? 0;
+  const next = Math.max(0, Math.round((n + dir * 0.1) * 10) / 10);
+  el.value = fmtDeskNum(next);
+}
 function hoursOf(t) {
   return Number(t.hours) || hoursFromShifts(t.shifts || 0) || 0;
 }
@@ -2004,15 +2018,13 @@ function timeCell(t) {
   const hours = t.hours || hoursFromShifts(t.shifts || 0);
   if (isPlayables(t)) {
     if (canEditTime()) {
-      return `<span class="time-edit">
-      <input class="hours-in" data-id="${t.id}" type="text" inputmode="decimal" maxlength="4" value="${escapeHtml(fmtDeskNum(t.hours))}" title="Billed hours" />
-    </span>`;
+      return `<span class="time-edit">${deskNumInput("hours-in", t.id, t.hours, "Billed hours")}</span>`;
     }
     return hours ? `${hours}h` : `<span class="empty">—</span>`;
   }
   if (canEditTime()) {
     return `<span class="time-edit">
-      <input class="shift-in" data-id="${t.id}" type="text" inputmode="decimal" maxlength="4" value="${escapeHtml(fmtDeskNum(t.shifts))}" title="Shifts · hours = shifts × ${shiftHours()}" />
+      ${deskNumInput("shift-in", t.id, t.shifts, `Shifts · hours = shifts × ${shiftHours()}`)}
       <small>${hours ? hours + "h" : "—"}</small>
     </span>`;
   }
@@ -2745,6 +2757,46 @@ function renderBoard() {
   bindTimeEdits();
 }
 
+function bindNumStep(el, commit) {
+  const wrap = el.closest(".num-step");
+  const bump = (dir) => {
+    stepDeskNum(el, dir);
+    commit();
+  };
+  const hold = (btn, dir) => {
+    if (!btn) return;
+    let timer = 0;
+    const start = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      bump(dir);
+      timer = window.setInterval(() => bump(dir), 110);
+    };
+    const stop = () => window.clearInterval(timer);
+    btn.addEventListener("mousedown", start);
+    btn.addEventListener("mouseup", stop);
+    btn.addEventListener("mouseleave", stop);
+    btn.addEventListener("click", (e) => e.stopPropagation());
+  };
+  hold(wrap?.querySelector(".num-step-up"), 1);
+  hold(wrap?.querySelector(".num-step-down"), -1);
+  wrap?.addEventListener("click", (e) => e.stopPropagation());
+  el.addEventListener("click", (e) => e.stopPropagation());
+  el.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      bump(1);
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      bump(-1);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      el.blur();
+    }
+  });
+  el.addEventListener("change", commit);
+}
+
 function bindTimeEdits() {
   $("board").querySelectorAll(".shift-in").forEach((el) => {
     const commit = () => {
@@ -2758,7 +2810,7 @@ function bindTimeEdits() {
       }
       if (shifts === Number(t.shifts)) return;
       const hours = hoursFromShifts(shifts);
-      const hint = el.parentElement?.querySelector("small");
+      const hint = el.closest(".time-edit")?.querySelector("small");
       if (hint) hint.textContent = hours ? hours + "h" : "—";
       updateTask(t.id, {
         shifts,
@@ -2766,14 +2818,7 @@ function bindTimeEdits() {
         note: `${me().name} set ${shifts} shifts → ${hours} h`,
       });
     };
-    el.addEventListener("click", (e) => e.stopPropagation());
-    el.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        el.blur();
-      }
-    });
-    el.addEventListener("change", commit);
+    bindNumStep(el, commit);
   });
   $("board").querySelectorAll(".hours-in").forEach((el) => {
     const commit = () => {
@@ -2792,14 +2837,7 @@ function bindTimeEdits() {
         note: `${me().name} set ${hours} billed hours`,
       });
     };
-    el.addEventListener("click", (e) => e.stopPropagation());
-    el.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        el.blur();
-      }
-    });
-    el.addEventListener("change", commit);
+    bindNumStep(el, commit);
   });
 }
 
