@@ -626,6 +626,11 @@ def test_playables_desk() -> None:
             "identity sits under Sign out",
             'class="who-tools"' in html and 'class="who-id"' in html and 'id="roleHint"' in html,
         )
+        check("PIN Open is a form submit", 'id="loginForm"' in js and 'type="submit"' in js and "submitDoorLogin" in js)
+        check("Create task name is one line", 'id="createTaskName"' in html and "<textarea id=\"createTaskName\"" not in html)
+        check("Create task Enter submits", 'id="createTaskForm"' in html and 'type="submit"' in html.split('id="createTaskGo"')[0][-80:])
+        check("Create task no longer needs Ctrl+Enter", "e.metaKey || e.ctrlKey" not in js.split("createTaskForm")[-1][:400])
+        check("card Save is not bound to Enter", "saveTask" not in js.split('document.addEventListener("keydown"')[-1].split("probeStudioApi")[0] or "Enter" not in js.split('document.addEventListener("keydown"')[-1].split("probeStudioApi")[0])
         check("role is not a page subtitle", 'class="role-hint"' not in html)
         check("who label is the name only", "${p.name} · ${jobMeta(p).code}" not in js)
         check("AD/DEV hours blocks have a tint", ".play-seat-ad" in css and ".play-seat-dev" in css)

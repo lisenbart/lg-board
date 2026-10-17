@@ -298,20 +298,18 @@ function showStudioPin(role, error) {
   $("loginLead").hidden = !role.blurb;
   $("loginLead").textContent = role.blurb || "";
   $("loginAccounts").innerHTML = `
-    <button type="button" class="btn ghost login-back" id="loginBack">Back</button>
-    <label class="login-pin-lab" for="loginPin">PIN</label>
-    <input id="loginPin" class="login-pin" type="password" inputmode="numeric" maxlength="8" autocomplete="current-password" />
-    ${error ? `<p class="login-err">${escapeHtml(error)}</p>` : ""}
-    <button type="button" class="btn primary login-go" id="loginGo">Open</button>
+    <form id="loginForm" class="login-form">
+      <button type="button" class="btn ghost login-back" id="loginBack">Back</button>
+      <label class="login-pin-lab" for="loginPin">PIN</label>
+      <input id="loginPin" class="login-pin" type="password" inputmode="numeric" maxlength="8" autocomplete="current-password" />
+      ${error ? `<p class="login-err">${escapeHtml(error)}</p>` : ""}
+      <button type="submit" class="btn primary login-go" id="loginGo">Open</button>
+    </form>
   `;
   $("loginBack")?.addEventListener("click", () => showStudioRoster());
-  const go = () => submitDoorLogin();
-  $("loginGo")?.addEventListener("click", go);
-  $("loginPin")?.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      go();
-    }
+  $("loginForm")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    submitDoorLogin();
   });
   $("loginPin")?.focus();
 }
@@ -367,24 +365,20 @@ function showDoorForm(door, error) {
   $("loginLead").textContent = "Hours for your projects.";
   document.title = isHoursPage() ? "Hours — Lisenbart Board" : "Client — Lisenbart Board";
   $("loginAccounts").innerHTML = `
-    <button type="button" class="btn ghost login-back" id="loginBack">Back</button>
-    <label class="login-pin-lab" for="loginEmail">Login</label>
-    <input id="loginEmail" class="login-pin login-email" type="text" autocomplete="username" />
-    <label class="login-pin-lab" for="loginPin">Password</label>
-    <input id="loginPin" class="login-pin" type="password" maxlength="32" autocomplete="current-password" />
-    ${error ? `<p class="login-err">${escapeHtml(error)}</p>` : ""}
-    <button type="button" class="btn primary login-go" id="loginGo">Open</button>
+    <form id="loginForm" class="login-form">
+      <button type="button" class="btn ghost login-back" id="loginBack">Back</button>
+      <label class="login-pin-lab" for="loginEmail">Login</label>
+      <input id="loginEmail" class="login-pin login-email" type="text" autocomplete="username" />
+      <label class="login-pin-lab" for="loginPin">Password</label>
+      <input id="loginPin" class="login-pin" type="password" maxlength="32" autocomplete="current-password" />
+      ${error ? `<p class="login-err">${escapeHtml(error)}</p>` : ""}
+      <button type="submit" class="btn primary login-go" id="loginGo">Open</button>
+    </form>
   `;
   $("loginBack")?.addEventListener("click", loginBackHome);
-  const go = () => submitDoorLogin();
-  $("loginGo")?.addEventListener("click", go);
-  ["loginEmail", "loginPin"].forEach((id) => {
-    $(id)?.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        go();
-      }
-    });
+  $("loginForm")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    submitDoorLogin();
   });
   $("loginEmail")?.focus();
 }
@@ -5648,6 +5642,11 @@ $("delModal").addEventListener("click", (e) => {
   if (e.target === $("delModal")) $("delModal").classList.remove("show");
 });
 $("pasteClose").onclick = () => $("pasteModal").classList.remove("show");
+$("pasteText")?.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter" || e.shiftKey || e.isComposing) return;
+  e.preventDefault();
+  $("pasteCopy")?.click();
+});
 $("pasteCopy").onclick = async () => {
   const btn = $("pasteCopy");
   if (btn?.classList.contains("is-busy")) return;
@@ -5667,9 +5666,9 @@ $("taskDelModal")?.addEventListener("click", (e) => {
   if (e.target === $("taskDelModal")) closeTaskDelete();
 });
 $("createTaskCancel")?.addEventListener("click", closeCreateTask);
-$("createTaskGo")?.addEventListener("click", submitCreateTask);
-$("createTaskName")?.addEventListener("keydown", (e) => {
-  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submitCreateTask();
+$("createTaskForm")?.addEventListener("submit", (e) => {
+  e.preventDefault();
+  submitCreateTask();
 });
 $("createTaskModal")?.addEventListener("click", (e) => {
   if (e.target === $("createTaskModal")) closeCreateTask();

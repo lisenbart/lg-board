@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-build="2026-10-17w">
+<html lang="en" data-build="2026-10-17z">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@300;400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/board.css?v=140" />
+  <link rel="stylesheet" href="assets/board.css?v=141" />
   <script>
     (function () {
       const host = location.hostname;
@@ -130,15 +130,17 @@
 
   <div class="modal-bg" id="createTaskModal">
     <div class="modal">
-      <h3>Create task</h3>
-      <p style="color:#676879;font-size:13px">Paste the full project name (DD- / DX- / DS- / DS-P-). This creates the card, the month line folder if it is missing, the project folder, an empty brief Doc, and a row in the live Excel for that board. Save on the card writes the brief into that Doc.</p>
-      <textarea id="createTaskName" rows="3" placeholder="DS-P-060_MergeSolitaire"></textarea>
-      <p class="login-err" id="createTaskErr"></p>
-      <p class="create-wait" id="createTaskWait" hidden>Writing Drive folder, brief Doc, and Excel row…</p>
-      <div class="modal-actions">
-        <button type="button" class="btn ghost" id="createTaskCancel">Cancel</button>
-        <button type="button" class="btn primary" id="createTaskGo">Create</button>
-      </div>
+      <form id="createTaskForm">
+        <h3>Create task</h3>
+        <p style="color:#676879;font-size:13px">Paste the full project name (DD- / DX- / DS- / DS-P-). This creates the card, the month line folder if it is missing, the project folder, an empty brief Doc, and a row in the live Excel for that board. Save on the card writes the brief into that Doc.</p>
+        <input id="createTaskName" type="text" autocomplete="off" spellcheck="false" placeholder="DS-P-060_MergeSolitaire" />
+        <p class="login-err" id="createTaskErr"></p>
+        <p class="create-wait" id="createTaskWait" hidden>Writing Drive folder, brief Doc, and Excel row…</p>
+        <div class="modal-actions">
+          <button type="button" class="btn ghost" id="createTaskCancel">Cancel</button>
+          <button type="submit" class="btn primary" id="createTaskGo">Create</button>
+        </div>
+      </form>
     </div>
   </div>
 
@@ -189,14 +191,14 @@
       <p id="pasteIntro" style="color:#676879;font-size:13px">Copy into External Weekly.</p>
       <textarea id="pasteText" readonly></textarea>
       <div class="modal-actions">
-        <button class="btn ghost" id="pasteClose">Close</button>
-        <button class="btn primary" id="pasteCopy">Copy</button>
+        <button type="button" class="btn ghost" id="pasteClose">Close</button>
+        <button type="button" class="btn primary" id="pasteCopy">Copy</button>
       </div>
     </div>
   </div>
 
   <div class="toast" id="toast"></div>
   <script src="assets/notices.js?v=4"></script>
-  <script src="assets/app.js?v=180"></script>
+  <script src="assets/app.js?v=181"></script>
 </body>
 </html>

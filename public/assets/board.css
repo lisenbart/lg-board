@@ -195,7 +195,16 @@ a { color: var(--blue); }
   min-height: 140px;
   resize: vertical;
 }
-#createTaskName { min-height: 88px; }
+#createTaskName {
+  width: 100%;
+  min-height: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.4;
+}
 .toolbar {
   display: flex; gap: 6px; align-items: center; flex-wrap: wrap;
   padding: 8px 20px; background: var(--white);
@@ -511,6 +520,7 @@ html.in-app .login-gate { display: none !important; }
 .login-acc strong, .login-seat strong { display: block; font-size: 14px; font-weight: 500; }
 .login-acc span, .login-seat span { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
 .login-acc small { display: block; color: var(--blue); font-size: 11px; margin-top: 4px; }
+.login-form { margin: 0; }
 .login-back { margin-bottom: 12px; }
 .login-pin-lab {
   display: block;
