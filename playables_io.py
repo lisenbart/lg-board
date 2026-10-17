@@ -332,13 +332,14 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
             task["month"] = ym
             if excel_status:
                 task["excelStatus"] = excel_status
-            current = task.get("studioStatus") or ""
+            current = direction_io.playable_norm_status(task.get("studioStatus"))
             if excel_status == "closed":
                 task["studioStatus"] = "closed"
                 task["mondayStatus"] = "Closed"
-            elif excel_status == "wip" and current in {"", "new"}:
-                task["studioStatus"] = "new"
-                task["mondayStatus"] = "Ready"
+            elif current not in {"", "new"}:
+                # Board pipeline wins. Excel blue/WIP fill is not a reason to bounce WIP → Ready.
+                task["studioStatus"] = current
+                task["mondayStatus"] = direction_io.PLAY_STATUS.get(current, task.get("mondayStatus"))
             after = (
                 task.get("hours"),
                 task.get("assigneeId"),

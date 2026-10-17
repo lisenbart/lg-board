@@ -30,7 +30,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-18a"
+BUILD = "2026-10-18b"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -2898,13 +2898,33 @@ class Handler(SimpleHTTPRequestHandler):
         self._json(404, {"error": "unknown endpoint"})
 
 
+def _missing_playable_pack_specs(db: dict, ym: str) -> list[dict]:
+    specs = []
+    for task in db.get("tasks") or []:
+        if not direction_io.is_playables(task):
+            continue
+        if (task.get("month") or ym) != ym:
+            continue
+        if direction_io.playable_norm_status(task.get("studioStatus")) == "closed":
+            continue
+        name = str(task.get("name") or "").strip()
+        if not name or str(task.get("folderUrl") or "").strip():
+            continue
+        specs.append({"id": task.get("id"), "name": name, "line": task.get("line") or drive_io.line_from_name(name)})
+    return specs
+
+
 def main() -> None:
     db = load_db()
     play_stats = _refresh_playables(db)
-    if play_stats.get("matched"):
+    ym = str((db.get("meta") or {}).get("month") or "2026-10")
+    missing_packs = _missing_playable_pack_specs(db, ym)
+    if play_stats.get("matched") or missing_packs:
         save_db(db)
     auth_io.ensure_pins()
     start_excel_watch()
+    if missing_packs:
+        _spawn(fill_missing_packs, missing_packs, ym)
     ThreadingHTTPServer.allow_reuse_address = True
     httpd = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
     httpd.daemon_threads = True

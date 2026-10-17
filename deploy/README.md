@@ -25,13 +25,22 @@ ssh board 'bash ~/lg-board/deploy/backup.sh'   # extra snapshot, no restart
 
 Do **not** use a password. Do **not** paste `lg-board-deploy` or any other key. That key is not on the VPS.
 
-Live files that must survive deploy: `data/db.json`, `data/SP_MGX_check.xlsx`, calculator, Drive pack cache. `board-update` copies them aside before `git reset` and puts them back. If this is the first run of that new script, it pulls Excel + calculator from Drive instead.
+Live files that must survive deploy: `data/db.json`, `data/SP_MGX_check.xlsx`, `data/SP_PLBL_check.xlsx`, calculator, Drive pack cache. `board-update` copies them aside before `git reset` and puts them back. If this is the first run of that new script, it pulls Excel + calculator from Drive instead.
 
-The board is the source of truth. Excel is written from the portal in the background after Save — it does not create tasks and does not block login. `ssh board-status` should show `"build": "2026-10-18a"` after update.
+The board is the source of truth. Excel is written from the portal in the background after Save — it does not create tasks and does not block login. `ssh board-status` should show `"build": "2026-10-18b"` after update.
+
+`board-update` keeps live `db.json` and both Excel files across `git reset`. If a deploy still looks wrong, restore the latest snapshot then restart:
+
+```bash
+ls -1dt ~/lg-board-backups/20* | head -1
+cp ~/lg-board-backups/<stamp>/data/db.json ~/lg-board/data/db.json
+cp ~/lg-board-backups/<stamp>/data/SP_PLBL_check.xlsx ~/lg-board/data/SP_PLBL_check.xlsx
+sudo systemctl restart lg-board
+```
 
 ## Studio site (public door)
 
-See `site/README.md`. Public face is **https://lisenbart.games** on Netlify: Studio door (`/?door=studio`) and Client door (`/hours`). The board stays on this VPS. Do not serve the homepage from nginx on the desk machine. `ssh board-status` should show `"build": "2026-10-18a"` after update.
+See `site/README.md`. Public face is **https://lisenbart.games** on Netlify: Studio door (`/?door=studio`) and Client door (`/hours`). The board stays on this VPS. Do not serve the homepage from nginx on the desk machine. `ssh board-status` should show `"build": "2026-10-18b"` after update.
 
 ## Invoices
 

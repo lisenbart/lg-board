@@ -546,6 +546,20 @@ def test_playables_desk() -> None:
             bool(dice and dice.get("studioStatus") == "new" and dice.get("excelStatus") == "wip"),
             str({k: (dice or {}).get(k) for k in ("studioStatus", "excelStatus")}),
         )
+        wip_board = {"meta": {"month": "2026-10"}, "people": list(scratch["people"]), "tasks": []}
+        direction_io.ensure_crew(wip_board)
+        playables_io.apply_to_db(wip_board, parsed, "2026-10")
+        held = next((t for t in wip_board["tasks"] if "MergeSolitaire" in (t.get("name") or "")), None)
+        if held:
+            held["studioStatus"] = "wip"
+            held["mondayStatus"] = "WIP"
+        playables_io.apply_to_db(wip_board, parsed, "2026-10")
+        held = next((t for t in wip_board["tasks"] if "MergeSolitaire" in (t.get("name") or "")), None)
+        check(
+            "Playables ingest does not bounce board WIP back to Ready",
+            bool(held and held.get("studioStatus") == "wip"),
+            str({k: (held or {}).get(k) for k in ("studioStatus", "excelStatus", "mondayStatus")}),
+        )
         check(
             "Anna keeps hours on art-only rows",
             bool(merge and merge.get("assigneeId") == "artdir1" and abs(float(merge.get("assigneeHours") or 0) - 9) < 0.05),
@@ -608,6 +622,11 @@ def test_playables_desk() -> None:
             and 'playable and role != "finance"' in py,
         )
         check("save strips programmer from playable AD", "playables_io.ad_id" in py)
+        update_sh = (ROOT / "deploy" / "update.sh").read_text(encoding="utf-8")
+        check(
+            "board-update keeps live db and Playables Excel",
+            "data/db.json" in update_sh and "data/SP_PLBL_check.xlsx" in update_sh,
+        )
         check("LP/DL skip Art-ready DEV assign gate", "playable_may_assign_dev(trial, role)" in py)
         css = (ROOT / "public" / "assets" / "board.css").read_text(encoding="utf-8")
         check("DS line is not Need Fixing burgundy", ".line-DS { background: #0d9488" in css and ".line-DS { background: #bb3354" not in css)

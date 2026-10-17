@@ -6,11 +6,15 @@ ROOT="${HOME}/lg-board"
 cd "$ROOT"
 
 LIVE_FILES=(
+  data/db.json
+  data/db.json.bak
   data/SP_MGX_check.xlsx
+  data/SP_PLBL_check.xlsx
   data/mirror/SP_MGX_check.xlsx
   data/finance/SUPERPLAY_MGX_Calculator.xlsx
   data/drive_packs.json
   data/drive_index.json
+  data/drive_cache.json
   data/mirror/live_folders.json
 )
 PRESERVE_FLAG="/tmp/lg-board-preserved"
