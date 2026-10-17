@@ -23,6 +23,7 @@ from openpyxl import Workbook, load_workbook
 
 import auth_io
 import direction_io
+import drive_io
 import excel_io
 import finance_io
 import playables_io
@@ -593,6 +594,30 @@ def test_playables_desk() -> None:
         lp_dice = next((t for t in (lp_view.get("tasks") or []) if "MemoryDice" in (t.get("name") or "")), None)
         check("LP view keeps assigneeHours", bool(lp_dice and lp_dice.get("assigneeHours")))
         check("LP view hides producerHours", lp_dice is not None and "producerHours" not in lp_dice)
+        billed_zero = {
+            "name": "DS-P-SPLIT-HELP",
+            "department": "Playables",
+            "hours": 0,
+            "assigneeId": "artdir1",
+            "assigneeHours": 8,
+            "help": [{"id": "artdir2", "hours": 2}],
+        }
+        excel_io.normalize_help(billed_zero, {"artdir1", "artdir2"})
+        check(
+            "Playables help is not wiped when billed is 0",
+            billed_zero.get("help") == [{"id": "artdir2", "hours": 2}]
+            and abs(float(billed_zero.get("assigneeHours") or 0) - 8) < 0.05,
+            str(billed_zero),
+        )
+        mgx_clip = {
+            "name": "DD-MGX-CLIP",
+            "department": "MGX",
+            "hours": 0,
+            "assigneeId": "designer",
+            "help": [{"id": "designer2", "hours": 2}],
+        }
+        excel_io.normalize_help(mgx_clip, {"designer", "designer2"})
+        check("MGX help still clips to billed hours", mgx_clip.get("help") == [], str(mgx_clip))
         js = (ROOT / "public" / "assets" / "app.js").read_text(encoding="utf-8")
         check("LP edits playable crew hours", "playableHoursHtml(t, canEditPlayableCrew())" in js)
         check("billed buffer is DL only", "const financeStrip = isFinance()" in js and "Studio buffer" in js)
@@ -614,6 +639,17 @@ def test_playables_desk() -> None:
         )
         check("playable AD is never the programmer", "function playableAdId" in js and "if (id === String(t?.programmerId || \"\")) return \"\"" in js)
         check("playable hoursOwned is assigneeHours", "if (isPlayables(t)) return roundHours(t?.assigneeHours)" in js)
+        check(
+            "playable split takes from owner like MGX",
+            "playAdRest" in js
+            and "Seat hours stay put" in js
+            and "readPlayableSeatPool" in js
+            and "Split hours cannot exceed the AD hours" in js,
+        )
+        check(
+            "create skips Drive ensure while pack is queued",
+            "driveQueued" in js and "if (state.driveQueued[t.id]) return;" in js,
+        )
         check("hours split AD uses playableAdId", "const adId = playableAdId(t)" in js and "person(t.assigneeId)?.name || \"Unassigned\")" not in js.split("function playableHoursHtml")[1].split("function readPlayableSplits")[0])
         py = (ROOT / "server.py").read_text(encoding="utf-8")
         check(
@@ -1071,6 +1107,63 @@ def test_http(base: str) -> str | None:
             and abs(float(reopened.get("programmerHours") or 0) - 25) < 0.05,
             str({k: (reopened or {}).get(k) for k in ("assigneeId", "assigneeHours", "programmerId", "programmerHours")}),
         )
+        code, payload, _ = _http(
+            f"{base}/api/tasks/update",
+            {
+                "id": play_id,
+                "role": "manager",
+                "actorId": "manager",
+                "studioStatus": "new",
+                "assigneeId": "artdir1",
+                "assigneeHours": 8,
+                "help": [{"id": "artdir2", "hours": 2}],
+                "programmerId": "programmer1",
+                "programmerHours": 25,
+                "programmerHelp": [],
+            },
+            cookie=lp_ck,
+        )
+        split_saved = (payload or {}).get("task") or {}
+        split_help = {str((row or {}).get("id") or ""): (row or {}).get("hours") for row in (split_saved.get("help") or [])}
+        check(
+            "LP save keeps Playables split person and subtracts from owner",
+            code == 200
+            and split_saved.get("assigneeId") == "artdir1"
+            and abs(float(split_saved.get("assigneeHours") or 0) - 8) < 0.05
+            and abs(float(split_help.get("artdir2") or 0) - 2) < 0.05
+            and abs(float(split_saved.get("producerHours") or 0) - 35) < 0.05,
+            str(
+                payload.get("error")
+                or {
+                    k: split_saved.get(k)
+                    for k in ("assigneeId", "assigneeHours", "help", "programmerId", "programmerHours", "producerHours")
+                }
+            ),
+        )
+        code, payload, _ = _http(f"{base}/api/me", cookie=lp_ck)
+        split_reopen = next(
+            (
+                t
+                for t in ((payload.get("state") or {}).get("tasks") or [])
+                if str(t.get("id") or "") == play_id
+            ),
+            None,
+        )
+        reopen_help = {
+            str((row or {}).get("id") or ""): (row or {}).get("hours") for row in ((split_reopen or {}).get("help") or [])
+        }
+        check(
+            "reopen keeps Playables split person",
+            bool(split_reopen)
+            and split_reopen.get("assigneeId") == "artdir1"
+            and abs(float(split_reopen.get("assigneeHours") or 0) - 8) < 0.05
+            and abs(float(reopen_help.get("artdir2") or 0) - 2) < 0.05,
+            str(
+                {k: (split_reopen or {}).get(k) for k in ("assigneeId", "assigneeHours", "help")}
+                if split_reopen
+                else payload.get("error")
+            ),
+        )
         _http(
             f"{base}/api/tasks/delete",
             {"id": play_id, "role": "manager", "actorId": "manager"},
@@ -1262,6 +1355,52 @@ def test_http(base: str) -> str | None:
             server.sync_excel = original_excel
 
 
+def test_drive_folder_lock() -> None:
+    posts: list = []
+    orig_find = drive_io._find_child
+    orig_api = drive_io._api
+    orig_created = dict(drive_io._CREATED_FOLDERS)
+    drive_io._CREATED_FOLDERS.clear()
+
+    def fake_find(token, parent_id, title, mime=None):
+        fid = drive_io._CREATED_FOLDERS.get((str(parent_id or ""), str(title or "")))
+        return {"id": fid} if fid else None
+
+    def fake_api(token, method, path, query=None, body=None):
+        if method == "POST":
+            time.sleep(0.05)
+            posts.append(body)
+            return {"id": "folder-only-once"}
+        return {"files": []}
+
+    drive_io._find_child = fake_find
+    drive_io._api = fake_api
+    try:
+        got = []
+
+        def make():
+            got.append(drive_io._ensure_folder("tok", "parent", "DS-P-TWIN"))
+
+        threads = [threading.Thread(target=make) for _ in range(2)]
+        for th in threads:
+            th.start()
+        for th in threads:
+            th.join(timeout=2)
+        check("Drive ensure_folder posts once under race", len(posts) == 1, str(len(posts)))
+        check(
+            "Drive ensure_folder returns the same id",
+            len(got) == 2 and got[0][0] == "folder-only-once" and got[1][0] == "folder-only-once",
+            str(got),
+        )
+        py = (ROOT / "drive_io.py").read_text(encoding="utf-8")
+        check("create_live_pack serializes per name", "with _pack_lock(name):" in py)
+    finally:
+        drive_io._find_child = orig_find
+        drive_io._api = orig_api
+        drive_io._CREATED_FOLDERS.clear()
+        drive_io._CREATED_FOLDERS.update(orig_created)
+
+
 def start_local_server() -> tuple[threading.Thread, str]:
     import server as srv
 
@@ -1289,6 +1428,7 @@ def main() -> int:
         test_sync_files_releases_lock,
         test_employeers_pay_details,
         test_playables_desk,
+        test_drive_folder_lock,
         test_playable_card_pipeline,
         test_lp_can_close_without_send,
         test_finance_reads_board_not_xlsx,

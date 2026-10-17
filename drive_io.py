@@ -35,6 +35,27 @@ DOCS_HOST = "docs.googleapis.com"
 HTTP_TIMEOUT = 20
 _TLS = threading.local()
 _LAST_BRIEF: dict[str, str] = {}
+_LOCKS_GUARD = threading.Lock()
+_PACK_LOCKS: dict[str, threading.Lock] = {}
+_FOLDER_LOCKS: dict[tuple[str, str], threading.Lock] = {}
+_CREATED_FOLDERS: dict[tuple[str, str], str] = {}
+
+
+def _named_lock(bag: dict, key) -> threading.Lock:
+    with _LOCKS_GUARD:
+        lock = bag.get(key)
+        if lock is None:
+            lock = threading.Lock()
+            bag[key] = lock
+        return lock
+
+
+def _pack_lock(name: str) -> threading.Lock:
+    return _named_lock(_PACK_LOCKS, str(name or "").strip().lower())
+
+
+def _folder_lock(parent_id: str, title: str) -> threading.Lock:
+    return _named_lock(_FOLDER_LOCKS, (parent_id, title))
 
 
 class DriveError(RuntimeError):
@@ -244,17 +265,39 @@ def _find_child(token: str, parent_id: str, title: str, mime: str | None = None)
 
 
 def _ensure_folder(token: str, parent_id: str, title: str) -> tuple[str, bool]:
-    found = _find_child(token, parent_id, title, FOLDER_MIME)
-    if found:
-        return found["id"], False
-    created = _api(
-        token,
-        "POST",
-        "files",
-        query={"fields": "id,webViewLink"},
-        body={"name": title, "mimeType": FOLDER_MIME, "parents": [parent_id]},
-    )
-    return created["id"], True
+    """One folder per parent+name. Create and ensure used to race and make twins."""
+    key = (str(parent_id or ""), str(title or ""))
+    with _folder_lock(*key):
+        local = _CREATED_FOLDERS.get(key)
+        if local:
+            return local, False
+        found = _find_child(token, parent_id, title, FOLDER_MIME)
+        if found:
+            fid = str(found["id"])
+            _CREATED_FOLDERS[key] = fid
+            return fid, False
+        created = _api(
+            token,
+            "POST",
+            "files",
+            query={"fields": "id,webViewLink"},
+            body={"name": title, "mimeType": FOLDER_MIME, "parents": [parent_id]},
+        )
+        fid = str(created.get("id") or "")
+        if not fid:
+            raise DriveError(f"Drive did not return an id for folder {title}")
+        again = _find_child(token, parent_id, title, FOLDER_MIME)
+        if again and str(again.get("id") or "") and str(again["id"]) != fid:
+            # Listing caught a twin from a previous race — keep the older one.
+            try:
+                _trash_file(token, fid)
+            except DriveError:
+                pass
+            fid = str(again["id"])
+            _CREATED_FOLDERS[key] = fid
+            return fid, False
+        _CREATED_FOLDERS[key] = fid
+        return fid, True
 
 
 def _mkdir(token: str, parent_id: str, title: str) -> str:
@@ -524,26 +567,27 @@ def create_live_pack(db: dict, name: str, ym: str, line: str) -> dict:
     name = (name or "").strip()
     if not name:
         raise DriveError("task has no name")
-    hit = cached_pack(name)
-    if hit:
-        remember_live_folder(name, hit["folderUrl"])
-        return hit
-    token = drive_token()
-    if not token:
-        raise DriveError(
-            "Drive is not connected on this server. Put Google service-account JSON in "
-            "data/secrets/google_service.json and share October DD/DX with that account."
-        )
-    import direction_io
+    with _pack_lock(name):
+        hit = cached_pack(name)
+        if hit:
+            remember_live_folder(name, hit["folderUrl"])
+            return hit
+        token = drive_token()
+        if not token:
+            raise DriveError(
+                "Drive is not connected on this server. Put Google service-account JSON in "
+                "data/secrets/google_service.json and share October DD/DX with that account."
+            )
+        import direction_io
 
-    parent = live_line_parent_id(
-        db, ym, line, token, playable=direction_io.of_name(name) == direction_io.PLAYABLES
-    )
-    folder_id, is_new = _ensure_folder(token, parent, name)
-    doc_id = _create_doc(token, folder_id, name, skip_find=is_new)
-    pack = remember(name, folder_id, doc_id)
-    remember_live_folder(name, pack["folderUrl"])
-    return pack
+        parent = live_line_parent_id(
+            db, ym, line, token, playable=direction_io.of_name(name) == direction_io.PLAYABLES
+        )
+        folder_id, is_new = _ensure_folder(token, parent, name)
+        doc_id = _create_doc(token, folder_id, name, skip_find=is_new)
+        pack = remember(name, folder_id, doc_id)
+        remember_live_folder(name, pack["folderUrl"])
+        return pack
 
 
 def _doc_id_from_url(url: str) -> str:
@@ -648,6 +692,10 @@ def forget_live_folder(name: str) -> None:
     import excel_io
     import mirror_io
 
+    title = str(name or "").strip()
+    with _LOCKS_GUARD:
+        for key in [k for k in _CREATED_FOLDERS if k[1] == title]:
+            _CREATED_FOLDERS.pop(key, None)
     key = excel_io._id_key(name)
     cache = _load_cache()
     (cache.get("byName") or {}).pop(name, None)

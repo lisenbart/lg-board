@@ -1262,6 +1262,21 @@ body.col-resizing * { cursor: col-resize !important; }
   font-size: 13px;
   font-weight: 600;
 }
+.play-seat-keep {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.play-seat-keep b {
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  color: inherit;
+}
+.play-seat-keep b.is-over { color: var(--red); }
 .play-seat-ad .play-seat-sum { color: #6b21a8; }
 .play-seat-dev .play-seat-sum { color: #3730a3; }
 .play-seat-row {

@@ -340,7 +340,15 @@ def hours_for_person(task: dict, person_id: str, shift_hours: float = 9) -> floa
 
 def normalize_help(task: dict, people_ids: set[str] | None = None) -> list[dict]:
     who = str(task.get("assigneeId") or "").strip()
-    total = client_hours(task)
+    import direction_io
+
+    playable = direction_io.is_playables(task) or direction_io.of_name(str(task.get("name") or "")) == direction_io.PLAYABLES
+    if playable:
+        # Playables billed hours are DL-only and often 0. Cap against the AD seat
+        # (owner remainder + helpers), same pool MGX uses for client hours.
+        total = round(round_hours(task.get("assigneeHours")) + sum(row["hours"] for row in help_entries(task)), 1)
+    else:
+        total = client_hours(task)
     rows = []
     used = 0.0
     for row in help_entries(task):

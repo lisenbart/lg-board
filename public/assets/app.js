@@ -128,6 +128,7 @@ const state = {
   drive: null,
   driveLoading: false,
   driveTried: {},
+  driveQueued: {},
   driveAccessToken: sessionStorage.getItem("lgDriveToken") || "",
   search: "",
   searchFocus: false,
@@ -1448,7 +1449,10 @@ async function submitCreateTask() {
   applyState(out.state);
   closeCreateTask();
   toast("Task on the board. Drive folder and Excel catch up in the background.");
-  if (out.task?.id) openTask(out.task.id);
+  if (out.task?.id) {
+    if (out.drive?.queued) state.driveQueued[out.task.id] = true;
+    openTask(out.task.id);
+  }
 }
 
 function renderKpis() {
@@ -2127,6 +2131,9 @@ function showResultField(t) {
 function fillDrivePackIfMissing(t) {
   if (!isStudioHost() || !canOps()) return;
   if ((hasDriveDoc(t) && hasDriveFolder(t)) || state.driveTried[t.id]) return;
+  // Create already spawned the pack. A second /api/drive/ensure raced it and
+  // made a twin folder with the same name.
+  if (state.driveQueued[t.id]) return;
   state.driveTried[t.id] = true;
   api("/api/drive/ensure", { id: t.id, month: state.month, role: me().role }).then((out) => {
     const hadDoc = hasDriveDoc(t);
@@ -2138,6 +2145,7 @@ function fillDrivePackIfMissing(t) {
 }
 async function retryDrivePack(t) {
   state.driveTried[t.id] = false;
+  state.driveQueued[t.id] = false;
   let out = await api("/api/drive/ensure", { id: t.id, month: state.month, role: me().role });
   if (out.error || !out.ok) {
     toast(out.error || "Drive folder was not created");
@@ -4307,14 +4315,17 @@ function playableSeatHtml(kind, t, editable) {
   const splits = isAd ? playableAdSplits(t) : playableDevSplits(t);
   if (!editable && !ownerId && !splits.length) return "";
   const taken = [ownerId, ...splits.map((row) => row.id)];
-  const sum = roundHours(hours + splits.reduce((s, row) => s + row.hours, 0));
+  const given = splits.reduce((s, row) => s + row.hours, 0);
+  const pool = roundHours(hours + given);
   const title = isAd ? "AD" : "DEV";
   const empty = isAd ? "No AD" : "No DEV";
   const hoursId = isAd ? "stAdHours" : "stProgHours";
   const rowsId = isAd ? "adSplitRows" : "devSplitRows";
   const addId = isAd ? "adSplitAdd" : "devSplitAdd";
   const sumId = isAd ? "playAdTotal" : "playDevTotal";
+  const restId = isAd ? "playAdRest" : "playDevRest";
   const roster = isAd ? artDirectors() : programmers();
+  const ownerName = person(ownerId)?.name || title;
   const ownerPick = canAssignPlayable()
     ? `<select id="${isAd ? "stPerson" : "stProgrammer"}" class="play-owner-pick" aria-label="${title}">
         <option value="">— ${title}</option>
@@ -4329,8 +4340,9 @@ function playableSeatHtml(kind, t, editable) {
   const ownerRow = editable
     ? `<div class="play-seat-row is-owner">
          ${ownerPick}
-         <input id="${hoursId}" type="number" min="0" step="0.1" value="${hours || ""}" aria-label="${title} hours" />
-       </div>`
+         <input id="${hoursId}" type="number" min="0" step="0.1" value="${pool || ""}" aria-label="${title} hours" />
+       </div>
+       <div class="play-seat-keep"><span>${escapeHtml(ownerName)} keeps</span><b id="${restId}">${hours || 0}h</b></div>`
     : `<div class="play-seat-row is-owner">
          <div class="play-seat-who">${playableOwnerHtml(ownerId, empty)}</div>
          <span class="help-h">${ownerId ? `${hours || 0}h` : "—"}</span>
@@ -4356,7 +4368,7 @@ function playableSeatHtml(kind, t, editable) {
   return `<div class="play-seat play-seat-${kind}">
       <div class="play-seat-head">
         <span class="job-badge job-${kind}">${title}</span>
-        <b class="play-seat-sum" id="${sumId}">${sum}h</b>
+        <b class="play-seat-sum" id="${sumId}">${pool}h</b>
       </div>
       ${ownerRow}
       <div id="${rowsId}">${splitRows}</div>
@@ -4390,6 +4402,7 @@ function playableHoursHtml(t, editable) {
     : "";
   return `<section class="help-split play-crew">
       <label>Who · hours</label>
+      <p class="status-hint">Seat hours stay put. Extra AD/DEV take from the owner — same as MGX help, not extra SuperPlay hours.</p>
       ${playableSeatHtml("ad", t, adHours)}
       ${playableSeatHtml("dev", t, devHours)}
       <div class="play-crew-foot"><span>Crew ${you}</span><b id="playCrew">${crew}h</b></div>
@@ -4408,23 +4421,37 @@ function readPlayableSplits(kind, ownerId) {
   });
   return rows;
 }
+function readPlayableSeatPool(kind) {
+  const hoursId = kind === "dev" ? "stProgHours" : "stAdHours";
+  return roundHours(String($(hoursId)?.value || "").replace(",", "."));
+}
+function playableSeatRemainder(kind, ownerId) {
+  const pool = readPlayableSeatPool(kind);
+  const given = readPlayableSplits(kind, ownerId).reduce((s, row) => s + row.hours, 0);
+  return { pool, given: roundHours(given), rest: roundHours(pool - given) };
+}
 function readPlayableCrewFromCard() {
-  const artH = roundHours(String($("stAdHours")?.value || "").replace(",", "."));
-  const progH = roundHours(String($("stProgHours")?.value || "").replace(",", "."));
-  const adH = readPlayableSplits("ad", $("stPerson")?.value || "").reduce((s, row) => s + row.hours, 0);
-  const devH = readPlayableSplits("dev", $("stProgrammer")?.value || "").reduce((s, row) => s + row.hours, 0);
-  return roundHours(artH + progH + adH + devH);
+  return roundHours(readPlayableSeatPool("ad") + readPlayableSeatPool("dev"));
 }
 function refreshPlayableCrew(t) {
   const adId = $("stPerson")?.value || "";
   const devId = $("stProgrammer")?.value || "";
-  const artH = roundHours(String($("stAdHours")?.value || "").replace(",", "."));
-  const progH = roundHours(String($("stProgHours")?.value || "").replace(",", "."));
-  const adSum = roundHours(artH + readPlayableSplits("ad", adId).reduce((s, row) => s + row.hours, 0));
-  const devSum = roundHours(progH + readPlayableSplits("dev", devId).reduce((s, row) => s + row.hours, 0));
-  const crew = roundHours(adSum + devSum);
-  if ($("playAdTotal")) $("playAdTotal").textContent = `${adSum}h`;
-  if ($("playDevTotal")) $("playDevTotal").textContent = `${devSum}h`;
+  const ad = playableSeatRemainder("ad", adId);
+  const dev = playableSeatRemainder("dev", devId);
+  const crew = roundHours(ad.pool + dev.pool);
+  if ($("playAdTotal")) $("playAdTotal").textContent = `${ad.pool}h`;
+  if ($("playDevTotal")) $("playDevTotal").textContent = `${dev.pool}h`;
+  const paintRest = (id, rest, given, pool, ownerId, title) => {
+    const el = $(id);
+    if (!el) return;
+    el.textContent = `${Math.max(0, rest)}h`;
+    el.classList.toggle("is-over", given > pool + 0.001);
+    const name = person(ownerId)?.name || title;
+    el.closest(".play-seat-keep")?.querySelector("span") &&
+      (el.closest(".play-seat-keep").querySelector("span").textContent = `${name} keeps`);
+  };
+  paintRest("playAdRest", ad.rest, ad.given, ad.pool, adId, "AD");
+  paintRest("playDevRest", dev.rest, dev.given, dev.pool, devId, "DEV");
   if ($("playCrew")) $("playCrew").textContent = `${crew}h`;
   const buffer = $("playBuffer");
   if (buffer) {
@@ -4502,6 +4529,15 @@ function bindPlayableCrew(t) {
       toast(`Assign ${title} first, then split onto another ${title}`);
       return;
     }
+    const seat = playableSeatRemainder(kind, ownerSel.value);
+    if (seat.pool <= 0) {
+      toast(`Set ${title} hours first, then split onto another ${title}`);
+      return;
+    }
+    if (seat.rest <= 0) {
+      toast(`No ${title} hours left to split — raise the seat hours or lower an existing row`);
+      return;
+    }
     const box = $(rowsId);
     const blank = [...(box?.querySelectorAll(".play-split-person") || [])].some((sel) => !sel.value);
     if (blank) {
@@ -4510,9 +4546,10 @@ function bindPlayableCrew(t) {
     }
     const taken = new Set([ownerSel.value, ...readPlayableSplits(kind, ownerSel.value).map((row) => row.id)]);
     const next = list.find((p) => !taken.has(p.id));
+    const slice = Math.min(0.5, seat.rest);
     box?.insertAdjacentHTML(
       "beforeend",
-      playableSplitRowHtml(kind, { id: next?.id || "", hours: next ? 0.5 : "" }, [...taken, next?.id])
+      playableSplitRowHtml(kind, { id: next?.id || "", hours: next ? slice : "" }, [...taken, next?.id])
     );
     paint();
   };
@@ -5032,22 +5069,34 @@ function openTask(id) {
         }
         patch.hours = hours;
       }
-      const adHours = roundHours(String($("stAdHours")?.value || "").replace(",", "."));
+      const adSplits = readPlayableSplits("ad", assigneeId);
+      const adPool = readPlayableSeatPool("ad");
+      const adGiven = roundHours(adSplits.reduce((s, row) => s + row.hours, 0));
+      if (adGiven > adPool + 0.001) {
+        toast("Split hours cannot exceed the AD hours on this task");
+        return;
+      }
       const adSeat = takePlayableOwner(
         assigneeId,
-        adHours,
-        readPlayableSplits("ad", assigneeId),
+        roundHours(adPool - adGiven),
+        adSplits,
         readPlayableSplitIds("ad")
       );
       assigneeId = adSeat.ownerId;
       patch.assigneeHours = adSeat.ownerHours;
       patch.help = adSeat.splits;
       const programmerId = patch.programmerId !== undefined ? patch.programmerId : t.programmerId;
-      const devHours = roundHours(String($("stProgHours")?.value || "").replace(",", "."));
+      const devSplits = readPlayableSplits("dev", programmerId);
+      const devPool = readPlayableSeatPool("dev");
+      const devGiven = roundHours(devSplits.reduce((s, row) => s + row.hours, 0));
+      if (devGiven > devPool + 0.001) {
+        toast("Split hours cannot exceed the DEV hours on this task");
+        return;
+      }
       const devSeat = takePlayableOwner(
         programmerId,
-        devHours,
-        readPlayableSplits("dev", programmerId),
+        roundHours(devPool - devGiven),
+        devSplits,
         readPlayableSplitIds("dev")
       );
       patch.programmerId = devSeat.ownerId;
