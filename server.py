@@ -30,7 +30,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-17j"
+BUILD = "2026-10-17k"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -2717,7 +2717,7 @@ class Handler(SimpleHTTPRequestHandler):
                 palette = {
                     "designer": ["#00c875", "#579bfc", "#ff5ac4", "#fdab3d", "#9d50dd", "#00c2e0", "#bb3354"],
                     "teamlead": ["#fdab3d", "#e67e22"],
-                    "manager": ["#9d50dd", "#7b2cbf"],
+                    "manager": ["#FFD9A8", "#FFC98A"],
                     "finance": ["#0073ea", "#0059b3"],
                     "art_director": ["#C9A0DC", "#7ED4C2", "#a25ddc"],
                     "programmer": ["#8AA2FF", "#579bfc", "#00c2e0"],

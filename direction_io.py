@@ -280,6 +280,10 @@ def ensure_crew(db: dict) -> bool:
                 if extra not in aliases:
                     aliases.append(extra)
                     dirty = True
+            old_purple = str(person.get("color") or "").replace("#", "").lower()
+            if old_purple in {"9d50dd", "7b2cbf", "a25ddc"}:
+                person["color"] = "#FFD9A8"
+                dirty = True
         elif role in PERFORMERS:
             if rates.get(MGX) in (None, "") and MGX in person_directions(person):
                 rates[MGX] = float(person.get("rateUsd") or 15)

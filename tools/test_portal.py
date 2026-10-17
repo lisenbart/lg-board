@@ -368,6 +368,10 @@ def test_playables_desk() -> None:
     check("Google Sheets theme 8 is WIP blue", excel_io.status_from_line_fill(theme_hex) == "wip", theme_hex)
     check("DS-P name is Playables", direction_io.of_name("DS-P-060_MergeSolitaire") == direction_io.PLAYABLES)
     check("DD-AIV name is MGX", direction_io.of_name("DD-AIV-202-004_SettAI") == direction_io.MGX)
+    purple = {"people": [{"id": "manager", "name": "Анастасія", "role": "manager", "color": "#9d50dd", "rateUsd": 5}]}
+    direction_io.ensure_crew(purple)
+    lp = next(p for p in purple["people"] if p["id"] == "manager")
+    check("old LP purple becomes pastel orange", lp.get("color") == "#FFD9A8", str(lp.get("color")))
     db = {
         "meta": {"month": "2026-10", "clientRateUsd": 35, "playableClientRateUsd": 40, "taxPct": 0.06, "nbuRate": 41},
         "people": [
