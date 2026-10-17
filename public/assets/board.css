@@ -80,6 +80,7 @@ a { color: var(--blue); }
 }
 .nav-item.active, .nav-item:hover { background: rgba(255,255,255,0.08); }
 .nav-item .soon { color: #8b91b3; font-size: 10px; }
+.nav-item[hidden] { display: none; }
 .side-foot { margin-top: auto; padding: 8px; color: #8b91b3; font-size: 11px; line-height: 1.4; font-weight: 400; }
 
 .main { display: flex; flex-direction: column; min-width: 0; }
@@ -394,6 +395,11 @@ a { color: var(--blue); }
 .notice-check, .notice-tlcheck { background: #fff3d6; color: #9a6700; }
 .notice-sent, .notice-appr { background: #e7f7ff; color: #0369a1; }
 .notice-closed { background: #037f4c; color: #fff; }
+.notice-board { background: #e0f0ff; color: #0059b3; }
+.notice-art { background: #e7f7ff; color: #0369a1; }
+.notice-final { background: #fde8ee; color: #9b2245; }
+.notice-build { background: #fff3d6; color: #9a6700; }
+.notice-html { background: #e6f9ef; color: #037f4c; }
 .notice-none { background: #eef0f5; color: #676879; }
 .who select { border: 1px solid var(--line); border-radius: 16px; padding: 4px 8px; background: #fff; font-size: 12px; }
 #whoMail {
@@ -758,6 +764,11 @@ body.col-resizing * { cursor: col-resize !important; }
 .row.tone-done, .row.tone-done .frozen, .row.tone-done .meta { background: #f1fbf6; }
 .row.tone-approve, .row.tone-approve .frozen, .row.tone-approve .meta { background: #f2fbff; }
 .row.tone-closed, .row.tone-closed .frozen, .row.tone-closed .meta { background: #e3f8ec; }
+.row.tone-storyboard, .row.tone-storyboard .frozen, .row.tone-storyboard .meta { background: #f3f8ff; }
+.row.tone-clientart, .row.tone-clientart .frozen, .row.tone-clientart .meta { background: #f2fbff; }
+.row.tone-finalart, .row.tone-finalart .frozen, .row.tone-finalart .meta { background: #fdf3f6; }
+.row.tone-build, .row.tone-build .frozen, .row.tone-build .meta { background: #fff8e8; }
+.row.tone-htmlready, .row.tone-htmlready .frozen, .row.tone-htmlready .meta { background: #f1fbf6; }
 .row.tone-new:hover, .row.tone-new:hover .frozen, .row.tone-new:hover .meta { background: #ffefd6; }
 .row.tone-wip:hover, .row.tone-wip:hover .frozen, .row.tone-wip:hover .meta { background: #e7f1ff; }
 .row.tone-revision:hover, .row.tone-revision:hover .frozen, .row.tone-revision:hover .meta { background: #fae6eb; }
@@ -765,6 +776,11 @@ body.col-resizing * { cursor: col-resize !important; }
 .row.tone-done:hover, .row.tone-done:hover .frozen, .row.tone-done:hover .meta { background: #e3f7ec; }
 .row.tone-approve:hover, .row.tone-approve:hover .frozen, .row.tone-approve:hover .meta { background: #e3f6ff; }
 .row.tone-closed:hover, .row.tone-closed:hover .frozen, .row.tone-closed:hover .meta { background: #d4f3e0; }
+.row.tone-storyboard:hover, .row.tone-storyboard:hover .frozen, .row.tone-storyboard:hover .meta { background: #e7f1ff; }
+.row.tone-clientart:hover, .row.tone-clientart:hover .frozen, .row.tone-clientart:hover .meta { background: #e3f6ff; }
+.row.tone-finalart:hover, .row.tone-finalart:hover .frozen, .row.tone-finalart:hover .meta { background: #fae6eb; }
+.row.tone-build:hover, .row.tone-build:hover .frozen, .row.tone-build:hover .meta { background: #ffefc9; }
+.row.tone-htmlready:hover, .row.tone-htmlready:hover .frozen, .row.tone-htmlready:hover .meta { background: #e3f7ec; }
 .cell { padding: 2px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 400; }
 .name { font-weight: 400; }
 .pill {
@@ -789,6 +805,8 @@ body.col-resizing * { cursor: col-resize !important; }
 .job-md { background: #ecfccb; color: #3f6212; }
 .job-fn { background: #e0e7ff; color: #3730a3; }
 .job-sp { background: #f1f5f9; color: #334155; }
+.job-ad { background: #f3e8ff; color: #6b21a8; }
+.job-dev { background: #e0e7ff; color: #3730a3; }
 .job-mark { display: inline-flex; align-items: center; gap: 6px; }
 .job-title { font-size: 12px; color: var(--muted); }
 .team-job {
@@ -1389,6 +1407,7 @@ body.col-resizing * { cursor: col-resize !important; }
 .line-DX { background: var(--purple); }
 .line-DS { background: #9d3b00; }
 .dep-MGX { background: var(--purple); font-size: 11px; font-weight: 500; padding: 2px 6px; }
+.dep-playables { background: #0f766e; font-size: 11px; font-weight: 500; padding: 2px 6px; }
 
 .xl-wrap { background: #fff; border: 1px solid #d0d4e4; overflow: hidden; }
 .xl-caption {

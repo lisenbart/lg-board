@@ -51,6 +51,8 @@ DEFAULT_PINS = {
     "manager": "1726",
     "teamlead": "2026",
     "designer": "4429",
+    "art_director": "4429",
+    "programmer": "4429",
     "client": "3500",
     CLIENT_EMAIL: "3500",
 }
@@ -59,6 +61,8 @@ ROLE_PIN_KEYS = {
     "manager": "manager",
     "teamlead": "teamlead",
     "designer": "designer",
+    "art_director": "art_director",
+    "programmer": "programmer",
     "client": "client",
 }
 STUDIO_ROLES = (
@@ -66,15 +70,26 @@ STUDIO_ROLES = (
     {"role": "manager", "label": "LP", "blurb": "Line Producer"},
     {"role": "teamlead", "label": "TL", "blurb": "Team Lead"},
     {"role": "designer", "label": "MD", "blurb": "Motion design"},
+    {"role": "art_director", "label": "AD", "blurb": "Art Director"},
+    {"role": "programmer", "label": "DEV", "blurb": "Programmer"},
 )
-# LP PIN opens every studio seat except DL. TL PIN also opens MD.
+# LP PIN opens every studio seat except DL. Same team PIN sits AD / DEV / MD.
 PIN_OPENS = {
     "finance": ("finance",),
-    "manager": ("manager", "teamlead", "designer"),
+    "manager": ("manager", "teamlead", "designer", "art_director", "programmer"),
     "teamlead": ("teamlead", "designer"),
     "designer": ("designer",),
+    "art_director": ("art_director",),
+    "programmer": ("programmer",),
 }
-ROLE_SEAT_ORDER = {"finance": 0, "manager": 1, "teamlead": 2, "designer": 3}
+ROLE_SEAT_ORDER = {
+    "finance": 0,
+    "manager": 1,
+    "teamlead": 2,
+    "designer": 3,
+    "art_director": 4,
+    "programmer": 5,
+}
 ROLE_SHORT = {row["role"]: row["label"] for row in STUDIO_ROLES}
 
 LOCK_ROLE = {
@@ -143,11 +158,17 @@ def pin_ok_for_role(role: str, pin: str) -> bool:
 
 
 def pin_owner_roles(pin: str) -> tuple[str, ...]:
-    """Roles this PIN may sit as. LP = all except DL; TL = TL + MD."""
-    for owner in ("manager", "teamlead", "finance", "designer"):
-        if pin_ok_for_role(owner, pin):
-            return PIN_OPENS[owner]
-    return ()
+    """Roles this PIN may sit as. Same PIN can unlock more than one seat (MD/AD/DEV)."""
+    unlocked: list[str] = []
+    seen: set[str] = set()
+    for owner in ("manager", "teamlead", "finance", "designer", "art_director", "programmer"):
+        if not pin_ok_for_role(owner, pin):
+            continue
+        for role in PIN_OPENS.get(owner, (owner,)):
+            if role not in seen:
+                seen.add(role)
+                unlocked.append(role)
+    return tuple(unlocked)
 
 
 def seat_payload(person: dict) -> dict:
@@ -177,6 +198,8 @@ ROLE_EMAIL = {
     "manager": "anastasiia@lisenbart.games",
     "teamlead": "lisenbart.games@gmail.com",
     "designer": "lisenbart.games@gmail.com",
+    "art_director": "lisenbart.games@gmail.com",
+    "programmer": "lisenbart.games@gmail.com",
     "client": CLIENT_EMAIL,
 }
 
@@ -244,7 +267,11 @@ def seats_for(email: str, people: list[dict]) -> list[dict]:
     if role:
         picked = [p for p in people if p.get("role") == role]
     else:
-        picked = [p for p in people if p.get("role") in {"teamlead", "designer"}]
+        picked = [
+            p
+            for p in people
+            if p.get("role") in {"teamlead", "designer", "art_director", "programmer"}
+        ]
     out = []
     for person in picked:
         out.append(
@@ -363,6 +390,7 @@ def client_state(db: dict) -> dict:
                 "id": t.get("id"),
                 "name": t.get("name"),
                 "line": t.get("line"),
+                "department": t.get("department") or "MGX",
                 "game": t.get("game"),
                 "month": t.get("month"),
                 "shifts": t.get("shifts"),

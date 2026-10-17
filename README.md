@@ -2,13 +2,17 @@
 
 Internal studio board. Superplay stays on Monday (`External Weekly`). Designers work here and are never added to Monday.
 
-MGX is the live board. Playables is next. The desk is a studio tool first — even if MGX volume drops, this is how Lisenbart runs intake, load, and handoff.
+One portal: **SUPERPLAY MGX** and **SUPERPLAY Playables** on the same desk (`board.lisenbart.games`). The sidebar switches boards. Finance and SuperPlay Hours stay combined — no page hop.
 
-The board is one month at a time. Hours and load follow the selected month — same idea as a tab in `SP_MGX_check.xlsx`.
+The board is one month at a time. Hours and load follow the selected month — same idea as a tab in `SP_MGX_check.xlsx` / `SP_PLBL_check.xlsx`.
 
-One list, not Monday groups. Sorted by studio status:
+MGX pipeline:
 
 **Ready to Start → WIP → Need Fixing → Done → Senior Approval → Closed**
+
+Playables pipeline:
+
+**Ready → Storyboard → Client art → Final art → Build → HTML ready → Send → Closed**
 
 ## Access
 
@@ -22,14 +26,15 @@ ssh board-status    # live build
 
 Google Drive is always the live disk ([LLC/docs](https://drive.google.com/drive/folders/191q3zTumkNi-2tc9LCB1SG2lZwtu0pVs)). The VPS stays signed in with a service account file at `data/secrets/google_service.json` (share October DD/DX with that account). **Create task** then makes the folder + brief Doc; **Save** on the card writes the brief into the Doc. To update the live desk: `bash deploy/update.sh` on the VPS, then hard-refresh the browser.
 
-Home: **Client** or **Studio**. Five logins, one PIN each (`data/secrets/pins.json`): Finance, LP, TL, MD, Client. LP PIN opens every seat except DL (LP, TL, MD). TL PIN also opens MD seats. After a PIN that matches more than one person, pick who is at the desk.
+Home: **Client** or **Studio**. Seats: Finance, LP, TL, MD, AD, DEV, Client. PINs live in `data/secrets/pins.json`. LP PIN opens every studio seat except DL (LP, TL, MD, AD, DEV). Team PIN `4429` sits MD, AD, and DEV. TL PIN also opens MD. One-direction people stay on their board; dual-seat people (LP, DL, Сергій, SuperPlay) see **MGX | Playables**. After a PIN that matches more than one person, pick who is at the desk.
 
 Then:
 
-- **Team lead** — own work plus every designer. Assigns people. No Monday send, no Finance. TL PIN also sits as MD.
-- **Designer** — only their queue, plus a read-only Excel picture of the whole month.
-- **Line producer / Finance** — full pipeline. **Create task** sits left of **Shift email**. The **Done** KPI filters the board to Done cards (same toggle as MD / Unassigned load cards).
-- **Client (SuperPlay)** — **Hours**: PROJECT NAME / SHIFTS / HOURS, sections MGX DX and MGX DD, TOTAL. Same list the invoices are based on. A green **Download Excel** under the table builds a fresh file at click time (no studio people or rates), stamped with the viewer’s local date, time, and city. No studio queue, no money.
+- **Team lead** — MGX: own work plus every designer. Assigns people. No Monday send, no Finance. TL PIN also sits as MD.
+- **Designer** — only their queue, plus a read-only Excel picture of the month. Сергій sits Playables as well as MGX.
+- **Art Director / Programmer** — Playables queue only. Two ADs on one playable is a split: primary AD is required. DEV pastes the HTML link, then HTML ready.
+- **Line producer / Finance** — both boards. **Create task** sits left of **Shift email** (Playables: **Hours list**). Only LP talks to the client. Playables Send works on Storyboard (External Weekly `DS-P-…`) and on HTML ready.
+- **Client (SuperPlay)** — **Hours**: PROJECT NAME / SHIFTS / HOURS, sections MGX DX/DD and Playable DX/DD/DS, TOTAL. Same list the invoices are based on. A green **Download Excel** under the table builds a fresh file at click time (no studio people or rates), stamped with the viewer’s local date, time, and city. No studio queue, no money.
 
 Studio no longer uses a shared team mailbox. The name on the door is the seat.
 
@@ -44,14 +49,15 @@ Do **not** put this on glowl.direct. Live desk only: **https://board.lisenbart.g
 - **Hours split** is studio pay only. SuperPlay still sees one SHIFTS / HOURS number. If someone renders because a PC cannot, TL or LP puts 0.5h (or whatever is fair) on the helper. Who stays the owner of Done. Heavy AE cleanup / lost sources is still inside the original hours — that does not add client time.
 - **Board scan** — the whole row is tinted by studio status (Ready / WIP / Fix / Done / Appr. / Closed). A matching chip sits on the name. **Send to client** is the LP button on Done rows, not a status chip. **Closed** is the last state: client accepted, hours stay, no more work. The bell still lists unread notices; opening a card marks those read. New kinds go in `notice_io.py` + `public/assets/notices.js`.
 - **Send to client** copies `check it please` + the result link for External Weekly. Status becomes Senior Approval. LP marks **Closed** after the client accepts — not from Done, and not instead of Send. Superplay is not on this board, so Send stays until Monday API is connected.
-- **Finance** (Dmytro only) — two inner tabs, same idea as the Excel tab mirroring `SP_MGX_check.xlsx`:
-  - **Client** — totals by direction (DD / DX, and DS if that line has hours), not per task. **Create DD / DX** clones the Superplay Word, exports PDF, and writes both into `LLC/docs/_clients/SUPERPLAY/invoice/MGX / 10_October` on Drive. **Open folder** opens that Drive month folder. ZIP download is gone.
-  - **Studio** — the calculator block from the bottom-right of the month sheet: CLIENT IN → STUDIO (TAX) → EMPL → STUDIO. Tax % sits on the STUDIO (TAX) row (now 6%). Changing it rewrites `SUPERPLAY_MGX_Calculator.xlsx` so the TAX cell and formulas match. Studio take is STUDIO (TAX) minus people pay. Same hours as `SP_MGX_check`.
-  - **Employeers** — same split as the MGX calculator. Line Producer Анастасія Верлинська (LP) is $5 × every task hour this month. Team Lead Настя (TL) is a performer at $15/h on her tasks, not a second finance line. Motion design (MD) $15/h on assigned hours. UAH = USD × NBU. Card / IBAN cells are editable and write back to the calculator sheet. Tax and NBU writes update `SUPERPLAY_MGX_Calculator.xlsx` immediately.
+- **Finance** (Dmytro only) — one Client tab for every SUPERPLAY line. No direction switcher here.
+  - **Client** — MGX $35/h and Playable $40/h on the same table (DD / DX / DS). **Create invoices** writes Word+PDF into the existing Drive month folders: `LLC/docs/_clients/SUPERPLAY/invoice/MGX/{month}` and `…/Playable/{month}`. Two **Open folder** buttons. Playable files are named `invoice_Playable_{LINE}_YYYY.MM.DD`.
+  - **Studio** — CLIENT IN → STUDIO (TAX) → EMPL → STUDIO across both directions. Tax % sits on the STUDIO (TAX) row (now 6%). Changing it rewrites `SUPERPLAY_MGX_Calculator.xlsx` (MGX crew only).
+  - **Employeers** — LP is $5 × every MGX billed hour and $7 × Playables **producer** hours (art + DEV). Billed Playables hours may include a studio buffer; that leftover stays studio, not LP or AD. AD / DEV / MD $15/h on their hours. UAH = USD × NBU.
+- **Playables Excel** is `SP_PLBL_check.xlsx` (billed hours in C, Producer `=SUM` of crew). MGX stays `SP_MGX_check.xlsx` (shifts × 9). New playables land in the Drive month folder going forward.
 - **Deadlines** share the Excel `DEADLINE` column (file is the source of truth). Pipeline shows a **Due** cell with the date and a short urgency bar (ok / soon / late). LP edits Due — that writes the xlsx. Closed tasks keep the date, no alarm.
 - **Disk is the core.** `data/SP_MGX_check.xlsx` holds hours, deadlines, and assignees. Portal writes (create / assign / hours / Due / delete) go into that sheet and then up to the live Drive file. A new Excel row is enough — no Create task click. Hours in the file still win on Refresh / watch. Invoices and Employeers pay are calculated from that sheet, not from a second set of numbers. Assign / tax / NBU also update `SUPERPLAY_MGX_Calculator.xlsx` for the same month.
 - **People identity.** Names can change; role / посада cannot. EMPL columns are bound to a stable person id (header comment `lg-id:…`). Rename updates the visible header on the same column — hours stay. Add a designer or team lead → a new EMPL column. Remove someone → the column stays empty so neighbouring hours do not shift. The calculator month sheet is rebuilt from the current crew (manager $5 on every hour, then performers).
-Not in this slice: live Monday API, Playables board, client OAuth. Invoices clone the live PE Lisenbart / SuperPlay Ltd Word; the PDF is that same Word, not an HTML rebuild. If NBU is unreachable, type today's USD/UAH rate.
+Not in this slice: live Monday API, client OAuth. Invoices clone the live PE Lisenbart / SuperPlay Ltd Word; the PDF is that same Word, not an HTML rebuild. If NBU is unreachable, type today's USD/UAH rate. Positions are seats — people can change.
 
 ## Run locally
 
@@ -62,7 +68,7 @@ pip install -r requirements.txt
 python3 server.py
 ```
 
-Open [http://127.0.0.1:43141](http://127.0.0.1:43141) and sign in with one of the three mailboxes.
+Open [http://127.0.0.1:43141](http://127.0.0.1:43141) and sign in as Studio (DL / LP / TL / MD / AD / DEV) or Client.
 
 Data: `data/db.json` (copied from `data/seed.json` on first start). Live Excel is `data/SP_MGX_check.xlsx`; `ssh board-update` snapshots it under `~/lg-board-backups` before git reset.
 

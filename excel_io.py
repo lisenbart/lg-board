@@ -202,6 +202,11 @@ def hours_for_person(task: dict, person_id: str, shift_hours: float = 9) -> floa
     pid = str(person_id or "").strip()
     if not pid:
         return 0.0
+    dept = str(task.get("department") or task.get("direction") or "").lower()
+    if "play" in dept:
+        import playables_io
+
+        return playables_io.hours_for_person(task, pid)
     total = client_hours(task, shift_hours)
     help_rows = help_entries(task)
     given = round(sum(row["hours"] for row in help_rows), 1)
@@ -426,6 +431,7 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
         str(t.get("name") or "").strip(): t
         for t in db.get("tasks") or []
         if (t.get("month") or ym) == ym
+        and "play" not in str(t.get("department") or t.get("direction") or "").lower()
     }
     by_key = {}
     for task in existing.values():
@@ -815,7 +821,12 @@ def _write_month_body(db: dict, ym: str, path: Path, wb) -> Path:
     id_index = {
         _id_key(item["name"]): item for item in scan["rows"].values() if _id_key(item["name"])
     }
-    tasks = [t for t in db.get("tasks") or [] if (t.get("month") or ym) == ym]
+    tasks = [
+        t
+        for t in db.get("tasks") or []
+        if (t.get("month") or ym) == ym
+        and "play" not in str(t.get("department") or t.get("direction") or "").lower()
+    ]
     for task in tasks:
         key = _norm_name(task.get("name"))
         kid = _id_key(task.get("name") or "")
@@ -880,7 +891,7 @@ def _as_float(value, default: float = 0.0) -> float:
 
 
 def client_hours_filename(ym: str) -> str:
-    return f"SUPERPLAY_MGX_hours_{ym}.xlsx"
+    return f"SUPERPLAY_hours_{ym}.xlsx"
 
 
 TZ_NAME = re.compile(r"^[A-Za-z0-9_+\-/]{1,64}$")
@@ -917,10 +928,22 @@ def client_hours_bytes(db: dict, ym: str, *, generated_at: datetime | None = Non
     ym = str(ym or "").strip()
     shift_hours = _as_float((db.get("meta") or {}).get("shiftHours"), 9) or 9
     tasks = [t for t in db.get("tasks") or [] if (t.get("month") or ym) == ym]
-    lines = ["DX", "DD"]
-    if any(str(t.get("line") or "") == "DS" for t in tasks):
-        lines.append("DS")
-    labels = {"DX": "MGX DX", "DD": "MGX DD", "DS": "Playables DS"}
+    sections = []
+    for dept, prefix in (("MGX", "MGX"), ("Playables", "Playable")):
+        bucket = [
+            t
+            for t in tasks
+            if ("play" in str(t.get("department") or t.get("direction") or "").lower())
+            == (dept == "Playables")
+        ]
+        lines = ["DX", "DD"]
+        if any(str(t.get("line") or "") == "DS" for t in bucket):
+            lines.append("DS")
+        for line in lines:
+            rows = [t for t in bucket if t.get("line") == line]
+            if not rows:
+                continue
+            sections.append((f"{prefix} {line}", line, rows))
     year = ym[:4] if len(ym) >= 4 else "2026"
 
     wb = Workbook()
@@ -939,14 +962,11 @@ def client_hours_bytes(db: dict, ym: str, *, generated_at: datetime | None = Non
 
     row = 3
     total_hours = 0.0
-    for line in lines:
-        rows = sorted(
-            [t for t in tasks if t.get("line") == line],
-            key=lambda t: str(t.get("name") or "").lower(),
-        )
+    for label, line, rows in sections:
+        rows = sorted(rows, key=lambda t: str(t.get("name") or "").lower())
         sec_hours = round(sum(client_hours(t, shift_hours) for t in rows), 1)
         total_hours += sec_hours
-        ws.cell(row, 1, labels[line])
+        ws.cell(row, 1, label)
         ws.cell(row, 3, sec_hours)
         for col in range(1, 4):
             cell = ws.cell(row, col)

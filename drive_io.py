@@ -332,16 +332,20 @@ def _upload_file(token: str, parent_id: str, name: str, blob: bytes, mime: str) 
     }
 
 
-def ensure_invoice_month_folder(ym: str) -> dict:
-    """LLC/docs/_clients/SUPERPLAY/invoice/MGX / 10_October."""
+def ensure_invoice_month_folder(ym: str, direction: str = "mgx") -> dict:
+    """LLC/docs/_clients/SUPERPLAY/invoice/MGX|Playable / 10_October."""
     token = drive_token()
     if not token:
         raise DriveError("Drive is not connected on this server")
     import drive_sync
 
-    parent = str((drive_sync.roots() or {}).get("mgxInvoices") or "")
+    cfg = drive_sync.roots() or {}
+    playable = str(direction or "").lower().startswith("play")
+    key = "playableInvoices" if playable else "mgxInvoices"
+    parent = str(cfg.get(key) or "")
+    folder_name = "Playable" if playable else "MGX"
     if not parent:
-        raise DriveError("MGX invoice folder is not configured")
+        raise DriveError(f"{folder_name} invoice folder is not configured")
     title = month_folder_name(ym)
     folder_id, created = _ensure_folder(token, parent, title)
     return {
@@ -350,13 +354,14 @@ def ensure_invoice_month_folder(ym: str) -> dict:
         "folderUrl": folder_url(folder_id),
         "folder": title,
         "created": created,
-        "path": f"LLC/docs/_clients/SUPERPLAY/invoice/MGX/{title}",
+        "direction": "playables" if playable else "mgx",
+        "path": f"LLC/docs/_clients/SUPERPLAY/invoice/{folder_name}/{title}",
     }
 
 
-def publish_invoices(ym: str, files: list[tuple[str, bytes]]) -> dict:
-    """Write Word + PDF into the live Superplay MGX invoice month folder."""
-    pack = ensure_invoice_month_folder(ym)
+def publish_invoices(ym: str, files: list[tuple[str, bytes]], direction: str = "mgx") -> dict:
+    """Write Word + PDF into the live Superplay invoice month folder for that direction."""
+    pack = ensure_invoice_month_folder(ym, direction)
     token = drive_token()
     uploaded = []
     for name, blob in files:
@@ -418,7 +423,7 @@ def remember_line_parent(db: dict, line: str, fid: str) -> None:
     drive_sync.save_json(drive_sync.ROOTS_PATH, cfg)
 
 
-def live_line_parent_id(db: dict, ym: str, line: str, token: str) -> str:
+def live_line_parent_id(db: dict, ym: str, line: str, token: str, *, playable: bool = False) -> str:
     """Month / DD|DX|DS folder on the live Projects drive."""
     line = (line or "DD").upper()
     if line not in {"DD", "DX", "DS"}:
@@ -427,6 +432,12 @@ def live_line_parent_id(db: dict, ym: str, line: str, token: str) -> str:
     import drive_sync
 
     cfg = drive_sync.roots()
+    if playable:
+        projects = str(cfg.get("playableProjects") or "") or folder_id_from_url(meta.get("drivePlayableProjects") or "")
+        if projects:
+            month_id = _mkdir(token, projects, month_folder_name(ym))
+            fid, _ = _ensure_folder(token, month_id, line)
+            return fid
     url = meta.get(LIVE_LINE_META[line]) or ""
     fid = folder_id_from_url(url) or str(cfg.get(LIVE_LINE_CFG[line]) or "")
     if fid and ym == "2026-10":
@@ -523,7 +534,11 @@ def create_live_pack(db: dict, name: str, ym: str, line: str) -> dict:
             "Drive is not connected on this server. Put Google service-account JSON in "
             "data/secrets/google_service.json and share October DD/DX with that account."
         )
-    parent = live_line_parent_id(db, ym, line, token)
+    import direction_io
+
+    parent = live_line_parent_id(
+        db, ym, line, token, playable=direction_io.of_name(name) == direction_io.PLAYABLES
+    )
     folder_id, is_new = _ensure_folder(token, parent, name)
     doc_id = _create_doc(token, folder_id, name, skip_find=is_new)
     pack = remember(name, folder_id, doc_id)

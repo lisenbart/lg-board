@@ -21,8 +21,10 @@ sys.path.insert(0, str(ROOT))
 from openpyxl import Workbook, load_workbook
 
 import auth_io
+import direction_io
 import excel_io
 import finance_io
+import playables_io
 import server
 
 PASS = 0
@@ -125,10 +127,16 @@ def test_client_hours_xlsx() -> None:
 
 
 def test_pin_opens() -> None:
-    check("LP PIN opens LP TL MD", auth_io.pin_owner_roles("1726") == ("manager", "teamlead", "designer"))
+    check(
+        "LP PIN opens LP TL MD AD DEV",
+        auth_io.pin_owner_roles("1726") == ("manager", "teamlead", "designer", "art_director", "programmer"),
+    )
     check("TL PIN opens TL MD", auth_io.pin_owner_roles("2026") == ("teamlead", "designer"))
     check("DL PIN opens DL", auth_io.pin_owner_roles("3245") == ("finance",))
-    check("MD PIN opens MD", auth_io.pin_owner_roles("4429") == ("designer",))
+    check(
+        "team PIN opens MD AD DEV",
+        auth_io.pin_owner_roles("4429") == ("designer", "art_director", "programmer"),
+    )
     check("bad PIN opens nothing", auth_io.pin_owner_roles("0000") == ())
     people = [
         {"id": "dl", "name": "D", "role": "finance"},
@@ -309,6 +317,89 @@ def test_employeers_pay_details() -> None:
         check("Employeers writes Oleksa IBAN", "UA943077700000026208713943056" in [str(v) for v in ibans if v], str(ibans))
 
 
+def test_playables_desk() -> None:
+    check("DS-P name is Playables", direction_io.of_name("DS-P-060_MergeSolitaire") == direction_io.PLAYABLES)
+    check("DD-AIV name is MGX", direction_io.of_name("DD-AIV-202-004_SettAI") == direction_io.MGX)
+    db = {
+        "meta": {"month": "2026-10", "clientRateUsd": 35, "playableClientRateUsd": 40, "taxPct": 0.06, "nbuRate": 41},
+        "people": [
+            {"id": "manager", "name": "Анастасія", "role": "manager", "rateUsd": 5, "directions": ["mgx", "playables"], "rates": {"mgx": 5, "playables": 7}},
+            {"id": "artdir1", "name": "Анна", "role": "art_director", "rateUsd": 15, "directions": ["playables"], "rates": {"playables": 15}},
+            {"id": "programmer1", "name": "Богдан", "role": "programmer", "rateUsd": 15, "directions": ["playables"], "rates": {"playables": 15}},
+            {"id": "designer", "name": "Masha", "role": "designer", "rateUsd": 15, "directions": ["mgx"], "rates": {"mgx": 15}},
+            {"id": "designer3", "name": "Сергій", "role": "designer", "rateUsd": 15},
+        ],
+        "tasks": [
+            {
+                "id": "mgx-1",
+                "name": "DD-FIN-1",
+                "month": "2026-10",
+                "line": "DD",
+                "department": "MGX",
+                "hours": 9,
+                "shifts": 1,
+                "assigneeId": "designer",
+                "help": [],
+            },
+            {
+                "id": "pl-1",
+                "name": "DS-P-060_MergeSolitaire",
+                "month": "2026-10",
+                "line": "DS",
+                "department": "Playables",
+                "hours": 30,
+                "shifts": 0,
+                "assigneeId": "artdir1",
+                "assigneeHours": 10,
+                "help": [],
+                "programmerId": "programmer1",
+                "programmerHours": 19,
+                "producerHours": 29,
+            },
+        ],
+    }
+    direction_io.ensure_crew(db)
+    sergey = next(p for p in db["people"] if p.get("id") == "designer3")
+    check("Sergey sits Playables by default", "playables" in (sergey.get("directions") or []), str(sergey.get("directions")))
+    check("Playables crew has Юля", any(p.get("id") == "artdir2" for p in db["people"]))
+    snap = finance_io.snapshot(db, "2026-10")
+    labels = [r.get("label") for r in snap.get("byLine") or []]
+    check("finance Client has MGX and Playable lines", any("MGX" in str(x) for x in labels) and any("Playable" in str(x) for x in labels), str(labels))
+    play = next((r for r in snap["byLine"] if r.get("direction") == "playables"), None)
+    check("Playable billed at $40", play and play.get("rate") == 40 and play.get("bill") == 1200, str(play))
+    lp = next((r for r in snap["payroll"] if r.get("role") == "manager"), None)
+    check(
+        "LP Playables pay is producer hours × $7 not billed",
+        lp and abs(float(lp.get("hoursPlay") or 0) - 29) < 0.05 and abs(float(lp.get("payUsd") or 0) - (9 * 5 + 29 * 7)) < 0.05,
+        str(lp),
+    )
+    check("AD hours ignore billed buffer", excel_io.hours_for_person(db["tasks"][1], "artdir1") == 10)
+    check("DEV hours sit on programmerId", excel_io.hours_for_person(db["tasks"][1], "programmer1") == 19)
+    hours = excel_io.client_hours_bytes(db, "2026-10")
+    wb = load_workbook(BytesIO(hours))
+    names = [str(wb.active.cell(r, 1).value or "") for r in range(1, (wb.active.max_row or 1) + 1)]
+    wb.close()
+    check("hours xlsx has MGX and Playable sections", any(n.startswith("MGX ") for n in names) and any(n.startswith("Playable ") for n in names), str(names))
+    rows = server.parse_email("DS-P-061-001_Stickerpuzzle 26\nDX-AAA-0001 0.3 shift")
+    play_row = next(r for r in rows if r["name"].startswith("DS-P-"))
+    mgx_row = next(r for r in rows if r["name"].startswith("DX-"))
+    check("playable hours list is billed hours not shifts×9", play_row["hours"] == 26 and play_row["shifts"] == 0, str(play_row))
+    check("MGX shift list still ×9", abs(mgx_row["hours"] - 2.7) < 0.05, str(mgx_row))
+    if playables_io.XLSX_PATH.exists():
+        parsed = playables_io.parse_workbook(playables_io.XLSX_PATH, "2026-10")
+        names = [r["name"] for r in parsed.get("rows") or []]
+        check("live Playables sheet parses DS-P rows", any(n.startswith("DS-P-") for n in names), str(names[:4]))
+        scratch = {"meta": {"month": "2026-10"}, "people": list(db["people"]), "tasks": []}
+        direction_io.ensure_crew(scratch)
+        playables_io.apply_to_db(scratch, parsed, "2026-10")
+        dice = next((t for t in scratch["tasks"] if "MemoryDice" in (t.get("name") or "")), None)
+        check(
+            "Playables ingest keeps lead AD id",
+            bool(dice and dice.get("assigneeId") in {"artdir1", "artdir2"} and dice.get("programmerId") == "programmer1"),
+            str({k: (dice or {}).get(k) for k in ("assigneeId", "assigneeHours", "programmerId", "programmerHours")}),
+        )
+
+
 def test_finance_reads_board_not_xlsx() -> None:
     called = {"n": 0}
     orig = excel_io.parse_workbook
@@ -454,8 +545,8 @@ def test_http(base: str) -> str | None:
     roles = [r.get("role") for r in (payload.get("studio") or [])]
     check("GET /api/roster under 0.4s", code == 200 and dt < 0.4, f"status={code} {dt:.3f}s")
     check(
-        "roster seats are DL LP TL MD",
-        roles == ["finance", "manager", "teamlead", "designer"],
+        "roster seats are DL LP TL MD AD DEV",
+        roles == ["finance", "manager", "teamlead", "designer", "art_director", "programmer"],
         str(roles),
     )
 
@@ -476,7 +567,11 @@ def test_http(base: str) -> str | None:
         code == 200 and payload.get("needSeat") is True and lp_seats,
         str(payload.get("error") or payload.get("session")),
     )
-    check("LP PIN seats are LP TL MD not DL", lp_roles == {"manager", "teamlead", "designer"}, str(lp_roles))
+    check(
+        "LP PIN seats include AD DEV not DL",
+        {"manager", "teamlead", "designer"}.issubset(lp_roles) and "finance" not in lp_roles,
+        str(lp_roles),
+    )
     md_from_lp = next((s for s in lp_seats if s.get("role") == "designer"), None)
     lp_self = next((s for s in lp_seats if s.get("role") == "manager"), None)
     if md_from_lp:
@@ -746,6 +841,7 @@ def main() -> int:
         test_unreadable_ingest_does_not_wipe,
         test_sync_files_releases_lock,
         test_employeers_pay_details,
+        test_playables_desk,
         test_finance_reads_board_not_xlsx,
     ):
         try:

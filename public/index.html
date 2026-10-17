@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-build="2026-10-17a">
+<html lang="en" data-build="2026-10-17b">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@300;400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/board.css?v=126" />
+  <link rel="stylesheet" href="assets/board.css?v=127" />
   <script>
     (function () {
       const host = location.hostname;
@@ -45,8 +45,8 @@
         <small id="brandMode"></small>
       </div>
       <div class="nav-label">Boards</div>
-      <button class="nav-item active">SUPERPLAY MGX</button>
-      <button class="nav-item" disabled>SUPERPLAY Playables <span class="soon">soon</span></button>
+      <button type="button" class="nav-item active" id="navMgx">SUPERPLAY MGX</button>
+      <button type="button" class="nav-item" id="navPlay">SUPERPLAY Playables</button>
       <div id="financeNav" hidden>
         <div class="nav-label">Finance</div>
         <button class="nav-item" id="navClose">October 2026</button>
@@ -127,8 +127,8 @@
   <div class="modal-bg" id="createTaskModal">
     <div class="modal">
       <h3>Create task</h3>
-      <p style="color:#676879;font-size:13px">Paste the full project name (DD- / DX- / DS-). This creates the card, the month line folder if it is missing, the project folder, an empty brief Doc, and a row in live <code>SP_MGX_check.xlsx</code>. Save on the card writes the brief into that Doc.</p>
-      <textarea id="createTaskName" rows="3" placeholder="DD-AIV-202-004_SettAI_HalloweenFireTrial_DD-VEO-059-001_EN_30s"></textarea>
+      <p style="color:#676879;font-size:13px">Paste the full project name (DD- / DX- / DS- / DS-P-). This creates the card, the month line folder if it is missing, the project folder, an empty brief Doc, and a row in the live Excel for that board. Save on the card writes the brief into that Doc.</p>
+      <textarea id="createTaskName" rows="3" placeholder="DS-P-060_MergeSolitaire"></textarea>
       <p class="login-err" id="createTaskErr"></p>
       <p class="create-wait" id="createTaskWait" hidden>Writing Drive folder, brief Doc, and Excel row…</p>
       <div class="modal-actions">
@@ -193,6 +193,6 @@
 
   <div class="toast" id="toast"></div>
   <script src="assets/notices.js?v=4"></script>
-  <script src="assets/app.js?v=162"></script>
+  <script src="assets/app.js?v=163"></script>
 </body>
 </html>

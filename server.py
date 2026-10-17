@@ -15,12 +15,14 @@ from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
 import auth_io
+import direction_io
 import drive_io
 import drive_sync
 import excel_io
 import finance_io
 import mirror_io
 import notice_io
+import playables_io
 
 ROOT = Path(__file__).resolve().parent
 PUBLIC = ROOT / "public"
@@ -28,7 +30,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-17a"
+BUILD = "2026-10-17b"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -142,6 +144,16 @@ def load_db() -> dict:
         dirty = True
     if finance_io.apply_bank_card_fixes(db):
         dirty = True
+    if direction_io.ensure_crew(db):
+        dirty = True
+    ym = (db.get("meta") or {}).get("month") or "2026-10"
+    if playables_io.XLSX_PATH.exists() and not any(direction_io.is_playables(t) for t in db.get("tasks") or [] if (t.get("month") or ym) == ym):
+        try:
+            parsed = playables_io.parse_workbook(playables_io.XLSX_PATH, ym)
+            playables_io.apply_to_db(db, parsed, ym)
+            dirty = True
+        except Exception as e:
+            print(f"[playables] ingest: {e}", flush=True)
     if dirty:
         save_db(db)
     origin = mirror_io.ORIGIN_XLSX
@@ -275,6 +287,10 @@ def sync_excel(db: dict, month: str | None = None, calculator: bool = False) -> 
     """Write the month out from the board. Do not read Excel back — that wiped hours split."""
     ym = month or db.get("meta", {}).get("month") or "2026-10"
     excel_io.write_month(db, ym)
+    try:
+        playables_io.write_month(db, ym)
+    except Exception as e:
+        print(f"[playables] write_month: {e}", flush=True)
     if calculator:
         try:
             fx = (db.get("meta") or {}).get("nbuRate")
@@ -718,6 +734,8 @@ JOB_TITLES = {
     "designer": "Motion design",
     "teamlead": "Team Lead",
     "manager": "Line Producer",
+    "art_director": "Art Director",
+    "programmer": "Programmer",
 }
 CREW_JOBS = {"designer", "teamlead"}
 
@@ -754,6 +772,8 @@ STATUS_BY_ROLE = {
     "teamlead": {"wip", "tlcheck", "done"},
     "manager": {"revision", "closed"},
     "finance": {"revision", "closed"},
+    "art_director": {"new", "storyboard", "finalart", "build"},
+    "programmer": {"build", "htmlready"},
     "client": set(),
 }
 
@@ -999,7 +1019,12 @@ def make_comment(
 
 
 def is_sendable(task: dict) -> bool:
-    return task.get("studioStatus") == "done" and bool(str(task.get("resultUrl") or "").strip())
+    status = task.get("studioStatus")
+    if direction_io.is_playables(task):
+        if status == "storyboard":
+            return True
+        return status == "htmlready" and bool(str(task.get("resultUrl") or "").strip())
+    return status == "done" and bool(str(task.get("resultUrl") or "").strip())
 
 
 def task_month(data: dict, db: dict) -> str:
@@ -1030,11 +1055,12 @@ def parse_email(text: str) -> list[dict]:
             continue
         if shift < 0:
             continue
+        playable = direction_io.of_name(name) == direction_io.PLAYABLES
         row = {
             "name": name,
             "line": line_from_name(name),
-            "shifts": shift,
-            "hours": hours_from_shift(shift),
+            "shifts": 0 if playable else shift,
+            "hours": shift if playable else hours_from_shift(shift),
         }
         if name in by_name:
             by_name[name].update(row)
@@ -1484,7 +1510,14 @@ class Handler(SimpleHTTPRequestHandler):
                     return
             elif door == "studio":
                 role = str(data.get("role") or "").strip()
-                if role not in {"finance", "manager", "teamlead", "designer"}:
+                if role not in {
+                    "finance",
+                    "manager",
+                    "teamlead",
+                    "designer",
+                    "art_director",
+                    "programmer",
+                }:
                     self._json(403, {"error": "wrong login or PIN"})
                     return
                 unlocked = auth_io.pin_owner_roles(pin)
@@ -1521,7 +1554,14 @@ class Handler(SimpleHTTPRequestHandler):
                     }
                 elif door == "studio":
                     role = str(data.get("role") or "").strip()
-                    if role not in {"finance", "manager", "teamlead", "designer"}:
+                    if role not in {
+                        "finance",
+                        "manager",
+                        "teamlead",
+                        "designer",
+                        "art_director",
+                        "programmer",
+                    }:
                         self._json(403, {"error": "wrong login or PIN"})
                         return
                     unlocked = auth_io.pin_owner_roles(pin)
@@ -1758,8 +1798,10 @@ class Handler(SimpleHTTPRequestHandler):
                 self._json(403, {"error": "only finance can open the invoice folder"})
                 return
             month = data.get("month") or peek_db().get("meta", {}).get("month") or "2026-10"
+            direction = str(data.get("direction") or "mgx")
             try:
-                drive = drive_io.ensure_invoice_month_folder(month)
+                drive = drive_io.ensure_invoice_month_folder(month, direction)
+                play = drive_io.ensure_invoice_month_folder(month, "playables")
             except drive_io.DriveError as e:
                 self._json(409, {"ok": False, "error": str(e)})
                 return
@@ -1769,8 +1811,10 @@ class Handler(SimpleHTTPRequestHandler):
                     "ok": True,
                     "opened": False,
                     "folderUrl": drive.get("folderUrl") or "",
+                    "playableFolderUrl": play.get("folderUrl") or "",
                     "folder": drive.get("folder") or "",
                     "folderPath": drive.get("path") or "",
+                    "playableFolderPath": play.get("path") or "",
                 },
             )
             return
@@ -1793,8 +1837,8 @@ class Handler(SimpleHTTPRequestHandler):
                 except FileNotFoundError as e:
                     self._json(409, {"error": str(e)})
                     return
-            if line in {"BOTH", "ALL", "MGX", "DD/DX", "DDDX"}:
-                rows = [r for r in snap["byLine"] if r.get("hours") and r["line"] in {"DD", "DX", "DS"}]
+            if line in {"BOTH", "ALL", "MGX", "DD/DX", "DDDX", "SUPERPLAY"}:
+                rows = [r for r in snap["byLine"] if r.get("hours")]
             elif line in {"DD", "DX", "DS"}:
                 rows = [r for r in snap["byLine"] if r["line"] == line and r.get("hours")]
             else:
@@ -1803,7 +1847,16 @@ class Handler(SimpleHTTPRequestHandler):
             if not rows:
                 self._json(400, {"error": "no hours this month to invoice"})
                 return
-            packs = [finance_io.issue_invoice(r["line"], r["hours"], r["bill"], month) for r in rows]
+            packs = [
+                finance_io.issue_invoice(
+                    r["line"],
+                    r["hours"],
+                    r["bill"],
+                    month,
+                    direction=r.get("direction") or "mgx",
+                )
+                for r in rows
+            ]
             names = []
             files = []
             blobs: list[tuple[str, bytes]] = []
@@ -1823,8 +1876,25 @@ class Handler(SimpleHTTPRequestHandler):
                         blobs.append((name, fpath.read_bytes()))
             first = packs[0]
             folder_path = first.get("folderPath") or ""
+            drive = {"ok": True, "count": 0, "uploaded": [], "folders": []}
             try:
-                drive = drive_io.publish_invoices(month, blobs)
+                by_dir: dict[str, list[tuple[str, bytes]]] = {}
+                for item in packs:
+                    dest = Path(item.get("folderPath") or "")
+                    direction = item.get("direction") or "mgx"
+                    for name in (item.get("docxName"), item.get("pdfName")):
+                        if not name or not dest:
+                            continue
+                        fpath = dest / name
+                        if fpath.exists() and fpath.stat().st_size > 200:
+                            by_dir.setdefault(direction, []).append((name, fpath.read_bytes()))
+                for direction, group in by_dir.items():
+                    out = drive_io.publish_invoices(month, group, direction)
+                    drive["uploaded"].extend(out.get("uploaded") or [])
+                    drive["count"] = int(drive.get("count") or 0) + int(out.get("count") or 0)
+                    drive["folders"].append(out)
+                    drive["folderUrl"] = out.get("folderUrl") or drive.get("folderUrl")
+                    drive["path"] = out.get("path") or drive.get("path")
             except drive_io.DriveError as e:
                 print(f"[drive] invoice upload failed: {e}", flush=True)
                 self._json(
@@ -1847,6 +1917,7 @@ class Handler(SimpleHTTPRequestHandler):
                     "folder": first["folder"],
                     "folderPath": folder_path,
                     "folderUrl": drive.get("folderUrl") or "",
+                    "playableFolderUrl": next((f.get("folderUrl") for f in drive.get("folders") or [] if f.get("direction") == "playables"), ""),
                     "drive": drive,
                     "files": files,
                     "docxName": first["docxName"],
@@ -1895,6 +1966,9 @@ class Handler(SimpleHTTPRequestHandler):
                 undrop_name(db, name)
                 ym = str(data.get("month") or db.get("meta", {}).get("month") or "2026-10")
                 line = drive_io.line_from_name(name)
+                direction = direction_io.norm_dir(
+                    data.get("direction") or data.get("department") or direction_io.of_name(name)
+                )
                 used = {str(t.get("id") or "") for t in db.get("tasks") or []}
                 n = 1
                 while f"t-new-{n}" in used:
@@ -1904,7 +1978,7 @@ class Handler(SimpleHTTPRequestHandler):
                     "id": f"t-new-{n}",
                     "name": name,
                     "line": line,
-                    "department": "MGX",
+                    "department": direction_io.DEPT[direction],
                     "game": game,
                     "shifts": 0,
                     "hours": 0,
@@ -1913,6 +1987,9 @@ class Handler(SimpleHTTPRequestHandler):
                     "studioStatus": "new",
                     "mondayStatus": "Ready to Start",
                     "assigneeId": "",
+                    "assigneeHours": 0,
+                    "programmerId": "",
+                    "programmerHours": 0,
                     "help": [],
                     "brief": "",
                     "folderUrl": "",
@@ -2031,7 +2108,11 @@ class Handler(SimpleHTTPRequestHandler):
                         existing.setdefault("activity", []).append(
                             {
                                 "at": utc_now(),
-                                "text": f"From shift list: {row['shifts']} shifts → {row['hours']} h",
+                                "text": (
+                                    f"From hours list: {row['hours']} h"
+                                    if direction_io.is_playables(existing) or direction_io.of_name(row["name"]) == direction_io.PLAYABLES
+                                    else f"From shift list: {row['shifts']} shifts → {row['hours']} h"
+                                ),
                             }
                         )
                         updated += 1
@@ -2044,19 +2125,23 @@ class Handler(SimpleHTTPRequestHandler):
                     used.add(tid)
                     n += 1
                     game = "SettAI" if "SettAI" in row["name"] else ""
+                    dept = direction_io.of_name(row["name"])
                     task = {
                         "id": tid,
                         "name": row["name"],
                         "line": row["line"],
-                        "department": "MGX",
+                        "department": direction_io.DEPT[dept],
                         "game": game,
                         "shifts": row["shifts"],
                         "hours": row["hours"],
                         "deadline": "",
                         "month": ym,
                         "studioStatus": "new",
-                        "mondayStatus": "Ready to Start",
+                        "mondayStatus": "Ready" if dept == direction_io.PLAYABLES else "Ready to Start",
                         "assigneeId": "",
+                        "assigneeHours": 0,
+                        "programmerId": "",
+                        "programmerHours": 0,
                         "help": [],
                         "brief": "",
                         "folderUrl": "",
@@ -2066,7 +2151,11 @@ class Handler(SimpleHTTPRequestHandler):
                         "activity": [
                             {
                                 "at": utc_now(),
-                                "text": f"From shift list: {row['shifts']} shifts",
+                                "text": (
+                                    f"From hours list: {row['hours']} h"
+                                    if dept == direction_io.PLAYABLES
+                                    else f"From shift list: {row['shifts']} shifts"
+                                ),
                             }
                         ],
                     }
@@ -2122,12 +2211,18 @@ class Handler(SimpleHTTPRequestHandler):
                     if task["id"] not in ids or not is_sendable(task):
                         continue
                     before = {"studioStatus": task.get("studioStatus"), "assigneeId": task.get("assigneeId")}
-                    task["studioStatus"] = "approve"
-                    task["mondayStatus"] = "Senior Approval"
+                    if direction_io.is_playables(task) and task.get("studioStatus") == "storyboard":
+                        task["studioStatus"] = "clientart"
+                        task["mondayStatus"] = "Client art"
+                        sent_as = "Client art"
+                    else:
+                        task["studioStatus"] = "approve"
+                        task["mondayStatus"] = "Send" if direction_io.is_playables(task) else "Senior Approval"
+                        sent_as = task["mondayStatus"]
                     task.setdefault("activity", []).append(
                         {
                             "at": utc_now(),
-                            "text": "Sent to Monday: check it please + link → Senior Approval",
+                            "text": f"Sent to Monday: check it please + link → {sent_as}",
                         }
                     )
                     notice_io.on_task_change(db, task, before, actor_id)
@@ -2135,14 +2230,14 @@ class Handler(SimpleHTTPRequestHandler):
                         {
                             "name": task["name"],
                             "reply": monday_reply(task),
-                            "mondayStatus": "Senior Approval",
+                            "mondayStatus": task.get("mondayStatus") or "Senior Approval",
                         }
                     )
                 if not exported:
                     self._json(
                         400,
                         {
-                            "error": "Send only works on Done projects that have a result link",
+                            "error": "Send only works on Done / Storyboard / HTML ready projects",
                             "exported": [],
                             "state": db,
                         },
@@ -2171,18 +2266,24 @@ class Handler(SimpleHTTPRequestHandler):
                 nxt = data.get("studioStatus")
                 role = data.get("role") or ""
                 actor = str(data.get("actorId") or "")
-                allowed = STATUS_BY_ROLE
+                playable = direction_io.is_playables(task)
+                allowed = direction_io.PLAY_STATUS_BY_ROLE if playable else STATUS_BY_ROLE
                 if role not in allowed:
                     self._json(403, {"error": "unknown role"})
                     return
                 if role == "client":
                     self._json(403, {"error": "client cannot edit tasks"})
                     return
-                if role == "designer":
-                    if actor != str(task.get("assigneeId") or ""):
+                if role in {"designer", "art_director", "programmer"}:
+                    mine = actor in {
+                        str(task.get("assigneeId") or ""),
+                        str(task.get("programmerId") or ""),
+                        str(task.get("motionId") or ""),
+                    } or any(str((row or {}).get("id") or "") == actor for row in (task.get("help") or []))
+                    if not mine:
                         self._json(403, {"error": "you can only edit your own tasks"})
                         return
-                    for locked in ("brief", "folderUrl", "docUrl", "assigneeId", "name"):
+                    for locked in ("brief", "folderUrl", "docUrl", "assigneeId", "name", "programmerId"):
                         data.pop(locked, None)
                 if (
                     "assigneeId" in data
@@ -2192,7 +2293,7 @@ class Handler(SimpleHTTPRequestHandler):
                     self._json(403, {"error": "only TL or LP can assign"})
                     return
                 if nxt == "approve" and nxt != task.get("studioStatus"):
-                    self._json(403, {"error": "Senior Approval is set only when you Send to client"})
+                    self._json(403, {"error": "Send / Senior Approval is set only when you Send to client"})
                     return
                 if (
                     nxt == "closed"
@@ -2201,7 +2302,7 @@ class Handler(SimpleHTTPRequestHandler):
                 ):
                     self._json(
                         403,
-                        {"error": "Closed is after Senior Approval, when the client accepts"},
+                        {"error": "Closed is after Send, when the client accepts"},
                     )
                     return
                 if (
@@ -2214,19 +2315,38 @@ class Handler(SimpleHTTPRequestHandler):
                     return
                 status_after = data["studioStatus"] if "studioStatus" in data else task.get("studioStatus")
                 result_after = data["resultUrl"] if "resultUrl" in data else task.get("resultUrl")
-                if status_after == "tlcheck" and not str(result_after or "").strip():
-                    self._json(400, {"error": "paste the result link before TL Check"})
+                if not playable:
+                    if status_after == "tlcheck" and not str(result_after or "").strip():
+                        self._json(400, {"error": "paste the result link before TL Check"})
+                        return
+                    if status_after == "done" and not str(result_after or "").strip():
+                        self._json(400, {"error": "paste the result link before Done"})
+                        return
+                    if (
+                        nxt == "done"
+                        and nxt != task.get("studioStatus")
+                        and task.get("studioStatus") != "tlcheck"
+                    ):
+                        self._json(403, {"error": "Done is after TL Check"})
+                        return
+                elif status_after == "htmlready" and not str(result_after or "").strip():
+                    self._json(400, {"error": "paste the HTML link before HTML ready"})
                     return
-                if status_after == "done" and not str(result_after or "").strip():
-                    self._json(400, {"error": "paste the result link before Done"})
-                    return
-                if (
-                    nxt == "done"
-                    and nxt != task.get("studioStatus")
-                    and task.get("studioStatus") != "tlcheck"
-                ):
-                    self._json(403, {"error": "Done is after TL Check"})
-                    return
+                if "hours" in data and playable:
+                    if role not in {"manager", "finance"}:
+                        self._json(403, {"error": "only manager or finance can edit time"})
+                        return
+                    try:
+                        hours = float(str(data["hours"]).replace(",", "."))
+                    except (TypeError, ValueError):
+                        self._json(400, {"error": "hours must be a number"})
+                        return
+                    if hours < 0:
+                        self._json(400, {"error": "hours must be 0 or more"})
+                        return
+                    task["hours"] = round(hours, 1)
+                    task["shifts"] = 0
+                    data.pop("hours", None)
                 if "shifts" in data:
                     if role not in {"manager", "finance"}:
                         self._json(403, {"error": "only manager or finance can edit time"})
@@ -2281,7 +2401,19 @@ class Handler(SimpleHTTPRequestHandler):
                             {"at": utc_now(), "text": f"Renamed {old_name} → {new_name}"}
                         )
                 brief_before = task.get("brief")
-                for key in ("studioStatus", "assigneeId", "resultUrl", "brief", "folderUrl", "docUrl"):
+                for key in (
+                    "studioStatus",
+                    "assigneeId",
+                    "assigneeHours",
+                    "programmerId",
+                    "programmerHours",
+                    "motionId",
+                    "motionHours",
+                    "resultUrl",
+                    "brief",
+                    "folderUrl",
+                    "docUrl",
+                ):
                     if key in data:
                         task[key] = data[key]
                 brief_changed = "brief" in data and str(task.get("brief") or "") != str(brief_before or "")
@@ -2307,14 +2439,23 @@ class Handler(SimpleHTTPRequestHandler):
                     who = str(task.get("assigneeId") or "")
                     given = sum(row["hours"] for row in help_rows if row["id"] != who)
                     total = excel_io.client_hours(task)
-                    if given > total + 0.001:
+                    if not playable and given > total + 0.001:
                         self._json(400, {"error": "help hours cannot exceed the client hours"})
                         return
                     task["help"] = help_rows
-                excel_io.normalize_help(
-                    task, {p["id"] for p in excel_io.designers(db)}
-                )
-                if task.get("studioStatus") == "closed":
+                crew_ids = {p["id"] for p in excel_io.designers(db)}
+                if playable:
+                    crew_ids |= {
+                        p["id"]
+                        for p in db.get("people") or []
+                        if p.get("role") in direction_io.PLAY_CREW
+                    }
+                excel_io.normalize_help(task, crew_ids)
+                if playable:
+                    st = task.get("studioStatus")
+                    if st in direction_io.PLAY_STATUS:
+                        task["mondayStatus"] = direction_io.PLAY_STATUS[st]
+                elif task.get("studioStatus") == "closed":
                     task["mondayStatus"] = "Closed"
                 elif nxt == "revision":
                     task["mondayStatus"] = "Need Fixing"
@@ -2524,6 +2665,8 @@ class Handler(SimpleHTTPRequestHandler):
                     "teamlead": "Team lead",
                     "manager": "Manager",
                     "finance": "Finance",
+                    "art_director": "Art Director",
+                    "programmer": "Programmer",
                 }
                 if job not in labels:
                     self._json(400, {"error": "unknown role"})
@@ -2540,6 +2683,8 @@ class Handler(SimpleHTTPRequestHandler):
                     "teamlead": ["#fdab3d", "#e67e22"],
                     "manager": ["#9d50dd", "#7b2cbf"],
                     "finance": ["#0073ea", "#0059b3"],
+                    "art_director": ["#C9A0DC", "#7ED4C2", "#a25ddc"],
+                    "programmer": ["#8AA2FF", "#579bfc", "#00c2e0"],
                 }[job]
                 count = len([p for p in db["people"] if p.get("role") == job])
                 person = {
@@ -2553,12 +2698,20 @@ class Handler(SimpleHTTPRequestHandler):
                     person["jobTitle"] = JOB_TITLES[job]
                 if job == "manager":
                     person["rateUsd"] = 5
+                    person["directions"] = [direction_io.MGX, direction_io.PLAYABLES]
+                    person["rates"] = {direction_io.MGX: 5, direction_io.PLAYABLES: 7}
                 elif job in {"designer", "teamlead"}:
                     person["rateUsd"] = 15
+                    person["directions"] = [direction_io.MGX]
+                    person["rates"] = {direction_io.MGX: 15}
+                elif job in {"art_director", "programmer"}:
+                    person["rateUsd"] = 15
+                    person["directions"] = [direction_io.PLAYABLES]
+                    person["rates"] = {direction_io.PLAYABLES: 15}
                 db["people"].append(person)
                 save_db(db)
                 self._json(200, {"person": person, "state": db})
-                if job in {"designer", "teamlead", "manager"}:
+                if job in {"designer", "teamlead", "manager", "art_director", "programmer"}:
                     _spawn(_sync_files_bg, db.get("meta", {}).get("month"), True)
                 return
             if path == "/api/people/delete":

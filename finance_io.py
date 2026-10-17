@@ -15,7 +15,9 @@ from pathlib import Path
 from urllib.request import urlopen, Request
 from urllib.error import URLError
 
+import direction_io
 import excel_io
+import playables_io
 from openpyxl import load_workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
@@ -35,7 +37,9 @@ SOFFICE_BINS = [
 NBU_URL = "https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?valcode=USD&json"
 TAX_PCT = 0.06
 CLIENT_RATE = 35.0
+PLAYABLE_CLIENT_RATE = 40.0
 MANAGER_RATE = 5.0
+PLAYABLE_MANAGER_RATE = 7.0
 DESIGNER_RATE = 15.0
 FALLBACK_NBU = 41.2
 _NBU_CACHE: dict = {"at": 0.0, "data": None}
@@ -126,9 +130,11 @@ def hours_of(task: dict, shift_hours: float = 9) -> float:
         return 0.0
 
 
-def default_pay_rate(person: dict | None, meta: dict | None = None) -> float:
+def default_pay_rate(person: dict | None, meta: dict | None = None, direction: str = "mgx") -> float:
     meta = meta or {}
     if person and person.get("role") == "manager":
+        if direction_io.norm_dir(direction) == direction_io.PLAYABLES:
+            return PLAYABLE_MANAGER_RATE
         raw = meta.get("managerRateUsd")
         fallback = MANAGER_RATE
     else:
@@ -143,18 +149,11 @@ def default_pay_rate(person: dict | None, meta: dict | None = None) -> float:
     return n if n >= 0 else fallback
 
 
-def person_rate(person: dict | None, default: float | None = None, meta: dict | None = None) -> float:
-    fallback = default if default is not None else default_pay_rate(person, meta)
+def person_rate(person: dict | None, default: float | None = None, meta: dict | None = None, direction: str = "mgx") -> float:
+    fallback = default if default is not None else default_pay_rate(person, meta, direction)
     if not person:
         return fallback
-    raw = person.get("rateUsd")
-    if raw is None or raw == "":
-        return fallback
-    try:
-        n = float(raw)
-    except (TypeError, ValueError):
-        return fallback
-    return n if n >= 0 else fallback
+    return direction_io.person_rate_for(person, direction, fallback)
 
 
 def _nbu_from(db: dict, nbu: dict | None = None) -> dict:
@@ -176,14 +175,18 @@ def _by_pay_order(people: list[dict]) -> list[dict]:
 
 
 def hours_people(db: dict) -> list[dict]:
-    """Performers: team lead Настя and designers, $15/h on assigned hours."""
+    """Performers: TL / MD on MGX, AD / Dev / Motion on Playables."""
     return _by_pay_order(
-        [p for p in db.get("people") or [] if p.get("role") in {"teamlead", "designer"}]
+        [
+            p
+            for p in db.get("people") or []
+            if p.get("role") in {"teamlead", "designer", "art_director", "programmer"}
+        ]
     )
 
 
 def empl_people(db: dict) -> list[dict]:
-    """Calculator EMPL columns: manager $5 on every hour, then performers at $15."""
+    """Calculator EMPL columns: manager, then performers."""
     mgr = [p for p in db.get("people") or [] if p.get("role") == "manager"]
     return _by_pay_order(mgr) + hours_people(db)
 
@@ -240,25 +243,55 @@ def _pay_row(person: dict, meta: dict | None = None) -> dict:
 
 def snapshot(db: dict, month: str, nbu: dict | None = None) -> dict:
     meta = db.get("meta") or {}
-    client_rate = float(meta.get("clientRateUsd") or CLIENT_RATE)
     tax = float(meta.get("taxPct") if meta.get("taxPct") is not None else TAX_PCT)
     shift_hours = float(meta.get("shiftHours") or 9)
     nbu = _nbu_from(db, nbu)
     fx = float(nbu.get("rate") or FALLBACK_NBU)
     tasks = excel_io.tasks_for_finance(db, month)
     hours_source = f"board · {excel_io.sheet_name_for(month)}"
-    people = {p["id"]: p for p in db.get("people") or []}
-    lines = {k: {"line": k, "projects": 0, "shifts": 0.0, "hours": 0.0, "bill": 0.0} for k in ("DD", "DX", "DS")}
     pay = {p["id"]: _pay_row(p, meta) for p in pay_people(db)}
+    for row in pay.values():
+        row["rateMgx"] = person_rate(next((p for p in db.get("people") or [] if p.get("id") == row["id"]), None), meta=meta, direction="mgx")
+        row["ratePlay"] = person_rate(next((p for p in db.get("people") or [] if p.get("id") == row["id"]), None), meta=meta, direction="playables")
+        row["hoursMgx"] = 0.0
+        row["hoursPlay"] = 0.0
+        row["payUsd"] = 0.0
+        row["allHours"] = False
     unassigned = {"projects": 0, "shifts": 0.0, "hours": 0.0}
+    by_line = []
+    buckets = {}
+    for dir_key, dir_label in ((direction_io.MGX, "MGX"), (direction_io.PLAYABLES, "Playable")):
+        rate = direction_io.client_rate(dir_key, meta)
+        for line in ("DX", "DD", "DS"):
+            buckets[(dir_key, line)] = {
+                "direction": dir_key,
+                "label": f"{dir_label} {line}",
+                "line": line,
+                "projects": 0,
+                "shifts": 0.0,
+                "hours": 0.0,
+                "bill": 0.0,
+                "rate": rate,
+            }
+    mgr_hours = {direction_io.MGX: 0.0, direction_io.PLAYABLES: 0.0}
+    mgr_projects = {direction_io.MGX: 0, direction_io.PLAYABLES: 0}
     for t in tasks:
-        line = t.get("line") if t.get("line") in lines else "DD"
+        direction = direction_io.of_task(t)
+        line = t.get("line") if t.get("line") in {"DD", "DX", "DS"} else "DD"
         h = hours_of(t, shift_hours)
         sh = float(t.get("shifts") or 0)
-        lines[line]["projects"] += 1
-        lines[line]["shifts"] += sh
-        lines[line]["hours"] += h
-        lines[line]["bill"] += h * client_rate
+        rate = direction_io.client_rate(direction, meta)
+        bucket = buckets[(direction, line)]
+        bucket["projects"] += 1
+        bucket["shifts"] += sh
+        bucket["hours"] += h
+        bucket["bill"] += h * rate
+        if direction == direction_io.PLAYABLES:
+            mgr_h = playables_io.producer_hours(t)
+        else:
+            mgr_h = h
+        mgr_hours[direction] += mgr_h
+        mgr_projects[direction] += 1
         allocated = 0.0
         for pid, row in list(pay.items()):
             if row.get("role") == "manager":
@@ -266,56 +299,84 @@ def snapshot(db: dict, month: str, nbu: dict | None = None) -> dict:
             ph = excel_io.hours_for_person(t, pid, shift_hours)
             if ph <= 0:
                 continue
+            pay_rate = person_rate(
+                next((p for p in db.get("people") or [] if p.get("id") == pid), None),
+                meta=meta,
+                direction=direction,
+            )
             row["projects"] += 1
-            row["shifts"] += round(ph / shift_hours, 2) if shift_hours else 0
+            row["shifts"] += round(ph / shift_hours, 2) if shift_hours and direction == direction_io.MGX else 0
             row["hours"] += ph
-            row["payUsd"] += ph * row["rate"]
+            row["payUsd"] += ph * pay_rate
+            if direction == direction_io.PLAYABLES:
+                row["hoursPlay"] += ph
+            else:
+                row["hoursMgx"] += ph
             allocated = round(allocated + ph, 1)
-        leftover = round(max(0.0, h - allocated), 1)
-        if leftover > 0.05:
+        leftover = round(max(0.0, (mgr_h if direction == direction_io.PLAYABLES else h) - allocated), 1)
+        if leftover > 0.05 and direction == direction_io.MGX:
             unassigned["projects"] += 1
             unassigned["shifts"] += round(leftover / shift_hours, 2) if shift_hours else sh
             unassigned["hours"] += leftover
-    total_hours = round(sum(hours_of(t, shift_hours) for t in tasks), 1)
-    total_shifts = round(sum(float(t.get("shifts") or 0) for t in tasks), 2)
+    people_by_id = {p["id"]: p for p in db.get("people") or []}
     for row in pay.values():
         if row.get("role") != "manager":
             continue
-        row["hours"] = total_hours
-        row["shifts"] = total_shifts
-        row["projects"] = len(tasks)
-        row["payUsd"] = total_hours * row["rate"]
+        person = people_by_id.get(row["id"])
+        mgx_h = round(mgr_hours[direction_io.MGX], 1)
+        play_h = round(mgr_hours[direction_io.PLAYABLES], 1)
+        row["hoursMgx"] = mgx_h
+        row["hoursPlay"] = play_h
+        row["hours"] = round(mgx_h + play_h, 1)
+        row["projects"] = mgr_projects[direction_io.MGX] + mgr_projects[direction_io.PLAYABLES]
+        row["payUsd"] = (
+            mgx_h * person_rate(person, meta=meta, direction="mgx")
+            + play_h * person_rate(person, meta=meta, direction="playables")
+        )
         row["allHours"] = True
+        row["rate"] = person_rate(person, meta=meta, direction="mgx")
     payroll = sorted(pay.values(), key=lambda r: (r.get("payOrder") or 99, r["name"]))
     for row in payroll:
+        if not row.get("allHours"):
+            row["rate"] = row.get("ratePlay") if row.get("hoursPlay") and not row.get("hoursMgx") else row.get("rateMgx") or row.get("rate")
         row["payUah"] = round(row["payUsd"] * fx, 2)
         row["payUsd"] = round(row["payUsd"], 2)
         row["hours"] = round(row["hours"], 1)
+        row["hoursMgx"] = round(row.get("hoursMgx") or 0, 1)
+        row["hoursPlay"] = round(row.get("hoursPlay") or 0, 1)
         row["shifts"] = round(row["shifts"], 2)
-    by_line = []
-    for key in ("DD", "DX", "DS"):
-        row = lines[key]
+    for key in ((direction_io.MGX, "DX"), (direction_io.MGX, "DD"), (direction_io.MGX, "DS"),
+                (direction_io.PLAYABLES, "DX"), (direction_io.PLAYABLES, "DD"), (direction_io.PLAYABLES, "DS")):
+        row = buckets[key]
         row["hours"] = round(row["hours"], 1)
         row["shifts"] = round(row["shifts"], 2)
         row["bill"] = round(row["bill"], 2)
-        if key != "DS" or row["projects"]:
+        keep = row["projects"] or (key[0] == direction_io.MGX and key[1] != "DS")
+        if keep:
             by_line.append(row)
     hours = round(sum(r["hours"] for r in by_line), 1)
     shifts = round(sum(r["shifts"] for r in by_line), 2)
-    client_in = round(hours * client_rate, 2)
+    client_in = round(sum(r["bill"] for r in by_line), 2)
     after_tax = round(client_in - client_in * tax, 2)
     empl = round(sum(r["payUsd"] for r in payroll), 2)
     studio = round(after_tax - empl, 2)
+    mgx_in = round(sum(r["bill"] for r in by_line if r["direction"] == direction_io.MGX), 2)
+    play_in = round(sum(r["bill"] for r in by_line if r["direction"] == direction_io.PLAYABLES), 2)
     return {
         "month": month,
         "hoursSource": hours_source,
-        "clientRate": client_rate,
+        "clientRate": direction_io.client_rate(direction_io.MGX, meta),
+        "playableClientRate": direction_io.client_rate(direction_io.PLAYABLES, meta),
         "taxPct": tax,
         "nbu": nbu,
         "hours": hours,
         "shifts": shifts,
         "projects": len(tasks),
         "byLine": by_line,
+        "byDirection": [
+            {"direction": direction_io.MGX, "label": "MGX", "hours": round(sum(r["hours"] for r in by_line if r["direction"] == direction_io.MGX), 1), "bill": mgx_in},
+            {"direction": direction_io.PLAYABLES, "label": "Playable", "hours": round(sum(r["hours"] for r in by_line if r["direction"] == direction_io.PLAYABLES), 1), "bill": play_in},
+        ],
         "payroll": payroll,
         "unassigned": {
             "projects": unassigned["projects"],
@@ -333,7 +394,9 @@ def snapshot(db: dict, month: str, nbu: dict | None = None) -> dict:
     }
 
 
-INVOICE_NAME = re.compile(r"^invoice[A-Z]{2}_\d{4}\.\d{2}\.\d{2}\.(docx|pdf)$")
+INVOICE_NAME = re.compile(
+    r"^(invoice[A-Z]{2}_\d{4}\.\d{2}\.\d{2}|invoice_Playable_[A-Z]{2}_\d{4}\.\d{2}\.\d{2})\.(docx|pdf)$"
+)
 
 
 def now_kyiv() -> datetime:
@@ -350,8 +413,11 @@ def month_folder_name(ym: str) -> str:
     return f"{m:02d}_{datetime(y, m, 1).strftime('%B')}"
 
 
-def invoice_filename(line: str, when: datetime | None = None, ext: str = "docx") -> str:
+def invoice_filename(line: str, when: datetime | None = None, ext: str = "docx", direction: str = "mgx") -> str:
     when = when or now_kyiv()
+    line = (line or "DD").upper()
+    if direction_io.norm_dir(direction) == direction_io.PLAYABLES:
+        return f"invoice_Playable_{line}_{when.strftime('%Y.%m.%d')}.{ext}"
     return f"invoice{line}_{when.strftime('%Y.%m.%d')}.{ext}"
 
 
@@ -450,7 +516,7 @@ def template_path(line: str) -> Path:
     )
 
 
-def clone_invoice(line: str, hours: float, amount: float, when: datetime | None = None) -> bytes:
+def clone_invoice(line: str, hours: float, amount: float, when: datetime | None = None, direction: str = "mgx") -> bytes:
     line = (line or "DD").upper()
     when = when or now_kyiv()
     src = template_path(line).read_bytes()
@@ -473,7 +539,11 @@ def clone_invoice(line: str, hours: float, amount: float, when: datetime | None 
         (tok.get("pay_by") or "", (when + timedelta(days=21)).strftime("%d.%m.%Y")),
         (
             f"Marketing video and design for {tok.get('line') or line}",
-            f"Marketing video and design for {line}",
+            (
+                f"Playable ads for {line}"
+                if direction_io.norm_dir(direction) == direction_io.PLAYABLES
+                else f"Marketing video and design for {line}"
+            ),
         ),
     ]
     replacements.sort(key=lambda p: len(p[0]), reverse=True)
@@ -489,16 +559,17 @@ def clone_invoice(line: str, hours: float, amount: float, when: datetime | None 
     return out.getvalue()
 
 
-def build_invoice(line: str, hours: float, amount: float, when: datetime | None = None) -> bytes:
-    return clone_invoice(line, hours, amount, when)
+def build_invoice(line: str, hours: float, amount: float, when: datetime | None = None, direction: str = "mgx") -> bytes:
+    return clone_invoice(line, hours, amount, when, direction=direction)
 
 
-def invoice_destinations(ym: str) -> list[Path]:
-    return [INVOICES_DIR / month_folder_name(ym)]
+def invoice_destinations(ym: str, direction: str = "mgx") -> list[Path]:
+    folder = "Playable" if direction_io.norm_dir(direction) == direction_io.PLAYABLES else "MGX"
+    return [INVOICES_DIR / folder / month_folder_name(ym)]
 
 
-def primary_invoice_dir(ym: str) -> Path:
-    dests = invoice_destinations(ym)
+def primary_invoice_dir(ym: str, direction: str = "mgx") -> Path:
+    dests = invoice_destinations(ym, direction)
     for path in dests:
         if path.exists():
             return path
@@ -615,13 +686,15 @@ def issue_invoice(
     amount: float,
     month: str,
     when: datetime | None = None,
+    direction: str = "mgx",
 ) -> dict:
     line = (line or "DD").upper()
+    direction = direction_io.norm_dir(direction)
     when = when or now_kyiv()
-    docx_bytes = clone_invoice(line, hours, amount, when)
-    docx_name = invoice_filename(line, when, "docx")
-    pdf_name = invoice_filename(line, when, "pdf")
-    dests = invoice_destinations(month)
+    docx_bytes = clone_invoice(line, hours, amount, when, direction=direction)
+    docx_name = invoice_filename(line, when, "docx", direction)
+    pdf_name = invoice_filename(line, when, "pdf", direction)
+    dests = invoice_destinations(month, direction)
     written: list[Path] = []
     pdf_bytes = b""
     pdf_error = ""
@@ -676,15 +749,20 @@ def issue_invoice(
         "amount": round(float(amount), 2),
         "date": when.strftime("%d.%m.%Y"),
         "pdfReady": bool(pdf_bytes),
+        "direction": direction,
+        "line": line,
     }
 
 
 def list_invoices(month: str) -> dict:
     folder = month_folder_name(month)
     dest = primary_invoice_dir(month)
+    play = primary_invoice_dir(month, direction_io.PLAYABLES)
     files = []
-    if dest.exists():
-        for path in sorted(dest.iterdir()):
+    for folder_path in (dest, play):
+        if not folder_path.exists():
+            continue
+        for path in sorted(folder_path.iterdir()):
             if path.is_file() and INVOICE_NAME.match(path.name):
                 files.append(
                     {
@@ -696,7 +774,8 @@ def list_invoices(month: str) -> dict:
     return {
         "folder": folder,
         "folderPath": str(dest),
-        "exists": dest.exists(),
+        "playableFolderPath": str(play),
+        "exists": dest.exists() or play.exists(),
         "files": files,
     }
 
@@ -705,7 +784,7 @@ def resolve_invoice_file(month: str, name: str) -> Path:
     name = Path(name).name
     if not INVOICE_NAME.match(name):
         raise ValueError("bad invoice file name")
-    for dest in invoice_destinations(month):
+    for dest in invoice_destinations(month) + invoice_destinations(month, direction_io.PLAYABLES):
         cand = dest / name
         if cand.is_file():
             return cand
@@ -751,8 +830,15 @@ def write_month(db: dict, ym: str, nbu_rate: float | None = None, path: Path | N
     client_rate = float(meta.get("clientRateUsd") or CLIENT_RATE)
     tax = float(meta.get("taxPct") if meta.get("taxPct") is not None else TAX_PCT)
     fx = float(nbu_rate or (meta.get("nbuRate") or FALLBACK_NBU))
-    crew = empl_people(db)
-    tasks = [t for t in db.get("tasks") or [] if (t.get("month") or ym) == ym]
+    crew = _by_pay_order(
+        [p for p in db.get("people") or [] if p.get("role") == "manager"]
+        + [p for p in db.get("people") or [] if p.get("role") in {"teamlead", "designer"}]
+    )
+    tasks = [
+        t
+        for t in db.get("tasks") or []
+        if (t.get("month") or ym) == ym and direction_io.is_mgx(t)
+    ]
     by_line = {k: [] for k in ("DX", "DD", "DS")}
     for t in tasks:
         line = t.get("line") if t.get("line") in by_line else "DD"
@@ -772,6 +858,7 @@ def write_month(db: dict, ym: str, nbu_rate: float | None = None, path: Path | N
 
 
 def _write_month_body(db, ym, path, wb, client_rate, tax, fx, crew, by_line, active_lines):
+    meta = db.get("meta") or {}
     name = sheet_name_for(ym)
     if name in wb.sheetnames:
         del wb[name]

@@ -6,6 +6,11 @@ const STATUS = {
   done: { label: "Done", cls: "status-done", order: 5 },
   approve: { label: "Senior Approval", cls: "status-approve", order: 6 },
   closed: { label: "Closed", cls: "status-closed", order: 7 },
+  storyboard: { label: "Storyboard", cls: "status-wip", order: 2 },
+  clientart: { label: "Client art", cls: "status-approve", order: 3 },
+  finalart: { label: "Final art", cls: "status-revision", order: 4 },
+  build: { label: "Build", cls: "status-tlcheck", order: 5 },
+  htmlready: { label: "HTML ready", cls: "status-done", order: 6 },
 };
 
 const ROLE_LABEL = {
@@ -13,6 +18,8 @@ const ROLE_LABEL = {
   manager: "Line Producer",
   teamlead: "Team Lead",
   designer: "Motion design",
+  art_director: "Art Director",
+  programmer: "Programmer",
   client: "Client",
 };
 const JOB_BADGE = {
@@ -20,10 +27,14 @@ const JOB_BADGE = {
   manager: { code: "LP", title: "Line Producer" },
   teamlead: { code: "TL", title: "Team Lead" },
   designer: { code: "MD", title: "Motion design" },
+  art_director: { code: "AD", title: "Art Director" },
+  programmer: { code: "DEV", title: "Programmer" },
   client: { code: "SP", title: "Client" },
 };
 const TEAM_JOBS = [
   { id: "designer", label: "Motion design" },
+  { id: "art_director", label: "Art Director" },
+  { id: "programmer", label: "Programmer" },
   { id: "teamlead", label: "Team Lead" },
   { id: "manager", label: "Line Producer" },
   { id: "finance", label: "Finance" },
@@ -38,6 +49,17 @@ const STATUS_BY_ROLE = {
   teamlead: ["wip", "tlcheck", "done"],
   manager: ["revision", "closed"],
   finance: ["revision", "closed"],
+  art_director: ["new", "storyboard", "finalart", "build"],
+  programmer: ["build", "htmlready"],
+  client: [],
+};
+const PLAY_STATUS_BY_ROLE = {
+  art_director: ["new", "storyboard", "finalart", "build"],
+  programmer: ["build", "htmlready"],
+  designer: ["storyboard", "finalart"],
+  teamlead: ["storyboard", "finalart", "build"],
+  manager: ["storyboard", "clientart", "closed"],
+  finance: ["storyboard", "clientart", "closed"],
   client: [],
 };
 const LINES = ["DD", "DX", "DS"];
@@ -46,7 +68,11 @@ const STUDIO_ROLES = [
   { role: "manager", label: "LP", blurb: "Line Producer" },
   { role: "teamlead", label: "TL", blurb: "Team Lead" },
   { role: "designer", label: "MD", blurb: "Motion design" },
+  { role: "art_director", label: "AD", blurb: "Art Director" },
+  { role: "programmer", label: "DEV", blurb: "Programmer" },
 ];
+const DIR_KEY = "lg-direction";
+const DIR_LABEL = { mgx: "SUPERPLAY MGX", playables: "SUPERPLAY Playables" };
 
 const MONTH_KEY = "lg-month";
 const SESSION_KEY = "lg-session";
@@ -102,6 +128,7 @@ const state = {
   search: "",
   searchFocus: false,
   searchCaret: 0,
+  direction: localStorage.getItem("lg-direction") || "mgx",
 };
 const $ = (id) => document.getElementById(id);
 
@@ -299,6 +326,8 @@ function showSeatPicker(seats) {
     if (roles.includes("manager")) bits.push("LP");
     if (roles.includes("teamlead")) bits.push("TL");
     if (roles.includes("designer")) bits.push("a designer");
+    if (roles.includes("art_director")) bits.push("an art director");
+    if (roles.includes("programmer")) bits.push("a programmer");
     $("loginLead").textContent =
       bits.length > 1 ? `Pick ${bits.slice(0, -1).join(", ")} or ${bits[bits.length - 1]}` : "Pick a seat";
   }
@@ -495,11 +524,58 @@ function isClient() {
 function isDesigner() {
   return me().role === "designer";
 }
+function isArtDirector() {
+  return me().role === "art_director";
+}
+function isProgrammer() {
+  return me().role === "programmer";
+}
+function isPerformer() {
+  return isDesigner() || isArtDirector() || isProgrammer();
+}
 function isTeamLead() {
   return me().role === "teamlead";
 }
 function canOps() {
   return me().role === "manager" || me().role === "finance";
+}
+function directionOf(t) {
+  const raw = String(t?.department || t?.direction || "MGX").toLowerCase();
+  return raw.startsWith("play") ? "playables" : "mgx";
+}
+function isPlayables(t) {
+  return directionOf(t) === "playables";
+}
+function personDirections(p) {
+  const raw = p?.directions;
+  if (Array.isArray(raw) && raw.length) return raw.map((d) => String(d).toLowerCase());
+  if (p?.role === "art_director" || p?.role === "programmer") return ["playables"];
+  if (p?.role === "finance" || p?.role === "manager" || p?.role === "client") return ["mgx", "playables"];
+  return ["mgx"];
+}
+function canSeeDirection(dir) {
+  const p = me();
+  if (!p) return dir === "mgx";
+  if (p.role === "finance" || p.role === "client") return true;
+  return personDirections(p).includes(dir);
+}
+function setDirection(dir) {
+  const next = dir === "playables" ? "playables" : "mgx";
+  if (!canSeeDirection(next)) return;
+  state.direction = next;
+  localStorage.setItem(DIR_KEY, next);
+  state.selected.clear();
+  state.designerFilter = null;
+  render();
+}
+function syncDirection() {
+  const p = me();
+  const dirs = personDirections(p);
+  if (p?.role === "finance" || p?.role === "client") return;
+  if (!dirs.includes(state.direction)) {
+    state.direction = dirs.includes("playables") && !dirs.includes("mgx") ? "playables" : dirs[0] || "mgx";
+    localStorage.setItem(DIR_KEY, state.direction);
+  }
 }
 function isDeletableTask(t) {
   return Boolean(t && t.id);
@@ -552,11 +628,23 @@ function helpHoursTotal(t) {
   return roundHours(helpEntries(t).reduce((s, row) => s + row.hours, 0));
 }
 function hoursOwned(t) {
+  if (isPlayables(t)) {
+    const ah = roundHours(t?.assigneeHours);
+    if (ah) return ah;
+    const rest = hoursOf(t) - helpHoursTotal(t) - roundHours(t?.programmerHours) - roundHours(t?.motionHours);
+    return Math.max(0, roundHours(rest));
+  }
   return Math.max(0, Math.round((hoursOf(t) - helpHoursTotal(t)) * 10) / 10);
 }
 function hoursForPerson(t, personId) {
   const id = String(personId || "");
   if (!id) return 0;
+  if (isPlayables(t)) {
+    if (id === String(t?.programmerId || "")) return roundHours(t?.programmerHours);
+    if (id === String(t?.motionId || "")) return roundHours(t?.motionHours);
+    if (id === String(t?.assigneeId || "")) return hoursOwned(t);
+    return helpEntries(t).find((row) => row.id === id)?.hours || 0;
+  }
   if (id === String(t?.assigneeId || "")) return hoursOwned(t);
   return helpEntries(t).find((row) => row.id === id)?.hours || 0;
 }
@@ -628,26 +716,38 @@ function parseRate(raw) {
   return n;
 }
 function financeSnapshot() {
-  const tasks = monthTasks();
+  const tasks = monthTasks({ all: true });
   const fx = nbuRate();
   const tax = taxPct();
   const rate = clientRate();
+  const playRate = Number(state.db?.meta?.playableClientRateUsd) || 40;
   const totalHours = tasks.reduce((s, t) => s + hoursOf(t), 0);
   const totalShifts = tasks.reduce((s, t) => s + (Number(t.shifts) || 0), 0);
   const byLineMap = {};
-  for (const key of LINES) byLineMap[key] = { line: key, projects: 0, shifts: 0, hours: 0, bill: 0 };
   for (const t of tasks) {
+    const dir = directionOf(t);
     const line = LINES.includes(t.line) ? t.line : t.line || "—";
-    if (!byLineMap[line]) byLineMap[line] = { line, projects: 0, shifts: 0, hours: 0, bill: 0 };
+    const key = `${dir}:${line}`;
+    if (!byLineMap[key]) {
+      byLineMap[key] = {
+        direction: dir,
+        label: `${dir === "playables" ? "Playable" : "MGX"} ${line}`,
+        line,
+        projects: 0,
+        shifts: 0,
+        hours: 0,
+        bill: 0,
+        rate: dir === "playables" ? playRate : rate,
+      };
+    }
     const h = hoursOf(t);
-    byLineMap[line].projects += 1;
-    byLineMap[line].shifts += Number(t.shifts) || 0;
-    byLineMap[line].hours += h;
-    byLineMap[line].bill += h * rate;
+    const rowRate = dir === "playables" ? playRate : rate;
+    byLineMap[key].projects += 1;
+    byLineMap[key].shifts += Number(t.shifts) || 0;
+    byLineMap[key].hours += h;
+    byLineMap[key].bill += h * rowRate;
   }
-  const byLine = Object.values(byLineMap).filter(
-    (row) => row.line !== "DS" || row.projects
-  );
+  const byLine = Object.values(byLineMap);
   const payMap = {};
   for (const p of crew()) {
     payMap[p.id] = { person: p, projects: 0, shifts: 0, hours: 0, tasks: [] };
@@ -697,7 +797,7 @@ function financeSnapshot() {
         (a.person.payOrder || 99) - (b.person.payOrder || 99) ||
         String(a.person.name).localeCompare(String(b.person.name))
     );
-  const clientIn = totalHours * rate;
+  const clientIn = byLine.reduce((s, row) => s + row.bill, 0);
   const afterTax = clientIn - clientIn * tax;
   const empl = payroll.reduce((s, r) => s + r.payUsd, 0);
   const studio = afterTax - empl;
@@ -725,6 +825,7 @@ function financeSnapshot() {
     fx,
     tax,
     clientRate: rate,
+    playableClientRate: playRate,
     nbu: state.nbu || { rate: fx, source: state.db?.meta?.nbuRate ? "manual" : "fallback" },
   };
 }
@@ -732,28 +833,65 @@ function canAssign() {
   return me().role === "teamlead" || me().role === "manager" || me().role === "finance";
 }
 function isExecView() {
-  return isDesigner() || isTeamLead();
+  return isDesigner() || isTeamLead() || isArtDirector() || isProgrammer();
 }
 function isSendable(t) {
-  return Boolean(t && t.studioStatus === "done" && String(t.resultUrl || "").trim());
+  if (!t) return false;
+  if (isPlayables(t)) {
+    if (t.studioStatus === "storyboard") return true;
+    return t.studioStatus === "htmlready" && Boolean(String(t.resultUrl || "").trim());
+  }
+  return t.studioStatus === "done" && Boolean(String(t.resultUrl || "").trim());
 }
 function canPasteResult(t) {
   if (canOps()) return true;
   if (!t) return false;
+  if (isPlayables(t)) {
+    return onMyPlayable(t) && (isArtDirector() || isProgrammer() || isDesigner() || isTeamLead());
+  }
   return t.assigneeId === me().id && (isDesigner() || isTeamLead());
 }
+function sortPeople(list) {
+  return list.slice().sort(
+    (a, b) =>
+      (Number(a.payOrder) || 99) - (Number(b.payOrder) || 99) ||
+      String(a.name).localeCompare(String(b.name))
+  );
+}
 function designers() {
-  const people = state.db.people || [];
-  return people
-    .filter((p) => p.role === "teamlead" || p.role === "designer")
-    .sort(
-      (a, b) =>
-        (Number(a.payOrder) || 99) - (Number(b.payOrder) || 99) ||
-        String(a.name).localeCompare(String(b.name))
-    );
+  return sortPeople((state.db.people || []).filter((p) => p.role === "teamlead" || p.role === "designer"));
+}
+function playableCrew() {
+  return sortPeople(
+    (state.db.people || []).filter(
+      (p) =>
+        (p.role === "art_director" || p.role === "programmer" || p.role === "designer") &&
+        personDirections(p).includes("playables")
+    )
+  );
+}
+function boardPeople() {
+  return state.direction === "playables" ? playableCrew() : designers();
+}
+function artDirectors() {
+  return sortPeople(
+    (state.db.people || []).filter((p) => p.role === "art_director" && personDirections(p).includes("playables"))
+  );
+}
+function programmers() {
+  return sortPeople(
+    (state.db.people || []).filter((p) => p.role === "programmer" && personDirections(p).includes("playables"))
+  );
 }
 function crew() {
-  return (state.db.people || []).filter((p) => p.role === "manager" || p.role === "teamlead" || p.role === "designer");
+  return (state.db.people || []).filter(
+    (p) =>
+      p.role === "manager" ||
+      p.role === "teamlead" ||
+      p.role === "designer" ||
+      p.role === "art_director" ||
+      p.role === "programmer"
+  );
 }
 
 function toast(msg) {
@@ -835,8 +973,10 @@ function liveMonthDriveUrl() {
 function taskMonth(t) {
   return t.month || (t.deadline && String(t.deadline).slice(0, 7)) || state.db?.meta?.month || state.month;
 }
-function monthTasks() {
-  return state.db.tasks.filter((t) => taskMonth(t) === state.month);
+function monthTasks(opts) {
+  const all = (state.db.tasks || []).filter((t) => taskMonth(t) === state.month);
+  if (opts?.all) return all;
+  return all.filter((t) => directionOf(t) === state.direction);
 }
 function searchQuery() {
   return String(state.search || "").trim().toLowerCase();
@@ -862,17 +1002,34 @@ function bindSearch() {
     state.searchFocus = false;
   }
 }
+function onMyPlayable(t) {
+  const id = me().id;
+  return (
+    t.assigneeId === id ||
+    t.programmerId === id ||
+    t.motionId === id ||
+    helpedOn(t, id)
+  );
+}
 function visibleTasks() {
   const q = searchQuery();
   return monthTasks().filter((t) => {
     if (q && !`${t.name} ${t.brief}`.toLowerCase().includes(q)) return false;
-    if (isDesigner() && t.assigneeId !== me().id && !helpedOn(t, me().id)) return false;
-    if (!isDesigner() && state.designerFilter) {
+    if (isDesigner() && t.assigneeId !== me().id && t.motionId !== me().id && !helpedOn(t, me().id)) return false;
+    if ((isArtDirector() || isProgrammer()) && !onMyPlayable(t)) return false;
+    if (!isPerformer() && state.designerFilter) {
       if (state.designerFilter === "done") {
-        if (t.studioStatus !== "done") return false;
+        const want = state.direction === "playables" ? "htmlready" : "done";
+        if (t.studioStatus !== want) return false;
       } else if (state.designerFilter === "unassigned") {
         if (t.assigneeId) return false;
-      } else if (t.assigneeId !== state.designerFilter && !helpedOn(t, state.designerFilter)) return false;
+      } else if (
+        t.assigneeId !== state.designerFilter &&
+        t.programmerId !== state.designerFilter &&
+        !helpedOn(t, state.designerFilter)
+      ) {
+        return false;
+      }
     }
     return true;
   });
@@ -910,14 +1067,21 @@ function roleLine() {
   const p = me();
   const b = jobMeta(p);
   if (p.role === "designer") return `${b.code} ${b.title} · your queue · paste the result, then Done`;
+  if (p.role === "art_director") return `${b.code} ${b.title} · storyboard → final art → Build`;
+  if (p.role === "programmer") return `${b.code} ${b.title} · Build → paste HTML, then HTML ready`;
   if (p.role === "teamlead") return `${b.code} ${b.title} · assign people · your own tasks like MD`;
-  if (p.role === "manager") return `${b.code} ${b.title} · hours · Send to client after Done`;
-  if (p.role === "finance") return `${b.code} ${b.title} · studio money`;
-  if (p.role === "client") return `Hours this month · the list invoices are based on`;
+  if (p.role === "manager") {
+    return state.direction === "playables"
+      ? `${b.code} ${b.title} · billed hours · Send storyboard, then HTML`
+      : `${b.code} ${b.title} · hours · Send to client after Done`;
+  }
+  if (p.role === "finance") return `${b.code} ${b.title} · studio money · MGX and Playables on one tab`;
+  if (p.role === "client") return `Hours this month · MGX and Playables · the list invoices are based on`;
   return "";
 }
 
 function renderChrome() {
+  syncDirection();
   $("financeNav").hidden = !isFinance();
   if ($("inboxWrap")) $("inboxWrap").hidden = isClient();
   if ($("soundWrap")) {
@@ -926,6 +1090,26 @@ function renderChrome() {
     if (hideSound) setSoundOpen(false);
   }
   document.title = isHoursPage() ? "Hours — Lisenbart Board" : "Lisenbart Board";
+  const title = document.querySelector(".board-title");
+  if (title) title.textContent = isClient() ? "Hours" : DIR_LABEL[state.direction] || DIR_LABEL.mgx;
+  const pill = document.querySelector(".top-row > .pill");
+  if (pill) {
+    const play = state.direction === "playables";
+    pill.className = play ? "pill dep-playables" : "pill dep-MGX";
+    pill.textContent = play ? "Playables" : "MGX";
+    pill.hidden = isClient();
+  }
+  const mgxNav = $("navMgx");
+  const playNav = $("navPlay");
+  const onBoard = state.view !== "close" && state.view !== "team";
+  if (mgxNav) {
+    mgxNav.hidden = isClient() || !canSeeDirection("mgx");
+    mgxNav.classList.toggle("active", onBoard && state.direction === "mgx");
+  }
+  if (playNav) {
+    playNav.hidden = isClient() || !canSeeDirection("playables");
+    playNav.classList.toggle("active", onBoard && state.direction === "playables");
+  }
   renderMonth();
   const meta = state.db?.meta || {};
   const brand = $("brandMode");
@@ -946,7 +1130,7 @@ function renderChrome() {
   } else {
     tabs.push({
       id: "board",
-      label: isDesigner() ? "My projects" : isTeamLead() ? "All projects" : "Pipeline",
+      label: isPerformer() ? "My projects" : isTeamLead() ? "All projects" : "Pipeline",
     });
     tabs.push({ id: "excel", label: "Excel" });
     if (canOps()) tabs.push({ id: "ready", label: "Ready to send" });
@@ -1015,7 +1199,7 @@ function renderToolbar() {
     $("toolbar").innerHTML = `
       ${isFinance() ? driveStrip() : ""}
       ${canOps() && state.view === "board" ? `<button type="button" class="btn primary" id="btnCreateTask">Create task</button>` : ""}
-      <button class="btn orange" id="btnEmail">Shift email</button>
+      <button class="btn orange" id="btnEmail">${state.direction === "playables" ? "Hours list" : "Shift email"}</button>
       ${drive ? `<a class="btn" href="${escapeHtml(drive)}" target="_blank" rel="noreferrer">Open Drive</a>` : ""}
       <button class="btn green" id="btnExport" ${n ? "" : "disabled"}>Send to client (${n})</button>
       <input class="search" placeholder="Search project" />
@@ -1024,7 +1208,18 @@ function renderToolbar() {
   }
   bindSearch();
   $("btnCreateTask")?.addEventListener("click", openCreateTask);
-  $("btnEmail")?.addEventListener("click", () => $("emailModal").classList.add("show"));
+  $("btnEmail")?.addEventListener("click", () => {
+    const play = state.direction === "playables";
+    const title = $("emailModal")?.querySelector("h3");
+    const lead = $("emailModal")?.querySelector("p");
+    if (title) title.textContent = play ? "Hours list" : "Shift list";
+    if (lead) {
+      lead.innerHTML = play
+        ? "One playable per line. Hours are billed hours, not shifts × 9. Example: <code>DS-P-060_MergeSolitaire 30</code>."
+        : "One project per line. Creates the card, Drive folder, empty brief, and hours. Dash, space, or <code>|</code> before the hours — <code>shift</code> / <code>SHFT</code> / <code>SHIFT</code> all work.";
+    }
+    $("emailModal").classList.add("show");
+  });
   $("btnExport")?.addEventListener("click", exportMonday);
   $("btnClientLink")?.addEventListener("click", copyClientPage);
   bindDriveButtons();
@@ -1120,6 +1315,7 @@ async function submitCreateTask() {
     month: state.month,
     role: me().role,
     actorId: me().id,
+    direction: state.direction,
   };
   let out = {};
   try {
@@ -1145,23 +1341,27 @@ function renderKpis() {
     return;
   }
   const tasks = visibleTasks();
-  if (isDesigner() && state.view !== "excel") {
-    const hours = tasks.reduce((s, t) => s + (Number(t.hours) || 0), 0);
-    const active = tasks.filter((t) => t.studioStatus === "wip" || t.studioStatus === "revision" || t.studioStatus === "tlcheck").length;
+  if (isPerformer() && state.view !== "excel") {
+    const hours = tasks.reduce((s, t) => s + hoursForPerson(t, me().id), 0);
+    const active = tasks.filter((t) =>
+      ["wip", "revision", "tlcheck", "storyboard", "finalart", "build"].includes(t.studioStatus)
+    ).length;
     $("kpis").innerHTML = `
       <div class="kpi"><b>${tasks.length}</b><span>assigned to me</span></div>
-      <div class="kpi"><b>${active}</b><span>WIP / Need Fixing</span></div>
+      <div class="kpi"><b>${active}</b><span>in progress</span></div>
       <div class="kpi"><b>${hours.toFixed(1)} h</b><span>my hours this month</span></div>
     `;
     return;
   }
   const month = monthTasks();
   const hours = month.reduce((s, t) => s + (Number(t.hours) || 0), 0);
-  const ready = month.filter((t) => t.studioStatus === "done").length;
+  const readyKey = state.direction === "playables" ? "htmlready" : "done";
+  const readyLabel = state.direction === "playables" ? "HTML ready" : "Done";
+  const ready = month.filter((t) => t.studioStatus === readyKey).length;
   const doneOn = canOps() && state.designerFilter === "done";
   const doneKpi = canOps()
-    ? `<button type="button" class="kpi${doneOn ? " on" : ""}" id="kpiDone" aria-pressed="${doneOn ? "true" : "false"}"><b>${ready}</b><span>Done</span></button>`
-    : `<div class="kpi"><b>${ready}</b><span>Done</span></div>`;
+    ? `<button type="button" class="kpi${doneOn ? " on" : ""}" id="kpiDone" aria-pressed="${doneOn ? "true" : "false"}"><b>${ready}</b><span>${readyLabel}</span></button>`
+    : `<div class="kpi"><b>${ready}</b><span>${readyLabel}</span></div>`;
   $("kpis").innerHTML = `
     <div class="kpi"><b>${month.length}</b><span>projects</span></div>
     <div class="kpi"><b>${hours.toFixed(1)} h</b><span>hours</span></div>
@@ -1195,9 +1395,16 @@ function personCell(id) {
 function whoCell(t) {
   const base = personCell(t.assigneeId);
   const help = helpEntries(t);
-  if (!help.length) return base;
-  const names = help.map((row) => person(row.id)?.name || row.id).join(", ");
-  return `${base}<small class="help-mark" title="${escapeHtml(names)}">+${help.length}</small>`;
+  const extra = [];
+  if (help.length) {
+    const names = help.map((row) => person(row.id)?.name || row.id).join(", ");
+    extra.push(`<small class="help-mark" title="${escapeHtml(names)}">+${help.length}</small>`);
+  }
+  if (isPlayables(t) && t.programmerId && t.programmerId !== t.assigneeId) {
+    extra.push(personCell(t.programmerId));
+  }
+  if (!extra.length) return base;
+  return `${base}${extra.join("")}`;
 }
 function normalizeDriveFolder(url) {
   const raw = String(url || "");
@@ -1557,14 +1764,15 @@ function sourceHtml(t) {
 }
 function resultHtml(t, performer, canPaste) {
   if (!showResultField(t)) return "";
+  const play = isPlayables(t);
   const body = canPaste
-    ? `<input id="stResult" value="${escapeHtml(t.resultUrl || "")}" placeholder="Paste finished file link" />
-        <p class="io-hint">${performer ? "The file, not the folder." : "Needed before Send to client."}</p>`
+    ? `<input id="stResult" value="${escapeHtml(t.resultUrl || "")}" placeholder="${play ? "Paste HTML / playable link" : "Paste finished file link"}" />
+        <p class="io-hint">${play ? "HTML ready needs this link." : performer ? "The file, not the folder." : "Needed before Send to client."}</p>`
     : t.resultUrl
       ? `<a class="pin-link" href="${escapeHtml(t.resultUrl)}" target="_blank" rel="noreferrer">Open result</a>`
-      : `<p class="io-empty">Waiting for ${escapeHtml(person(t.assigneeId)?.name || "designer")}</p>`;
+      : `<p class="io-empty">Waiting for ${escapeHtml(person(t.programmerId || t.assigneeId)?.name || "designer")}</p>`;
   return `<section class="io io-result${performer ? " is-focus" : ""}">
-      <h3>Result</h3>
+      <h3>${play ? "HTML" : "Result"}</h3>
       ${body}
     </section>`;
 }
@@ -1580,6 +1788,7 @@ function cardJob(t) {
   const hasResult = Boolean(String(t.resultUrl || "").trim());
   const who = person(t.assigneeId);
   const name = who ? displayName(who) : "";
+  if (isPlayables(t)) return playableCardJob(t, { role, mine, hasResult, name });
   if (role === "designer") {
     if (!mine && helpedOn(t, me().id)) {
       const share = hoursForPerson(t, me().id);
@@ -1676,8 +1885,55 @@ function cardJob(t) {
     body: `${name || "Designer"} is on this. Send only when status is Done and the result link is pasted.`,
   };
 }
+function playableCardJob(t, { role, mine, hasResult, name }) {
+  const st = t.studioStatus || "new";
+  const prog = person(t.programmerId);
+  const progName = prog ? displayName(prog) : "";
+  if (role === "art_director") {
+    if (!mine && helpedOn(t, me().id)) {
+      return { tone: "ok", title: "You helped", body: `${hoursForPerson(t, me().id)}h on this playable. ${name || "Lead AD"} owns the card.` };
+    }
+    if (st === "closed") return { tone: "ok", title: "Closed", body: "Client accepted. This playable is finished." };
+    if (st === "approve") return { tone: "ok", title: "Sent to client", body: "LP already sent the HTML. Nothing else on this card." };
+    if (st === "htmlready") return { tone: "wait", title: "Waiting for LP", body: "HTML is in. Line Producer sends it to the client." };
+    if (st === "build") return { tone: "wait", title: "In Build", body: `${progName || "Programmer"} builds the HTML.` };
+    if (st === "clientart") return { tone: "wait", title: "Client art", body: "Storyboard is with the client. Wait, or set Storyboard if they bounced it." };
+    if (st === "finalart") return { tone: "do", title: "Final art", body: "Finish art, then set Build when DEV can start." };
+    if (st === "storyboard") return { tone: "wait", title: "Waiting for LP", body: "Storyboard is ready. LP sends it. Only LP talks to the client." };
+    return { tone: "do", title: "Your job", body: "Open the brief. Set Storyboard when the board is ready for the client." };
+  }
+  if (role === "programmer") {
+    if (st === "closed" || st === "approve") return { tone: "ok", title: st === "closed" ? "Closed" : "Sent to client", body: "Nothing else on this card." };
+    if (st === "htmlready") return { tone: "wait", title: "Waiting for LP", body: "HTML link is in. Line Producer sends it." };
+    if (st === "build" || mine || t.programmerId === me().id) {
+      if (!hasResult) return { tone: "do", title: "Your job", body: "Build the playable, paste the HTML link, then HTML ready." };
+      return { tone: "do", title: "HTML ready", body: "Link is in. Set HTML ready so LP can send." };
+    }
+    return { tone: "wait", title: "Not on you yet", body: "Art is still in progress. You see this when LP/AD puts you on Build." };
+  }
+  if (role === "designer") {
+    if (st === "finalart" || st === "storyboard") {
+      return { tone: "do", title: "Art help", body: "You have hours on this playable. Lead AD owns status." };
+    }
+    return { tone: "wait", title: "On this playable", body: `${hoursForPerson(t, me().id)}h studio pay. Lead AD owns the card.` };
+  }
+  if (st === "closed") return { tone: "ok", title: "Closed", body: "Client accepted. Hours stay on this month." };
+  if (st === "approve") return { tone: "ok", title: "Already sent", body: "HTML is with the client. Mark Closed when they accept." };
+  if (st === "htmlready" && hasResult) return { tone: "do", title: "Your job", body: "HTML is in. Send to client — that sets Send." };
+  if (st === "storyboard") return { tone: "do", title: "Your job", body: "Storyboard is ready. Send to client — only LP talks to SuperPlay." };
+  if (st === "clientart") return { tone: "wait", title: "Client art", body: "Waiting on the client. Storyboard if they bounce it." };
+  if (st === "build") return { tone: "wait", title: "In Build", body: `${progName || "Programmer"} is on HTML. Send after HTML ready.` };
+  if (st === "finalart") return { tone: "wait", title: "Final art", body: `${name || "Art Director"} is finishing art.` };
+  if (!t.assigneeId) return { tone: "do", title: "Assign lead AD", body: "Primary Art Director is required. Split a second AD in hours if needed." };
+  return { tone: "wait", title: "In progress", body: `${name || "Art Director"} is on this. Send storyboard, then HTML.` };
+}
 function showResultField(t) {
   if (String(t.resultUrl || "").trim()) return true;
+  if (isPlayables(t)) {
+    if (onMyPlayable(t) && (isArtDirector() || isProgrammer() || isDesigner() || isTeamLead())) return true;
+    if (canOps() && ["build", "htmlready", "approve", "closed"].includes(t.studioStatus)) return true;
+    return false;
+  }
   if (t.assigneeId === me().id && (isDesigner() || isTeamLead())) return true;
   if (canOps() && t.studioStatus !== "new") return true;
   return false;
@@ -1717,6 +1973,15 @@ function bindDriveButtons() {
 }
 function timeCell(t) {
   const hours = t.hours || hoursFromShifts(t.shifts || 0);
+  if (isPlayables(t)) {
+    if (canEditTime()) {
+      return `<span class="time-edit">
+      <input class="hours-in" data-id="${t.id}" type="number" min="0" step="0.1" value="${t.hours ?? ""}" title="Billed hours (may include studio buffer)" />
+      <small>h</small>
+    </span>`;
+    }
+    return hours ? `${hours}h` : `<span class="empty">—</span>`;
+  }
   if (canEditTime()) {
     return `<span class="time-edit">
       <input class="shift-in" data-id="${t.id}" type="number" min="0" step="0.1" value="${t.shifts ?? ""}" title="Shifts · hours = shifts × ${shiftHours()}" />
@@ -1753,6 +2018,8 @@ function renderLoad() {
   if (
     isClient() ||
     isDesigner() ||
+    isArtDirector() ||
+    isProgrammer() ||
     state.view === "close" ||
     state.view === "team" ||
     state.view === "excel" ||
@@ -1764,7 +2031,7 @@ function renderLoad() {
     return;
   }
   box.hidden = false;
-  const people = designers();
+  const people = boardPeople();
   const tasks = monthTasks();
   const rows = people.map((p) => {
     const mine = tasks.filter((t) => hoursForPerson(t, p.id) > 0);
@@ -1933,7 +2200,7 @@ function hoursStampKpi() {
 function hoursXlsxName(res) {
   const raw = res.headers.get("Content-Disposition") || "";
   const m = raw.match(/filename="([^"]+)"/i);
-  return m ? m[1] : `SUPERPLAY_MGX_hours_${state.month}.xlsx`;
+  return m ? m[1] : `SUPERPLAY_hours_${state.month}.xlsx`;
 }
 function bindHoursDownload() {
   $("btnHoursXlsx")?.addEventListener("click", downloadHoursXlsx);
@@ -1965,26 +2232,33 @@ async function downloadHoursXlsx() {
 }
 
 function reportSections(tasks) {
-  const lines = ["DX", "DD"];
-  if (tasks.some((t) => t.line === "DS")) lines.push("DS");
-  return lines.map((line) => {
-    const rows = tasks
-      .filter((t) => t.line === line)
-      .slice()
-      .sort((a, b) => String(a.name).localeCompare(String(b.name)));
-    return {
-      line,
-      label: line === "DS" ? "Playables DS" : `MGX ${line}`,
-      rows,
-      shifts: rows.reduce((s, t) => s + (Number(t.shifts) || 0), 0),
-      hours: rows.reduce((s, t) => s + hoursOf(t), 0),
-    };
-  });
+  const sections = [];
+  for (const dir of ["mgx", "playables"]) {
+    const prefix = dir === "playables" ? "Playable" : "MGX";
+    const bucket = tasks.filter((t) => directionOf(t) === dir);
+    const lines = ["DX", "DD"];
+    if (bucket.some((t) => t.line === "DS")) lines.push("DS");
+    for (const line of lines) {
+      const rows = bucket
+        .filter((t) => t.line === line)
+        .slice()
+        .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+      if (!rows.length) continue;
+      sections.push({
+        line,
+        label: `${prefix} ${line}`,
+        rows,
+        shifts: rows.reduce((s, t) => s + (Number(t.shifts) || 0), 0),
+        hours: rows.reduce((s, t) => s + hoursOf(t), 0),
+      });
+    }
+  }
+  return sections;
 }
 
 function renderClientReport() {
   const q = searchQuery();
-  const all = monthTasks();
+  const all = monthTasks({ all: true });
   const tasks = all
     .filter((t) => !q || String(t.name || "").toLowerCase().includes(q))
     .slice()
@@ -2026,7 +2300,7 @@ function renderClientReport() {
     <section class="sp-report">
       <header class="sp-head">
         <h2>Hours report</h2>
-        <p>Every task billed in ${escapeHtml(monthLabel(state.month))}. PROJECT NAME / SHIFTS / HOURS — the same list the invoices are based on.</p>
+        <p>Every task billed in ${escapeHtml(monthLabel(state.month))}. MGX and Playables on one list. PROJECT NAME / SHIFTS / HOURS — the same list the invoices are based on.</p>
       </header>
       <div class="sp-kpis">
         <div class="kpi"><b>${totalProjects}</b><span>projects</span></div>
@@ -2067,7 +2341,7 @@ function renderClientReport() {
 }
 
 function renderExcelSheet() {
-  const people = designers();
+  const people = boardPeople();
   const q = searchQuery();
   const tasks = monthTasks()
     .filter((t) => !q || `${t.name} ${t.brief}`.toLowerCase().includes(q))
@@ -2101,12 +2375,13 @@ function renderExcelSheet() {
     </tr>`;
   };
 
+  const xlLabel = state.direction === "playables" ? "Playable" : "MGX";
   const section = (line) => {
     const rows = tasks.filter((t) => t.line === line);
     const empl = people.map((_, i) => `<th>EMPL ${i + 1}</th>`).join("");
     return `<tbody>
       <tr class="xl-sec">
-        <th class="xl-line">${line}</th><th>MGX</th><th>SHIFTS</th><th>HOURS</th><th>DEADLINE</th>${empl}
+        <th class="xl-line">${line}</th><th>${xlLabel}</th><th>SHIFTS</th><th>HOURS</th><th>DEADLINE</th>${empl}
       </tr>
       ${rows.map(rowHtml).join("")}
     </tbody>`;
@@ -2147,7 +2422,7 @@ function renderExcelSheet() {
     row.addEventListener("click", () => {
       const t = state.db.tasks.find((x) => x.id === row.dataset.id);
       if (!t) return;
-      if (isDesigner() && t.assigneeId !== me().id) {
+      if (isPerformer() && !onMyPlayable(t) && t.assigneeId !== me().id && !helpedOn(t, me().id)) {
         toast("Open your own projects from My projects");
         return;
       }
@@ -2293,7 +2568,7 @@ function renderGuide() {
           [
             `Адреса студії ${ui("board.lisenbart.games")}. Кнопка ${ui("Client")} → логін + PIN. Після входу — лише ${ui("Hours")}.`,
             `Можна кинути пряме посилання ${ui("/hours")}. Список як у інвойсі: ${ui("PROJECT NAME")} / ${ui("SHIFTS")} / ${ui("HOURS")}.`,
-            `Секції ${ui("MGX DX")} і ${ui("MGX DD")}, ${ui("TOTAL")} знизу. Імен виконавців, ставок і карток немає.`,
+            `Секції ${ui("MGX")} і ${ui("Playable")} (DX / DD / DS), ${ui("TOTAL")} знизу. Імен виконавців, ставок і карток немає.`,
           ]
         )}
       </div>
@@ -2375,10 +2650,10 @@ function renderBoard() {
               })
               .join("")
           : `<div class="cell empty" style="padding:12px 16px">${
-              isDesigner()
+              isPerformer()
                 ? `Nothing assigned in ${monthLabel(state.month)}`
                 : state.designerFilter === "done"
-                  ? `No Done projects in ${monthLabel(state.month)}`
+                  ? `No ${state.direction === "playables" ? "HTML ready" : "Done"} projects in ${monthLabel(state.month)}`
                   : `No projects in ${monthLabel(state.month)}`
             }</div>`
       }
@@ -2434,6 +2709,32 @@ function bindTimeEdits() {
     });
     el.addEventListener("change", commit);
   });
+  $("board").querySelectorAll(".hours-in").forEach((el) => {
+    const commit = () => {
+      const t = state.db.tasks.find((x) => x.id === el.dataset.id);
+      if (!t) return;
+      const hours = parseShifts(el.value);
+      if (hours === null) {
+        el.value = t.hours ?? "";
+        toast("Hours must be 0 or more");
+        return;
+      }
+      if (hours === Number(t.hours)) return;
+      updateTask(t.id, {
+        hours,
+        role: me().role,
+        note: `${me().name} set ${hours} billed hours`,
+      });
+    };
+    el.addEventListener("click", (e) => e.stopPropagation());
+    el.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        el.blur();
+      }
+    });
+    el.addEventListener("change", commit);
+  });
 }
 
 function statusMark(t) {
@@ -2446,8 +2747,13 @@ function statusMark(t) {
       revision: { cls: "fix", label: "Fix", title },
       tlcheck: { cls: "tlcheck", label: "TL chk", title },
       done: { cls: "done", label: "Done", title },
-      approve: { cls: "appr", label: "Appr.", title },
+      approve: { cls: isPlayables(t) ? "send" : "appr", label: isPlayables(t) ? "Send" : "Appr.", title },
       closed: { cls: "closed", label: "Closed", title },
+      storyboard: { cls: "board", label: "Board", title },
+      clientart: { cls: "art", label: "Art", title },
+      finalart: { cls: "final", label: "Final", title },
+      build: { cls: "build", label: "Build", title },
+      htmlready: { cls: "html", label: "HTML", title },
     }[key] || { cls: "ready", label: "Ready", title: STATUS.new.label }
   );
 }
@@ -2510,6 +2816,24 @@ function statusChoices(task) {
 function statusActions(task) {
   const role = me().role;
   const cur = task?.studioStatus || "new";
+  if (isPlayables(task)) {
+    const mine =
+      String(task?.assigneeId || "") === String(me().id) ||
+      String(task?.programmerId || "") === String(me().id) ||
+      helpedOn(task, me().id);
+    if (role === "art_director" || role === "programmer" || role === "designer") {
+      if (!mine || ["approve", "closed"].includes(cur)) return [];
+      return (PLAY_STATUS_BY_ROLE[role] || []).filter((k) => k !== cur);
+    }
+    if (role === "manager" || role === "finance") {
+      const out = [];
+      if (cur === "clientart") out.push("storyboard");
+      if (cur === "approve") out.push("closed");
+      return out;
+    }
+    if (role === "teamlead") return (PLAY_STATUS_BY_ROLE.teamlead || []).filter((k) => k !== cur);
+    return [];
+  }
   const mine = String(task?.assigneeId || "") === String(me().id);
   if (role === "designer") {
     if (!mine || ["done", "approve", "closed"].includes(cur)) return [];
@@ -2541,10 +2865,15 @@ function statusButtonDisabled(task, key, opts) {
   if (opts.locked) return true;
   if (!opts.canEdit) return true;
   if (on) return true;
+  if (isPlayables(task)) {
+    if (key === "htmlready" && !hasResultLink(task, opts.typedResult)) return true;
+    if (key === "closed") return task.studioStatus !== "approve";
+    return !canSetStatus(key, task);
+  }
   if (key === "tlcheck" && !hasResultLink(task, opts.typedResult)) return true;
   if (key === "done" && task.studioStatus !== "tlcheck") return true;
   if (key === "closed") return task.studioStatus !== "approve";
-  return !canSetStatus(key);
+  return !canSetStatus(key, task);
 }
 
 function statusButtonsHtml(t, canEdit, lockedStatus) {
@@ -2556,10 +2885,11 @@ function statusButtonsHtml(t, canEdit, lockedStatus) {
     <p class="status-hint" id="stDoneHint"></p>`;
   }
   const buttons = keys.map((key) => {
-    const mark = statusMark({ studioStatus: key });
+    const mark = statusMark({ studioStatus: key, department: t.department, direction: t.direction });
     const on = current === key;
     const disabled = statusButtonDisabled(t, key, opts);
-    return `<button type="button" class="status-btn st-${mark.cls} ${on ? "is-on" : "is-off"}" data-status="${key}" aria-pressed="${on ? "true" : "false"}" ${disabled ? "disabled" : ""} title="${escapeHtml(STATUS[key].label)}">${escapeHtml(STATUS[key].label)}</button>`;
+    const label = (STATUS[key] && isPlayables(t) && key === "approve" ? "Send" : STATUS[key]?.label) || key;
+    return `<button type="button" class="status-btn st-${mark.cls} ${on ? "is-on" : "is-off"}" data-status="${key}" aria-pressed="${on ? "true" : "false"}" ${disabled ? "disabled" : ""} title="${escapeHtml(label)}">${escapeHtml(label)}</button>`;
   }).join("");
   return `<div class="status-btns" role="group" aria-label="Status">${buttons}</div>
     <input type="hidden" id="stStatus" value="${escapeHtml(current)}" />
@@ -2584,7 +2914,9 @@ function paintStatusButtons(key) {
   }
 }
 
-function canSetStatus(next) {
+function canSetStatus(next, task) {
+  const t = task || state.db?.tasks?.find((x) => x.id === state.openId);
+  if (t && isPlayables(t)) return (PLAY_STATUS_BY_ROLE[me().role] || []).includes(next);
   return (STATUS_BY_ROLE[me().role] || []).includes(next);
 }
 
@@ -2670,8 +3002,12 @@ function financeFromApi(snap) {
       projects: row.projects,
       shifts: row.shifts,
       hours: row.hours,
+      hoursMgx: row.hoursMgx,
+      hoursPlay: row.hoursPlay,
       allHours: row.allHours,
       rate: row.rate,
+      rateMgx: row.rateMgx,
+      ratePlay: row.ratePlay,
       payUsd: row.payUsd,
       payUah: row.payUah,
     };
@@ -2699,6 +3035,8 @@ function financeFromApi(snap) {
     fx,
     tax: snap.taxPct,
     clientRate: snap.clientRate,
+    playableClientRate: snap.playableClientRate,
+    byDirection: snap.byDirection || [],
     hoursSource: snap.hoursSource,
     nbu: snap.nbu,
   };
@@ -2865,7 +3203,8 @@ function renderClose() {
   $("btnCreateInvoices")?.addEventListener("click", createMonthInvoices);
   if (state.finTab === "employees") bindEmployeePay();
   if (state.finTab === "studio") bindStudioPay();
-  $("btnOpenFolder")?.addEventListener("click", openInvoiceFolder);
+  $("btnOpenFolder")?.addEventListener("click", () => openInvoiceFolder("mgx"));
+  $("btnOpenFolderPlay")?.addEventListener("click", () => openInvoiceFolder("playables"));
   $("board").querySelectorAll(".fin-copy").forEach((btn) => {
     btn.addEventListener("click", async (e) => {
       e.preventDefault();
@@ -2881,12 +3220,14 @@ function renderClient(fin) {
   const lineRows = fin.byLine
     .map((row) => {
       const share = fin.totalHours ? Math.round((row.hours / fin.totalHours) * 100) : 0;
+      const rate = Number(row.rate) || (row.direction === "playables" ? fin.playableClientRate || 40 : fin.clientRate);
+      const label = row.label || `${row.direction === "playables" ? "Playable" : "MGX"} ${row.line}`;
       return `<tr>
-        <td><span class="pill line-${escapeHtml(row.line)}">${escapeHtml(row.line)}</span></td>
+        <td><span class="pill ${row.direction === "playables" ? "dep-playables" : "dep-MGX"}">${escapeHtml(label)}</span></td>
         <td class="num">${row.projects}</td>
-        <td class="num">${row.shifts.toFixed(1)}</td>
+        <td class="num">${Number(row.shifts || 0).toFixed(1)}</td>
         <td class="num">${hoursLabel(row.hours)}</td>
-        <td class="num">${usd(fin.clientRate)}</td>
+        <td class="num">${usd(rate)}</td>
         <td class="num"><b>${usd(row.bill)}</b></td>
         <td class="num muted">${share}%</td>
         <td></td>
@@ -2900,7 +3241,7 @@ function renderClient(fin) {
   return `
     <div class="fin-kpis">
       <div class="kpi"><b>${fin.tasks.length}</b><span>projects</span></div>
-      <div class="kpi"><b>${hoursLabel(fin.totalHours)}</b><span>× ${usd(fin.clientRate)}/h</span></div>
+      <div class="kpi"><b>${hoursLabel(fin.totalHours)}</b><span>hours · MGX $35 / Playable $40</span></div>
       <div class="kpi"><b>${usd(fin.clientIn)}</b><span>CLIENT IN</span></div>
       <div class="kpi"><b>${usd(fin.studio)}</b><span>STUDIO</span></div>
     </div>
@@ -2910,16 +3251,17 @@ function renderClient(fin) {
           <thead><tr><th>Line</th><th class="num">Projects</th><th class="num">Shifts</th><th class="num">Hours</th><th class="num">Rate</th><th class="num">CLIENT IN</th><th class="num">Share</th><th></th></tr></thead>
           <tbody>${lineRows}</tbody>
           <tfoot><tr>
-            <td>MGX</td>
+            <td>SUPERPLAY</td>
             <td class="num">${fin.tasks.length}</td>
-            <td class="num">${fin.totalShifts.toFixed(1)}</td>
+            <td class="num">${Number(fin.totalShifts || 0).toFixed(1)}</td>
             <td class="num">${hoursLabel(fin.totalHours)}</td>
             <td></td>
             <td class="num">${usd(fin.clientIn)}</td>
             <td></td>
             <td class="fin-foot-actions">
-              <button type="button" class="btn" id="btnOpenFolder">Open folder</button>
-              <button type="button" class="btn primary" id="btnCreateInvoices" ${canCreate ? "" : "disabled"}>Create DD / DX</button>
+              <button type="button" class="btn" id="btnOpenFolder">Open MGX folder</button>
+              <button type="button" class="btn" id="btnOpenFolderPlay">Open Playable folder</button>
+              <button type="button" class="btn primary" id="btnCreateInvoices" ${canCreate ? "" : "disabled"}>Create invoices</button>
             </td>
           </tr></tfoot>
         </table>
@@ -3069,9 +3411,13 @@ function renderEmployees(fin) {
             ${personCell(row.person.id)}
             <div class="fin-legal">${escapeHtml(title)}${legal ? ` · ${escapeHtml(legal)}` : ""}</div>
           </div>`;
+      const hoursTitle =
+        row.hoursMgx || row.hoursPlay
+          ? `MGX ${Number(row.hoursMgx || 0).toFixed(1)}h · Playable ${Number(row.hoursPlay || 0).toFixed(1)}h`
+          : "";
       return `<tr class="fin-pay-row" data-hours="${row.hours}" data-fallback="${fallback}" data-all-hours="${row.allHours ? "1" : "0"}">
         <td>${who}</td>
-        <td class="num">${hoursLabel(row.hours)}</td>
+        <td class="num" title="${escapeHtml(hoursTitle)}">${hoursLabel(row.hours)}</td>
         <td class="num"><input class="fin-person-rate" data-id="${row.person.id}" type="number" min="0" step="0.5" value="${row.rate}" /></td>
         <td class="num" data-usd>${usd(row.payUsd)}</td>
         <td class="num" data-uah><b>${uah(row.payUah)}</b></td>
@@ -3181,14 +3527,17 @@ function openDriveFolder(url) {
   return true;
 }
 
-async function openInvoiceFolder() {
-  const out = await api("/api/finance/invoice/reveal", { month: state.month, role: me().role });
-  if (out.error || !out.folderUrl) {
+async function openInvoiceFolder(direction) {
+  const dir = direction === "playables" ? "playables" : "mgx";
+  const out = await api("/api/finance/invoice/reveal", { month: state.month, role: me().role, direction: dir });
+  const url = dir === "playables" ? out.playableFolderUrl || out.folderUrl : out.folderUrl;
+  const path = dir === "playables" ? out.playableFolderPath || out.folderPath : out.folderPath;
+  if (out.error || !url) {
     toast(out.error || "Could not open the Drive invoice folder");
     return;
   }
-  openDriveFolder(out.folderUrl);
-  toast(`Opened ${out.folderPath || "the MGX invoice folder"}`);
+  openDriveFolder(url);
+  toast(`Opened ${path || (dir === "playables" ? "the Playable invoice folder" : "the MGX invoice folder")}`);
 }
 
 async function createMonthInvoices() {
@@ -3198,7 +3547,7 @@ async function createMonthInvoices() {
   let out = {};
   try {
     out = await api("/api/finance/invoice", {
-      line: "BOTH",
+      line: "ALL",
       month: state.month,
       role: me().role,
       nbuRate: nbuRate(),
@@ -3213,6 +3562,7 @@ async function createMonthInvoices() {
   const n = (out.drive?.uploaded || out.files || []).length;
   const pdfNote = out.pdfReady ? "" : ` · ${out.pdfError || "PDF skipped"}`;
   if (out.folderUrl) openDriveFolder(out.folderUrl);
+  if (out.playableFolderUrl) openDriveFolder(out.playableFolderUrl);
   toast(`Created ${n} files in Drive${pdfNote}`);
 }
 
@@ -3489,6 +3839,69 @@ function helpPersonOptions(t, selectedId, assigneeId, fromTask) {
     )
     .join("");
 }
+function playableHoursHtml(t, editable) {
+  const billed = hoursOf(t);
+  const artH = roundHours(t.assigneeHours) || hoursOwned(t);
+  const help = helpEntries(t);
+  const progH = roundHours(t.programmerHours);
+  const producer = roundHours(artH + help.reduce((s, row) => s + row.hours, 0) + progH);
+  const buffer = Math.max(0, roundHours(billed - producer));
+  const ads = artDirectors();
+  const devs = programmers();
+  if (!editable && !t.assigneeId && !t.programmerId && !help.length) return "";
+  const adSelect = (id, selected) =>
+    `<select id="${id}">
+      <option value="">— lead AD</option>
+      ${ads
+        .map(
+          (p) =>
+            `<option value="${p.id}" ${selected === p.id ? "selected" : ""}>${escapeHtml(p.name)} · AD</option>`
+        )
+        .join("")}
+    </select>`;
+  const splitSelect = (selected) =>
+    `<select id="stSplitAd">
+      <option value="">— no split</option>
+      ${ads
+        .filter((p) => p.id !== t.assigneeId)
+        .map(
+          (p) =>
+            `<option value="${p.id}" ${selected === p.id ? "selected" : ""}>${escapeHtml(p.name)} · AD</option>`
+        )
+        .join("")}
+    </select>`;
+  const split = help[0] || {};
+  const body = editable
+    ? `<div class="ops-item"><label>Billed hours</label>
+        <input id="stHours" type="number" min="0" step="0.1" value="${t.hours ?? ""}" />
+        <p class="status-hint">Client $40/h. Buffer stays studio.</p></div>
+       <div class="ops-item"><label>Lead AD hours</label>
+        <input id="stAdHours" type="number" min="0" step="0.1" value="${artH || ""}" /></div>
+       <div class="ops-item"><label>Split AD</label>
+        ${splitSelect(split.id || "")}
+        <input id="stSplitHours" type="number" min="0" step="0.1" value="${split.hours || ""}" /></div>
+       <div class="ops-item"><label>Programmer</label>
+        <select id="stProgrammer">
+          <option value="">— unassigned</option>
+          ${devs
+            .map(
+              (p) =>
+                `<option value="${p.id}" ${t.programmerId === p.id ? "selected" : ""}>${escapeHtml(p.name)} · DEV</option>`
+            )
+            .join("")}
+        </select>
+        <input id="stProgHours" type="number" min="0" step="0.1" value="${progH || ""}" /></div>`
+    : `<p class="status-hint">Lead ${escapeHtml(person(t.assigneeId)?.name || "—")} ${artH || 0}h
+        ${split.id ? ` · split ${escapeHtml(person(split.id)?.name || "")} ${split.hours}h` : ""}
+        ${t.programmerId ? ` · DEV ${escapeHtml(person(t.programmerId)?.name || "")} ${progH || 0}h` : ""}</p>`;
+  return `<section class="help-split">
+      <label>Playable hours</label>
+      <p class="status-hint">Producer pay is art + DEV. Billed may include a studio buffer. LP $7 is on producer hours only.</p>
+      ${body}
+      <div class="help-owner"><span>Producer</span><b id="playProducer">${producer}h</b></div>
+      <div class="help-owner"><span>Studio buffer</span><b id="playBuffer">${buffer}h</b></div>
+    </section>`;
+}
 function helpSplitHtml(t, editable) {
   const total = hoursOf(t);
   const help = helpEntries(t);
@@ -3602,17 +4015,19 @@ function openTask(id) {
   const t = state.db.tasks.find((x) => x.id === id);
   if (!t) return;
   state.openId = id;
-  const mine = t.assigneeId === me().id;
+  const mine = t.assigneeId === me().id || t.programmerId === me().id || helpedOn(t, me().id);
   const canEdit = canOps() || canAssign() || mine;
   const lockedStatus = (t.studioStatus === "approve" || t.studioStatus === "closed") && !canOps();
   const job = cardJob(t);
-  const performer = mine && (isDesigner() || isTeamLead());
+  const play = isPlayables(t);
+  const performer = mine && (isDesigner() || isTeamLead() || isArtDirector() || isProgrammer());
   const canPaste = canPasteResult(t);
-  const assignHero = isTeamLead() && !t.assigneeId;
+  const assignHero = isTeamLead() && !t.assigneeId && !play;
+  const peopleOpts = play ? artDirectors() : designers();
   const assignSelect = canAssign()
     ? `<select id="stPerson">
-        <option value="">— unassigned</option>
-        ${designers()
+        <option value="">— ${play ? "lead AD" : "unassigned"}</option>
+        ${peopleOpts
           .map(
             (p) =>
               `<option value="${p.id}" ${t.assigneeId === p.id ? "selected" : ""}>${escapeHtml(p.name)} · ${jobMeta(p).code}</option>`
@@ -3626,18 +4041,22 @@ function openTask(id) {
         ${assignSelect}
       </div>`
     : "";
-  const showAssignee = !isDesigner() && !assignHero;
+  const showAssignee = !isPerformer() && !assignHero;
   const whoAssign = showAssignee
-    ? `<div class="who-assign"><label>Who works this</label>${canAssign() ? assignSelect : personCell(t.assigneeId)}</div>`
+    ? `<div class="who-assign"><label>${play ? "Lead Art Director" : "Who works this"}</label>${canAssign() ? assignSelect : personCell(t.assigneeId)}</div>`
     : "";
-  const opsTime = canEditTime()
+  const opsTime = canEditTime() && !play
     ? `<div class="ops-item"><label>Shifts</label>
         <input id="stShifts" type="number" min="0" step="0.1" value="${t.shifts ?? ""}" />
         <p class="status-hint" id="stHoursHint">${hoursFromShifts(t.shifts || 0)} h</p></div>
        <div class="ops-item"><label>Deadline</label>
         <input id="stDeadline" type="date" value="${parseDeadlineIso(t.deadline)}" />
         <p class="status-hint">Same as Excel DEADLINE</p></div>`
-    : "";
+    : canEditTime() && play
+      ? `<div class="ops-item"><label>Deadline</label>
+        <input id="stDeadline" type="date" value="${parseDeadlineIso(t.deadline)}" />
+        <p class="status-hint">Same as Excel DEADLINE</p></div>`
+      : "";
   const whoBlock = `<section class="who-block">
       ${whoAssign}
       <div class="who-status">
@@ -3656,7 +4075,7 @@ function openTask(id) {
           : `<h2>${escapeHtml(t.name)}</h2>`
       }
     </div>
-    <div class="meta"><span class="pill line-${t.line}">${t.line}</span> ${t.shifts || 0} shift · ${t.hours || 0} h · <span id="stMetaStatus" class="pill ${st.cls}">${st.label}</span></div>
+    <div class="meta"><span class="pill line-${t.line}">${t.line}</span> ${play ? `${t.hours || 0} h billed` : `${t.shifts || 0} shift · ${t.hours || 0} h`} · <span id="stMetaStatus" class="pill ${st.cls}">${st.label}</span></div>
     <div class="drawer-body">
     <div class="card-job tone-${job.tone}">
       ${jobBadgeHtml(me())}
@@ -3670,7 +4089,7 @@ function openTask(id) {
     ${notesHtml(t)}
     ${sourceBlock || resultBlock ? `<div class="io-stack">${sourceBlock}${resultBlock}</div>` : ""}
     ${whoBlock}
-    ${helpSplitHtml(t, canEditHelp())}
+    ${play ? playableHoursHtml(t, canEditHelp()) : helpSplitHtml(t, canEditHelp())}
     ${opsTime ? `<div class="card-ops">${opsTime}</div>` : ""}
     </div>
     <div class="drawer-actions">
@@ -3840,8 +4259,28 @@ function openTask(id) {
         typedResult: typed,
       });
     }
+    const htmlBtn = $("drawer")?.querySelector('.status-btn[data-status="htmlready"]');
+    if (htmlBtn && t.studioStatus !== "htmlready") {
+      htmlBtn.disabled = statusButtonDisabled(t, "htmlready", {
+        canEdit,
+        locked: lockedStatus,
+        typedResult: typed,
+      });
+    }
     if (hint) {
-      if (performer && !hasResult && !["tlcheck", "done", "approve", "closed"].includes(t.studioStatus)) {
+      if (isPlayables(t)) {
+        if (isProgrammer() && !hasResult && t.studioStatus === "build") {
+          hint.textContent = "Paste the HTML link, then HTML ready.";
+        } else if (canOps() && t.studioStatus === "storyboard") {
+          hint.textContent = "Send to client — that sets Client art. Only LP talks to SuperPlay.";
+        } else if (canOps() && t.studioStatus === "htmlready") {
+          hint.textContent = "Send to client — that sets Send.";
+        } else if (canOps() && t.studioStatus === "approve") {
+          hint.textContent = "Client accepted → Closed.";
+        } else {
+          hint.textContent = "";
+        }
+      } else if (performer && !hasResult && !["tlcheck", "done", "approve", "closed"].includes(t.studioStatus)) {
         hint.textContent = "Paste the result link, then TL Check.";
       } else if (isTeamLead() && t.studioStatus === "tlcheck") {
         hint.textContent = "Check the result, then Done. LP sends after that.";
@@ -3866,11 +4305,15 @@ function openTask(id) {
       const key = btn.dataset.status;
       if (!key || btn.disabled) return;
       if (key === "approve") {
-        toast("Senior Approval is set only when you Send to client");
+        toast(isPlayables(t) ? "Send is set only when you Send to client" : "Senior Approval is set only when you Send to client");
         return;
       }
       if (key === "closed" && t.studioStatus !== "closed" && t.studioStatus !== "approve") {
-        toast("Closed is after Senior Approval, when the client accepts");
+        toast("Closed is after Send, when the client accepts");
+        return;
+      }
+      if (key === "htmlready" && !($("stResult")?.value || t.resultUrl || "").trim()) {
+        toast("Paste the HTML link before HTML ready");
         return;
       }
       if (key === "tlcheck" && !($("stResult")?.value || t.resultUrl || "").trim()) {
@@ -3881,7 +4324,7 @@ function openTask(id) {
         toast("Done is after TL Check");
         return;
       }
-      if (key !== t.studioStatus && !canSetStatus(key) && !(key === "closed" && canOps() && t.studioStatus === "approve")) {
+      if (key !== t.studioStatus && !canSetStatus(key, t) && !(key === "closed" && canOps() && t.studioStatus === "approve")) {
         toast("This role cannot set " + (STATUS[key]?.label || key));
         return;
       }
@@ -3910,16 +4353,20 @@ function openTask(id) {
     }
     const resultUrl = ($("stResult")?.value || t.resultUrl || "").trim();
     const studioStatus = $("stStatus")?.value || t.studioStatus;
-    if (studioStatus !== t.studioStatus && !canSetStatus(studioStatus)) {
+    if (studioStatus !== t.studioStatus && !canSetStatus(studioStatus, t)) {
       toast("This role cannot set " + (STATUS[studioStatus]?.label || studioStatus));
       return;
     }
     if (studioStatus === "approve") {
-      toast("Senior Approval is set only when you Send to client");
+      toast(isPlayables(t) ? "Send is set only when you Send to client" : "Senior Approval is set only when you Send to client");
       return;
     }
     if (studioStatus === "closed" && t.studioStatus !== "closed" && t.studioStatus !== "approve") {
-      toast("Closed is after Senior Approval, when the client accepts");
+      toast("Closed is after Send, when the client accepts");
+      return;
+    }
+    if (studioStatus === "htmlready" && !resultUrl) {
+      toast("Paste the HTML link before HTML ready");
       return;
     }
     if (studioStatus === "tlcheck" && !resultUrl) {
@@ -3937,7 +4384,23 @@ function openTask(id) {
     const assigneeId = canAssign() && $("stPerson") ? $("stPerson").value : t.assigneeId;
     const patch = { studioStatus, role: me().role };
     if (canAssign()) patch.assigneeId = assigneeId;
-    if (canEditHelp()) {
+    if (isPlayables(t) && canEditHelp()) {
+      if ($("stHours")) {
+        const hours = parseShifts($("stHours").value);
+        if (hours === null) {
+          toast("Hours must be 0 or more");
+          return;
+        }
+        patch.hours = hours;
+      }
+      const adHours = roundHours(String($("stAdHours")?.value || "").replace(",", "."));
+      const splitId = $("stSplitAd")?.value || "";
+      const splitHours = roundHours(String($("stSplitHours")?.value || "").replace(",", "."));
+      patch.assigneeHours = adHours;
+      patch.help = splitId && splitHours > 0 && splitId !== assigneeId ? [{ id: splitId, hours: splitHours }] : [];
+      if ($("stProgrammer")) patch.programmerId = $("stProgrammer").value;
+      patch.programmerHours = roundHours(String($("stProgHours")?.value || "").replace(",", "."));
+    } else if (canEditHelp()) {
       const help = readHelpFromCard(assigneeId);
       const total = patch.shifts !== undefined ? hoursFromShifts(patch.shifts) : hoursOf(t);
       const given = help.reduce((s, row) => s + row.hours, 0);
@@ -4043,7 +4506,7 @@ function openTask(id) {
       { close: true }
     );
   });
-  bindHelpSplit(t);
+  if (!isPlayables(t)) bindHelpSplit(t);
   $("ensureDrive")?.addEventListener("click", () => retryDrivePack(t));
   fillDrivePackIfMissing(t);
   $("copyOne")?.addEventListener("click", async () => {
@@ -4116,7 +4579,7 @@ async function sendToClient(ids) {
   const picked = state.db.tasks.filter((t) => ids.includes(t.id));
   const ready = picked.filter(isSendable);
   if (!ready.length) {
-    toast("Send only works on Done projects that have a result link");
+    toast("Send only works on Done / Storyboard / HTML ready projects");
     return;
   }
   const out = await api("/api/export-monday", { ids: ready.map((t) => t.id), role: me().role, actorId: me().id });
@@ -4429,6 +4892,7 @@ async function ackNotices(payload) {
 
 function render() {
   if (!state.db) return;
+  syncDirection();
   if (isClient() && state.view !== "report") state.view = "report";
   renderWho();
   renderChrome();
@@ -4512,6 +4976,16 @@ $("signOut").addEventListener("click", () => {
     return;
   }
   showLogin();
+});
+$("navMgx")?.addEventListener("click", () => {
+  if (isClient()) return;
+  if (state.view === "close" || state.view === "team") state.view = "board";
+  setDirection("mgx");
+});
+$("navPlay")?.addEventListener("click", () => {
+  if (isClient()) return;
+  if (state.view === "close" || state.view === "team") state.view = "board";
+  setDirection("playables");
 });
 $("navClose").addEventListener("click", () => {
   if (!isFinance()) return;
