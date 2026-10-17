@@ -436,6 +436,15 @@ def test_playables_desk() -> None:
         )
 
 
+def test_lp_can_close_without_send() -> None:
+    src = (ROOT / "server.py").read_text(encoding="utf-8")
+    js = (ROOT / "public" / "assets" / "app.js").read_text(encoding="utf-8")
+    check("LP role may set closed", "closed" in server.STATUS_BY_ROLE["manager"] and "closed" in server.STATUS_BY_ROLE["finance"])
+    check("server no longer requires Send before Closed", "Closed is after Send" not in src)
+    check("card offers Closed without approve-only gate", "Closed is after Send" not in js)
+    check("Mark Closed is not locked to Appr.", 't.studioStatus === "approve" ? `<button type="button" class="btn" id="closeOne">' not in js)
+
+
 def test_finance_reads_board_not_xlsx() -> None:
     called = {"n": 0}
     orig = excel_io.parse_workbook
@@ -878,6 +887,7 @@ def main() -> int:
         test_sync_files_releases_lock,
         test_employeers_pay_details,
         test_playables_desk,
+        test_lp_can_close_without_send,
         test_finance_reads_board_not_xlsx,
     ):
         try:

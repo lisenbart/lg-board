@@ -1898,7 +1898,7 @@ function cardJob(t) {
     return { tone: "ok", title: "Already sent", body: "Copy the Monday reply if External Weekly still needs it. Mark Closed when the client accepts." };
   }
   if (t.studioStatus === "done" && hasResult) {
-    return { tone: "do", title: "Your job", body: "Result is in. Send to client — that sets Senior Approval." };
+    return { tone: "do", title: "Your job", body: "Result is in. Send to client, or Mark Closed if SuperPlay already accepted." };
   }
   if (t.studioStatus === "tlcheck") {
     return { tone: "wait", title: "Waiting for TL", body: `${name || "Designer"} submitted for TL Check. Send only after TL sets Done.` };
@@ -2559,7 +2559,7 @@ function renderGuide() {
           ${statusCard("wip", "WIP", "WIP", "Хто: MD", "Виконавець почав роботу. Файл ще не зданий.")}
           ${statusCard("fix", "Fix", "Need Fixing", "Хто: MD править", "Клієнт або LP відбили. Не TL Check — треба правка, потім знову здати.")}
           ${statusCard("tlcheck", "TL chk", "TL Check", "Хто: MD здав, далі TL", "Лінк результату в картці. MD не ставить Done. TL перевіряє і лише тоді Done.")}
-          ${statusCard("done", "Done", "Done", "Хто: TL перевірив, далі LP", "Team Lead прийняв роботу. LP може Send to client.")}
+          ${statusCard("done", "Done", "Done", "Хто: TL перевірив, далі LP", "Team Lead прийняв роботу. LP може Send to client або одразу Closed.")}
           ${statusCard("appr", "Appr.", "Senior Approval", "Хто: чекаємо клієнта", "LP натиснув Send to client. Текст для Monday скопійовано. Ще не Closed.")}
           ${statusCard("closed", "Closed", "Closed", "Хто: LP після відповіді клієнта", "Клієнт прийняв. Години лишаються, роботи більше немає.")}
         </div>
@@ -2573,7 +2573,7 @@ function renderGuide() {
           ${pipeStep("3", "MD", "Motion design", "Починає і здає", `${ui("WIP")}, коли почав. Потім лінк результату і ${ui("TL Check")}. Не ${ui("Done")}.`, "tlcheck", "TL chk")}
           ${pipeStep("4", "TL", "Team Lead", "Перевіряє", `Після ${ui("TL Check")} TL ставить ${ui("Done")}.`, "done", "Done")}
           ${pipeStep("5", "LP", "Line Producer", "Відправляє клієнту", `${ui("Send to client")} лише з ${ui("Done")} + лінк. Це ${ui("Appr.")}.`, "appr", "Appr.")}
-          ${pipeStep("6", "LP", "Line Producer", "Клієнт прийняв", `${ui("Closed")} після ${ui("Appr.")}. Якщо відбили — ${ui("Need Fixing")}, MD знову ${ui("TL Check")}.`, "closed", "Closed")}
+          ${pipeStep("6", "LP", "Line Producer", "Клієнт прийняв", `${ui("Closed")} з ${ui("Done")} або після ${ui("Send")}. Якщо відбили — ${ui("Need Fixing")}, MD знову ${ui("TL Check")}.`, "closed", "Closed")}
         </ol>
       </div>
       <div class="guide-grid">
@@ -2584,7 +2584,7 @@ function renderGuide() {
           `Рядок фарбується за статусом. Чіп: ${ui("Ready")} / ${ui("WIP")} / ${ui("Fix")} / ${ui("Done")} / ${ui("Appr.")} / ${ui("Closed")}. Не ${ui("Send")}.`,
           `${ui("Excel")} — години як у файлі. Чіп зліва той самий, що в пайплайні, не лише WIP/Closed. ${ui("Due")} = ${ui("DEADLINE")}.`,
           `${ui("Send to client")} лише з ${ui("Done")} + лінк файлу. Копіює текст у External Weekly. ${ui("Appr.")} сам не ставиться.`,
-          `${ui("Mark Closed")} після ${ui("Appr.")}, коли клієнт прийняв. Темно-зелений штамп, білий напис — не той самий колір, що ${ui("Done")}. Якщо відбили — ${ui("Need Fixing")}.`,
+          `${ui("Mark Closed")} коли клієнт прийняв — можна без ${ui("Send")}. Темно-зелений штамп, білий напис — не той самий колір, що ${ui("Done")}. Якщо відбили — ${ui("Need Fixing")}.`,
           `${ui("Hours split")} на картці: клієнтські години не ростуть. 0.5h тому, хто відрендерив замість колеги. Who лишається власником ${ui("Done")}.`,
         ])}
         ${card("teamlead", "TL", "Team Lead", "Настя. Усі проєкти + свої як виконавця.", [
@@ -2869,7 +2869,7 @@ function statusActions(task) {
     if (role === "manager" || role === "finance") {
       const out = [];
       if (cur === "clientart") out.push("storyboard");
-      if (cur === "approve") out.push("closed");
+      if (cur !== "closed") out.push("closed");
       return out;
     }
     if (role === "teamlead") return (PLAY_STATUS_BY_ROLE.teamlead || []).filter((k) => k !== cur);
@@ -2895,7 +2895,7 @@ function statusActions(task) {
   if (role === "manager" || role === "finance") {
     const out = [];
     if (["wip", "tlcheck", "done", "approve"].includes(cur)) out.push("revision");
-    if (cur === "approve") out.push("closed");
+    if (cur !== "closed") out.push("closed");
     return out;
   }
   return [];
@@ -2908,12 +2908,10 @@ function statusButtonDisabled(task, key, opts) {
   if (on) return true;
   if (isPlayables(task)) {
     if (key === "htmlready" && !hasResultLink(task, opts.typedResult)) return true;
-    if (key === "closed") return task.studioStatus !== "approve";
     return !canSetStatus(key, task);
   }
   if (key === "tlcheck" && !hasResultLink(task, opts.typedResult)) return true;
   if (key === "done" && task.studioStatus !== "tlcheck") return true;
-  if (key === "closed") return task.studioStatus !== "approve";
   return !canSetStatus(key, task);
 }
 
@@ -4170,7 +4168,7 @@ function openTask(id) {
       <div class="drawer-actions-main">
         ${canOps() && isSendable(t) ? `<button type="button" class="btn green" id="exportOne">Send this to client</button>` : ""}
         ${canOps() && isClientCopyable(t) ? `<button type="button" class="btn" id="copyOne">Copy for client</button>` : ""}
-        ${canOps() && t.studioStatus === "approve" ? `<button type="button" class="btn" id="closeOne">Mark Closed</button>` : ""}
+        ${canOps() && t.studioStatus !== "closed" ? `<button type="button" class="btn" id="closeOne">Mark Closed</button>` : ""}
         ${canOps() && isDeletableTask(t) ? `<button type="button" class="btn danger" id="deleteTask">Delete</button>` : ""}
       </div>
       <div class="drawer-actions-end">
@@ -4348,7 +4346,7 @@ function openTask(id) {
         } else if (canOps() && t.studioStatus === "storyboard") {
           hint.textContent = "Send to client — that sets Client art. Only LP talks to SuperPlay.";
         } else if (canOps() && t.studioStatus === "htmlready") {
-          hint.textContent = "Send to client — that sets Send.";
+          hint.textContent = "Send to client, or Mark Closed if they already accepted.";
         } else if (canOps() && t.studioStatus === "approve") {
           hint.textContent = "Client accepted → Closed.";
         } else {
@@ -4359,7 +4357,7 @@ function openTask(id) {
       } else if (isTeamLead() && t.studioStatus === "tlcheck") {
         hint.textContent = "Check the result, then Done. LP sends after that.";
       } else if (canOps() && t.studioStatus === "done") {
-        hint.textContent = "Send to client — that sets Senior Approval.";
+        hint.textContent = "Send to client, or Mark Closed if they already accepted.";
       } else if (canOps() && t.studioStatus === "approve") {
         hint.textContent = "Client accepted → Closed. Need Fixing if they bounce it.";
       } else if (canOps() && t.studioStatus === "closed") {
@@ -4382,8 +4380,8 @@ function openTask(id) {
         toast(isPlayables(t) ? "Send is set only when you Send to client" : "Senior Approval is set only when you Send to client");
         return;
       }
-      if (key === "closed" && t.studioStatus !== "closed" && t.studioStatus !== "approve") {
-        toast("Closed is after Send, when the client accepts");
+      if (key === "closed" && t.studioStatus !== "closed" && !canOps()) {
+        toast("Only LP can mark Closed");
         return;
       }
       if (key === "htmlready" && !($("stResult")?.value || t.resultUrl || "").trim()) {
@@ -4398,7 +4396,7 @@ function openTask(id) {
         toast("Done is after TL Check");
         return;
       }
-      if (key !== t.studioStatus && !canSetStatus(key, t) && !(key === "closed" && canOps() && t.studioStatus === "approve")) {
+      if (key !== t.studioStatus && !canSetStatus(key, t) && !(key === "closed" && canOps())) {
         toast("This role cannot set " + (STATUS[key]?.label || key));
         return;
       }
@@ -4435,8 +4433,8 @@ function openTask(id) {
       toast(isPlayables(t) ? "Send is set only when you Send to client" : "Senior Approval is set only when you Send to client");
       return;
     }
-    if (studioStatus === "closed" && t.studioStatus !== "closed" && t.studioStatus !== "approve") {
-      toast("Closed is after Send, when the client accepts");
+    if (studioStatus === "closed" && t.studioStatus !== "closed" && !canOps()) {
+      toast("Only LP can mark Closed");
       return;
     }
     if (studioStatus === "htmlready" && !resultUrl) {

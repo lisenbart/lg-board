@@ -30,7 +30,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-17c"
+BUILD = "2026-10-17d"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -2314,16 +2314,6 @@ class Handler(SimpleHTTPRequestHandler):
                     return
                 if nxt == "approve" and nxt != task.get("studioStatus"):
                     self._json(403, {"error": "Send / Senior Approval is set only when you Send to client"})
-                    return
-                if (
-                    nxt == "closed"
-                    and nxt != task.get("studioStatus")
-                    and task.get("studioStatus") != "approve"
-                ):
-                    self._json(
-                        403,
-                        {"error": "Closed is after Send, when the client accepts"},
-                    )
                     return
                 if (
                     nxt
