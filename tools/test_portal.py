@@ -648,6 +648,14 @@ def test_playables_desk() -> None:
             and "Split hours cannot exceed the AD hours" in js,
         )
         check(
+            "hours split has no duplicate remainder copy",
+            "Extra AD/DEV" not in js
+            and "Client stays" not in js
+            and "play-seat-note" not in js
+            and "not extra SuperPlay hours" not in js
+            and " · Who" not in js,
+        )
+        check(
             "create skips Drive ensure while pack is queued",
             "driveQueued" in js and "if (state.driveQueued[t.id]) return;" in js,
         )

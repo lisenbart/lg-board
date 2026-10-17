@@ -4352,24 +4352,14 @@ function playableSeatHtml(kind, t, editable) {
         : `<div class="play-seat-row"><span>${personCell(row.id)}</span><span class="help-h">${row.hours}h</span></div>`
     )
     .join("");
-  const spare = roster.filter((p) => p.id !== ownerId);
-  const note =
-    splitEdit && spare.length === 0
-      ? `<p class="play-seat-note">${
-          roster.length
-            ? `Only ${escapeHtml(person(ownerId)?.name || title)} is on the team as ${title}. DL adds another in Team, then pick them here.`
-            : `No ${title} on the team yet. DL adds one in Team.`
-        }</p>`
-      : "";
   const add = splitEdit ? `<button type="button" class="play-seat-add" id="${addId}">Add ${title}</button>` : "";
   return `<div class="play-seat play-seat-${kind}" data-pool="${pool || ""}">
       <div class="play-seat-head">
         <span class="job-badge job-${kind}">${title}</span>
-        <b class="play-seat-sum" id="${sumId}">${pool}h</b>
+        <b class="play-seat-sum" id="${sumId}" ${splits.length ? "" : "hidden"}>${pool}h</b>
       </div>
       ${ownerRow}
       <div id="${rowsId}">${splitRows}</div>
-      ${note}
       ${add}
     </div>`;
 }
@@ -4399,7 +4389,6 @@ function playableHoursHtml(t, editable) {
     : "";
   return `<section class="help-split play-crew">
       <label>Who · hours</label>
-      <p class="status-hint">Extra AD/DEV take hours from the owner — same as MGX, not extra SuperPlay hours.</p>
       ${playableSeatHtml("ad", t, adHours)}
       ${playableSeatHtml("dev", t, devHours)}
       <div class="play-crew-foot"><span>Crew ${you}</span><b id="playCrew">${crew}h</b></div>
@@ -4473,8 +4462,14 @@ function refreshPlayableCrew(t) {
   const ad = playableSeatLive("ad", $("stPerson")?.value || "");
   const dev = playableSeatLive("dev", $("stProgrammer")?.value || "");
   const crew = roundHours(ad.pool + dev.pool);
-  if ($("playAdTotal")) $("playAdTotal").textContent = `${ad.pool}h`;
-  if ($("playDevTotal")) $("playDevTotal").textContent = `${dev.pool}h`;
+  if ($("playAdTotal")) {
+    $("playAdTotal").textContent = `${ad.pool}h`;
+    $("playAdTotal").hidden = !$("adSplitRows")?.querySelector(".play-split-row");
+  }
+  if ($("playDevTotal")) {
+    $("playDevTotal").textContent = `${dev.pool}h`;
+    $("playDevTotal").hidden = !$("devSplitRows")?.querySelector(".play-split-row");
+  }
   $("stAdHours")?.classList.toggle("is-over", ad.given > ad.pool + 0.001);
   $("stProgHours")?.classList.toggle("is-over", dev.given > dev.pool + 0.001);
   if ($("playCrew")) $("playCrew").textContent = `${crew}h`;
@@ -4580,6 +4575,14 @@ function bindPlayableCrew(t) {
     }
     const taken = new Set([ownerSel.value, ...readPlayableSplits(kind, ownerSel.value).map((row) => row.id)]);
     const next = list.find((p) => !taken.has(p.id));
+    if (!next) {
+      toast(
+        list.length
+          ? `Only ${person(ownerSel.value)?.name || title} is on the team as ${title}. DL adds another in Team.`
+          : `No ${title} on the team yet. DL adds one in Team.`
+      );
+      return;
+    }
     const slice = Math.min(0.5, seat.rest);
     box?.insertAdjacentHTML(
       "beforeend",
@@ -4597,7 +4600,6 @@ function bindPlayableCrew(t) {
   });
 }
 function helpSplitHtml(t, editable) {
-  const total = hoursOf(t);
   const help = helpEntries(t);
   const ownerH = hoursOwned(t);
   const ownerName = person(t.assigneeId)?.name || "Unassigned";
@@ -4618,8 +4620,7 @@ function helpSplitHtml(t, editable) {
     .join("");
   return `<section class="help-split">
       <label>Hours split</label>
-      <p class="status-hint">Client stays ${total}h. Only studio pay moves — render help, not extra SuperPlay hours.</p>
-      <div class="help-owner"><span>${escapeHtml(ownerName)} · Who</span><b id="helpRemainder">${ownerH}h</b></div>
+      <div class="help-owner"><span>${escapeHtml(ownerName)}</span><b id="helpRemainder">${ownerH}h</b></div>
       <div id="helpRows">${rows}</div>
       ${
         editable
@@ -4649,7 +4650,7 @@ function refreshHelpRemainder(t) {
   const rest = Math.max(0, roundHours(total - given) || 0);
   const name = person(assigneeId)?.name || "Unassigned";
   hint.closest(".help-owner")?.querySelector("span") &&
-    (hint.closest(".help-owner").querySelector("span").textContent = `${name} · Who`);
+    (hint.closest(".help-owner").querySelector("span").textContent = name);
   hint.textContent = `${rest}h`;
   hint.classList.toggle("is-over", given > total + 0.001);
 }

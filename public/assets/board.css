@@ -1310,12 +1310,6 @@ body.col-resizing * { cursor: col-resize !important; }
 .play-seat-ad .play-seat-add { color: #6b21a8; }
 .play-seat-dev .play-seat-add { color: #3730a3; }
 .play-seat-add:hover { text-decoration: underline; }
-.play-seat-note {
-  margin: 2px 0 6px;
-  font-size: 12px;
-  line-height: 1.35;
-  color: var(--muted);
-}
 .play-crew-foot {
   display: flex;
   align-items: center;
