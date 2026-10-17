@@ -26,7 +26,6 @@ PERFORMERS = {"designer", "teamlead", "art_director", "programmer"}
 PLAY_CREW = {"art_director", "programmer", "designer"}
 
 PLAY_STATUS = {
-    "quote": "Quote",
     "new": "Ready",
     "wip": "WIP",
     "check": "Check",
@@ -128,6 +127,7 @@ def is_playables(task: dict | None) -> bool:
 
 PLAY_STATUS_KEYS = set(PLAY_STATUS)
 _LEGACY_PLAYABLE = {
+    "quote": "new",
     "storyboard": "check",
     "htmlready": "done",
     "build": "artready",
@@ -178,40 +178,14 @@ def playable_in_html(task: dict | None) -> bool:
 
 
 def playable_may_assign_dev(task: dict | None) -> bool:
-    """DEV for hours on Quote, or for build only after Art ready / code-only."""
+    """DEV for build only after Art ready, or immediately if there is no AD."""
     task = task or {}
     st = playable_norm_status(task.get("studioStatus"))
-    if st == "quote":
-        return True
     if not playable_has_ad(task):
         return True
     if str(task.get("programmerId") or "").strip():
         return True
     return st in {"artready", "done", "approve", "closed"}
-
-
-def playable_quote_hour_fields(role: str, task: dict | None, actor_id: str = "") -> set[str]:
-    task = task or {}
-    if playable_norm_status(task.get("studioStatus")) != "quote":
-        return set()
-    actor = str(actor_id or "")
-    if role == "art_director" and actor and actor == str(task.get("assigneeId") or ""):
-        return {"assigneeHours"}
-    if role == "programmer" and actor and actor == str(task.get("programmerId") or ""):
-        return {"programmerHours"}
-    return set()
-
-
-def playable_start_from_quote(task: dict | None) -> bool:
-    """Client approved hours: Ready, keep AD, drop DEV until Art ready."""
-    task = task or {}
-    dropped = False
-    if playable_has_ad(task) and str(task.get("programmerId") or "").strip():
-        task["programmerId"] = ""
-        dropped = True
-    task["studioStatus"] = "new"
-    task["mondayStatus"] = PLAY_STATUS["new"]
-    return dropped
 
 
 def playable_next_statuses(role: str, task: dict | None) -> list[str]:
@@ -221,8 +195,6 @@ def playable_next_statuses(role: str, task: dict | None) -> list[str]:
     has_ad = playable_has_ad(task)
     html = playable_in_html(task)
     if role in {"manager", "finance"}:
-        if st == "quote":
-            return ["new"]
         if st == "clientart":
             return ["revision", "finalart"]
         if st == "approve":
@@ -455,6 +427,8 @@ def ensure_crew(db: dict) -> bool:
         st = str(task.get("studioStatus") or "new")
         nxt = playable_norm_status(st)
         if nxt != st:
+            if st == "quote" and playable_has_ad(task):
+                task["programmerId"] = ""
             task["studioStatus"] = nxt
             task["mondayStatus"] = PLAY_STATUS.get(nxt, task.get("mondayStatus"))
             dirty = True

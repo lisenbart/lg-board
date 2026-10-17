@@ -30,7 +30,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-17x"
+BUILD = "2026-10-17y"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -1991,8 +1991,8 @@ class Handler(SimpleHTTPRequestHandler):
                     "hours": 0,
                     "deadline": "",
                     "month": ym,
-                    "studioStatus": "quote" if direction == direction_io.PLAYABLES else "new",
-                    "mondayStatus": "Quote" if direction == direction_io.PLAYABLES else "Ready to Start",
+                    "studioStatus": "new",
+                    "mondayStatus": "Ready" if direction == direction_io.PLAYABLES else "Ready to Start",
                     "assigneeId": "",
                     "assigneeHours": 0,
                     "programmerId": "",
@@ -2427,10 +2427,8 @@ class Handler(SimpleHTTPRequestHandler):
                             {"at": utc_now(), "text": f"Renamed {old_name} → {new_name}"}
                         )
                 if playable and role not in {"finance", "manager", "teamlead"}:
-                    quote_hours = direction_io.playable_quote_hour_fields(role, task, actor)
                     for key in ("assigneeHours", "programmerHours", "motionHours", "producerHours"):
-                        if key not in quote_hours:
-                            data.pop(key, None)
+                        data.pop(key, None)
                     data.pop("help", None)
                     data.pop("programmerHelp", None)
                 elif playable and role != "finance":
@@ -2520,19 +2518,6 @@ class Handler(SimpleHTTPRequestHandler):
                 if playable:
                     st = direction_io.playable_norm_status(task.get("studioStatus"))
                     task["studioStatus"] = st
-                    if (
-                        direction_io.playable_norm_status(before.get("studioStatus")) == "quote"
-                        and st == "new"
-                    ):
-                        dropped = direction_io.playable_start_from_quote(task)
-                        st = "new"
-                        if dropped:
-                            task.setdefault("activity", []).append(
-                                {
-                                    "at": utc_now(),
-                                    "text": "Hours OK — started. DEV comes back after Art ready.",
-                                }
-                            )
                     if st in direction_io.PLAY_STATUS:
                         task["mondayStatus"] = direction_io.PLAY_STATUS[st]
                 elif task.get("studioStatus") == "closed":
