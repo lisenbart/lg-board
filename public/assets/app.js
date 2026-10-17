@@ -601,9 +601,15 @@ function hoursFromShifts(shifts) {
   return Math.round(Number(shifts) * shiftHours() * 10) / 10;
 }
 function parseShifts(raw) {
-  const n = Number(String(raw ?? "").trim().replace(",", "."));
+  const n = Number(String(raw ?? "").trim().replace(/,/g, "."));
   if (!Number.isFinite(n) || n < 0) return null;
   return Math.round(n * 1000) / 1000;
+}
+function fmtDeskNum(n) {
+  if (n === null || n === undefined || n === "") return "";
+  const x = Number(n);
+  if (!Number.isFinite(x)) return "";
+  return String(x).replace(".", ",");
 }
 function hoursOf(t) {
   return Number(t.hours) || hoursFromShifts(t.shifts || 0) || 0;
@@ -1999,15 +2005,14 @@ function timeCell(t) {
   if (isPlayables(t)) {
     if (canEditTime()) {
       return `<span class="time-edit">
-      <input class="hours-in" data-id="${t.id}" type="number" min="0" step="0.1" value="${t.hours ?? ""}" title="Billed hours (may include studio buffer)" />
-      <small>h</small>
+      <input class="hours-in" data-id="${t.id}" type="text" inputmode="decimal" maxlength="4" value="${escapeHtml(fmtDeskNum(t.hours))}" title="Billed hours" />
     </span>`;
     }
     return hours ? `${hours}h` : `<span class="empty">—</span>`;
   }
   if (canEditTime()) {
     return `<span class="time-edit">
-      <input class="shift-in" data-id="${t.id}" type="number" min="0" step="0.1" value="${t.shifts ?? ""}" title="Shifts · hours = shifts × ${shiftHours()}" />
+      <input class="shift-in" data-id="${t.id}" type="text" inputmode="decimal" maxlength="4" value="${escapeHtml(fmtDeskNum(t.shifts))}" title="Shifts · hours = shifts × ${shiftHours()}" />
       <small>${hours ? hours + "h" : "—"}</small>
     </span>`;
   }
@@ -2747,7 +2752,7 @@ function bindTimeEdits() {
       if (!t) return;
       const shifts = parseShifts(el.value);
       if (shifts === null) {
-        el.value = t.shifts ?? "";
+        el.value = fmtDeskNum(t.shifts);
         toast("Shifts must be 0 or more");
         return;
       }
@@ -2776,7 +2781,7 @@ function bindTimeEdits() {
       if (!t) return;
       const hours = parseShifts(el.value);
       if (hours === null) {
-        el.value = t.hours ?? "";
+        el.value = fmtDeskNum(t.hours);
         toast("Hours must be 0 or more");
         return;
       }

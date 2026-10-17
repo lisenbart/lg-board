@@ -666,13 +666,19 @@ button.kpi.on { border-color: var(--blue); box-shadow: 0 0 0 1px rgba(0,115,234,
 .due-closed .due-bar b { background: #00c875; }
 .due-none { color: var(--muted); }
 .time-edit { display: inline-flex; align-items: center; gap: 4px; }
-.shift-in {
-  width: 52px;
+.shift-in,
+.hours-in {
+  width: calc(4ch + 12px);
+  min-width: 44px;
+  max-width: 48px;
+  box-sizing: border-box;
   border: 1px solid var(--line);
   border-radius: 4px;
-  padding: 2px 5px;
+  padding: 2px 4px;
   background: #fff;
   font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
 }
 .time-edit small { color: var(--muted); font-size: 11px; white-space: nowrap; font-weight: 400; }
 .meta {
