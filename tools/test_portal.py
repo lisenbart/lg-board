@@ -533,6 +533,8 @@ def test_playables_desk() -> None:
         js = (ROOT / "public" / "assets" / "app.js").read_text(encoding="utf-8")
         check("LP edits playable crew hours", "playableHoursHtml(t, canEditPlayableCrew())" in js)
         check("billed buffer is DL only", "const financeStrip = isFinance()" in js and "Studio buffer" in js)
+        check("playable card has no Lead AD", "Lead AD" not in js and "Assign lead AD" not in js)
+        check("playable splits AD onto AD and DEV onto DEV", "Add AD split" in js and "Add DEV split" in js and "programmerHelp" in js)
         py = (ROOT / "server.py").read_text(encoding="utf-8")
         check(
             "playable crew save allows LP",

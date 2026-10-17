@@ -30,7 +30,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-17q"
+BUILD = "2026-10-17r"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -1993,6 +1993,7 @@ class Handler(SimpleHTTPRequestHandler):
                     "assigneeHours": 0,
                     "programmerId": "",
                     "programmerHours": 0,
+                    "programmerHelp": [],
                     "help": [],
                     "brief": "",
                     "folderUrl": "",
@@ -2145,6 +2146,7 @@ class Handler(SimpleHTTPRequestHandler):
                         "assigneeHours": 0,
                         "programmerId": "",
                         "programmerHours": 0,
+                        "programmerHelp": [],
                         "help": [],
                         "brief": "",
                         "folderUrl": "",
@@ -2397,6 +2399,7 @@ class Handler(SimpleHTTPRequestHandler):
                     for key in ("assigneeHours", "programmerHours", "motionHours", "producerHours"):
                         data.pop(key, None)
                     data.pop("help", None)
+                    data.pop("programmerHelp", None)
                 elif playable and role != "finance":
                     data.pop("producerHours", None)
                 brief_before = task.get("brief")
@@ -2442,6 +2445,25 @@ class Handler(SimpleHTTPRequestHandler):
                         self._json(400, {"error": "help hours cannot exceed the client hours"})
                         return
                     task["help"] = help_rows
+                if "programmerHelp" in data:
+                    if role not in {"manager", "finance", "teamlead"}:
+                        self._json(403, {"error": "only TL or LP can split hours"})
+                        return
+                    prog_rows = []
+                    seen = set()
+                    who_dev = str(task.get("programmerId") or "")
+                    for row in data.get("programmerHelp") or []:
+                        pid = str((row or {}).get("id") or "").strip()
+                        try:
+                            hours = float(str((row or {}).get("hours") or "").replace(",", "."))
+                        except (TypeError, ValueError):
+                            self._json(400, {"error": "help hours must be a number"})
+                            return
+                        if not pid or pid == who_dev or hours <= 0 or pid in seen:
+                            continue
+                        seen.add(pid)
+                        prog_rows.append({"id": pid, "hours": round(hours, 1)})
+                    task["programmerHelp"] = prog_rows
                 crew_ids = {p["id"] for p in excel_io.designers(db)}
                 if playable:
                     crew_ids |= {
@@ -2454,8 +2476,12 @@ class Handler(SimpleHTTPRequestHandler):
                     art = excel_io.round_hours(task.get("assigneeHours"))
                     help_h = sum(row["hours"] for row in excel_io.help_entries(task))
                     prog = excel_io.round_hours(task.get("programmerHours"))
+                    split_dev = sum(
+                        excel_io.round_hours((row or {}).get("hours"))
+                        for row in (task.get("programmerHelp") or [])
+                    )
                     motion = excel_io.round_hours(task.get("motionHours"))
-                    task["producerHours"] = round(art + help_h + prog + motion, 1)
+                    task["producerHours"] = round(art + help_h + prog + split_dev + motion, 1)
                 if playable:
                     st = task.get("studioStatus")
                     if st in direction_io.PLAY_STATUS:
@@ -2486,6 +2512,7 @@ class Handler(SimpleHTTPRequestHandler):
                         "assigneeHours",
                         "programmerId",
                         "programmerHours",
+                        "programmerHelp",
                     )
                 )
                 save_db(db)
@@ -2792,6 +2819,14 @@ class Handler(SimpleHTTPRequestHandler):
                     if dest and task.get("assigneeId") == dest:
                         help_rows = [row for row in help_rows if (row or {}).get("id") != dest]
                     task["help"] = help_rows
+                    prog_help = [
+                        row for row in (task.get("programmerHelp") or []) if (row or {}).get("id") != pid
+                    ]
+                    if dest and task.get("programmerId") == dest:
+                        prog_help = [row for row in prog_help if (row or {}).get("id") != dest]
+                    task["programmerHelp"] = prog_help
+                    if task.get("programmerId") == pid:
+                        task["programmerId"] = dest if dest else ""
                 for task in held:
                     before = {"assigneeId": pid, "studioStatus": task.get("studioStatus")}
                     task["assigneeId"] = dest

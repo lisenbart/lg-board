@@ -57,6 +57,8 @@ def producer_hours(task: dict) -> float:
     for row in excel_io.help_entries(task):
         total += row["hours"]
     total += excel_io.round_hours(task.get("programmerHours"))
+    for row in task.get("programmerHelp") or []:
+        total += excel_io.round_hours((row or {}).get("hours"))
     total += excel_io.round_hours(task.get("motionHours"))
     return round(total, 1)
 
@@ -69,6 +71,9 @@ def hours_for_person(task: dict, person_id: str) -> float:
         return producer_hours(task)
     if pid == str(task.get("programmerId") or "").strip():
         return excel_io.round_hours(task.get("programmerHours"))
+    for row in task.get("programmerHelp") or []:
+        if str((row or {}).get("id") or "") == pid:
+            return excel_io.round_hours((row or {}).get("hours"))
     if pid == str(task.get("motionId") or "").strip():
         return excel_io.round_hours(task.get("motionHours"))
     if pid == str(task.get("assigneeId") or "").strip():
@@ -162,7 +167,7 @@ def parse_workbook(path: Path, ym: str) -> dict:
                 continue
             hours = _num(ws.cell(r, 3).value)
             art = []
-            programmer = None
+            programmers = []
             motion = None
             for h in headers:
                 if h.get("kind") == "producer":
@@ -172,13 +177,15 @@ def parse_workbook(path: Path, ym: str) -> dict:
                     continue
                 share = {"id": h.get("id") or "", "name": h.get("name") or "", "hours": val, "kind": h.get("kind") or "art"}
                 if share["kind"] == "programmer":
-                    programmer = share
+                    programmers.append(share)
                 elif share["kind"] == "motion":
                     motion = share
                 else:
                     art.append(share)
             lead = art[0] if art else {}
             help_rows = art[1:] if len(art) > 1 else []
+            programmer = programmers[0] if programmers else {}
+            programmer_help = programmers[1:] if len(programmers) > 1 else []
             prefix = name.split("-", 1)[0].upper()
             rows.append(
                 {
@@ -192,12 +199,14 @@ def parse_workbook(path: Path, ym: str) -> dict:
                     "programmerName": (programmer or {}).get("name") or "",
                     "programmerId": (programmer or {}).get("id") or "",
                     "programmerHours": (programmer or {}).get("hours") or 0.0,
+                    "programmerHelp": programmer_help,
                     "motionName": (motion or {}).get("name") or "",
                     "motionId": (motion or {}).get("id") or "",
                     "motionHours": (motion or {}).get("hours") or 0.0,
                     "producerHours": round(
                         sum(s["hours"] for s in art)
                         + ((programmer or {}).get("hours") or 0)
+                        + sum(s.get("hours") or 0 for s in programmer_help)
                         + ((motion or {}).get("hours") or 0),
                         1,
                     ),
@@ -249,6 +258,12 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
             people,
             by_name,
         )
+        programmer_help = []
+        for share in row.get("programmerHelp") or []:
+            pid = _resolve_id(share, people, by_name)
+            hours = excel_io.round_hours(share.get("hours"))
+            if pid and hours and pid != programmer_id:
+                programmer_help.append({"id": pid, "hours": hours})
         motion_id = _resolve_id(
             {"id": row.get("motionId"), "name": row.get("motionName")},
             people,
@@ -270,6 +285,7 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
                 task.get("studioStatus"),
                 task.get("excelStatus"),
                 tuple((h.get("id"), h.get("hours")) for h in (task.get("help") or [])),
+                tuple((h.get("id"), h.get("hours")) for h in (task.get("programmerHelp") or [])),
             )
             task["name"] = name
             task["hours"] = row["hours"]
@@ -281,6 +297,7 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
             task["help"] = help_rows
             task["programmerId"] = programmer_id
             task["programmerHours"] = row.get("programmerHours") or 0
+            task["programmerHelp"] = programmer_help
             task["motionId"] = motion_id
             task["motionHours"] = row.get("motionHours") or 0
             task["producerHours"] = row.get("producerHours") or 0
@@ -306,6 +323,7 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
                 task.get("studioStatus"),
                 task.get("excelStatus"),
                 tuple((h.get("id"), h.get("hours")) for h in (task.get("help") or [])),
+                tuple((h.get("id"), h.get("hours")) for h in (task.get("programmerHelp") or [])),
             )
             if before != after:
                 updated += 1
@@ -322,6 +340,7 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
                 "producerHours": row.get("producerHours") or 0,
                 "programmerId": programmer_id,
                 "programmerHours": row.get("programmerHours") or 0,
+                "programmerHelp": programmer_help,
                 "motionId": motion_id,
                 "motionHours": row.get("motionHours") or 0,
                 "deadline": "",

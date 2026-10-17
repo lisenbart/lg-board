@@ -1172,6 +1172,23 @@ body.col-resizing * { cursor: col-resize !important; }
   background: #fff;
 }
 .who-assign { margin-bottom: 12px; }
+.who-play { display: grid; gap: 10px; }
+.play-role-lab {
+  margin: 10px 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.play-crew .help-owner input {
+  width: 88px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 7px 10px;
+  background: #fff;
+}
+.play-crew .btn.ghost { margin: 0 0 8px; }
 .who-block label {
   display: block;
   font-size: 11px;
