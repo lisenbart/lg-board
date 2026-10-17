@@ -63,6 +63,34 @@ def producer_hours(task: dict) -> float:
     return round(total, 1)
 
 
+def ad_id(task: dict, people: list[dict] | None = None) -> str:
+    """Playable AD seat. Programmer is never AD, even if old Excel Who fell back to DEV."""
+    aid = str(task.get("assigneeId") or "").strip()
+    if not aid:
+        return ""
+    if aid == str(task.get("programmerId") or "").strip():
+        return ""
+    if people:
+        person = next((p for p in people if str(p.get("id") or "") == aid), None)
+        role = (person or {}).get("role")
+        if role and role != "art_director":
+            return ""
+    return aid
+
+
+def normalize_playable_seats(db: dict) -> bool:
+    people = db.get("people") or []
+    dirty = False
+    for task in db.get("tasks") or []:
+        if not direction_io.is_playables(task):
+            continue
+        nxt = ad_id(task, people)
+        if str(task.get("assigneeId") or "") != nxt:
+            task["assigneeId"] = nxt
+            dirty = True
+    return dirty
+
+
 def hours_for_person(task: dict, person_id: str) -> float:
     pid = str(person_id or "").strip()
     if not pid:
@@ -76,10 +104,8 @@ def hours_for_person(task: dict, person_id: str) -> float:
             return excel_io.round_hours((row or {}).get("hours"))
     if pid == str(task.get("motionId") or "").strip():
         return excel_io.round_hours(task.get("motionHours"))
-    if pid == str(task.get("assigneeId") or "").strip():
-        ah = excel_io.round_hours(task.get("assigneeHours"))
-        if ah:
-            return ah
+    if pid == ad_id(task):
+        return excel_io.round_hours(task.get("assigneeHours"))
     for row in excel_io.help_entries(task):
         if row["id"] == pid:
             return row["hours"]
@@ -269,7 +295,9 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
             people,
             by_name,
         )
-        who_id = assignee_id or programmer_id or motion_id
+        # AD seat is art hours only. DEV-only rows (Kraken ITR) keep AD empty —
+        # billed leftover is studio buffer, not a fake AD on the programmer.
+        excel_ad = assignee_id if assignee_id and assignee_id != programmer_id else ""
         excel_status = row.get("excelStatus") or ""
         task = existing.get(name)
         if task:
@@ -292,7 +320,7 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
             task["shifts"] = 0
             task["line"] = row["line"]
             task["department"] = "Playables"
-            task["assigneeId"] = assignee_id or task.get("assigneeId") or who_id or ""
+            task["assigneeId"] = excel_ad or ad_id(task, people) or ""
             task["assigneeHours"] = row.get("assigneeHours") or 0
             task["help"] = help_rows
             task["programmerId"] = programmer_id
@@ -348,7 +376,7 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
                 "excelStatus": excel_status,
                 "studioStatus": "closed" if excel_status == "closed" else ("wip" if excel_status == "wip" else "new"),
                 "mondayStatus": "Closed" if excel_status == "closed" else ("WIP" if excel_status == "wip" else "Ready"),
-                "assigneeId": who_id,
+                "assigneeId": excel_ad,
                 "help": help_rows,
                 "brief": "",
                 "folderUrl": "",
@@ -365,6 +393,8 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
             db.setdefault("tasks", []).append(task)
             existing[name] = task
             added += 1
+    if normalize_playable_seats(db):
+        updated += 1
     return {
         "added": added,
         "updated": updated,

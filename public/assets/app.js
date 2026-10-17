@@ -676,13 +676,16 @@ function playableDevSplits(t) {
   return rows;
 }
 function hoursOwned(t) {
-  if (isPlayables(t)) {
-    const ah = roundHours(t?.assigneeHours);
-    if (ah) return ah;
-    const rest = hoursOf(t) - helpHoursTotal(t) - roundHours(t?.programmerHours) - roundHours(t?.motionHours);
-    return Math.max(0, roundHours(rest));
-  }
+  if (isPlayables(t)) return roundHours(t?.assigneeHours);
   return Math.max(0, Math.round((hoursOf(t) - helpHoursTotal(t)) * 10) / 10);
+}
+function playableAdId(t) {
+  const id = String(t?.assigneeId || "");
+  if (!id) return "";
+  if (id === String(t?.programmerId || "")) return "";
+  const role = person(id)?.role;
+  if (role && role !== "art_director") return "";
+  return id;
 }
 function hoursForPerson(t, personId) {
   const id = String(personId || "");
@@ -701,7 +704,7 @@ function hoursForPerson(t, personId) {
     }
     if (id === String(t?.programmerId || "")) return roundHours(t?.programmerHours);
     if (id === String(t?.motionId || "")) return roundHours(t?.motionHours);
-    if (id === String(t?.assigneeId || "")) return hoursOwned(t);
+    if (id === playableAdId(t)) return hoursOwned(t);
     const split =
       playableDevSplits(t).find((row) => row.id === id) ||
       playableAdSplits(t).find((row) => row.id === id) ||
@@ -724,7 +727,7 @@ function canEditPlayableCrew() {
   return canOps();
 }
 function playableCrewTotal(t) {
-  const artH = roundHours(t?.assigneeHours) || hoursOwned(t);
+  const artH = roundHours(t?.assigneeHours);
   const adH = playableAdSplits(t).reduce((s, row) => s + row.hours, 0);
   const progH = roundHours(t?.programmerHours);
   const devH = playableDevSplits(t).reduce((s, row) => s + row.hours, 0);
@@ -1124,7 +1127,7 @@ function visibleTasks() {
         const want = state.direction === "playables" ? "htmlready" : "done";
         if (t.studioStatus !== want) return false;
       } else if (state.designerFilter === "unassigned") {
-        if (t.assigneeId) return false;
+        if (isPlayables(t) ? playableAdId(t) || t.programmerId : t.assigneeId) return false;
       } else if (
         t.assigneeId !== state.designerFilter &&
         t.programmerId !== state.designerFilter &&
@@ -1486,23 +1489,38 @@ function personCell(id) {
   return `<span class="person">${avatarHtml(p)}${escapeHtml(displayName(p))}${jobBadgeHtml(p)}</span>`;
 }
 function whoCell(t) {
+  if (isPlayables(t)) {
+    const ad = playableAdId(t);
+    const bits = [];
+    if (ad) {
+      bits.push(personCell(ad));
+      const ads = playableAdSplits(t);
+      if (ads.length) {
+        const names = ads.map((row) => person(row.id)?.name || row.id).join(", ");
+        bits.push(`<small class="help-mark" title="${escapeHtml(names)}">+${ads.length}</small>`);
+      }
+    }
+    if (t.programmerId) {
+      bits.push(personCell(t.programmerId));
+      const devs = playableDevSplits(t);
+      if (devs.length) {
+        const names = devs.map((row) => person(row.id)?.name || row.id).join(", ");
+        bits.push(`<small class="help-mark" title="${escapeHtml(names)}">+${devs.length}</small>`);
+      }
+    }
+    if (t.motionId && t.motionId !== ad && t.motionId !== t.programmerId) {
+      bits.push(personCell(t.motionId));
+    }
+    if (!bits.length) return personCell("");
+    if (bits.length === 1) return bits[0];
+    return `<span class="who-stack">${bits.join("")}</span>`;
+  }
   const base = personCell(t.assigneeId);
   const extra = [];
-  const ads = isPlayables(t) ? playableAdSplits(t) : helpEntries(t);
+  const ads = helpEntries(t);
   if (ads.length) {
     const names = ads.map((row) => person(row.id)?.name || row.id).join(", ");
     extra.push(`<small class="help-mark" title="${escapeHtml(names)}">+${ads.length}</small>`);
-  }
-  if (isPlayables(t) && t.programmerId && t.programmerId !== t.assigneeId) {
-    extra.push(personCell(t.programmerId));
-    const devs = playableDevSplits(t);
-    if (devs.length) {
-      const names = devs.map((row) => person(row.id)?.name || row.id).join(", ");
-      extra.push(`<small class="help-mark" title="${escapeHtml(names)}">+${devs.length}</small>`);
-    }
-  }
-  if (isPlayables(t) && t.motionId && t.motionId !== t.assigneeId && t.motionId !== t.programmerId) {
-    extra.push(personCell(t.motionId));
   }
   if (!extra.length) return base;
   return `<span class="who-stack">${base}${extra.join("")}</span>`;
@@ -1884,12 +1902,14 @@ function hasDriveFolder(t) {
   return Boolean(workFolder(t));
 }
 function cardJob(t) {
+  const play = isPlayables(t);
+  const adId = play ? playableAdId(t) : t.assigneeId;
   const role = me().role;
-  const mine = t.assigneeId === me().id;
+  const mine = adId === me().id;
   const hasResult = Boolean(String(t.resultUrl || "").trim());
-  const who = person(t.assigneeId);
+  const who = person(adId);
   const name = who ? displayName(who) : "";
-  if (isPlayables(t)) return playableCardJob(t, { role, mine, hasResult, name });
+  if (play) return playableCardJob(t, { role, mine, hasResult, name });
   if (role === "designer") {
     if (!mine && helpedOn(t, me().id)) {
       const share = hoursForPerson(t, me().id);
@@ -2025,7 +2045,17 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
   if (st === "clientart") return { tone: "wait", title: "Client art", body: "Waiting on the client. Storyboard if they bounce it." };
   if (st === "build") return { tone: "wait", title: "In Build", body: `${progName || "Programmer"} is on HTML. Send after HTML ready.` };
   if (st === "finalart") return { tone: "wait", title: "Final art", body: `${name || "Art Director"} is finishing art.` };
-  if (!t.assigneeId) return { tone: "do", title: "Assign AD", body: "The playable starts when an Art Director is on the card." };
+  const ad = playableAdId(t);
+  if (!ad && !t.programmerId) {
+    return { tone: "do", title: "Assign AD", body: "The playable starts when an Art Director is on the card. One DEV is enough if this is code-only." };
+  }
+  if (!ad && t.programmerId) {
+    return {
+      tone: "wait",
+      title: "In progress",
+      body: `${progName || "Programmer"} is on this. One DEV is enough — put AD on only if art starts.`,
+    };
+  }
   if (!t.programmerId && ["clientart", "finalart", "build", "htmlready"].includes(st)) {
     return { tone: "do", title: "Assign DEV", body: "Art is approved. Put a programmer on the card. Extra DEV during revisions is a split." };
   }
@@ -2142,7 +2172,7 @@ function renderLoad() {
     const hours = mine.reduce((s, t) => s + hoursForPerson(t, p.id), 0);
     return { person: p, mine, count: mine.length, hours };
   });
-  const unassigned = tasks.filter((t) => !t.assigneeId);
+  const unassigned = tasks.filter((t) => (isPlayables(t) ? !playableAdId(t) && !t.programmerId : !t.assigneeId));
   const unHours = unassigned.reduce((s, t) => s + (Number(t.hours) || 0), 0);
   const assignedHours = rows.reduce((s, r) => s + r.hours, 0);
   const fair = people.length ? assignedHours / people.length : 0;
@@ -4076,16 +4106,17 @@ function playableSplitRowHtml(kind, row, taken) {
 }
 function playableHoursHtml(t, editable) {
   const billed = hoursOf(t);
-  const artH = roundHours(t.assigneeHours) || hoursOwned(t);
+  const adId = playableAdId(t);
+  const artH = roundHours(t.assigneeHours);
   const ads = playableAdSplits(t);
   const progH = roundHours(t.programmerHours);
   const devs = playableDevSplits(t);
   const crew = playableCrewTotal(t);
   const buffer = Math.max(0, roundHours(billed - crew));
   const mine = onMyPlayable(t);
-  if (!editable && !t.assigneeId && !t.programmerId && !ads.length && !devs.length) return "";
+  if (!editable && !adId && !t.programmerId && !ads.length && !devs.length) return "";
   if (!editable && isPerformer() && !mine) return "";
-  const takenAds = [t.assigneeId, ...ads.map((row) => row.id)];
+  const takenAds = [adId, ...ads.map((row) => row.id)];
   const takenDevs = [t.programmerId, ...devs.map((row) => row.id)];
   const adLines = ads
     .map((row) =>
@@ -4103,7 +4134,7 @@ function playableHoursHtml(t, editable) {
     .join("");
   const body = editable
     ? `<p class="play-role-lab">AD</p>
-       <div class="help-owner"><span>${escapeHtml(person(t.assigneeId)?.name || "Unassigned")}</span>
+       <div class="help-owner"><span>${escapeHtml(person(adId)?.name || "Unassigned")}</span>
          <input id="stAdHours" type="number" min="0" step="0.1" value="${artH || ""}" /></div>
        <div id="adSplitRows">${adLines}</div>
        <button type="button" class="btn ghost" id="adSplitAdd">Add AD split</button>
@@ -4112,7 +4143,7 @@ function playableHoursHtml(t, editable) {
          <input id="stProgHours" type="number" min="0" step="0.1" value="${progH || ""}" /></div>
        <div id="devSplitRows">${devLines}</div>
        <button type="button" class="btn ghost" id="devSplitAdd">Add DEV split</button>`
-    : `<p class="status-hint">AD ${escapeHtml(person(t.assigneeId)?.name || "—")} ${artH || 0}h
+    : `<p class="status-hint">AD ${escapeHtml(person(adId)?.name || "—")}${adId ? ` ${artH || 0}h` : ""}
         ${ads.map((row) => ` · ${escapeHtml(person(row.id)?.name || "")} ${row.hours}h`).join("")}</p>
        <p class="status-hint">DEV ${escapeHtml(person(t.programmerId)?.name || "—")} ${progH || 0}h
         ${devs.map((row) => ` · ${escapeHtml(person(row.id)?.name || "")} ${row.hours}h`).join("")}
@@ -4210,7 +4241,7 @@ function bindPlayableCrew(t) {
     );
   };
   $("stPerson")?.addEventListener("change", () => {
-    keepOutgoing($("stPerson"), "adSplitRows", "ad", t.assigneeId, roundHours(t.assigneeHours) || 0.5);
+    keepOutgoing($("stPerson"), "adSplitRows", "ad", playableAdId(t), roundHours(t.assigneeHours) || 0.5);
     paint();
   });
   $("stProgrammer")?.addEventListener("change", () => {
@@ -4224,6 +4255,10 @@ function bindPlayableCrew(t) {
     paint();
   });
   $("adSplitAdd")?.addEventListener("click", () => {
+    if (!$("stPerson")?.value) {
+      toast("Assign AD first, then split onto another AD");
+      return;
+    }
     const taken = new Set([
       $("stPerson")?.value,
       ...readPlayableSplits("ad", $("stPerson")?.value).map((row) => row.id),
@@ -4385,17 +4420,18 @@ function openTask(id) {
   const canPaste = canPasteResult(t);
   const assignHero = isTeamLead() && !t.assigneeId && !play;
   const peopleOpts = play ? artDirectors() : designers();
+  const adId = play ? playableAdId(t) : t.assigneeId;
   const assignSelect = canAssign()
     ? `<select id="stPerson">
         <option value="">— ${play ? "AD" : "unassigned"}</option>
         ${peopleOpts
           .map(
             (p) =>
-              `<option value="${p.id}" ${t.assigneeId === p.id ? "selected" : ""}>${escapeHtml(p.name)} · ${jobMeta(p).code}</option>`
+              `<option value="${p.id}" ${adId === p.id ? "selected" : ""}>${escapeHtml(p.name)} · ${jobMeta(p).code}</option>`
           )
           .join("")}
       </select>`
-    : personCell(t.assigneeId);
+    : personCell(adId);
   const devSelect = canAssign()
     ? `<select id="stProgrammer">
         <option value="">— DEV</option>
@@ -4417,7 +4453,7 @@ function openTask(id) {
   const whoAssign = showAssignee
     ? play
       ? `<div class="who-assign who-play">
-          <div><label>Art Director</label>${canAssign() ? assignSelect : personCell(t.assigneeId)}</div>
+          <div><label>Art Director</label>${canAssign() ? assignSelect : personCell(adId)}</div>
           <div><label>Programmer</label>${canAssign() ? devSelect : t.programmerId ? personCell(t.programmerId) : `<span class="empty">after client approves</span>`}</div>
         </div>`
       : `<div class="who-assign"><label>Who works this</label>${canAssign() ? assignSelect : personCell(t.assigneeId)}</div>`
@@ -4758,10 +4794,18 @@ function openTask(id) {
       toast("Done is after TL Check");
       return;
     }
-    const assigneeId = canAssign() && $("stPerson") ? $("stPerson").value : t.assigneeId;
+    let assigneeId = canAssign() && $("stPerson") ? $("stPerson").value : isPlayables(t) ? playableAdId(t) : t.assigneeId;
     const patch = { studioStatus, role: me().role };
-    if (canAssign()) patch.assigneeId = assigneeId;
     if (isPlayables(t) && canAssign() && $("stProgrammer")) patch.programmerId = $("stProgrammer").value;
+    if (
+      isPlayables(t) &&
+      assigneeId &&
+      (assigneeId === (patch.programmerId !== undefined ? patch.programmerId : t.programmerId) ||
+        (person(assigneeId)?.role && person(assigneeId).role !== "art_director"))
+    ) {
+      assigneeId = "";
+    }
+    if (canAssign()) patch.assigneeId = assigneeId;
     if (isPlayables(t) && canEditPlayableCrew() && $("stAdHours")) {
       if (isFinance() && $("stHours")) {
         const hours = parseShifts($("stHours").value);

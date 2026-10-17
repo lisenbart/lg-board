@@ -30,7 +30,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-17r"
+BUILD = "2026-10-17s"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -155,6 +155,8 @@ def load_db() -> dict:
                 dirty = True
         except Exception as e:
             print(f"[playables] ingest: {e}", flush=True)
+    if playables_io.normalize_playable_seats(db):
+        dirty = True
     if dirty:
         save_db(db)
     origin = mirror_io.ORIGIN_XLSX
@@ -2418,6 +2420,8 @@ class Handler(SimpleHTTPRequestHandler):
                 ):
                     if key in data:
                         task[key] = data[key]
+                if playable:
+                    task["assigneeId"] = playables_io.ad_id(task, db.get("people") or [])
                 brief_changed = "brief" in data and str(task.get("brief") or "") != str(brief_before or "")
                 pending_brief = bool(
                     brief_changed

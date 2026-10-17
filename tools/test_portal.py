@@ -471,6 +471,29 @@ def test_playables_desk() -> None:
     )
     check("AD hours ignore billed buffer", excel_io.hours_for_person(db["tasks"][1], "artdir1") == 10)
     check("DEV hours sit on programmerId", excel_io.hours_for_person(db["tasks"][1], "programmer1") == 19)
+    stuck = {
+        "id": "t-pl-devonly",
+        "name": "DS-P-000_DevOnly",
+        "department": "Playables",
+        "hours": 5,
+        "assigneeId": "programmer1",
+        "assigneeHours": 0,
+        "programmerId": "programmer1",
+        "programmerHours": 4,
+        "month": "2026-10",
+    }
+    board = {"people": list(db["people"]), "tasks": [dict(stuck)]}
+    direction_io.ensure_crew(board)
+    check(
+        "normalize strips programmer from AD seat",
+        playables_io.normalize_playable_seats(board) and not board["tasks"][0].get("assigneeId"),
+        str(board["tasks"][0].get("assigneeId")),
+    )
+    check(
+        "programmer-as-AD hours stay on DEV",
+        playables_io.hours_for_person(board["tasks"][0], "programmer1") == 4
+        and playables_io.hours_for_person(board["tasks"][0], "artdir1") == 0,
+    )
     hours = excel_io.client_hours_bytes(db, "2026-10")
     wb = load_workbook(BytesIO(hours))
     names = [str(wb.active.cell(r, 1).value or "") for r in range(1, (wb.active.max_row or 1) + 1)]
@@ -514,9 +537,19 @@ def test_playables_desk() -> None:
         )
         kraken = next((t for t in scratch["tasks"] if "Kraken" in (t.get("name") or "")), None)
         check(
-            "DEV-only playable still has Who",
-            bool(kraken and kraken.get("assigneeId") == "programmer1" and kraken.get("programmerId") == "programmer1"),
-            str({k: (kraken or {}).get(k) for k in ("assigneeId", "programmerId", "programmerHours")}),
+            "DEV-only playable keeps AD empty",
+            bool(kraken and not kraken.get("assigneeId") and kraken.get("programmerId") == "programmer1"),
+            str({k: (kraken or {}).get(k) for k in ("assigneeId", "assigneeHours", "programmerId", "programmerHours")}),
+        )
+        check(
+            "DEV-only billed remainder is not AD hours",
+            bool(kraken and abs(float(kraken.get("assigneeHours") or 0)) < 0.05 and abs(float(kraken.get("programmerHours") or 0) - 4) < 0.05),
+            str({k: (kraken or {}).get(k) for k in ("hours", "assigneeHours", "programmerHours")}),
+        )
+        check(
+            "DEV-only hours stay on the programmer",
+            bool(kraken and playables_io.hours_for_person(kraken, "programmer1") == 4),
+            str(playables_io.hours_for_person(kraken, "programmer1") if kraken else None),
         )
         ad_view = auth_io.view_state(scratch, {"role": "art_director", "email": "lisenbart.games@gmail.com"})
         ad_dice = next((t for t in (ad_view.get("tasks") or []) if "MemoryDice" in (t.get("name") or "")), None)
@@ -535,12 +568,16 @@ def test_playables_desk() -> None:
         check("billed buffer is DL only", "const financeStrip = isFinance()" in js and "Studio buffer" in js)
         check("playable card has no Lead AD", "Lead AD" not in js and "Assign lead AD" not in js)
         check("playable splits AD onto AD and DEV onto DEV", "Add AD split" in js and "Add DEV split" in js and "programmerHelp" in js)
+        check("playable AD is never the programmer", "function playableAdId" in js and "if (id === String(t?.programmerId || \"\")) return \"\"" in js)
+        check("playable hoursOwned is assigneeHours", "if (isPlayables(t)) return roundHours(t?.assigneeHours)" in js)
+        check("hours split AD uses playableAdId", "const adId = playableAdId(t)" in js and "person(t.assigneeId)?.name || \"Unassigned\")" not in js.split("function playableHoursHtml")[1].split("function readPlayableSplits")[0])
         py = (ROOT / "server.py").read_text(encoding="utf-8")
         check(
             "playable crew save allows LP",
             'role not in {"finance", "manager", "teamlead"}' in py
             and 'playable and role != "finance"' in py,
         )
+        check("save strips programmer from playable AD", "playables_io.ad_id" in py)
         css = (ROOT / "public" / "assets" / "board.css").read_text(encoding="utf-8")
         check("DS line is not Need Fixing burgundy", ".line-DS { background: #0d9488" in css and ".line-DS { background: #bb3354" not in css)
         check("client hours report splits MGX and Playable totals", "MGX TOTAL" in js and "Playable TOTAL" in js)
