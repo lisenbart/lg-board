@@ -7,6 +7,7 @@ cd "$ROOT"
 
 LIVE_FILES=(
   data/SP_MGX_check.xlsx
+  data/SP_PLBL_check.xlsx
   data/mirror/SP_MGX_check.xlsx
   data/finance/SUPERPLAY_MGX_Calculator.xlsx
   data/drive_packs.json

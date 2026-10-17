@@ -891,6 +891,25 @@ def download_excel() -> dict:
     return {"ok": True, "downloaded": ["SP_MGX_check.xlsx"], "bytes": len(blob)}
 
 
+def download_playable_excel() -> dict:
+    """Live SP_PLBL_check.xlsx from Drive."""
+    import playables_io
+
+    if not connected():
+        raise DriveSyncError("Drive is not connected on this server")
+    token = access_token()
+    if not token:
+        raise DriveSyncError("Drive token missing")
+    excel_id = str(roots().get("playableExcel") or "")
+    if not excel_id:
+        return {"ok": True, "downloaded": []}
+    blob = download_file(token, excel_id)
+    if not blob:
+        raise DriveSyncError("Drive Playables Excel download was empty")
+    _write_bytes(playables_io.XLSX_PATH, blob)
+    return {"ok": True, "downloaded": ["SP_PLBL_check.xlsx"], "bytes": len(blob)}
+
+
 def download_excel_if_changed(*, force: bool = False) -> dict:
     """Skip the xlsx download when Drive says the file has not changed."""
     global _EXCEL_FINGERPRINT
@@ -915,6 +934,11 @@ def download_workbooks() -> dict:
     """Excel + calculator only. Deploy restore uses this after git reset."""
     out = download_excel()
     downloaded = list(out.get("downloaded") or [])
+    try:
+        play = download_playable_excel()
+        downloaded.extend(play.get("downloaded") or [])
+    except DriveSyncError as e:
+        print(f"restore-workbooks playable excel: {e}", flush=True)
     token = access_token()
     calc_id = str(roots().get("calculator") or "")
     if calc_id and token:

@@ -21,6 +21,7 @@ copy_if() {
 
 copy_if "data/db.json" "data/db.json"
 copy_if "data/SP_MGX_check.xlsx" "data/SP_MGX_check.xlsx"
+copy_if "data/SP_PLBL_check.xlsx" "data/SP_PLBL_check.xlsx"
 copy_if "data/mirror/SP_MGX_check.xlsx" "data/mirror/SP_MGX_check.xlsx"
 copy_if "data/finance/SUPERPLAY_MGX_Calculator.xlsx" "data/finance/SUPERPLAY_MGX_Calculator.xlsx"
 copy_if "data/drive_packs.json" "data/drive_packs.json"
