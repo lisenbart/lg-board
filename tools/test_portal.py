@@ -157,19 +157,13 @@ def test_client_hours_xlsx() -> None:
 
 
 def test_pin_opens() -> None:
-    check(
-        "LP PIN opens LP TL MD AD DEV",
-        auth_io.pin_owner_roles("1726") == ("manager", "teamlead", "designer", "art_director", "programmer"),
-    )
-    check("TL PIN opens TL MD", auth_io.pin_owner_roles("2026") == ("teamlead", "designer"))
-    check(
-        "DL PIN opens every studio seat",
-        auth_io.pin_owner_roles("3245")
-        == ("finance", "manager", "teamlead", "designer", "art_director", "programmer"),
-    )
+    check("LP PIN sits LP", auth_io.pin_home_role("1726") == "manager")
+    check("TL PIN sits TL", auth_io.pin_home_role("2026") == "teamlead")
+    check("DL PIN sits DL", auth_io.pin_home_role("3245") == "finance")
+    check("team PIN has no home desk", auth_io.pin_home_role("4429") == "")
     check(
         "team PIN opens MD AD DEV",
-        auth_io.pin_owner_roles("4429") == ("designer", "art_director", "programmer"),
+        set(auth_io.pin_owner_roles("4429")) == {"designer", "art_director", "programmer"},
     )
     check("bad PIN opens nothing", auth_io.pin_owner_roles("0000") == ())
     people = [
@@ -177,9 +171,24 @@ def test_pin_opens() -> None:
         {"id": "lp", "name": "A", "role": "manager"},
         {"id": "tl", "name": "N", "role": "teamlead"},
         {"id": "md", "name": "M", "role": "designer", "payOrder": 2},
+        {"id": "md2", "name": "S", "role": "designer", "payOrder": 3},
+        {"id": "ad", "name": "Y", "role": "art_director"},
     ]
-    ids = [p["id"] for p in auth_io.people_for_roles(people, auth_io.PIN_OPENS["manager"])]
-    check("LP seats skip DL", ids == ["lp", "tl", "md"], str(ids))
+    dl = auth_io.resolve_studio_login(people, "3245", "designer")
+    check("DL PIN on MD door sits DL", (dl.get("person") or {}).get("id") == "dl", str(dl))
+    lp = auth_io.resolve_studio_login(people, "1726", "finance")
+    check("LP PIN on DL door sits LP", (lp.get("person") or {}).get("id") == "lp", str(lp))
+    tl = auth_io.resolve_studio_login(people, "2026", "manager")
+    check("TL PIN on LP door sits TL", (tl.get("person") or {}).get("id") == "tl", str(tl))
+    team_md = auth_io.resolve_studio_login(people, "4429", "designer")
+    team_ids = [s.get("id") for s in (team_md.get("seats") or [])]
+    check(
+        "team PIN on MD asks which designer",
+        team_md.get("needSeat") is True and team_ids == ["md", "md2"],
+        str(team_md),
+    )
+    team_ad = auth_io.resolve_studio_login(people, "4429", "art_director")
+    check("team PIN on AD sits the only AD", (team_ad.get("person") or {}).get("id") == "ad", str(team_ad))
 
 
 def test_parse_past_total() -> None:
@@ -704,113 +713,51 @@ def test_http(base: str) -> str | None:
     check("wrong PIN is 403", code == 403, str(payload))
 
     code, payload, _ = _http(f"{base}/api/login", {"door": "studio", "role": "finance", "pin": "1726"})
-    check("LP PIN cannot open DL", code == 403, str(payload))
+    sess = payload.get("session") or {}
+    check(
+        "LP PIN on DL door sits LP",
+        code == 200 and payload.get("needSeat") is not True and sess.get("role") == "manager",
+        str(payload.get("error") or sess),
+    )
 
     code, payload, _ = _http(f"{base}/api/login", {"door": "studio", "role": "manager", "pin": "2026"})
-    check("TL PIN cannot open LP", code == 403, str(payload))
-
-    code, payload, _ = _http(f"{base}/api/login", {"door": "studio", "role": "manager", "pin": "1726"})
-    lp_seats = payload.get("seats") or []
-    lp_roles = {s.get("role") for s in lp_seats}
+    sess = payload.get("session") or {}
     check(
-        "LP PIN asks for a seat",
-        code == 200 and payload.get("needSeat") is True and lp_seats,
-        str(payload.get("error") or payload.get("session")),
+        "TL PIN on LP door sits TL",
+        code == 200 and payload.get("needSeat") is not True and sess.get("role") == "teamlead",
+        str(payload.get("error") or sess),
     )
-    check(
-        "LP PIN seats include AD DEV not DL",
-        {"manager", "teamlead", "designer"}.issubset(lp_roles) and "finance" not in lp_roles,
-        str(lp_roles),
-    )
-    md_from_lp = next((s for s in lp_seats if s.get("role") == "designer"), None)
-    lp_self = next((s for s in lp_seats if s.get("role") == "manager"), None)
-    if md_from_lp:
-        code, payload, _ = _http(
-            f"{base}/api/login",
-            {"door": "studio", "role": "manager", "pin": "1726", "seatId": md_from_lp["id"]},
-        )
-        sess = payload.get("session") or {}
-        check(
-            "LP PIN sits as MD",
-            code == 200 and sess.get("role") == "designer" and sess.get("seatId") == md_from_lp["id"],
-            str(sess),
-        )
-    if lp_self:
-        code, payload, _ = _http(
-            f"{base}/api/login",
-            {"door": "studio", "role": "manager", "pin": "1726", "seatId": lp_self["id"]},
-        )
-        sess = payload.get("session") or {}
-        check("LP PIN sits as LP", code == 200 and sess.get("role") == "manager", str(sess))
-
-    code, payload, _ = _http(f"{base}/api/login", {"door": "studio", "role": "teamlead", "pin": "2026"})
-    tl_seats = payload.get("seats") or []
-    tl_roles = {s.get("role") for s in tl_seats}
-    check(
-        "TL PIN asks for a seat",
-        code == 200 and payload.get("needSeat") is True and tl_seats,
-        str(payload.get("error") or payload.get("session")),
-    )
-    check("TL PIN seats are TL MD not LP", tl_roles == {"teamlead", "designer"}, str(tl_roles))
-    md_from_tl = next((s for s in tl_seats if s.get("role") == "designer"), None)
-    if md_from_tl:
-        code, payload, _ = _http(
-            f"{base}/api/login",
-            {"door": "studio", "role": "teamlead", "pin": "2026", "seatId": md_from_tl["id"]},
-        )
-        sess = payload.get("session") or {}
-        check(
-            "TL PIN sits as MD",
-            code == 200 and sess.get("role") == "designer" and sess.get("seatId") == md_from_tl["id"],
-            str(sess),
-        )
 
     code, payload, _ = _http(f"{base}/api/login", {"door": "studio", "role": "designer", "pin": "1726"})
-    door_roles = {s.get("role") for s in (payload.get("seats") or [])}
+    sess = payload.get("session") or {}
     check(
-        "LP PIN works on MD door",
-        code == 200 and payload.get("needSeat") is True and "manager" in door_roles,
-        str(door_roles),
+        "LP PIN on MD door sits LP",
+        code == 200 and sess.get("role") == "manager",
+        str(payload.get("error") or sess),
     )
 
-    code, payload, _ = _http(f"{base}/api/login", {"door": "studio", "role": "finance", "pin": "3245"})
-    dl_seats = payload.get("seats") or []
-    dl_roles = {s.get("role") for s in dl_seats}
+    code, payload, _ = _http(f"{base}/api/login", {"door": "studio", "role": "designer", "pin": "3245"})
+    sess = payload.get("session") or {}
     check(
-        "DL PIN asks for a seat",
-        code == 200 and payload.get("needSeat") is True and dl_seats,
-        str(payload.get("error") or payload.get("session")),
+        "DL PIN on MD door sits DL",
+        code == 200 and payload.get("needSeat") is not True and sess.get("role") == "finance",
+        str(payload.get("error") or sess),
     )
-    check(
-        "DL PIN seats include LP TL MD and DL",
-        {"finance", "manager", "teamlead", "designer"}.issubset(dl_roles),
-        str(dl_roles),
-    )
-    md_from_dl = next((s for s in dl_seats if s.get("role") == "designer"), None)
-    lp_from_dl = next((s for s in dl_seats if s.get("role") == "manager"), None)
-    if md_from_dl:
-        code, payload, _ = _http(
-            f"{base}/api/login",
-            {"door": "studio", "role": "finance", "pin": "3245", "seatId": md_from_dl["id"]},
-        )
-        sess = payload.get("session") or {}
-        check(
-            "DL PIN sits as MD",
-            code == 200 and sess.get("role") == "designer" and sess.get("seatId") == md_from_dl["id"],
-            str(sess),
-        )
-    if lp_from_dl:
-        code, payload, _ = _http(
-            f"{base}/api/login",
-            {"door": "studio", "role": "finance", "pin": "3245", "seatId": lp_from_dl["id"]},
-        )
-        sess = payload.get("session") or {}
-        check("DL PIN sits as LP", code == 200 and sess.get("role") == "manager", str(sess))
+
     code, payload, _ = _http(f"{base}/api/login", {"door": "studio", "role": "manager", "pin": "3245"})
+    sess = payload.get("session") or {}
     check(
-        "DL PIN works on LP door",
-        code == 200 and payload.get("needSeat") is True and "finance" in {s.get("role") for s in (payload.get("seats") or [])},
-        str({s.get("role") for s in (payload.get("seats") or [])}),
+        "DL PIN on LP door sits DL",
+        code == 200 and sess.get("role") == "finance",
+        str(payload.get("error") or sess),
+    )
+
+    code, payload, _ = _http(f"{base}/api/login", {"door": "studio", "role": "designer", "pin": "4429"})
+    team_roles = {s.get("role") for s in (payload.get("seats") or [])}
+    check(
+        "team PIN on MD asks which designer",
+        code == 200 and payload.get("needSeat") is True and team_roles == {"designer"},
+        str(payload.get("seats") or payload),
     )
 
     code, payload, _ = _http(f"{base}/api/login", b"not-json")
@@ -819,11 +766,9 @@ def test_http(base: str) -> str | None:
     code, payload, _ = _http(f"{base}/api/login", [])
     check("array JSON is 400", code == 400 and "object" in str(payload.get("error") or payload), str(payload))
 
-    code, payload, _ = _http(f"{base}/api/login", {"door": "studio", "role": "finance", "pin": "3245"})
-    dl_self = next((s for s in (payload.get("seats") or []) if s.get("role") == "finance"), None)
     code, payload, headers = _http(
         f"{base}/api/login",
-        {"door": "studio", "role": "finance", "pin": "3245", "seatId": (dl_self or {}).get("id")},
+        {"door": "studio", "role": "designer", "pin": "3245"},
     )
     cookie = headers.get("Set-Cookie") if hasattr(headers, "get") else None
     sess = payload.get("session") or {}

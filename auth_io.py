@@ -73,16 +73,24 @@ STUDIO_ROLES = (
     {"role": "art_director", "label": "AD", "blurb": "Art Director"},
     {"role": "programmer", "label": "DEV", "blurb": "Programmer"},
 )
-# DL PIN opens every studio seat. LP PIN opens every studio seat except DL.
-# Same team PIN sits AD / DEV / MD.
+# Named PINs (DL / LP / TL) sit their own desk. Shared team PIN sits MD / AD / DEV.
 PIN_OPENS = {
-    "finance": ("finance", "manager", "teamlead", "designer", "art_director", "programmer"),
-    "manager": ("manager", "teamlead", "designer", "art_director", "programmer"),
-    "teamlead": ("teamlead", "designer"),
-    "designer": ("designer",),
-    "art_director": ("art_director",),
-    "programmer": ("programmer",),
+    "finance": ("finance",),
+    "manager": ("manager",),
+    "teamlead": ("teamlead",),
+    "designer": ("designer", "art_director", "programmer"),
+    "art_director": ("designer", "art_director", "programmer"),
+    "programmer": ("designer", "art_director", "programmer"),
 }
+HOME_OWNERS = ("finance", "manager", "teamlead")
+STUDIO_ROLE_IDS = (
+    "finance",
+    "manager",
+    "teamlead",
+    "designer",
+    "art_director",
+    "programmer",
+)
 ROLE_SEAT_ORDER = {
     "finance": 0,
     "manager": 1,
@@ -169,7 +177,7 @@ def pin_ok_for_role(role: str, pin: str) -> bool:
 
 
 def pin_owner_roles(pin: str) -> tuple[str, ...]:
-    """Roles this PIN may sit as. Same PIN can unlock more than one seat (MD/AD/DEV)."""
+    """Roles this PIN may sit as. Same team PIN unlocks MD / AD / DEV."""
     unlocked: list[str] = []
     seen: set[str] = set()
     for owner in ("manager", "teamlead", "finance", "designer", "art_director", "programmer"):
@@ -180,6 +188,40 @@ def pin_owner_roles(pin: str) -> tuple[str, ...]:
                 seen.add(role)
                 unlocked.append(role)
     return tuple(unlocked)
+
+
+def pin_home_role(pin: str) -> str:
+    """DL / LP / TL PIN → that person's own seat. Shared team PIN → empty."""
+    for owner in HOME_OWNERS:
+        if pin_ok_for_role(owner, pin):
+            return owner
+    return ""
+
+
+def resolve_studio_login(people: list[dict], pin: str, door_role: str = "", seat_id: str | None = None) -> dict:
+    """PIN is identity. Named owners skip the door they clicked and sit at home."""
+    unlocked = pin_owner_roles(pin)
+    if not unlocked:
+        return {"error": "wrong login or PIN"}
+    home = pin_home_role(pin)
+    if home:
+        matches = people_for_roles(people, (home,))
+        if not matches:
+            return {"error": "no seat for this login"}
+        return {"person": matches[0]}
+    door = str(door_role or "").strip()
+    roles = (door,) if door in unlocked else unlocked
+    matches = people_for_roles(people, roles)
+    if not matches:
+        return {"error": "no seat for this login"}
+    if seat_id:
+        person = person_by_id(people, seat_id)
+        if not person or str(person.get("role") or "") not in unlocked:
+            return {"error": "wrong login or PIN"}
+        return {"person": person}
+    if len(matches) == 1:
+        return {"person": matches[0]}
+    return {"needSeat": True, "seats": [seat_payload(p) for p in matches]}
 
 
 def seat_payload(person: dict) -> dict:

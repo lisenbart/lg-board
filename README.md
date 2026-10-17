@@ -26,11 +26,11 @@ ssh board-status    # live build
 
 Google Drive is always the live disk ([LLC/docs](https://drive.google.com/drive/folders/191q3zTumkNi-2tc9LCB1SG2lZwtu0pVs)). The VPS stays signed in with a service account file at `data/secrets/google_service.json` (share October DD/DX with that account). **Create task** then makes the folder + brief Doc; **Save** on the card writes the brief into the Doc. To update the live desk: `bash deploy/update.sh` on the VPS, then hard-refresh the browser.
 
-Home: **Client** or **Studio**. Seats: Finance, LP, TL, MD, AD, DEV, Client. PINs live in `data/secrets/pins.json`. **DL PIN** opens every studio seat (DL, LP, TL, MD, AD, DEV). LP PIN opens every studio seat except DL. Team PIN `4429` sits MD, AD, and DEV. TL PIN also opens MD. One-direction people stay on their board; dual-seat people (LP, DL, Сергій, SuperPlay) see **MGX | Playables**. After a PIN that matches more than one person, pick who is at the desk.
+Home: **Client** or **Studio**. Seats: Finance, LP, TL, MD, AD, DEV, Client. PINs live in `data/secrets/pins.json`. The PIN is the person: DL / LP / TL go straight to their own desk even if they tapped someone else’s tile. Team PIN `4429` on MD / AD / DEV still asks who is at the desk. One-direction people stay on their board; dual-seat people (LP, DL, Сергій, SuperPlay) see **MGX | Playables**.
 
 Then:
 
-- **Team lead** — MGX: own work plus every designer. Assigns people. No Monday send, no Finance. TL PIN also sits as MD.
+- **Team lead** — MGX: own work plus every designer. Assigns people. No Monday send, no Finance.
 - **Designer** — only their queue, plus a read-only Excel picture of the month. Сергій sits Playables as well as MGX.
 - **Art Director / Programmer** — Playables queue only. Two ADs on one playable is a split: primary AD is required. DEV pastes the HTML link, then HTML ready.
 - **Line producer / Finance** — both boards. **Create task** sits left of **Shift email** (Playables: **Hours list**). Only LP talks to the client. Playables Send works on Storyboard (External Weekly `DS-P-…`) and on HTML ready.
