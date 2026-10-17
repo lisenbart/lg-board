@@ -30,7 +30,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-17b"
+BUILD = "2026-10-17c"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -479,6 +479,25 @@ def _parse_months(path: Path, months: list[str]) -> dict[str, dict]:
     return out
 
 
+def _refresh_playables(db: dict, months: list[str] | None = None) -> dict:
+    empty = {"added": 0, "updated": 0, "matched": 0}
+    if not playables_io.XLSX_PATH.exists():
+        return empty
+    ym = str((db.get("meta") or {}).get("month") or "2026-10")
+    out = dict(empty)
+    for month in list(dict.fromkeys(months or [ym])):
+        parsed = playables_io.parse_workbook(playables_io.XLSX_PATH, month)
+        if not (parsed or {}).get("sheet"):
+            continue
+        stats = playables_io.apply_to_db(db, parsed, month)
+        out["added"] += int(stats.get("added") or 0)
+        out["updated"] += int(stats.get("updated") or 0)
+        out["matched"] += int(stats.get("matched") or 0)
+        if stats.get("sheet"):
+            out["sheet"] = stats.get("sheet")
+    return out
+
+
 def _ingest_stats(db: dict, ym: str, parsed: dict, before: set[str], before_sig: tuple) -> dict:
     rows = parsed.get("rows") or []
     parsed_names = {str(r.get("name") or "").strip() for r in rows if r.get("name")}
@@ -610,6 +629,7 @@ def run_excel_ingest(*, download: bool = False, force: bool = False, create_pack
                     if (parsed or {}).get("sheet"):
                         excel_io.apply_to_db(db, parsed, month)
                 drive_sync.apply_meta(db)
+            play_stats = _refresh_playables(db, months)
             stats = _ingest_stats(db, ym, parsed_months.get(ym) or {}, before, before_sig)
             specs = list(stats.pop("needSpecs") or [])
             src = "Drive" if from_drive else "file"
@@ -627,7 +647,7 @@ def run_excel_ingest(*, download: bool = False, force: bool = False, create_pack
                 "sheet": stats.get("sheet") or "",
             }
             db.setdefault("meta", {})["excelWatch"] = watch
-            persist = bool(stats.get("added") or stats.get("changed") or from_drive)
+            persist = bool(stats.get("added") or stats.get("changed") or from_drive or play_stats.get("matched"))
             if persist:
                 if stats.get("added") or stats.get("changed"):
                     db.setdefault("events", []).insert(
@@ -2635,6 +2655,21 @@ class Handler(SimpleHTTPRequestHandler):
                             person.pop("rateUsd", None)
                         else:
                             person["rateUsd"] = rate
+                    if "rates" in item and isinstance(item.get("rates"), dict):
+                        rates = person.setdefault("rates", {})
+                        for key, raw in item.get("rates").items():
+                            d = direction_io.norm_dir(key)
+                            if d not in direction_io.DIRECTIONS:
+                                continue
+                            try:
+                                rate = parse_money(raw)
+                            except (TypeError, ValueError):
+                                self._json(400, {"error": "pay rate must be a number, 0 or more"})
+                                return
+                            if rate is None:
+                                rates.pop(d, None)
+                            else:
+                                rates[d] = rate
                     if "job" in item and item.get("job") is not None:
                         err = apply_person_job(db, person, item.get("job"), check_last=False)
                         if err:
@@ -2799,7 +2834,10 @@ class Handler(SimpleHTTPRequestHandler):
 
 
 def main() -> None:
-    load_db()
+    db = load_db()
+    play_stats = _refresh_playables(db)
+    if play_stats.get("matched"):
+        save_db(db)
     auth_io.ensure_pins()
     start_excel_watch()
     ThreadingHTTPServer.allow_reuse_address = True

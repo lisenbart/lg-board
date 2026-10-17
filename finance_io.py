@@ -256,6 +256,8 @@ def snapshot(db: dict, month: str, nbu: dict | None = None) -> dict:
         row["hoursMgx"] = 0.0
         row["hoursPlay"] = 0.0
         row["payUsd"] = 0.0
+        row["payUsdMgx"] = 0.0
+        row["payUsdPlay"] = 0.0
         row["allHours"] = False
     unassigned = {"projects": 0, "shifts": 0.0, "hours": 0.0}
     by_line = []
@@ -310,8 +312,10 @@ def snapshot(db: dict, month: str, nbu: dict | None = None) -> dict:
             row["payUsd"] += ph * pay_rate
             if direction == direction_io.PLAYABLES:
                 row["hoursPlay"] += ph
+                row["payUsdPlay"] += ph * pay_rate
             else:
                 row["hoursMgx"] += ph
+                row["payUsdMgx"] += ph * pay_rate
             allocated = round(allocated + ph, 1)
         leftover = round(max(0.0, (mgr_h if direction == direction_io.PLAYABLES else h) - allocated), 1)
         if leftover > 0.05 and direction == direction_io.MGX:
@@ -329,16 +333,19 @@ def snapshot(db: dict, month: str, nbu: dict | None = None) -> dict:
         row["hoursPlay"] = play_h
         row["hours"] = round(mgx_h + play_h, 1)
         row["projects"] = mgr_projects[direction_io.MGX] + mgr_projects[direction_io.PLAYABLES]
-        row["payUsd"] = (
-            mgx_h * person_rate(person, meta=meta, direction="mgx")
-            + play_h * person_rate(person, meta=meta, direction="playables")
-        )
+        pay_mgx = mgx_h * person_rate(person, meta=meta, direction="mgx")
+        pay_play = play_h * person_rate(person, meta=meta, direction="playables")
+        row["payUsdMgx"] = pay_mgx
+        row["payUsdPlay"] = pay_play
+        row["payUsd"] = pay_mgx + pay_play
         row["allHours"] = True
         row["rate"] = person_rate(person, meta=meta, direction="mgx")
     payroll = sorted(pay.values(), key=lambda r: (r.get("payOrder") or 99, r["name"]))
     for row in payroll:
         if not row.get("allHours"):
             row["rate"] = row.get("ratePlay") if row.get("hoursPlay") and not row.get("hoursMgx") else row.get("rateMgx") or row.get("rate")
+        row["payUsdMgx"] = round(row.get("payUsdMgx") or 0, 2)
+        row["payUsdPlay"] = round(row.get("payUsdPlay") or 0, 2)
         row["payUah"] = round(row["payUsd"] * fx, 2)
         row["payUsd"] = round(row["payUsd"], 2)
         row["hours"] = round(row["hours"], 1)

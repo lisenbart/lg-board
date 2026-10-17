@@ -60,6 +60,8 @@ def hours_for_person(task: dict, person_id: str) -> float:
     pid = str(person_id or "").strip()
     if not pid:
         return 0.0
+    if pid == "manager" or pid == str(task.get("producerId") or "").strip():
+        return producer_hours(task)
     if pid == str(task.get("programmerId") or "").strip():
         return excel_io.round_hours(task.get("programmerHours"))
     if pid == str(task.get("motionId") or "").strip():
@@ -137,6 +139,7 @@ def parse_workbook(path: Path, ym: str) -> dict:
         ws = excel_io.find_sheet(wb, ym)
         if ws is None:
             return empty
+        theme = excel_io.theme_rgbs(wb)
         headers = _header_columns(ws)
         people = [h["name"] for h in headers if h["name"]]
         rows = []
@@ -187,7 +190,13 @@ def parse_workbook(path: Path, ym: str) -> dict:
                     "motionName": (motion or {}).get("name") or "",
                     "motionId": (motion or {}).get("id") or "",
                     "motionHours": (motion or {}).get("hours") or 0.0,
-                    "producerHours": round(sum(s["hours"] for s in art) + ((programmer or {}).get("hours") or 0) + ((motion or {}).get("hours") or 0), 1),
+                    "producerHours": round(
+                        sum(s["hours"] for s in art)
+                        + ((programmer or {}).get("hours") or 0)
+                        + ((motion or {}).get("hours") or 0),
+                        1,
+                    ),
+                    "excelStatus": excel_io.status_from_line_fill(excel_io._cell_fill_hex(ws.cell(r, 1), theme)),
                 }
             )
         return {"people": people, "rows": rows, "sheet": ws.title}
@@ -240,14 +249,29 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
             people,
             by_name,
         )
+        who_id = assignee_id or programmer_id or motion_id
+        excel_status = row.get("excelStatus") or ""
         task = existing.get(name)
         if task:
+            before = (
+                task.get("hours"),
+                task.get("assigneeId"),
+                task.get("assigneeHours"),
+                task.get("programmerId"),
+                task.get("programmerHours"),
+                task.get("motionId"),
+                task.get("motionHours"),
+                task.get("producerHours"),
+                task.get("studioStatus"),
+                task.get("excelStatus"),
+                tuple((h.get("id"), h.get("hours")) for h in (task.get("help") or [])),
+            )
             task["name"] = name
             task["hours"] = row["hours"]
             task["shifts"] = 0
             task["line"] = row["line"]
             task["department"] = "Playables"
-            task["assigneeId"] = assignee_id or task.get("assigneeId") or ""
+            task["assigneeId"] = assignee_id or task.get("assigneeId") or who_id or ""
             task["assigneeHours"] = row.get("assigneeHours") or 0
             task["help"] = help_rows
             task["programmerId"] = programmer_id
@@ -256,7 +280,30 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
             task["motionHours"] = row.get("motionHours") or 0
             task["producerHours"] = row.get("producerHours") or 0
             task["month"] = ym
-            updated += 1
+            if excel_status:
+                task["excelStatus"] = excel_status
+            current = task.get("studioStatus") or ""
+            if excel_status == "closed":
+                task["studioStatus"] = "closed"
+                task["mondayStatus"] = "Closed"
+            elif excel_status == "wip" and current in {"", "new"}:
+                task["studioStatus"] = "wip"
+                task["mondayStatus"] = "WIP"
+            after = (
+                task.get("hours"),
+                task.get("assigneeId"),
+                task.get("assigneeHours"),
+                task.get("programmerId"),
+                task.get("programmerHours"),
+                task.get("motionId"),
+                task.get("motionHours"),
+                task.get("producerHours"),
+                task.get("studioStatus"),
+                task.get("excelStatus"),
+                tuple((h.get("id"), h.get("hours")) for h in (task.get("help") or [])),
+            )
+            if before != after:
+                updated += 1
         else:
             task = {
                 "id": excel_io._next_task_id(db, "t-pl"),
@@ -274,10 +321,10 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
                 "motionHours": row.get("motionHours") or 0,
                 "deadline": "",
                 "month": ym,
-                "excelStatus": "",
-                "studioStatus": "new",
-                "mondayStatus": "Ready",
-                "assigneeId": assignee_id,
+                "excelStatus": excel_status,
+                "studioStatus": "closed" if excel_status == "closed" else ("wip" if excel_status == "wip" else "new"),
+                "mondayStatus": "Closed" if excel_status == "closed" else ("WIP" if excel_status == "wip" else "Ready"),
+                "assigneeId": who_id,
                 "help": help_rows,
                 "brief": "",
                 "folderUrl": "",

@@ -640,6 +640,17 @@ function hoursForPerson(t, personId) {
   const id = String(personId || "");
   if (!id) return 0;
   if (isPlayables(t)) {
+    const p = person(id);
+    if (p?.role === "manager") {
+      const ph = roundHours(t?.producerHours);
+      if (ph) return ph;
+      return roundHours(
+        roundHours(t?.assigneeHours) +
+          helpHoursTotal(t) +
+          roundHours(t?.programmerHours) +
+          roundHours(t?.motionHours)
+      );
+    }
     if (id === String(t?.programmerId || "")) return roundHours(t?.programmerHours);
     if (id === String(t?.motionId || "")) return roundHours(t?.motionHours);
     if (id === String(t?.assigneeId || "")) return hoursOwned(t);
@@ -872,6 +883,22 @@ function playableCrew() {
 }
 function boardPeople() {
   return state.direction === "playables" ? playableCrew() : designers();
+}
+function excelPeople() {
+  if (state.direction !== "playables") return designers();
+  const lp = (state.db.people || []).find((p) => p.role === "manager");
+  const crew = playableCrew().filter((p) => p.id !== lp?.id);
+  return lp ? [lp, ...crew] : crew;
+}
+function excelSeatLabel(p, used) {
+  if (p.role === "manager") return "Producer";
+  if (p.role === "programmer") {
+    used.dev = (used.dev || 0) + 1;
+    return `PRGMM${used.dev}`;
+  }
+  if (p.role === "designer") return "MOTION";
+  used.art = (used.art || 0) + 1;
+  return `2DART ${used.art}`;
 }
 function artDirectors() {
   return sortPeople(
@@ -1403,8 +1430,11 @@ function whoCell(t) {
   if (isPlayables(t) && t.programmerId && t.programmerId !== t.assigneeId) {
     extra.push(personCell(t.programmerId));
   }
+  if (isPlayables(t) && t.motionId && t.motionId !== t.assigneeId && t.motionId !== t.programmerId) {
+    extra.push(personCell(t.motionId));
+  }
   if (!extra.length) return base;
-  return `${base}${extra.join("")}`;
+  return `<span class="who-stack">${base}${extra.join("")}</span>`;
 }
 function normalizeDriveFolder(url) {
   const raw = String(url || "");
@@ -2341,7 +2371,8 @@ function renderClientReport() {
 }
 
 function renderExcelSheet() {
-  const people = boardPeople();
+  const play = state.direction === "playables";
+  const people = excelPeople();
   const q = searchQuery();
   const tasks = monthTasks()
     .filter((t) => !q || `${t.name} ${t.brief}`.toLowerCase().includes(q))
@@ -2352,7 +2383,10 @@ function renderExcelSheet() {
   const allHours = tasks.reduce((s, t) => s + (Number(t.hours) || 0), 0);
   const allShifts = tasks.reduce((s, t) => s + (Number(t.shifts) || 0), 0);
   const nameHeads = people.map((p) => `<th class="xl-person">${escapeHtml(p.name)}</th>`).join("");
-  const emplHeads = people.map((_, i) => `<th>EMPL ${i + 1}</th>`).join("");
+  const usedSeats = {};
+  const emplHeads = people
+    .map((p, i) => `<th>${play ? escapeHtml(excelSeatLabel(p, usedSeats)) : `EMPL ${i + 1}`}</th>`)
+    .join("");
 
   const rowHtml = (t) => {
     const cells = people
@@ -2360,34 +2394,43 @@ function renderExcelSheet() {
         const share = hoursForPerson(t, p.id);
         const mine = share > 0;
         const h = mine ? fmtHours(share) : "";
-        const style = mine ? `style="background:${p.color}"` : "";
+        const style = mine ? `style="background:${p.color || "#d8d8d8"}"` : "";
         return `<td class="${mine ? "xl-fill" : ""}" ${style}>${h}</td>`;
       })
       .join("");
     const mark = statusMark(t);
+    const meta = play
+      ? `<td class="xl-num">${fmtHours(t.hours)}</td>`
+      : `<td class="xl-num">${t.shifts ?? ""}</td>
+      <td class="xl-num">${fmtHours(t.hours)}</td>
+      <td class="xl-num">${escapeHtml(excelDate(t.deadline))}</td>`;
     return `<tr class="xl-row${t.studioStatus === "closed" ? " is-closed" : ""}" data-id="${t.id}">
       <td class="xl-st st-${mark.cls}" title="${escapeHtml(mark.title)}">${escapeHtml(mark.label)}</td>
       <td class="xl-name" title="${escapeHtml(t.name)}">${escapeHtml(t.name)}</td>
-      <td class="xl-num">${t.shifts ?? ""}</td>
-      <td class="xl-num">${fmtHours(t.hours)}</td>
-      <td class="xl-num">${escapeHtml(excelDate(t.deadline))}</td>
+      ${meta}
       ${cells}
     </tr>`;
   };
 
-  const xlLabel = state.direction === "playables" ? "Playable" : "MGX";
+  const xlLabel = play ? "Playable" : "MGX";
   const section = (line) => {
     const rows = tasks.filter((t) => t.line === line);
-    const empl = people.map((_, i) => `<th>EMPL ${i + 1}</th>`).join("");
+    const metaHeads = play ? `<th>HOURS</th>` : `<th>SHIFTS</th><th>HOURS</th><th>DEADLINE</th>`;
     return `<tbody>
       <tr class="xl-sec">
-        <th class="xl-line">${line}</th><th>${xlLabel}</th><th>SHIFTS</th><th>HOURS</th><th>DEADLINE</th>${empl}
+        <th class="xl-line">${line}</th><th>${xlLabel}</th>${metaHeads}${emplHeads}
       </tr>
       ${rows.map(rowHtml).join("")}
     </tbody>`;
   };
 
   const totals = people.map((p) => `<td class="xl-num"><b>${fmtHours(hoursOfPerson(p.id))}</b></td>`).join("");
+  const footMeta = play
+    ? `<td class="xl-num"><b>${fmtHours(allHours)}</b></td>`
+    : `<td class="xl-num"><b>${fmtHours(allShifts)}</b></td>
+              <td class="xl-num"><b>${fmtHours(allHours)}</b></td>
+              <td></td>`;
+  const headPad = play ? `<th></th>` : `<th></th><th></th><th></th>`;
 
   $("board").innerHTML = `
     <section class="xl-wrap">
@@ -2397,7 +2440,7 @@ function renderExcelSheet() {
             <tr>
               <th class="xl-st-h"></th>
               <th class="xl-proj-h">${state.month.slice(0, 4)} PROJECT NAME</th>
-              <th></th><th></th><th></th>
+              ${headPad}
               ${nameHeads}
             </tr>
           </thead>
@@ -2408,9 +2451,7 @@ function renderExcelSheet() {
             <tr>
               <td></td>
               <td>total</td>
-              <td class="xl-num"><b>${fmtHours(allShifts)}</b></td>
-              <td class="xl-num"><b>${fmtHours(allHours)}</b></td>
-              <td></td>
+              ${footMeta}
               ${totals}
             </tr>
           </tfoot>
@@ -3009,6 +3050,8 @@ function financeFromApi(snap) {
       rateMgx: row.rateMgx,
       ratePlay: row.ratePlay,
       payUsd: row.payUsd,
+      payUsdMgx: row.payUsdMgx,
+      payUsdPlay: row.payUsdPlay,
       payUah: row.payUah,
     };
   });
@@ -3393,38 +3436,67 @@ function refreshPayCopyButton(tr) {
   btn.textContent = copy ? `Copy ${copy.kind}` : "Copy";
 }
 
-function renderEmployees(fin) {
-  const payRows = fin.payroll
-    .map((row) => {
-      const fallback = rolePayRate(row.person);
-      const card = normalizeCard(row.person.bankCard);
-      const iban = normalizeIban(row.person.iban);
-      const copy = payCopy(row);
-      const payCell = `<div class="fin-pay">
+function employeeDirHours(row, dir) {
+  return Number(dir === "playables" ? row.hoursPlay : row.hoursMgx) || 0;
+}
+function employeeDirRate(row, dir) {
+  const named = Number(dir === "playables" ? row.ratePlay : row.rateMgx);
+  if (Number.isFinite(named) && named >= 0) return named;
+  return Number(row.rate) || rolePayRate(row.person);
+}
+function employeeInDirection(row, dir) {
+  const hours = employeeDirHours(row, dir);
+  if (hours > 0) return true;
+  const dirs = personDirections(row.person);
+  const other = employeeDirHours(row, dir === "playables" ? "mgx" : "playables");
+  return dirs.includes(dir) && other <= 0;
+}
+function employeePayRow(row, dir) {
+  const hours = employeeDirHours(row, dir);
+  const rate = employeeDirRate(row, dir);
+  const usdAmt = hours * rate;
+  const card = normalizeCard(row.person.bankCard);
+  const iban = normalizeIban(row.person.iban);
+  const copy = payCopy(row);
+  const payCell = `<div class="fin-pay">
             <input class="fin-pay-input fin-card-input" data-id="${row.person.id}" data-kind="card" value="${escapeHtml(card ? formatCard(card) : "")}" placeholder="Card" spellcheck="false" autocomplete="off" inputmode="numeric" />
             <input class="fin-pay-input fin-iban-input" data-id="${row.person.id}" data-kind="iban" value="${escapeHtml(iban)}" placeholder="IBAN" spellcheck="false" autocomplete="off" />
             <button type="button" class="btn ghost fin-copy"${copy ? "" : " disabled"}>${copy ? `Copy ${copy.kind}` : "Copy"}</button>
           </div>`;
-      const legal = String(row.person.legalName || "").trim();
-      const title = jobMeta(row.person).title;
-      const who = `<div class="fin-who">
+  const legal = String(row.person.legalName || "").trim();
+  const title = jobMeta(row.person).title;
+  const who = `<div class="fin-who">
             ${personCell(row.person.id)}
             <div class="fin-legal">${escapeHtml(title)}${legal ? ` · ${escapeHtml(legal)}` : ""}</div>
           </div>`;
-      const hoursTitle =
-        row.hoursMgx || row.hoursPlay
-          ? `MGX ${Number(row.hoursMgx || 0).toFixed(1)}h · Playable ${Number(row.hoursPlay || 0).toFixed(1)}h`
-          : "";
-      return `<tr class="fin-pay-row" data-hours="${row.hours}" data-fallback="${fallback}" data-all-hours="${row.allHours ? "1" : "0"}">
+  return `<tr class="fin-pay-row" data-id="${row.person.id}" data-dir="${dir}" data-hours="${hours}" data-fallback="${rate}" data-all-hours="${row.allHours ? "1" : "0"}">
         <td>${who}</td>
-        <td class="num" title="${escapeHtml(hoursTitle)}">${hoursLabel(row.hours)}</td>
-        <td class="num"><input class="fin-person-rate" data-id="${row.person.id}" type="number" min="0" step="0.5" value="${row.rate}" /></td>
-        <td class="num" data-usd>${usd(row.payUsd)}</td>
-        <td class="num" data-uah><b>${uah(row.payUah)}</b></td>
+        <td class="num">${hoursLabel(hours)}</td>
+        <td class="num"><input class="fin-person-rate" data-id="${row.person.id}" data-dir="${dir}" type="number" min="0" step="0.5" value="${rate}" /></td>
+        <td class="num" data-usd>${usd(usdAmt)}</td>
+        <td class="num" data-uah><b>${uah(usdAmt * nbuRate())}</b></td>
         <td>${payCell}</td>
       </tr>`;
-    })
-    .join("");
+}
+function employeeTable(title, rows, unRow, emplUsd, emplUah) {
+  const body = rows.map((row) => employeePayRow(row, title === "Playables" ? "playables" : "mgx")).join("");
+  return `
+      <div class="fin-dir-block">
+        <h3 class="fin-dir-title">${escapeHtml(title)}</h3>
+        <div class="fin-scroll">
+          <table class="fin-table">
+            <thead><tr><th>Person</th><th class="num">Hours</th><th class="num">$/h</th><th class="num">Hours × $/h</th><th class="num">UAH</th><th>Card / IBAN</th></tr></thead>
+            <tbody>${body}${unRow || ""}</tbody>
+            <tfoot><tr><td>EMPL</td><td class="num" data-empl-hours></td><td></td><td class="num" data-empl-usd>${usd(emplUsd)}</td><td class="num" data-empl-uah>${uah(emplUah)}</td><td></td></tr></tfoot>
+          </table>
+        </div>
+      </div>`;
+}
+function renderEmployees(fin) {
+  const mgxRows = fin.payroll.filter((row) => employeeInDirection(row, "mgx"));
+  const playRows = fin.payroll.filter((row) => employeeInDirection(row, "playables"));
+  const mgxUsd = mgxRows.reduce((s, row) => s + employeeDirHours(row, "mgx") * employeeDirRate(row, "mgx"), 0);
+  const playUsd = playRows.reduce((s, row) => s + employeeDirHours(row, "playables") * employeeDirRate(row, "playables"), 0);
   const unRow = fin.unassignedProjects
     ? `<tr class="fin-warn-row">
         <td>Unassigned</td>
@@ -3432,18 +3504,14 @@ function renderEmployees(fin) {
         <td colspan="4"></td>
       </tr>`
     : "";
+  const empty = `<p class="io-empty">No hours this month.</p>`;
   return `
     <section class="group fin-card">
       <div class="fin-rates">
         <label>NBU USD/UAH <input id="finNbu" type="number" min="0" step="0.01" value="${fin.fx}" /></label>
       </div>
-      <div class="fin-scroll">
-        <table class="fin-table">
-          <thead><tr><th>Person</th><th class="num">Hours</th><th class="num">$/h</th><th class="num">Hours × $/h</th><th class="num">UAH</th><th>Card / IBAN</th></tr></thead>
-          <tbody>${payRows}${unRow}</tbody>
-          <tfoot><tr><td>EMPL</td><td class="num" data-empl-hours></td><td></td><td class="num" data-empl-usd>${usd(fin.empl)}</td><td class="num" data-empl-uah>${uah(fin.emplUah)}</td><td></td></tr></tfoot>
-        </table>
-      </div>
+      ${mgxRows.length || unRow ? employeeTable("MGX", mgxRows, unRow, mgxUsd, mgxUsd * fin.fx) : `<div class="fin-dir-block"><h3 class="fin-dir-title">MGX</h3>${empty}</div>`}
+      ${playRows.length ? employeeTable("Playables", playRows, "", playUsd, playUsd * fin.fx) : `<div class="fin-dir-block"><h3 class="fin-dir-title">Playables</h3>${empty}</div>`}
     </section>`;
 }
 
@@ -3457,23 +3525,25 @@ function refreshEmployeePay() {
   const root = $("board");
   if (!root) return;
   const fx = employeePayFx();
-  let empl = 0;
-  root.querySelectorAll("tr.fin-pay-row").forEach((tr) => {
-    const hours = Number(tr.dataset.hours) || 0;
-    const fallback = Number(tr.dataset.fallback);
-    const parsed = parseRate(tr.querySelector(".fin-person-rate")?.value);
-    const rate = parsed === null || parsed === false ? (Number.isFinite(fallback) ? fallback : 15) : parsed;
-    const usdAmt = hours * rate;
-    empl += usdAmt;
-    const usdEl = tr.querySelector("[data-usd]");
-    const uahEl = tr.querySelector("[data-uah]");
-    if (usdEl) usdEl.textContent = usd(usdAmt);
-    if (uahEl) uahEl.innerHTML = `<b>${uah(usdAmt * fx)}</b>`;
+  root.querySelectorAll("table.fin-table").forEach((table) => {
+    let empl = 0;
+    table.querySelectorAll("tr.fin-pay-row").forEach((tr) => {
+      const hours = Number(tr.dataset.hours) || 0;
+      const fallback = Number(tr.dataset.fallback);
+      const parsed = parseRate(tr.querySelector(".fin-person-rate")?.value);
+      const rate = parsed === null || parsed === false ? (Number.isFinite(fallback) ? fallback : 15) : parsed;
+      const usdAmt = hours * rate;
+      empl += usdAmt;
+      const usdEl = tr.querySelector("[data-usd]");
+      const uahEl = tr.querySelector("[data-uah]");
+      if (usdEl) usdEl.textContent = usd(usdAmt);
+      if (uahEl) uahEl.innerHTML = `<b>${uah(usdAmt * fx)}</b>`;
+    });
+    const footUsd = table.querySelector("[data-empl-usd]");
+    const footUah = table.querySelector("[data-empl-uah]");
+    if (footUsd) footUsd.textContent = usd(empl);
+    if (footUah) footUah.textContent = uah(empl * fx);
   });
-  const footUsd = root.querySelector("[data-empl-usd]");
-  const footUah = root.querySelector("[data-empl-uah]");
-  if (footUsd) footUsd.textContent = usd(empl);
-  if (footUah) footUah.textContent = uah(empl * fx);
 }
 
 function bindEmployeePay() {
@@ -3587,7 +3657,7 @@ async function saveNbuRate(opts = {}) {
 }
 
 async function saveEmployeeRates(opts = {}) {
-  const people = [];
+  const byId = new Map();
   for (const el of $("board").querySelectorAll(".fin-person-rate")) {
     const p = person(el.dataset.id);
     if (!p) continue;
@@ -3598,13 +3668,17 @@ async function saveEmployeeRates(opts = {}) {
     }
     const rate = parsed === null ? rolePayRate(p) : parsed;
     const row = el.closest("tr");
-    people.push({
-      id: p.id,
-      rateUsd: rate,
-      bankCard: normalizeCard(row?.querySelector(".fin-card-input")?.value),
-      iban: normalizeIban(row?.querySelector(".fin-iban-input")?.value),
-    });
+    const dir = el.dataset.dir === "playables" ? "playables" : el.dataset.dir === "mgx" ? "mgx" : "";
+    const cur = byId.get(p.id) || { id: p.id, rates: {} };
+    if (dir) cur.rates[dir] = rate;
+    cur.rateUsd = rate;
+    const card = normalizeCard(row?.querySelector(".fin-card-input")?.value);
+    const iban = normalizeIban(row?.querySelector(".fin-iban-input")?.value);
+    if (card || cur.bankCard == null) cur.bankCard = card;
+    if (iban || cur.iban == null) cur.iban = iban;
+    byId.set(p.id, cur);
   }
+  const people = [...byId.values()];
   if (!people.length) return;
   const out = await api("/api/people/update", { role: me().role, people });
   if (out.error || !out.state) {

@@ -1590,16 +1590,25 @@ body.col-resizing * { cursor: col-resize !important; }
   user-select: all;
 }
 .fin-pay {
-  display: flex; flex-direction: column; align-items: stretch; gap: 6px; min-width: 220px;
+  display: flex; flex-direction: row; flex-wrap: nowrap; align-items: center;
+  gap: 6px; min-width: 0; max-width: 420px;
 }
-.fin-pay .fin-copy { align-self: flex-start; }
+.fin-pay .fin-copy {
+  flex: 0 0 auto; align-self: center; padding: 5px 8px; font-size: 12px; white-space: nowrap;
+}
 .fin-pay-input {
-  width: 100%; min-width: 220px; box-sizing: border-box;
+  width: auto; min-width: 0; box-sizing: border-box;
   border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px;
   font-size: 12px; font-family: inherit;
 }
-.fin-card-input { font-variant-numeric: tabular-nums; letter-spacing: 0.04em; }
-.fin-iban-input { font-size: 11px; letter-spacing: 0.02em; }
+.fin-card-input {
+  flex: 0 1 158px; min-width: 132px; font-variant-numeric: tabular-nums; letter-spacing: 0.04em;
+}
+.fin-iban-input { flex: 1 1 168px; min-width: 140px; font-size: 11px; letter-spacing: 0.02em; }
+.fin-dir-block { margin-top: 14px; }
+.fin-dir-block:first-of-type { margin-top: 0; }
+.fin-dir-title { margin: 0 0 8px; font-size: 14px; font-weight: 600; }
+.who-stack { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
 .fin-pan {
   font-variant-numeric: tabular-nums; letter-spacing: 0.04em; font-size: 13px;
 }
@@ -1760,6 +1769,8 @@ body.col-resizing * { cursor: col-resize !important; }
   .toolbar { align-items: stretch; }
   .fin-grid { grid-template-columns: 1fr; }
   .fin-table .fin-name { max-width: 180px; }
+  .fin-pay { flex-wrap: wrap; max-width: none; }
+  .fin-card-input, .fin-iban-input { flex: 1 1 140px; }
   .guide-grid, .guide-notes { grid-template-columns: 1fr; }
   .guide-status-grid { grid-template-columns: 1fr 1fr; }
   .guide-pipe-step { grid-template-columns: 36px minmax(0, 1fr); }

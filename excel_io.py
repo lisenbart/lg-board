@@ -41,20 +41,134 @@ LINE_MARKS = {"DX", "DD", "DS"}
 ROW_LABELS = {"mgx", "shifts", "hours", "deadline", "project name", "d.line", "empl"}
 PROJECT_NAME_RE = re.compile(r"^(DD|DX|DS)-.+$", re.I)
 
+# ECMA theme index: 0 lt1, 1 dk1, 2 lt2, 3 dk2, 4–9 accents. Google Sheets
+# paints WIP blue as theme 8 (accent5) and Closed green as theme 9 (accent6).
+_THEME_FALLBACK = [
+    "FFFFFF",
+    "000000",
+    "E7E6E6",
+    "44546A",
+    "5B9BD5",
+    "ED7D31",
+    "A5A5A5",
+    "FFC000",
+    "5B9BD5",
+    "70AD47",
+    "0563C1",
+    "954F72",
+]
+_THEME_NAMES = (
+    "lt1",
+    "dk1",
+    "lt2",
+    "dk2",
+    "accent1",
+    "accent2",
+    "accent3",
+    "accent4",
+    "accent5",
+    "accent6",
+    "hlink",
+    "folHlink",
+)
+_WIP_STATUSES = {
+    "wip",
+    "revision",
+    "done",
+    "approve",
+    "new",
+    "storyboard",
+    "clientart",
+    "finalart",
+    "build",
+    "htmlready",
+}
 
-def _cell_fill_hex(cell) -> str:
+
+def _apply_tint(rgb: str, tint: float) -> str:
+    raw = str(rgb or "").replace("#", "").upper()
+    if len(raw) != 6:
+        return raw
+    try:
+        t = float(tint or 0)
+    except (TypeError, ValueError):
+        return raw
+    if abs(t) < 1e-9:
+        return raw
+    out = []
+    for i in range(0, 6, 2):
+        c = int(raw[i : i + 2], 16)
+        if t < 0:
+            c = int(round(c * (1 + t)))
+        else:
+            c = int(round(c + (255 - c) * t))
+        out.append(f"{max(0, min(255, c)):02X}")
+    return "".join(out)
+
+
+def theme_rgbs(wb) -> list[str]:
+    """Resolve workbook theme scheme colors to RRGGBB, else Office-ish fallback."""
+    colors = list(_THEME_FALLBACK)
+    raw = getattr(wb, "loaded_theme", None)
+    if not raw:
+        return colors
+    try:
+        from xml.etree import ElementTree as ET
+
+        root = ET.fromstring(raw)
+        ns = {"a": "http://schemas.openxmlformats.org/drawingml/2006/main"}
+        scheme = root.find(".//a:clrScheme", ns)
+        if scheme is None:
+            return colors
+        by_name = {}
+        for child in list(scheme):
+            tag = child.tag.rsplit("}", 1)[-1]
+            srgb = child.find(".//{http://schemas.openxmlformats.org/drawingml/2006/main}srgbClr")
+            sys_el = child.find(".//{http://schemas.openxmlformats.org/drawingml/2006/main}sysClr")
+            val = ""
+            if srgb is not None:
+                val = str(srgb.get("val") or "")
+            elif sys_el is not None:
+                val = str(sys_el.get("lastClr") or "")
+            val = val.replace("#", "").upper()
+            if len(val) == 8:
+                val = val[2:]
+            if len(val) == 6:
+                by_name[tag] = val
+        for i, name in enumerate(_THEME_NAMES):
+            if by_name.get(name):
+                colors[i] = by_name[name]
+    except Exception:
+        return list(_THEME_FALLBACK)
+    return colors
+
+
+def _cell_fill_hex(cell, theme: list[str] | None = None) -> str:
     fill = getattr(cell, "fill", None)
     if not fill or fill.patternType in (None, "none"):
         return ""
     color = fill.fgColor
-    if not color or color.type != "rgb" or not color.rgb:
+    if not color:
         return ""
-    raw = str(color.rgb).replace("#", "").upper()
-    if raw in {"00000000", "FFFFFFFF"}:
+    ctype = getattr(color, "type", None)
+    tint = getattr(color, "tint", 0) or 0
+    palette = theme or _THEME_FALLBACK
+    if ctype == "theme":
+        try:
+            idx = int(color.theme)
+        except (TypeError, ValueError):
+            return ""
+        if 0 <= idx < len(palette):
+            return _apply_tint(palette[idx], tint)
         return ""
-    if len(raw) == 8:
-        raw = raw[2:]
-    return raw if len(raw) == 6 else ""
+    if ctype == "rgb" and color.rgb:
+        raw = str(color.rgb).replace("#", "").upper()
+        if raw in {"00000000", "FFFFFFFF"}:
+            return ""
+        if len(raw) == 8:
+            raw = raw[2:]
+        return _apply_tint(raw, tint) if len(raw) == 6 else ""
+    return ""
 
 
 def status_from_line_fill(hex_color: str) -> str:
@@ -75,7 +189,7 @@ def status_from_line_fill(hex_color: str) -> str:
 def line_fill_for_status(status: str) -> PatternFill | None:
     if status == "closed":
         return CLOSED_FILL
-    if status in {"wip", "revision", "done", "approve", "new"}:
+    if status in _WIP_STATUSES:
         return WIP_FILL
     return None
 
@@ -337,6 +451,7 @@ def parse_workbook(path: Path, ym: str) -> dict:
         ws = find_sheet(wb, ym)
         if ws is None:
             return empty
+        theme = theme_rgbs(wb)
         headers = _header_columns(ws)
         people = [h["name"] for h in headers if h["name"]]
         rows = []
@@ -372,7 +487,7 @@ def parse_workbook(path: Path, ym: str) -> dict:
                 assignee_id = primary.get("id") or ""
             deadline_s = _deadline_iso(deadline, ym)
             prefix = name.split("-", 1)[0].upper()
-            excel_status = status_from_line_fill(_cell_fill_hex(ws.cell(r, 1)))
+            excel_status = status_from_line_fill(_cell_fill_hex(ws.cell(r, 1), theme))
             rows.append(
                 {
                     "name": name,

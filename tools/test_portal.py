@@ -318,6 +318,20 @@ def test_employeers_pay_details() -> None:
 
 
 def test_playables_desk() -> None:
+    class _C:
+        pass
+
+    cell = _C()
+    fill = _C()
+    fg = _C()
+    fg.type = "theme"
+    fg.theme = 8
+    fg.tint = 0
+    fill.patternType = "solid"
+    fill.fgColor = fg
+    cell.fill = fill
+    theme_hex = excel_io._cell_fill_hex(cell)
+    check("Google Sheets theme 8 is WIP blue", excel_io.status_from_line_fill(theme_hex) == "wip", theme_hex)
     check("DS-P name is Playables", direction_io.of_name("DS-P-060_MergeSolitaire") == direction_io.PLAYABLES)
     check("DD-AIV name is MGX", direction_io.of_name("DD-AIV-202-004_SettAI") == direction_io.MGX)
     db = {
@@ -393,10 +407,32 @@ def test_playables_desk() -> None:
         direction_io.ensure_crew(scratch)
         playables_io.apply_to_db(scratch, parsed, "2026-10")
         dice = next((t for t in scratch["tasks"] if "MemoryDice" in (t.get("name") or "")), None)
+        merge = next((t for t in scratch["tasks"] if "MergeSolitaire" in (t.get("name") or "")), None)
         check(
             "Playables ingest keeps lead AD id",
             bool(dice and dice.get("assigneeId") in {"artdir1", "artdir2"} and dice.get("programmerId") == "programmer1"),
             str({k: (dice or {}).get(k) for k in ("assigneeId", "assigneeHours", "programmerId", "programmerHours")}),
+        )
+        check(
+            "Playables blue theme fill is WIP",
+            bool(dice and dice.get("studioStatus") == "wip" and dice.get("excelStatus") == "wip"),
+            str({k: (dice or {}).get(k) for k in ("studioStatus", "excelStatus")}),
+        )
+        check(
+            "DEV-only playable still has Who",
+            bool(merge and merge.get("assigneeId") == "programmer1" and merge.get("programmerId") == "programmer1"),
+            str({k: (merge or {}).get(k) for k in ("assigneeId", "programmerId", "programmerHours")}),
+        )
+        check(
+            "Producer hours land on Anastasiia",
+            playables_io.hours_for_person(dice, "manager") > 0,
+            str(playables_io.hours_for_person(dice, "manager") if dice else None),
+        )
+        lp = next((r for r in snap["payroll"] if r.get("role") == "manager"), None)
+        check(
+            "Employeers pay splits MGX vs Playables",
+            lp and float(lp.get("payUsdMgx") or 0) > 0 and float(lp.get("payUsdPlay") or 0) > 0,
+            str({k: (lp or {}).get(k) for k in ("payUsdMgx", "payUsdPlay", "hoursMgx", "hoursPlay")}),
         )
 
 
