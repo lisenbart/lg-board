@@ -1536,9 +1536,9 @@ body.col-resizing * { cursor: col-resize !important; }
 }
 .sp-sec th.sp-num {
   font-weight: 700;
-  background: #111;
-  color: #fff;
-  border-color: #111;
+  background: var(--wip);
+  color: #083358;
+  border-color: #8ec2ff;
 }
 .sp-row td.sp-name { background: #fff; }
 .sp-gap td { background: #d8d8d8; height: 10px; padding: 0; border-color: #d8d8d8; }
@@ -1548,11 +1548,11 @@ body.col-resizing * { cursor: col-resize !important; }
   background: #fff;
 }
 .sp-dir-total td {
-  background: #111;
-  color: #fff;
+  background: var(--wip);
+  color: #083358;
   font-weight: 700;
   text-align: center;
-  border-color: #111;
+  border-color: #8ec2ff;
 }
 .sp-dir-total td.sp-name { text-align: left; }
 .sp-dir-total td.sp-hours {

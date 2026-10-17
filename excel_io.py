@@ -34,8 +34,8 @@ THIN = Border(
 )
 CALIBRI = Font(name="Calibri", size=11)
 CALIBRI_BOLD = Font(name="Calibri", size=11, bold=True)
-CALIBRI_TOTAL = Font(name="Calibri", size=12, bold=True, color="FFFFFF")
-TOTAL_FILL = PatternFill("solid", fgColor="111111")
+CALIBRI_TOTAL = Font(name="Calibri", size=12, bold=True, color="083358")
+TOTAL_FILL = PatternFill("solid", fgColor="579BFC")
 CENTER = Alignment(horizontal="center", vertical="center")
 
 LINE_FILL = {"DX": DX_FILL, "DD": DD_FILL, "DS": DS_FILL}
