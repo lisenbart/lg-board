@@ -73,16 +73,8 @@ STUDIO_ROLES = (
     {"role": "art_director", "label": "AD", "blurb": "Art Director"},
     {"role": "programmer", "label": "DEV", "blurb": "Programmer"},
 )
-# Named PINs (DL / LP / TL) sit their own desk. Shared team PIN sits MD / AD / DEV.
-PIN_OPENS = {
-    "finance": ("finance",),
-    "manager": ("manager",),
-    "teamlead": ("teamlead",),
-    "designer": ("designer", "art_director", "programmer"),
-    "art_director": ("designer", "art_director", "programmer"),
-    "programmer": ("designer", "art_director", "programmer"),
-}
-HOME_OWNERS = ("finance", "manager", "teamlead")
+# PIN is a key, not an identity. Higher desk opens itself and every seat below.
+# DL > LP > TL > MD / AD / DEV. Performers share the team PIN.
 STUDIO_ROLE_IDS = (
     "finance",
     "manager",
@@ -91,6 +83,14 @@ STUDIO_ROLE_IDS = (
     "art_director",
     "programmer",
 )
+PIN_OPENS = {
+    "finance": STUDIO_ROLE_IDS,
+    "manager": ("manager", "teamlead", "designer", "art_director", "programmer"),
+    "teamlead": ("teamlead", "designer", "art_director", "programmer"),
+    "designer": ("designer", "art_director", "programmer"),
+    "art_director": ("designer", "art_director", "programmer"),
+    "programmer": ("designer", "art_director", "programmer"),
+}
 ROLE_SEAT_ORDER = {
     "finance": 0,
     "manager": 1,
@@ -190,33 +190,25 @@ def pin_owner_roles(pin: str) -> tuple[str, ...]:
     return tuple(unlocked)
 
 
-def pin_home_role(pin: str) -> str:
-    """DL / LP / TL PIN → that person's own seat. Shared team PIN → empty."""
-    for owner in HOME_OWNERS:
-        if pin_ok_for_role(owner, pin):
-            return owner
-    return ""
-
-
 def resolve_studio_login(people: list[dict], pin: str, door_role: str = "", seat_id: str | None = None) -> dict:
-    """PIN is identity. Named owners skip the door they clicked and sit at home."""
+    """Sit the door you clicked, if this PIN ranks high enough to open it."""
     unlocked = pin_owner_roles(pin)
     if not unlocked:
         return {"error": "wrong login or PIN"}
-    home = pin_home_role(pin)
-    if home:
-        matches = people_for_roles(people, (home,))
-        if not matches:
-            return {"error": "no seat for this login"}
-        return {"person": matches[0]}
     door = str(door_role or "").strip()
-    roles = (door,) if door in unlocked else unlocked
+    if door:
+        if door not in unlocked:
+            return {"error": "this PIN cannot open this seat"}
+        roles = (door,)
+    else:
+        roles = unlocked
     matches = people_for_roles(people, roles)
     if not matches:
         return {"error": "no seat for this login"}
     if seat_id:
         person = person_by_id(people, seat_id)
-        if not person or str(person.get("role") or "") not in unlocked:
+        role = str((person or {}).get("role") or "")
+        if not person or role not in unlocked or (door and role != door):
             return {"error": "wrong login or PIN"}
         return {"person": person}
     if len(matches) == 1:
