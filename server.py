@@ -30,7 +30,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-17u"
+BUILD = "2026-10-17v"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -1366,6 +1366,8 @@ class Handler(SimpleHTTPRequestHandler):
                             "month": t.get("month"),
                             "shifts": t.get("shifts"),
                             "hours": t.get("hours"),
+                            "department": t.get("department"),
+                            "direction": t.get("direction"),
                         }
                         for t in db.get("tasks") or []
                     ],

@@ -109,10 +109,19 @@ def test_client_hours_xlsx() -> None:
                 "shifts": 0,
                 "hours": 30,
             },
+            {
+                "name": "DS-P-039_Kraken_ITR",
+                "line": "DS",
+                "month": "2026-10",
+                "shifts": 0,
+                "hours": 5,
+            },
         ],
     }
     at = datetime(2026, 10, 14, 18, 29, tzinfo=ZoneInfo("Europe/Kyiv"))
     data = excel_io.client_hours_bytes(db, "2026-10", generated_at=at, tz_name="Europe/Kyiv")
+    check("hours_direction uses name when dept missing", excel_io.hours_direction({"name": "DS-P-1", "line": "DS"}) == "playables")
+    check("hours_direction keeps MGX without P-", excel_io.hours_direction({"name": "DS-AIV-1", "line": "DS"}) == "mgx")
     check("hours workbook is xlsx", data[:2] == b"PK")
     wb = load_workbook(BytesIO(data))
     ws = wb.active
@@ -133,7 +142,10 @@ def test_client_hours_xlsx() -> None:
         if str(ws.cell(r, 1).value or "").startswith("Playable TOTAL")
     )
     check("hours MGX TOTAL is 11.7", float(mgx_total) == 11.7, str(mgx_total))
-    check("hours Playable TOTAL is 30", float(play_total) == 30, str(play_total))
+    check("hours Playable TOTAL is 35", float(play_total) == 35, str(play_total))
+    check("hours playable DS is not MGX DS", "MGX DS" not in col_a, str([n for n in col_a if " DS" in n or n.startswith("DS-P-")]))
+    check("hours playable DS uses Playable label", "Playable DS" in col_a, str(col_a))
+    check("hours nameless-dept playable stays Playable", "DS-P-039_Kraken_ITR" in col_a)
     check(
         "hours totals omit rates",
         all("$" not in n and "/h" not in n for n in col_a if "TOTAL" in n),
@@ -142,7 +154,11 @@ def test_client_hours_xlsx() -> None:
     mgx_row = next(r for r in range(1, (ws.max_row or 1) + 1) if str(ws.cell(r, 1).value or "") == "MGX TOTAL")
     play_row = next(r for r in range(1, (ws.max_row or 1) + 1) if str(ws.cell(r, 1).value or "") == "Playable TOTAL")
     mgx_fill = str(getattr(ws.cell(mgx_row, 3).fill.fgColor, "rgb", "") or "")
-    check("hours MGX TOTAL is WIP blue", mgx_fill.upper().endswith("579BFC"), mgx_fill)
+    sec_row = next(r for r in range(1, (ws.max_row or 1) + 1) if str(ws.cell(r, 1).value or "") == "Playable DS")
+    sec_fill = str(getattr(ws.cell(sec_row, 3).fill.fgColor, "rgb", "") or "")
+    check("hours MGX TOTAL uses darkest pastel", mgx_fill.upper().endswith("9BB5CE"), mgx_fill)
+    check("hours section sum is mid pastel", sec_fill.upper().endswith("CAD9E8"), sec_fill)
+    check("hours fills are not WIP blue", "579BFC" not in mgx_fill.upper() and "579BFC" not in sec_fill.upper())
     check("hours blocks are separate", play_row - mgx_row >= 3, f"{mgx_row} → {play_row}")
     check("hours sheet has no mixed TOTAL", "TOTAL" not in col_a)
     empl = any("EMPL" in str(ws.cell(2, c).value or "") for c in range(1, 8))
@@ -589,7 +605,10 @@ def test_playables_desk() -> None:
         check("hours table totals omit rates", "MGX TOTAL · $" not in js and "Playable TOTAL · $" not in js)
         check("hours report is two direction sheets", "sp-sheet-${kind}" in js and 'sheetHtml("mgx"' in js and 'sheetHtml("play"' in js)
         check("hours KPIs filter a direction", 'data-hours-dir="' in js and "state.hoursDir" in js)
-        check("hours totals use WIP blue", ".sp-dir-total td {" in css and "background: var(--wip)" in css)
+        check("hours tables share column widths", "table-layout: fixed" in css and "sp-col-num" in css and "sp-col-name" in js)
+        check("hours totals use pastel ladder", "--sp-total: #b5c9dc" in css and "--sp-total-sum: #9bb5ce" in css)
+        check("hours final numbers are darker", ".sp-dir-total td.sp-hours" in css and "background: var(--sp-total-sum)" in css)
+        check("hours Excel classifies by name prefix", "def hours_direction" in (ROOT / "excel_io.py").read_text(encoding="utf-8"))
         check("pipeline hours cell is 5.5ch", ".hours-in {" in css and "5.5ch" in css)
         check("pipeline hours input takes a comma", 'deskNumInput("hours-in"' in js and 'type="text"' in js and "fmtDeskNum" in js)
         check("pipeline hours has step arrows", "num-step-up" in js and "num-step-down" in css)

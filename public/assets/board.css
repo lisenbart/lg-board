@@ -1669,7 +1669,18 @@ body.col-resizing * { cursor: col-resize !important; }
 .xl-hit:hover { background: #e7f1fd; }
 .xl-table tfoot td { background: #eee; font-weight: 500; }
 
-.sp-report { display: flex; flex-direction: column; gap: 12px; }
+.sp-report {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  --sp-head: #eaf1f7;
+  --sp-sec: #dce7f1;
+  --sp-sec-sum: #cad9e8;
+  --sp-total: #b5c9dc;
+  --sp-total-sum: #9bb5ce;
+  --sp-ink: #3d4f63;
+  --sp-ink-strong: #1f3348;
+}
 .sp-head h2 { margin: 0 0 4px; font-size: 16px; letter-spacing: -0.02em; }
 .sp-head p { margin: 0; color: var(--muted); font-size: 13px; max-width: 62ch; }
 .sp-kpis { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -1684,39 +1695,41 @@ body.col-resizing * { cursor: col-resize !important; }
 }
 .sp-sheet {
   background: #fff;
-  border: 1px solid #d0d4e4;
+  border: 1px solid #d2dde8;
   overflow: hidden;
+  width: 100%;
 }
-.sp-sheet-mgx { border-left: 4px solid #2563eb; }
-.sp-sheet-play { border-left: 4px solid #0d9488; }
-.sp-scroll { overflow: auto; }
+.sp-sheet-mgx { border-left: 4px solid #b5c9dc; }
+.sp-sheet-play { border-left: 4px solid #b5d4ce; }
+.sp-scroll { overflow: auto; width: 100%; }
 .sp-table {
   border-collapse: collapse;
-  width: max-content;
-  min-width: 100%;
+  table-layout: fixed;
+  width: 100%;
   font-size: 13px;
 }
+.sp-table col.sp-col-name { width: auto; }
+.sp-table col.sp-col-num { width: 6.5rem; }
 .sp-table th, .sp-table td {
-  border: 1px solid #e3e6ef;
+  border: 1px solid #dce4ee;
   padding: 5px 10px;
   vertical-align: middle;
   height: 26px;
 }
 .sp-table thead th {
-  background: #d8d8d8;
+  background: var(--sp-head);
+  color: var(--sp-ink);
   font-weight: 500;
   text-align: center;
   font-size: 12px;
 }
 .sp-table thead th.sp-name {
-  background: #fff;
+  background: var(--sp-head);
   text-align: center;
-  font-weight: 400;
+  font-weight: 500;
 }
 .sp-table th.sp-name, .sp-table td.sp-name {
   text-align: left;
-  min-width: 360px;
-  max-width: 640px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1724,36 +1737,45 @@ body.col-resizing * { cursor: col-resize !important; }
 .sp-table .sp-num {
   text-align: center;
   font-variant-numeric: tabular-nums;
-  min-width: 72px;
+  width: 6.5rem;
 }
-.sp-table .sp-sum-h { min-width: 72px; background: #fff; border-color: transparent; }
+.sp-table .sp-sum-h {
+  background: var(--sp-head);
+  border-color: #dce4ee;
+}
 .sp-sec th {
-  background: #bfbfbf;
+  background: var(--sp-sec);
+  color: var(--sp-ink);
   font-weight: 600;
   text-align: center;
 }
 .sp-sec th.sp-num {
   font-weight: 700;
-  background: var(--wip);
-  color: #083358;
-  border-color: #8ec2ff;
+  background: var(--sp-sec);
+  color: var(--sp-ink);
+  border-color: #dce4ee;
+}
+.sp-sec th.sp-sec-sum {
+  background: var(--sp-sec-sum);
+  color: var(--sp-ink-strong);
 }
 .sp-row td.sp-name { background: #fff; }
-.sp-gap td { background: #d8d8d8; height: 10px; padding: 0; border-color: #d8d8d8; }
+.sp-gap td { background: #eaf1f7; height: 10px; padding: 0; border-color: #eaf1f7; }
 .sp-total td {
   font-weight: 600;
   text-align: center;
   background: #fff;
 }
 .sp-dir-total td {
-  background: var(--wip);
-  color: #083358;
+  background: var(--sp-total);
+  color: var(--sp-ink-strong);
   font-weight: 700;
   text-align: center;
-  border-color: #8ec2ff;
+  border-color: #c5d4e4;
 }
 .sp-dir-total td.sp-name { text-align: left; }
 .sp-dir-total td.sp-hours {
+  background: var(--sp-total-sum);
   font-size: 16px;
   letter-spacing: -0.02em;
 }
@@ -1999,7 +2021,8 @@ body.col-resizing * { cursor: col-resize !important; }
   .guide-status-grid { grid-template-columns: 1fr 1fr; }
   .guide-pipe-step { grid-template-columns: 36px minmax(0, 1fr); }
   .guide-pipe-out { grid-column: 2; flex-direction: row; align-items: center; gap: 8px; padding-top: 0; }
-  .sp-table th.sp-name, .sp-table td.sp-name { min-width: 220px; max-width: 72vw; }
+  .sp-table col.sp-col-num { width: 4.75rem; }
+  .sp-table .sp-num { width: 4.75rem; }
 }
 @media (max-width: 560px) {
   .guide-status-grid { grid-template-columns: 1fr; }

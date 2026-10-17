@@ -2433,15 +2433,15 @@ function renderClientReport() {
             <td class="sp-name" title="${escapeHtml(t.name)}">${escapeHtml(t.name)}</td>
             <td class="sp-num">${fmtReportNum(t.shifts, 3)}</td>
             <td class="sp-num">${fmtReportNum(hoursOf(t), 1)}</td>
-            <td></td>
+            <td class="sp-num"></td>
           </tr>`
       )
       .join("");
     return `<tr class="sp-sec">
-          <th>${escapeHtml(sec.label)}</th>
-          <th></th>
-          <th></th>
-          <th class="sp-num">${fmtReportNum(sec.hours, 1)}</th>
+          <th class="sp-name">${escapeHtml(sec.label)}</th>
+          <th class="sp-num"></th>
+          <th class="sp-num"></th>
+          <th class="sp-num sp-sec-sum">${fmtReportNum(sec.hours, 1)}</th>
         </tr>${rows}`;
   };
   const dirTotalRow = (label, block) =>
@@ -2455,12 +2455,18 @@ function renderClientReport() {
     `<div class="sp-sheet sp-sheet-${kind}">
         <div class="sp-scroll">
           <table class="sp-table">
+            <colgroup>
+              <col class="sp-col-name" />
+              <col class="sp-col-num" />
+              <col class="sp-col-num" />
+              <col class="sp-col-num" />
+            </colgroup>
             <thead>
               <tr>
                 <th class="sp-name">${escapeHtml(year)} PROJECT NAME</th>
-                <th>SHIFTS</th>
-                <th>HOURS</th>
-                <th class="sp-sum-h"></th>
+                <th class="sp-num">SHIFTS</th>
+                <th class="sp-num">HOURS</th>
+                <th class="sp-num sp-sum-h"></th>
               </tr>
             </thead>
             <tbody>

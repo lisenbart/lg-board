@@ -1040,19 +1040,35 @@ def local_stamp(now: datetime | None = None, tz_name: str = "UTC") -> str:
     return f"{dt.day} {dt.strftime('%b %Y, %H:%M')} {city}"
 
 
+def hours_direction(task: dict) -> str:
+    """MGX vs Playable for the client hours sheet. DS-P-/DD-P-/DX-P- names are Playable even without department."""
+    import direction_io
+
+    if direction_io.of_name(str(task.get("name") or "")) == direction_io.PLAYABLES:
+        return direction_io.PLAYABLES
+    raw = str(task.get("department") or task.get("direction") or "").strip()
+    if raw:
+        return direction_io.norm_dir(raw)
+    return direction_io.MGX
+
+
+HOURS_HEAD_FILL = PatternFill("solid", fgColor="EAF1F7")
+HOURS_SEC_FILL = PatternFill("solid", fgColor="DCE7F1")
+HOURS_SEC_SUM_FILL = PatternFill("solid", fgColor="CAD9E8")
+HOURS_TOTAL_FILL = PatternFill("solid", fgColor="B5C9DC")
+HOURS_TOTAL_SUM_FILL = PatternFill("solid", fgColor="9BB5CE")
+HOURS_INK = Font(name="Calibri", size=11, bold=True, color="3D4F63")
+HOURS_TOTAL_FONT = Font(name="Calibri", size=12, bold=True, color="1F3348")
+
+
 def client_hours_bytes(db: dict, ym: str, *, generated_at: datetime | None = None, tz_name: str = "UTC") -> bytes:
     """Build a fresh SuperPlay hours xlsx at download time. No people, rates, or status."""
     ym = str(ym or "").strip()
     shift_hours = _as_float((db.get("meta") or {}).get("shiftHours"), 9) or 9
     tasks = [t for t in db.get("tasks") or [] if (t.get("month") or ym) == ym]
     sections = []
-    for dept, prefix in (("MGX", "MGX"), ("Playables", "Playable")):
-        bucket = [
-            t
-            for t in tasks
-            if ("play" in str(t.get("department") or t.get("direction") or "").lower())
-            == (dept == "Playables")
-        ]
+    for dept, prefix in (("mgx", "MGX"), ("playables", "Playable")):
+        bucket = [t for t in tasks if hours_direction(t) == dept]
         lines = ["DX", "DD"]
         if any(str(t.get("line") or "") == "DS" for t in bucket):
             lines.append("DS")
@@ -1072,8 +1088,8 @@ def client_hours_bytes(db: dict, ym: str, *, generated_at: datetime | None = Non
     headers = (f"{year} PROJECT NAME", "SHIFTS", "HOURS")
     for col, title in enumerate(headers, 1):
         cell = ws.cell(2, col, title)
-        cell.font = CALIBRI_BOLD
-        cell.fill = HEADER_FILL
+        cell.font = HOURS_INK
+        cell.fill = HOURS_HEAD_FILL
         cell.border = THIN
         cell.alignment = CENTER
 
@@ -1085,9 +1101,10 @@ def client_hours_bytes(db: dict, ym: str, *, generated_at: datetime | None = Non
         ws.cell(row, 3, round(hours, 1))
         for col in range(1, 4):
             cell = ws.cell(row, col)
-            cell.font = CALIBRI_TOTAL
-            cell.fill = TOTAL_FILL
+            cell.font = HOURS_TOTAL_FONT
+            cell.fill = HOURS_TOTAL_FILL
             cell.border = THIN
+        ws.cell(row, 3).fill = HOURS_TOTAL_SUM_FILL
         ws.cell(row, 3).alignment = CENTER
         row += 1
 
@@ -1108,9 +1125,10 @@ def client_hours_bytes(db: dict, ym: str, *, generated_at: datetime | None = Non
             ws.cell(row, 3, sec_hours)
             for col in range(1, 4):
                 cell = ws.cell(row, col)
-                cell.fill = LINE_FILL.get(line, HEADER_FILL)
-                cell.font = CALIBRI_BOLD
+                cell.fill = HOURS_SEC_FILL
+                cell.font = HOURS_INK
                 cell.border = THIN
+            ws.cell(row, 3).fill = HOURS_SEC_SUM_FILL
             ws.cell(row, 3).alignment = CENTER
             row += 1
             for task in rows:
