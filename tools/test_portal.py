@@ -572,6 +572,7 @@ def test_playables_desk() -> None:
             '"adSplitAdd"' in js and '"devSplitAdd"' in js and "programmerHelp" in js,
         )
         check("playable hours sit in AD and DEV blocks", "play-seat-${kind}" in js and "function playableSeatHtml" in js)
+        check("DEV split picker is on the hours block", "— ${label}" in js and "pick DEV" in js)
         check("playable AD is never the programmer", "function playableAdId" in js and "if (id === String(t?.programmerId || \"\")) return \"\"" in js)
         check("playable hoursOwned is assigneeHours", "if (isPlayables(t)) return roundHours(t?.assigneeHours)" in js)
         check("hours split AD uses playableAdId", "const adId = playableAdId(t)" in js and "person(t.assigneeId)?.name || \"Unassigned\")" not in js.split("function playableHoursHtml")[1].split("function readPlayableSplits")[0])

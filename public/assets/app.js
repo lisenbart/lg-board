@@ -4085,15 +4085,17 @@ function helpPersonOptions(t, selectedId, assigneeId, fromTask) {
     )
     .join("");
 }
-function playableRoleOptions(list, selected, taken) {
+function playableRoleOptions(list, selected, taken, kind) {
   const skip = new Set([...(taken || [])].filter((id) => id && id !== selected));
-  return list
+  const label = kind === "dev" ? "pick DEV" : "pick AD";
+  const opts = list
     .filter((p) => p.id === selected || !skip.has(p.id))
     .map(
       (p) =>
         `<option value="${p.id}" ${p.id === selected ? "selected" : ""}>${escapeHtml(p.name)} · ${jobMeta(p).code}</option>`
     )
     .join("");
+  return `<option value="">— ${label}</option>${opts}`;
 }
 function playableOwnerHtml(id, empty) {
   return id && person(id) ? personCell(id) : `<span class="play-seat-empty">${empty}</span>`;
@@ -4101,7 +4103,7 @@ function playableOwnerHtml(id, empty) {
 function playableSplitRowHtml(kind, row, taken) {
   const list = kind === "dev" ? programmers() : artDirectors();
   return `<div class="play-seat-row play-split-row" data-kind="${kind}">
-      <select class="play-split-person">${playableRoleOptions(list, row.id, taken)}</select>
+      <select class="play-split-person">${playableRoleOptions(list, row.id, taken, kind)}</select>
       <input class="play-split-hours" type="number" min="0.1" step="0.1" value="${row.hours || ""}" />
       <button type="button" class="btn ghost help-del" title="Remove">×</button>
     </div>`;
@@ -4137,6 +4139,18 @@ function playableSeatHtml(kind, t, editable) {
         : `<div class="play-seat-row"><span>${personCell(row.id)}</span><span class="help-h">${row.hours}h</span></div>`
     )
     .join("");
+  const blank =
+    editable && !splits.length ? playableSplitRowHtml(kind, { id: "", hours: "" }, taken) : "";
+  const roster = isAd ? artDirectors() : programmers();
+  const spare = roster.filter((p) => p.id !== ownerId);
+  const note =
+    editable && spare.length === 0
+      ? `<p class="play-seat-note">${
+          roster.length
+            ? `Only ${escapeHtml(person(ownerId)?.name || title)} is on the team as ${title}. DL adds another in Team, then pick them here.`
+            : `No ${title} on the team yet. DL adds one in Team.`
+        }</p>`
+      : "";
   const add = editable ? `<button type="button" class="play-seat-add" id="${addId}">Add ${title}</button>` : "";
   return `<div class="play-seat play-seat-${kind}">
       <div class="play-seat-head">
@@ -4144,7 +4158,8 @@ function playableSeatHtml(kind, t, editable) {
         <b class="play-seat-sum" id="${sumId}">${sum}h</b>
       </div>
       ${ownerRow}
-      <div id="${rowsId}">${splitRows}</div>
+      <div id="${rowsId}">${splitRows}${blank}</div>
+      ${note}
       ${add}
     </div>`;
 }
@@ -4226,17 +4241,19 @@ function refreshPlayableSplitSelects() {
     const sel = row.querySelector(".play-split-person");
     const keep = sel?.value || "";
     if (!sel) return;
-    sel.innerHTML = playableRoleOptions(artDirectors(), keep, adTaken);
+    sel.innerHTML = playableRoleOptions(artDirectors(), keep, adTaken, "ad");
     if (keep && [...sel.options].some((o) => o.value === keep)) sel.value = keep;
     else if (keep && keep === $("stPerson")?.value) row.remove();
+    else sel.value = keep || "";
   });
   $("devSplitRows")?.querySelectorAll(".play-split-row").forEach((row) => {
     const sel = row.querySelector(".play-split-person");
     const keep = sel?.value || "";
     if (!sel) return;
-    sel.innerHTML = playableRoleOptions(programmers(), keep, devTaken);
+    sel.innerHTML = playableRoleOptions(programmers(), keep, devTaken, "dev");
     if (keep && [...sel.options].some((o) => o.value === keep)) sel.value = keep;
     else if (keep && keep === $("stProgrammer")?.value) row.remove();
+    else sel.value = keep || "";
   });
 }
 function bindPlayableCrew(t) {
@@ -4275,43 +4292,31 @@ function bindPlayableCrew(t) {
     );
     paint();
   });
-  $("adSplitAdd")?.addEventListener("click", () => {
-    if (!$("stPerson")?.value) {
-      toast("Assign AD first, then split onto another AD");
+  const addSplit = (kind) => {
+    const ownerSel = kind === "dev" ? $("stProgrammer") : $("stPerson");
+    const rowsId = kind === "dev" ? "devSplitRows" : "adSplitRows";
+    const title = kind === "dev" ? "DEV" : "AD";
+    const list = kind === "dev" ? programmers() : artDirectors();
+    if (!ownerSel?.value) {
+      toast(`Assign ${title} first, then split onto another ${title}`);
       return;
     }
-    const taken = new Set([
-      $("stPerson")?.value,
-      ...readPlayableSplits("ad", $("stPerson")?.value).map((row) => row.id),
-    ]);
-    const next = artDirectors().find((p) => !taken.has(p.id));
-    if (!next) {
-      toast("No other AD left to split");
+    const box = $(rowsId);
+    const blank = [...(box?.querySelectorAll(".play-split-person") || [])].some((sel) => !sel.value);
+    if (blank) {
+      toast(`Pick the ${title} on the empty row first`);
       return;
     }
-    $("adSplitRows")?.insertAdjacentHTML("beforeend", playableSplitRowHtml("ad", { id: next.id, hours: 0.5 }, [...taken, next.id]));
-    paint();
-  });
-  $("devSplitAdd")?.addEventListener("click", () => {
-    if (!$("stProgrammer")?.value) {
-      toast("Assign DEV first, then split onto another DEV");
-      return;
-    }
-    const taken = new Set([
-      $("stProgrammer")?.value,
-      ...readPlayableSplits("dev", $("stProgrammer")?.value).map((row) => row.id),
-    ]);
-    const next = programmers().find((p) => !taken.has(p.id));
-    if (!next) {
-      toast("No other DEV left to split");
-      return;
-    }
-    $("devSplitRows")?.insertAdjacentHTML(
+    const taken = new Set([ownerSel.value, ...readPlayableSplits(kind, ownerSel.value).map((row) => row.id)]);
+    const next = list.find((p) => !taken.has(p.id));
+    box?.insertAdjacentHTML(
       "beforeend",
-      playableSplitRowHtml("dev", { id: next.id, hours: 0.5 }, [...taken, next.id])
+      playableSplitRowHtml(kind, { id: next?.id || "", hours: next ? 0.5 : "" }, [...taken, next?.id])
     );
     paint();
-  });
+  };
+  $("adSplitAdd")?.addEventListener("click", () => addSplit("ad"));
+  $("devSplitAdd")?.addEventListener("click", () => addSplit("dev"));
   box.addEventListener("click", (e) => {
     const btn = e.target.closest(".help-del");
     if (!btn) return;
