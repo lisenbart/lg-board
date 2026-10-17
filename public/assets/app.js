@@ -888,7 +888,7 @@ function boardPeople() {
 function excelPeople() {
   if (state.direction !== "playables") return designers();
   const lp = (state.db.people || []).find((p) => p.role === "manager");
-  const crew = playableCrew().filter((p) => p.id !== lp?.id);
+  const crew = playableCrew().filter((p) => p.role !== "designer" && p.id !== lp?.id);
   return lp ? [lp, ...crew] : crew;
 }
 function excelSeatLabel(p, used) {
@@ -4162,7 +4162,7 @@ function openTask(id) {
     ${notesHtml(t)}
     ${sourceBlock || resultBlock ? `<div class="io-stack">${sourceBlock}${resultBlock}</div>` : ""}
     ${whoBlock}
-    ${play ? playableHoursHtml(t, canEditHelp()) : helpSplitHtml(t, canEditHelp())}
+    ${play ? (isFinance() ? playableHoursHtml(t, true) : "") : helpSplitHtml(t, canEditHelp())}
     ${opsTime ? `<div class="card-ops">${opsTime}</div>` : ""}
     </div>
     <div class="drawer-actions">
@@ -4457,7 +4457,7 @@ function openTask(id) {
     const assigneeId = canAssign() && $("stPerson") ? $("stPerson").value : t.assigneeId;
     const patch = { studioStatus, role: me().role };
     if (canAssign()) patch.assigneeId = assigneeId;
-    if (isPlayables(t) && canEditHelp()) {
+    if (isPlayables(t) && isFinance() && $("stAdHours")) {
       if ($("stHours")) {
         const hours = parseShifts($("stHours").value);
         if (hours === null) {
@@ -4473,7 +4473,7 @@ function openTask(id) {
       patch.help = splitId && splitHours > 0 && splitId !== assigneeId ? [{ id: splitId, hours: splitHours }] : [];
       if ($("stProgrammer")) patch.programmerId = $("stProgrammer").value;
       patch.programmerHours = roundHours(String($("stProgHours")?.value || "").replace(",", "."));
-    } else if (canEditHelp()) {
+    } else if (!isPlayables(t) && canEditHelp()) {
       const help = readHelpFromCard(assigneeId);
       const total = patch.shifts !== undefined ? hoursFromShifts(patch.shifts) : hoursOf(t);
       const given = help.reduce((s, row) => s + row.hours, 0);

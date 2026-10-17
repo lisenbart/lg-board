@@ -403,9 +403,28 @@ def client_state(db: dict) -> dict:
     }
 
 
+PAY_PEOPLE_KEYS = ("rates", "rateUsd", "iban", "bankCard", "taxId", "legalName", "bank")
+
+
 def view_state(db: dict, sess: dict | None) -> dict:
     if not sess:
         return {"error": "sign in"}
     if sess.get("role") == "client" or sess.get("email") == CLIENT_EMAIL:
         return client_state(db)
-    return db
+    if sess.get("role") == "finance":
+        return db
+    people = []
+    for person in db.get("people") or []:
+        row = {key: val for key, val in person.items() if key not in PAY_PEOPLE_KEYS}
+        people.append(row)
+    tasks = []
+    for task in db.get("tasks") or []:
+        row = dict(task)
+        dept = str(row.get("department") or row.get("direction") or "").lower()
+        if dept.startswith("play"):
+            row.pop("producerHours", None)
+        tasks.append(row)
+    out = dict(db)
+    out["people"] = people
+    out["tasks"] = tasks
+    return out

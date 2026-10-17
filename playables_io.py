@@ -30,10 +30,15 @@ ROW_LABELS = {"playableads", "plads", "hours", "producer", "project name", "d.li
 
 
 def crew(db: dict) -> list[dict]:
+    """Hour columns on SP_PLBL_check.xlsx: AD + DEV.
+
+    MOTION/Сергій stays on the Playables board, but the live sheet has no MOTION
+    column. Writing him at col E used to shift Anna's 2DART 1 hours off the row.
+    """
     people = [
         p
         for p in db.get("people") or []
-        if p.get("role") in {"art_director", "programmer", "designer"}
+        if p.get("role") in {"art_director", "programmer"}
         and direction_io.person_on(p, direction_io.PLAYABLES)
     ]
     return sorted(people, key=lambda p: (p.get("payOrder") or 99, p.get("name") or ""))
@@ -358,6 +363,68 @@ def _stamp(cell, person: dict) -> None:
     cell.comment = Comment(f"lg-id:{person['id']}", "LG")
 
 
+def _drop_inserted_motion(ws, people: list[dict]) -> None:
+    """Remove a MOTION column we inserted in front of 2DART/PRGMM. Keep a trailing MOTION seat."""
+    crew_ids = {p["id"] for p in people}
+    by_name = excel_io.people_by_name(people)
+    headers = _header_columns(ws)
+    drop: list[int] = []
+    for h in headers:
+        if h.get("kind") != "motion":
+            continue
+        pid = str(h.get("id") or "").strip()
+        if pid in crew_ids or by_name.get(excel_io._norm_name(h.get("name") or "")):
+            continue
+        right = [
+            x
+            for x in headers
+            if x["col"] > h["col"]
+            and (
+                x.get("kind") in {"art", "programmer"}
+                or by_name.get(excel_io._norm_name(x.get("name") or ""))
+            )
+        ]
+        if right:
+            drop.append(int(h["col"]))
+    for col in sorted(set(drop), reverse=True):
+        ws.delete_cols(col)
+
+
+def _bind_crew_columns(ws, people: list[dict]) -> list[tuple[int, dict]]:
+    """Match people to existing sheet columns by lg-id or name. Never insert MOTION in the middle."""
+    headers = [h for h in _header_columns(ws) if h.get("kind") != "producer"]
+    by_id = {p["id"]: p for p in people}
+    by_name = excel_io.people_by_name(people)
+    bound: list[tuple[int, dict]] = []
+    used_ids: set[str] = set()
+    used_cols: set[int] = set()
+    for h in headers:
+        person = None
+        pid = str(h.get("id") or "").strip()
+        if pid in by_id:
+            person = by_id[pid]
+        else:
+            person = by_name.get(excel_io._norm_name(h.get("name") or ""))
+        if not person or person["id"] in used_ids:
+            continue
+        col = int(h["col"])
+        bound.append((col, person))
+        used_ids.add(person["id"])
+        used_cols.add(col)
+    last = max([c for c, _ in bound] + [h["col"] for h in _header_columns(ws)] + [4])
+    for person in people:
+        if person["id"] in used_ids:
+            continue
+        last += 1
+        while last in used_cols:
+            last += 1
+        bound.append((last, person))
+        used_ids.add(person["id"])
+        used_cols.add(last)
+    bound.sort(key=lambda pair: pair[0])
+    return bound
+
+
 def _role_label(person: dict, used: dict) -> str:
     role = person.get("role")
     if role == "programmer":
@@ -385,27 +452,36 @@ def write_month(db: dict, ym: str, path: Path | None = None) -> Path | None:
             ws = wb.create_sheet(excel_io.sheet_name_for(ym), 0)
         ws.cell(1, 2, f"{y} PROJECT NAME")
         ws.cell(1, 2).font = CALIBRI_BOLD
+        _drop_inserted_motion(ws, people)
+        columns = _bind_crew_columns(ws, people)
         used: dict = {}
-        for i, person in enumerate(people):
-            col = 5 + i
+        for col, person in columns:
             _stamp(ws.cell(1, col), person)
-            lab = ws.cell(2, col, _role_label(person, used))
+            lab = ws.cell(2, col)
+            if not _cell_text(lab.value):
+                lab.value = _role_label(person, used)
             lab.fill = HEADER_FILL
             lab.font = CALIBRI_BOLD
             lab.alignment = CENTER
             lab.border = THIN
-        if people:
-            prod = ws.cell(1, 4, next((p.get("name") for p in db.get("people") or [] if p.get("role") == "manager"), "Anastasia"))
-            prod.font = CALIBRI_BOLD
-            prod.alignment = CENTER
-            lab = ws.cell(2, 4, "Producer")
-            lab.fill = HEADER_FILL
-            lab.font = CALIBRI_BOLD
-            lab.alignment = CENTER
+        prod = ws.cell(
+            1,
+            4,
+            next((p.get("name") for p in db.get("people") or [] if p.get("role") == "manager"), "Anastasia"),
+        )
+        prod.font = CALIBRI_BOLD
+        prod.alignment = CENTER
+        lab = ws.cell(2, 4)
+        if not _cell_text(lab.value):
+            lab.value = "Producer"
+        lab.fill = HEADER_FILL
+        lab.font = CALIBRI_BOLD
+        lab.alignment = CENTER
         ws.cell(2, 1, "DX")
         ws.cell(2, 2, "PlayableADs")
         ws.cell(2, 3, "HOURS")
-        for c in range(1, 5 + max(len(people), 1)):
+        last_header = max([c for c, _ in columns] + [4])
+        for c in range(1, last_header + 1):
             cell = ws.cell(2, c)
             cell.fill = HEADER_FILL
             cell.font = CALIBRI_BOLD
@@ -436,7 +512,7 @@ def write_month(db: dict, ym: str, path: Path | None = None) -> Path | None:
             row = by_name.get(excel_io._norm_name(task.get("name") or ""))
             if not row:
                 continue
-            _write_task_row(ws, row, task, people)
+            _write_task_row(ws, row, task, columns)
         excel_io._atomic_save(wb, path)
         return path
     finally:
@@ -446,16 +522,17 @@ def write_month(db: dict, ym: str, path: Path | None = None) -> Path | None:
             pass
 
 
-def _write_task_row(ws, row: int, task: dict, people: list[dict]) -> None:
+def _write_task_row(ws, row: int, task: dict, columns: list[tuple[int, dict]]) -> None:
     hours = billed_hours(task)
     ws.cell(row, 2, task.get("name") or "")
     ws.cell(row, 3, hours if hours else None)
-    last = 5 + max(len(people) - 1, 0)
-    if people:
-        end = get_column_letter(4 + len(people))
-        ws.cell(row, 4, f"=SUM(E{row}:{end}{row})")
-    for i, person in enumerate(people):
-        col = 5 + i
+    hour_cols = [col for col, _ in columns]
+    if hour_cols:
+        start = get_column_letter(min(hour_cols))
+        end = get_column_letter(max(hour_cols))
+        ws.cell(row, 4, f"=SUM({start}{row}:{end}{row})")
+    last = max(hour_cols + [4])
+    for col, person in columns:
         last = max(last, col)
         cell = ws.cell(row, col)
         share = hours_for_person(task, person["id"])

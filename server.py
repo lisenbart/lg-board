@@ -30,7 +30,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-17e"
+BUILD = "2026-10-17f"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -147,11 +147,12 @@ def load_db() -> dict:
     if direction_io.ensure_crew(db):
         dirty = True
     ym = (db.get("meta") or {}).get("month") or "2026-10"
-    if playables_io.XLSX_PATH.exists() and not any(direction_io.is_playables(t) for t in db.get("tasks") or [] if (t.get("month") or ym) == ym):
+    if playables_io.XLSX_PATH.exists():
         try:
             parsed = playables_io.parse_workbook(playables_io.XLSX_PATH, ym)
-            playables_io.apply_to_db(db, parsed, ym)
-            dirty = True
+            stats = playables_io.apply_to_db(db, parsed, ym)
+            if stats.get("added") or stats.get("updated"):
+                dirty = True
         except Exception as e:
             print(f"[playables] ingest: {e}", flush=True)
     if dirty:
@@ -611,6 +612,12 @@ def run_excel_ingest(*, download: bool = False, force: bool = False, create_pack
             except Exception as e:
                 dl_error = str(e)[:240]
                 print(f"[excel] download: {e}", flush=True)
+            try:
+                play = drive_sync.download_playable_excel()
+                if play.get("downloaded"):
+                    from_drive = True
+            except Exception as e:
+                print(f"[playables] download: {e}", flush=True)
         with LOCK:
             ym = str(load_db().get("meta", {}).get("month") or "2026-10")
         use = _copy_newest_xlsx()
@@ -2410,6 +2417,10 @@ class Handler(SimpleHTTPRequestHandler):
                         task.setdefault("activity", []).append(
                             {"at": utc_now(), "text": f"Renamed {old_name} → {new_name}"}
                         )
+                if playable and role != "finance":
+                    for key in ("assigneeHours", "programmerHours", "motionHours", "producerHours"):
+                        data.pop(key, None)
+                    data.pop("help", None)
                 brief_before = task.get("brief")
                 for key in (
                     "studioStatus",

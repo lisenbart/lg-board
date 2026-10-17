@@ -275,6 +275,11 @@ def ensure_crew(db: dict) -> bool:
             if rates.get(PLAYABLES) in (None, ""):
                 rates[PLAYABLES] = 7.0
                 dirty = True
+            aliases = person.setdefault("aliases", [])
+            for extra in ("Anastasia", "Anastasiia", "Анастасия"):
+                if extra not in aliases:
+                    aliases.append(extra)
+                    dirty = True
         elif role in PERFORMERS:
             if rates.get(MGX) in (None, "") and MGX in person_directions(person):
                 rates[MGX] = float(person.get("rateUsd") or 15)

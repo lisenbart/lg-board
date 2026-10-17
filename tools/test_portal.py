@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import sys
 import tempfile
 import threading
@@ -380,6 +381,11 @@ def test_playables_desk() -> None:
     sergey = next(p for p in db["people"] if p.get("id") == "designer3")
     check("Sergey sits Playables by default", "playables" in (sergey.get("directions") or []), str(sergey.get("directions")))
     check("Playables crew has Юля", any(p.get("id") == "artdir2" for p in db["people"]))
+    check(
+        "Playables Excel crew skips MOTION",
+        all(p.get("role") != "designer" for p in playables_io.crew(db)),
+        str([p.get("id") for p in playables_io.crew(db)]),
+    )
     snap = finance_io.snapshot(db, "2026-10")
     labels = [r.get("label") for r in snap.get("byLine") or []]
     check("finance Client has MGX and Playable lines", any("MGX" in str(x) for x in labels) and any("Playable" in str(x) for x in labels), str(labels))
@@ -412,10 +418,16 @@ def test_playables_desk() -> None:
         playables_io.apply_to_db(scratch, parsed, "2026-10")
         dice = next((t for t in scratch["tasks"] if "MemoryDice" in (t.get("name") or "")), None)
         merge = next((t for t in scratch["tasks"] if "MergeSolitaire" in (t.get("name") or "")), None)
+        help_ids = {str((row or {}).get("id") or "") for row in ((dice or {}).get("help") or [])}
         check(
             "Playables ingest keeps lead AD id",
-            bool(dice and dice.get("assigneeId") in {"artdir1", "artdir2"} and dice.get("programmerId") == "programmer1"),
+            bool(dice and dice.get("assigneeId") == "artdir1" and dice.get("programmerId") == "programmer1"),
             str({k: (dice or {}).get(k) for k in ("assigneeId", "assigneeHours", "programmerId", "programmerHours")}),
+        )
+        check(
+            "Anna hours stay on 2DART 1",
+            bool(dice and abs(float(dice.get("assigneeHours") or 0) - 1) < 0.05 and "artdir2" in help_ids),
+            str({k: (dice or {}).get(k) for k in ("assigneeId", "assigneeHours", "help")}),
         )
         check(
             "Playables blue theme fill is WIP",
@@ -423,10 +435,47 @@ def test_playables_desk() -> None:
             str({k: (dice or {}).get(k) for k in ("studioStatus", "excelStatus")}),
         )
         check(
-            "DEV-only playable still has Who",
-            bool(merge and merge.get("assigneeId") == "programmer1" and merge.get("programmerId") == "programmer1"),
-            str({k: (merge or {}).get(k) for k in ("assigneeId", "programmerId", "programmerHours")}),
+            "Anna keeps hours on art-only rows",
+            bool(merge and merge.get("assigneeId") == "artdir1" and abs(float(merge.get("assigneeHours") or 0) - 9) < 0.05),
+            str({k: (merge or {}).get(k) for k in ("assigneeId", "assigneeHours", "programmerId", "programmerHours")}),
         )
+        kraken = next((t for t in scratch["tasks"] if "Kraken" in (t.get("name") or "")), None)
+        check(
+            "DEV-only playable still has Who",
+            bool(kraken and kraken.get("assigneeId") == "programmer1" and kraken.get("programmerId") == "programmer1"),
+            str({k: (kraken or {}).get(k) for k in ("assigneeId", "programmerId", "programmerHours")}),
+        )
+        ad_view = auth_io.view_state(scratch, {"role": "art_director", "email": "lisenbart.games@gmail.com"})
+        ad_dice = next((t for t in (ad_view.get("tasks") or []) if "MemoryDice" in (t.get("name") or "")), None)
+        ad_anna = next((p for p in (ad_view.get("people") or []) if p.get("id") == "artdir1"), None)
+        check("AD view hides producerHours", ad_dice is not None and "producerHours" not in ad_dice)
+        check("AD view hides pay rates", ad_anna is not None and "rates" not in ad_anna and "iban" not in ad_anna)
+        dl_view = auth_io.view_state(scratch, {"role": "finance", "email": "dmytro@lisenbart.games"})
+        dl_dice = next((t for t in (dl_view.get("tasks") or []) if "MemoryDice" in (t.get("name") or "")), None)
+        check("DL view keeps producerHours", bool(dl_dice and dl_dice.get("producerHours")))
+        js = (ROOT / "public" / "assets" / "app.js").read_text(encoding="utf-8")
+        check("PLAYABLE HOURS card is finance only", "isFinance() ? playableHoursHtml" in js)
+        with tempfile.TemporaryDirectory() as raw:
+            path = Path(raw) / "pl.xlsx"
+            shutil.copy(playables_io.XLSX_PATH, path)
+            playables_io.write_month(scratch, "2026-10", path)
+            wb = load_workbook(path)
+            ws = excel_io.find_sheet(wb, "2026-10")
+            names = [str(ws.cell(1, c).value or "") for c in range(4, 10)]
+            labels = [str(ws.cell(2, c).value or "") for c in range(4, 10)]
+            wb.close()
+            check(
+                "write_month does not insert MOTION",
+                "MOTION" not in labels and "Сергій" not in names,
+                f"{names} {labels}",
+            )
+            parsed2 = playables_io.parse_workbook(path, "2026-10")
+            dice2 = next((r for r in (parsed2.get("rows") or []) if "MemoryDice" in (r.get("name") or "")), None)
+            check(
+                "Anna hours survive write_month",
+                bool(dice2 and abs(float(dice2.get("assigneeHours") or 0) - 1) < 0.05),
+                str(dice2),
+            )
         check(
             "Producer hours land on Anastasiia",
             playables_io.hours_for_person(dice, "manager") > 0,
