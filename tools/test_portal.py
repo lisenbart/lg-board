@@ -640,10 +640,11 @@ def test_playables_desk() -> None:
         check("playable AD is never the programmer", "function playableAdId" in js and "if (id === String(t?.programmerId || \"\")) return \"\"" in js)
         check("playable hoursOwned is assigneeHours", "if (isPlayables(t)) return roundHours(t?.assigneeHours)" in js)
         check(
-            "playable split takes from owner like MGX",
-            "playAdRest" in js
-            and "Seat hours stay put" in js
-            and "readPlayableSeatPool" in js
+            "playable split writes remainder into owner hours",
+            "applyPlayablePoolToOwner" in js
+            and 'el.value = rest > 0 ? String(rest)' in js
+            and "play-seat-keep" not in js
+            and "keeps</span>" not in js
             and "Split hours cannot exceed the AD hours" in js,
         )
         check(
