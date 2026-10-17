@@ -1949,7 +1949,7 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
   }
   if (st === "closed") return { tone: "ok", title: "Closed", body: "Client accepted. Hours stay on this month." };
   if (st === "approve") return { tone: "ok", title: "Already sent", body: "HTML is with the client. Mark Closed when they accept." };
-  if (st === "htmlready" && hasResult) return { tone: "do", title: "Your job", body: "HTML is in. Send to client — that sets Send." };
+  if (st === "htmlready" && hasResult) return { tone: "do", title: "Your job", body: "HTML is in. Send to client, or Mark Closed if they already accepted." };
   if (st === "storyboard") return { tone: "do", title: "Your job", body: "Storyboard is ready. Send to client — only LP talks to SuperPlay." };
   if (st === "clientart") return { tone: "wait", title: "Client art", body: "Waiting on the client. Storyboard if they bounce it." };
   if (st === "build") return { tone: "wait", title: "In Build", body: `${progName || "Programmer"} is on HTML. Send after HTML ready.` };
