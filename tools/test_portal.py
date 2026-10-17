@@ -567,7 +567,11 @@ def test_playables_desk() -> None:
         check("LP edits playable crew hours", "playableHoursHtml(t, canEditPlayableCrew())" in js)
         check("billed buffer is DL only", "const financeStrip = isFinance()" in js and "Studio buffer" in js)
         check("playable card has no Lead AD", "Lead AD" not in js and "Assign lead AD" not in js)
-        check("playable splits AD onto AD and DEV onto DEV", "Add AD split" in js and "Add DEV split" in js and "programmerHelp" in js)
+        check(
+            "playable splits AD onto AD and DEV onto DEV",
+            '"adSplitAdd"' in js and '"devSplitAdd"' in js and "programmerHelp" in js,
+        )
+        check("playable hours sit in AD and DEV blocks", "play-seat-${kind}" in js and "function playableSeatHtml" in js)
         check("playable AD is never the programmer", "function playableAdId" in js and "if (id === String(t?.programmerId || \"\")) return \"\"" in js)
         check("playable hoursOwned is assigneeHours", "if (isPlayables(t)) return roundHours(t?.assigneeHours)" in js)
         check("hours split AD uses playableAdId", "const adId = playableAdId(t)" in js and "person(t.assigneeId)?.name || \"Unassigned\")" not in js.split("function playableHoursHtml")[1].split("function readPlayableSplits")[0])
@@ -597,6 +601,14 @@ def test_playables_desk() -> None:
             and "on one tab" not in js
             and "invoices are based on" not in js,
         )
+        html = (ROOT / "public" / "index.html").read_text(encoding="utf-8")
+        check(
+            "identity sits under Sign out",
+            'class="who-tools"' in html and 'class="who-id"' in html and 'id="roleHint"' in html,
+        )
+        check("role is not a page subtitle", 'class="role-hint"' not in html)
+        check("who label is the name only", "${p.name} · ${jobMeta(p).code}" not in js)
+        check("AD/DEV hours blocks have a tint", ".play-seat-ad" in css and ".play-seat-dev" in css)
         with tempfile.TemporaryDirectory() as raw:
             path = Path(raw) / "pl.xlsx"
             shutil.copy(playables_io.XLSX_PATH, path)

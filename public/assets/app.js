@@ -454,9 +454,8 @@ function showNeedServer() {
   $("loginAccounts").innerHTML = "";
 }
 function whoLabel(p) {
-  if (p?.role === "finance") return p.name || "Dmytro Lisenbart";
-  if (p?.role === "client") return p.name || "SuperPlay";
-  return `${p.name} · ${jobMeta(p).code} ${jobMeta(p).title}`;
+  if (!p) return "";
+  return displayName(p) || p.name || "";
 }
 
 function escapeHtml(s) {
@@ -1141,14 +1140,22 @@ function visibleTasks() {
 }
 
 function renderWho() {
+  const p = me();
   const mail = $("whoMail");
   const sel = $("who");
   const out = $("signOut");
+  const hint = $("roleHint");
+  const badge = jobMeta(p);
   mail.hidden = false;
-  mail.textContent = whoLabel(me());
+  mail.textContent = whoLabel(p);
   out.hidden = false;
   sel.hidden = true;
   sel.innerHTML = "";
+  if (hint) {
+    hint.hidden = !p || p.role === "client";
+    hint.textContent = badge.title || "";
+    hint.className = `who-role who-role-${(badge.code || "").toLowerCase()}`;
+  }
 }
 
 function renderMonth() {
@@ -1167,13 +1174,6 @@ function setMonth(ym) {
   state.hoursDir = null;
   localStorage.setItem(MONTH_KEY, ym);
   render();
-}
-
-function roleLine() {
-  const p = me();
-  if (!p || p.role === "client") return "";
-  const b = jobMeta(p);
-  return [b.code, b.title].filter(Boolean).join(" ");
 }
 
 function renderChrome() {
@@ -1216,7 +1216,6 @@ function renderChrome() {
       brand.textContent = "";
     }
   }
-  $("roleHint").textContent = roleLine();
   $("sideFoot").innerHTML = "";
   ensureDriveStatus();
 
@@ -4096,58 +4095,73 @@ function playableRoleOptions(list, selected, taken) {
     )
     .join("");
 }
+function playableOwnerHtml(id, empty) {
+  return id && person(id) ? personCell(id) : `<span class="play-seat-empty">${empty}</span>`;
+}
 function playableSplitRowHtml(kind, row, taken) {
   const list = kind === "dev" ? programmers() : artDirectors();
-  return `<div class="help-row play-split-row" data-kind="${kind}">
+  return `<div class="play-seat-row play-split-row" data-kind="${kind}">
       <select class="play-split-person">${playableRoleOptions(list, row.id, taken)}</select>
       <input class="play-split-hours" type="number" min="0.1" step="0.1" value="${row.hours || ""}" />
       <button type="button" class="btn ghost help-del" title="Remove">×</button>
     </div>`;
 }
+function playableSeatHtml(kind, t, editable) {
+  const isAd = kind === "ad";
+  const ownerId = isAd ? playableAdId(t) : String(t.programmerId || "");
+  const hours = isAd ? roundHours(t.assigneeHours) : roundHours(t.programmerHours);
+  const splits = isAd ? playableAdSplits(t) : playableDevSplits(t);
+  if (!editable && !ownerId && !splits.length) return "";
+  const taken = [ownerId, ...splits.map((row) => row.id)];
+  const sum = roundHours(hours + splits.reduce((s, row) => s + row.hours, 0));
+  const title = isAd ? "AD" : "DEV";
+  const empty = isAd ? "No AD" : "No DEV";
+  const hoursId = isAd ? "stAdHours" : "stProgHours";
+  const ownerEl = isAd ? "stAdOwner" : "stDevOwner";
+  const rowsId = isAd ? "adSplitRows" : "devSplitRows";
+  const addId = isAd ? "adSplitAdd" : "devSplitAdd";
+  const sumId = isAd ? "playAdTotal" : "playDevTotal";
+  const ownerRow = editable
+    ? `<div class="play-seat-row is-owner">
+         <div class="play-seat-who" id="${ownerEl}">${playableOwnerHtml(ownerId, empty)}</div>
+         <input id="${hoursId}" type="number" min="0" step="0.1" value="${hours || ""}" aria-label="${title} hours" />
+       </div>`
+    : `<div class="play-seat-row is-owner">
+         <div class="play-seat-who">${playableOwnerHtml(ownerId, empty)}</div>
+         <span class="help-h">${ownerId ? `${hours || 0}h` : "—"}</span>
+       </div>`;
+  const splitRows = splits
+    .map((row) =>
+      editable
+        ? playableSplitRowHtml(kind, row, taken)
+        : `<div class="play-seat-row"><span>${personCell(row.id)}</span><span class="help-h">${row.hours}h</span></div>`
+    )
+    .join("");
+  const add = editable ? `<button type="button" class="play-seat-add" id="${addId}">Add ${title}</button>` : "";
+  return `<div class="play-seat play-seat-${kind}">
+      <div class="play-seat-head">
+        <span class="job-badge job-${kind}">${title}</span>
+        <b class="play-seat-sum" id="${sumId}">${sum}h</b>
+      </div>
+      ${ownerRow}
+      <div id="${rowsId}">${splitRows}</div>
+      ${add}
+    </div>`;
+}
 function playableHoursHtml(t, editable) {
   const billed = hoursOf(t);
-  const adId = playableAdId(t);
-  const artH = roundHours(t.assigneeHours);
-  const ads = playableAdSplits(t);
-  const progH = roundHours(t.programmerHours);
-  const devs = playableDevSplits(t);
   const crew = playableCrewTotal(t);
   const buffer = Math.max(0, roundHours(billed - crew));
   const mine = onMyPlayable(t);
+  const adId = playableAdId(t);
+  const ads = playableAdSplits(t);
+  const devs = playableDevSplits(t);
   if (!editable && !adId && !t.programmerId && !ads.length && !devs.length) return "";
   if (!editable && isPerformer() && !mine) return "";
-  const takenAds = [adId, ...ads.map((row) => row.id)];
-  const takenDevs = [t.programmerId, ...devs.map((row) => row.id)];
-  const adLines = ads
-    .map((row) =>
-      editable
-        ? playableSplitRowHtml("ad", row, takenAds)
-        : `<div class="help-row"><span>${personCell(row.id)}</span><span class="help-h">${row.hours}h</span></div>`
-    )
-    .join("");
-  const devLines = devs
-    .map((row) =>
-      editable
-        ? playableSplitRowHtml("dev", row, takenDevs)
-        : `<div class="help-row"><span>${personCell(row.id)}</span><span class="help-h">${row.hours}h</span></div>`
-    )
-    .join("");
-  const body = editable
-    ? `<p class="play-role-lab">AD</p>
-       <div class="help-owner"><span>${escapeHtml(person(adId)?.name || "Unassigned")}</span>
-         <input id="stAdHours" type="number" min="0" step="0.1" value="${artH || ""}" /></div>
-       <div id="adSplitRows">${adLines}</div>
-       <button type="button" class="btn ghost" id="adSplitAdd">Add AD split</button>
-       <p class="play-role-lab">DEV</p>
-       <div class="help-owner"><span>${escapeHtml(person(t.programmerId)?.name || "Unassigned")}</span>
-         <input id="stProgHours" type="number" min="0" step="0.1" value="${progH || ""}" /></div>
-       <div id="devSplitRows">${devLines}</div>
-       <button type="button" class="btn ghost" id="devSplitAdd">Add DEV split</button>`
-    : `<p class="status-hint">AD ${escapeHtml(person(adId)?.name || "—")}${adId ? ` ${artH || 0}h` : ""}
-        ${ads.map((row) => ` · ${escapeHtml(person(row.id)?.name || "")} ${row.hours}h`).join("")}</p>
-       <p class="status-hint">DEV ${escapeHtml(person(t.programmerId)?.name || "—")} ${progH || 0}h
-        ${devs.map((row) => ` · ${escapeHtml(person(row.id)?.name || "")} ${row.hours}h`).join("")}
-        ${mine && hoursForPerson(t, me().id) ? ` · you ${hoursForPerson(t, me().id)}h` : ""}</p>`;
+  const you =
+    !editable && mine && hoursForPerson(t, me().id)
+      ? `<span class="play-crew-you">you ${hoursForPerson(t, me().id)}h</span>`
+      : "";
   const financeStrip = isFinance()
     ? `<section class="help-split play-finance">
       <label>Studio</label>
@@ -4158,8 +4172,9 @@ function playableHoursHtml(t, editable) {
     : "";
   return `<section class="help-split play-crew">
       <label>Hours split</label>
-      ${body}
-      <div class="help-owner"><span>Crew</span><b id="playCrew">${crew}h</b></div>
+      ${playableSeatHtml("ad", t, editable)}
+      ${playableSeatHtml("dev", t, editable)}
+      <div class="play-crew-foot"><span>Crew ${you}</span><b id="playCrew">${crew}h</b></div>
     </section>${financeStrip}`;
 }
 function readPlayableSplits(kind, ownerId) {
@@ -4183,17 +4198,23 @@ function readPlayableCrewFromCard() {
   return roundHours(artH + progH + adH + devH);
 }
 function refreshPlayableCrew(t) {
-  const crewEl = $("playCrew");
-  const crew = readPlayableCrewFromCard();
-  if (crewEl) crewEl.textContent = `${crew}h`;
+  const adId = $("stPerson")?.value || "";
+  const devId = $("stProgrammer")?.value || "";
+  const artH = roundHours(String($("stAdHours")?.value || "").replace(",", "."));
+  const progH = roundHours(String($("stProgHours")?.value || "").replace(",", "."));
+  const adSum = roundHours(artH + readPlayableSplits("ad", adId).reduce((s, row) => s + row.hours, 0));
+  const devSum = roundHours(progH + readPlayableSplits("dev", devId).reduce((s, row) => s + row.hours, 0));
+  const crew = roundHours(adSum + devSum);
+  if ($("stAdOwner")) $("stAdOwner").innerHTML = playableOwnerHtml(adId, "No AD");
+  if ($("stDevOwner")) $("stDevOwner").innerHTML = playableOwnerHtml(devId, "No DEV");
+  if ($("playAdTotal")) $("playAdTotal").textContent = `${adSum}h`;
+  if ($("playDevTotal")) $("playDevTotal").textContent = `${devSum}h`;
+  if ($("playCrew")) $("playCrew").textContent = `${crew}h`;
   const buffer = $("playBuffer");
   if (buffer) {
     const billed = $("stHours") ? parseShifts($("stHours").value) ?? hoursOf(t) : hoursOf(t);
     buffer.textContent = `${Math.max(0, roundHours(billed - crew))}h`;
   }
-  const owners = $("drawer")?.querySelectorAll(".play-crew > .help-owner span");
-  if (owners?.[0]) owners[0].textContent = person($("stPerson")?.value)?.name || "Unassigned";
-  if (owners?.[1]) owners[1].textContent = person($("stProgrammer")?.value)?.name || "Unassigned";
 }
 function refreshPlayableSplitSelects() {
   const adTaken = [$("stPerson")?.value, ...readPlayableSplits("ad", $("stPerson")?.value).map((row) => row.id)];
