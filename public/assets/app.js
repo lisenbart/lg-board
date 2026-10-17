@@ -323,6 +323,7 @@ function showSeatPicker(seats) {
   } else {
     $("loginTitle").textContent = "Who is at the desk?";
     const bits = [];
+    if (roles.includes("finance")) bits.push("DL");
     if (roles.includes("manager")) bits.push("LP");
     if (roles.includes("teamlead")) bits.push("TL");
     if (roles.includes("designer")) bits.push("a designer");

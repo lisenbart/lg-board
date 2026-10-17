@@ -73,9 +73,10 @@ STUDIO_ROLES = (
     {"role": "art_director", "label": "AD", "blurb": "Art Director"},
     {"role": "programmer", "label": "DEV", "blurb": "Programmer"},
 )
-# LP PIN opens every studio seat except DL. Same team PIN sits AD / DEV / MD.
+# DL PIN opens every studio seat. LP PIN opens every studio seat except DL.
+# Same team PIN sits AD / DEV / MD.
 PIN_OPENS = {
-    "finance": ("finance",),
+    "finance": ("finance", "manager", "teamlead", "designer", "art_director", "programmer"),
     "manager": ("manager", "teamlead", "designer", "art_director", "programmer"),
     "teamlead": ("teamlead", "designer"),
     "designer": ("designer",),

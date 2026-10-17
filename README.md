@@ -26,7 +26,7 @@ ssh board-status    # live build
 
 Google Drive is always the live disk ([LLC/docs](https://drive.google.com/drive/folders/191q3zTumkNi-2tc9LCB1SG2lZwtu0pVs)). The VPS stays signed in with a service account file at `data/secrets/google_service.json` (share October DD/DX with that account). **Create task** then makes the folder + brief Doc; **Save** on the card writes the brief into the Doc. To update the live desk: `bash deploy/update.sh` on the VPS, then hard-refresh the browser.
 
-Home: **Client** or **Studio**. Seats: Finance, LP, TL, MD, AD, DEV, Client. PINs live in `data/secrets/pins.json`. LP PIN opens every studio seat except DL (LP, TL, MD, AD, DEV). Team PIN `4429` sits MD, AD, and DEV. TL PIN also opens MD. One-direction people stay on their board; dual-seat people (LP, DL, Сергій, SuperPlay) see **MGX | Playables**. After a PIN that matches more than one person, pick who is at the desk.
+Home: **Client** or **Studio**. Seats: Finance, LP, TL, MD, AD, DEV, Client. PINs live in `data/secrets/pins.json`. **DL PIN** opens every studio seat (DL, LP, TL, MD, AD, DEV). LP PIN opens every studio seat except DL. Team PIN `4429` sits MD, AD, and DEV. TL PIN also opens MD. One-direction people stay on their board; dual-seat people (LP, DL, Сергій, SuperPlay) see **MGX | Playables**. After a PIN that matches more than one person, pick who is at the desk.
 
 Then:
 

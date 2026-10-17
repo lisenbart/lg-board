@@ -132,7 +132,11 @@ def test_pin_opens() -> None:
         auth_io.pin_owner_roles("1726") == ("manager", "teamlead", "designer", "art_director", "programmer"),
     )
     check("TL PIN opens TL MD", auth_io.pin_owner_roles("2026") == ("teamlead", "designer"))
-    check("DL PIN opens DL", auth_io.pin_owner_roles("3245") == ("finance",))
+    check(
+        "DL PIN opens every studio seat",
+        auth_io.pin_owner_roles("3245")
+        == ("finance", "manager", "teamlead", "designer", "art_director", "programmer"),
+    )
     check(
         "team PIN opens MD AD DEV",
         auth_io.pin_owner_roles("4429") == ("designer", "art_director", "programmer"),
@@ -668,15 +672,65 @@ def test_http(base: str) -> str | None:
         str(door_roles),
     )
 
+    code, payload, _ = _http(f"{base}/api/login", {"door": "studio", "role": "finance", "pin": "3245"})
+    dl_seats = payload.get("seats") or []
+    dl_roles = {s.get("role") for s in dl_seats}
+    check(
+        "DL PIN asks for a seat",
+        code == 200 and payload.get("needSeat") is True and dl_seats,
+        str(payload.get("error") or payload.get("session")),
+    )
+    check(
+        "DL PIN seats include LP TL MD and DL",
+        {"finance", "manager", "teamlead", "designer"}.issubset(dl_roles),
+        str(dl_roles),
+    )
+    md_from_dl = next((s for s in dl_seats if s.get("role") == "designer"), None)
+    lp_from_dl = next((s for s in dl_seats if s.get("role") == "manager"), None)
+    if md_from_dl:
+        code, payload, _ = _http(
+            f"{base}/api/login",
+            {"door": "studio", "role": "finance", "pin": "3245", "seatId": md_from_dl["id"]},
+        )
+        sess = payload.get("session") or {}
+        check(
+            "DL PIN sits as MD",
+            code == 200 and sess.get("role") == "designer" and sess.get("seatId") == md_from_dl["id"],
+            str(sess),
+        )
+    if lp_from_dl:
+        code, payload, _ = _http(
+            f"{base}/api/login",
+            {"door": "studio", "role": "finance", "pin": "3245", "seatId": lp_from_dl["id"]},
+        )
+        sess = payload.get("session") or {}
+        check("DL PIN sits as LP", code == 200 and sess.get("role") == "manager", str(sess))
+    code, payload, _ = _http(f"{base}/api/login", {"door": "studio", "role": "manager", "pin": "3245"})
+    check(
+        "DL PIN works on LP door",
+        code == 200 and payload.get("needSeat") is True and "finance" in {s.get("role") for s in (payload.get("seats") or [])},
+        str({s.get("role") for s in (payload.get("seats") or [])}),
+    )
+
     code, payload, _ = _http(f"{base}/api/login", b"not-json")
     check("bad JSON is 400", code == 400, str(payload))
 
     code, payload, _ = _http(f"{base}/api/login", [])
     check("array JSON is 400", code == 400 and "object" in str(payload.get("error") or payload), str(payload))
 
-    code, payload, headers = _http(f"{base}/api/login", {"door": "studio", "role": "finance", "pin": "3245"})
+    code, payload, _ = _http(f"{base}/api/login", {"door": "studio", "role": "finance", "pin": "3245"})
+    dl_self = next((s for s in (payload.get("seats") or []) if s.get("role") == "finance"), None)
+    code, payload, headers = _http(
+        f"{base}/api/login",
+        {"door": "studio", "role": "finance", "pin": "3245", "seatId": (dl_self or {}).get("id")},
+    )
     cookie = headers.get("Set-Cookie") if hasattr(headers, "get") else None
-    check("finance login", code == 200 and payload.get("ok") is True and payload.get("session"), str(payload.get("error")))
+    sess = payload.get("session") or {}
+    check(
+        "finance login",
+        code == 200 and payload.get("ok") is True and sess.get("role") == "finance",
+        str(payload.get("error") or sess),
+    )
     check("login sets cookie", bool(cookie), str(cookie))
 
     code, payload, _ = _http(f"{base}/api/hours/file?month=2026-10")
