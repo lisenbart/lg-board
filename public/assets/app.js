@@ -613,16 +613,17 @@ function fmtDeskNum(n) {
 }
 function deskNumInput(cls, id, value, title) {
   return `<span class="num-step">
-      <input class="${cls}" data-id="${escapeHtml(id)}" type="text" inputmode="decimal" maxlength="4" lang="uk" value="${escapeHtml(fmtDeskNum(value))}" title="${escapeHtml(title)}" />
+      <input class="${cls}" data-id="${escapeHtml(id)}" type="text" inputmode="decimal" maxlength="6" lang="uk" value="${escapeHtml(fmtDeskNum(value))}" title="${escapeHtml(title)}" />
       <span class="num-step-btns">
-        <button type="button" class="num-step-up" tabindex="-1" aria-label="Up">▴</button>
-        <button type="button" class="num-step-down" tabindex="-1" aria-label="Down">▾</button>
+        <button type="button" class="num-step-up" tabindex="-1" aria-label="Up"></button>
+        <button type="button" class="num-step-down" tabindex="-1" aria-label="Down"></button>
       </span>
     </span>`;
 }
-function stepDeskNum(el, dir) {
+function stepDeskNum(el, dir, step) {
+  const size = Number(step) > 0 ? Number(step) : 1;
   const n = parseShifts(el.value) ?? 0;
-  const next = Math.max(0, Math.round((n + dir * 0.1) * 10) / 10);
+  const next = Math.max(0, Math.round((n + dir * size) * 10) / 10);
   el.value = fmtDeskNum(next);
 }
 function hoursOf(t) {
@@ -2739,7 +2740,7 @@ function renderBoard() {
 
   $("board").querySelectorAll(".row").forEach((el) => {
     el.addEventListener("click", (e) => {
-      if (e.target.closest("input,select,a,button,.col-splitter")) return;
+      if (e.target.closest("input,select,a,button,.num-step,.col-splitter")) return;
       openTask(el.dataset.id);
     });
   });
@@ -2757,29 +2758,53 @@ function renderBoard() {
   bindTimeEdits();
 }
 
-function bindNumStep(el, commit) {
+function bindNumStep(el, commit, step = 1) {
   const wrap = el.closest(".num-step");
-  const bump = (dir) => {
-    stepDeskNum(el, dir);
-    commit();
-  };
+  const bump = (dir) => stepDeskNum(el, dir, step);
   const hold = (btn, dir) => {
     if (!btn) return;
-    let timer = 0;
+    let delay = 0;
+    let repeat = 0;
+    let held = false;
+    const stop = () => {
+      window.clearTimeout(delay);
+      window.clearInterval(repeat);
+      delay = 0;
+      repeat = 0;
+    };
     const start = (e) => {
+      if (e.pointerType === "mouse" && e.button !== 0) return;
       e.preventDefault();
       e.stopPropagation();
+      stop();
+      held = true;
       bump(dir);
-      timer = window.setInterval(() => bump(dir), 110);
+      try {
+        btn.setPointerCapture(e.pointerId);
+      } catch (_) {}
+      delay = window.setTimeout(() => {
+        repeat = window.setInterval(() => bump(dir), 80);
+      }, 380);
     };
-    const stop = () => window.clearInterval(timer);
-    btn.addEventListener("mousedown", start);
-    btn.addEventListener("mouseup", stop);
-    btn.addEventListener("mouseleave", stop);
-    btn.addEventListener("click", (e) => e.stopPropagation());
+    const end = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!held) return;
+      held = false;
+      stop();
+      commit();
+    };
+    btn.addEventListener("pointerdown", start);
+    btn.addEventListener("pointerup", end);
+    btn.addEventListener("pointercancel", end);
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    });
   };
   hold(wrap?.querySelector(".num-step-up"), 1);
   hold(wrap?.querySelector(".num-step-down"), -1);
+  wrap?.addEventListener("pointerdown", (e) => e.stopPropagation());
   wrap?.addEventListener("click", (e) => e.stopPropagation());
   el.addEventListener("click", (e) => e.stopPropagation());
   el.addEventListener("keydown", (e) => {
@@ -2812,13 +2837,17 @@ function bindTimeEdits() {
       const hours = hoursFromShifts(shifts);
       const hint = el.closest(".time-edit")?.querySelector("small");
       if (hint) hint.textContent = hours ? hours + "h" : "—";
-      updateTask(t.id, {
-        shifts,
-        role: me().role,
-        note: `${me().name} set ${shifts} shifts → ${hours} h`,
-      });
+      updateTask(
+        t.id,
+        {
+          shifts,
+          role: me().role,
+          note: `${me().name} set ${shifts} shifts → ${hours} h`,
+        },
+        { quiet: true }
+      );
     };
-    bindNumStep(el, commit);
+    bindNumStep(el, commit, 0.1);
   });
   $("board").querySelectorAll(".hours-in").forEach((el) => {
     const commit = () => {
@@ -2831,13 +2860,17 @@ function bindTimeEdits() {
         return;
       }
       if (hours === Number(t.hours)) return;
-      updateTask(t.id, {
-        hours,
-        role: me().role,
-        note: `${me().name} set ${hours} billed hours`,
-      });
+      updateTask(
+        t.id,
+        {
+          hours,
+          role: me().role,
+          note: `${me().name} set ${hours} billed hours`,
+        },
+        { quiet: true }
+      );
     };
-    bindNumStep(el, commit);
+    bindNumStep(el, commit, 1);
   });
 }
 
@@ -4654,7 +4687,9 @@ async function updateTask(id, patch, opts = {}) {
     return;
   }
   applyState(out.state);
-  if (out.drive && out.drive.ok === false && patch.brief != null) {
+  if (opts.quiet) {
+    /* pipeline steppers save without a toast so the row stays put */
+  } else if (out.drive && out.drive.ok === false && patch.brief != null) {
     toast(out.drive.error || "Saved on the board, not on Drive");
   } else if (out.drive?.rename?.renamed) {
     toast("Renamed on the board, Drive folder, and brief Doc");

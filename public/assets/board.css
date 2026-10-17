@@ -590,7 +590,7 @@ button.kpi.on { border-color: var(--blue); box-shadow: 0 0 0 1px rgba(0,115,234,
 }
 .group.sheet {
   --name-width: 412px;
-  --meta-width: 640px;
+  --meta-width: 658px;
   position: relative;
   width: max(100%, calc(var(--name-width) + var(--meta-width)));
   min-width: max(100%, calc(var(--name-width) + var(--meta-width)));
@@ -665,21 +665,23 @@ button.kpi.on { border-color: var(--blue); box-shadow: 0 0 0 1px rgba(0,115,234,
 .due-late .due-bar b { background: #bb3354; }
 .due-closed .due-bar b { background: #00c875; }
 .due-none { color: var(--muted); }
-.time-edit { display: inline-flex; align-items: center; gap: 4px; }
+.time-edit { display: inline-flex; align-items: center; gap: 4px; overflow: visible; }
 .num-step {
   display: inline-flex;
   align-items: stretch;
+  height: 28px;
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: 6px;
   background: #fff;
   overflow: hidden;
+  vertical-align: middle;
 }
 .shift-in,
 .hours-in {
-  width: 4ch;
-  min-width: 4ch;
+  width: 5.5ch;
+  min-width: 5.5ch;
   border: 0;
-  padding: 2px 3px;
+  padding: 0 8px;
   background: transparent;
   font-size: 13px;
   font-variant-numeric: tabular-nums;
@@ -691,24 +693,49 @@ button.kpi.on { border-color: var(--blue); box-shadow: 0 0 0 1px rgba(0,115,234,
 .num-step-btns {
   display: flex;
   flex-direction: column;
-  width: 14px;
+  width: 22px;
+  flex-shrink: 0;
   border-left: 1px solid var(--line);
 }
 .num-step-up,
 .num-step-down {
+  position: relative;
   flex: 1;
   margin: 0;
   border: 0;
   padding: 0;
-  line-height: 1;
-  font-size: 8px;
-  color: #676879;
+  min-height: 13px;
+  line-height: 0;
+  font-size: 0;
+  color: transparent;
   background: #f4f5f8;
   cursor: pointer;
+  touch-action: manipulation;
 }
 .num-step-up { border-bottom: 1px solid var(--line); }
+.num-step-up::before,
+.num-step-down::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+}
+.num-step-up::before {
+  transform: translate(-50%, -45%);
+  border-bottom: 6px solid #676879;
+}
+.num-step-down::before {
+  transform: translate(-50%, -55%);
+  border-top: 6px solid #676879;
+}
 .num-step-up:hover,
-.num-step-down:hover { background: #e8ebf3; color: #323338; }
+.num-step-down:hover { background: #e8ebf3; }
+.num-step-up:hover::before { border-bottom-color: #323338; }
+.num-step-down:hover::before { border-top-color: #323338; }
 .time-edit small { color: var(--muted); font-size: 11px; white-space: nowrap; font-weight: 400; }
 .meta {
   flex: 0 0 var(--meta-width);
@@ -722,7 +749,7 @@ button.kpi.on { border-color: var(--blue); box-shadow: 0 0 0 1px rgba(0,115,234,
 }
 .cols.ops .meta, .row.ops .meta,
 .cols.exec .meta, .row.exec .meta {
-  grid-template-columns: 108px 154px 56px 64px 158px 72px;
+  grid-template-columns: 126px 154px 56px 64px 158px 72px;
 }
 .col-splitter {
   position: absolute;
@@ -817,6 +844,7 @@ body.col-resizing * { cursor: col-resize !important; }
 .row.tone-build:hover, .row.tone-build:hover .frozen, .row.tone-build:hover .meta { background: #ffefc9; }
 .row.tone-htmlready:hover, .row.tone-htmlready:hover .frozen, .row.tone-htmlready:hover .meta { background: #e3f7ec; }
 .cell { padding: 2px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 400; }
+.row .meta > .cell:first-child { overflow: visible; }
 .name { font-weight: 400; }
 .pill {
   display: inline-flex; align-items: center; border-radius: 4px;
@@ -1820,10 +1848,10 @@ body.col-resizing * { cursor: col-resize !important; }
   .sidebar { display: none; }
   .top-end { width: 100%; justify-content: flex-end; }
   .team-row { grid-template-columns: 1fr; }
-  .group.sheet { --meta-width: 608px; }
+  .group.sheet { --meta-width: 626px; }
   .cols.ops .meta, .row.ops .meta,
   .cols.exec .meta, .row.exec .meta {
-    grid-template-columns: 108px 140px 56px 64px 140px 72px;
+    grid-template-columns: 126px 140px 56px 64px 140px 72px;
   }
   .hide-sm { display: none !important; }
   .search { min-width: 0; width: 100%; margin-left: 0; }

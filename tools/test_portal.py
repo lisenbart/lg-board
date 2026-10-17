@@ -505,9 +505,10 @@ def test_playables_desk() -> None:
         check("hours report is two direction sheets", "sp-sheet-${kind}" in js and 'sheetHtml("mgx"' in js and 'sheetHtml("play"' in js)
         check("hours KPIs filter a direction", 'data-hours-dir="' in js and "state.hoursDir" in js)
         check("hours totals use WIP blue", ".sp-dir-total td {" in css and "background: var(--wip)" in css)
-        check("pipeline hours cell is 4ch", ".hours-in {" in css and "4ch" in css)
+        check("pipeline hours cell is 5.5ch", ".hours-in {" in css and "5.5ch" in css)
         check("pipeline hours input takes a comma", 'deskNumInput("hours-in"' in js and 'type="text"' in js and "fmtDeskNum" in js)
         check("pipeline hours has step arrows", "num-step-up" in js and "num-step-down" in css)
+        check("hours arrows save on pointerup not mousedown", "pointerup" in js and "pointerdown" in js and 'bindNumStep(el, commit, 1)' in js)
         check(
             "chrome drops slogan copy",
             "studio money" not in js
