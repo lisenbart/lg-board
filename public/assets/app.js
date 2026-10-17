@@ -688,6 +688,25 @@ function helpedOn(t, personId) {
 function canEditHelp() {
   return canAssign() || canOps();
 }
+function canEditPlayableCrew() {
+  return canOps();
+}
+function playableCrewTotal(t) {
+  const artH = roundHours(t?.assigneeHours) || hoursOwned(t);
+  const helpH = helpHoursTotal(t);
+  const progH = roundHours(t?.programmerHours);
+  const motionH = roundHours(t?.motionHours);
+  return roundHours(artH + helpH + progH + motionH);
+}
+function playableCardMeta(t) {
+  const crew = playableCrewTotal(t);
+  const billed = hoursOf(t);
+  const mineH = hoursForPerson(t, me().id);
+  if (isFinance()) return `${billed || 0} h billed · ${crew || 0} h crew`;
+  if (canOps()) return crew ? `${crew} h crew` : "";
+  if (mineH) return `${mineH} h yours`;
+  return "";
+}
 function usd(n) {
   return `$${(Number(n) || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
@@ -3993,46 +4012,36 @@ function helpPersonOptions(t, selectedId, assigneeId, fromTask) {
     )
     .join("");
 }
+function playableSplitOptions(t, selected, leadId) {
+  const lead = leadId !== undefined ? leadId : t.assigneeId;
+  return artDirectors()
+    .filter((p) => p.id !== lead)
+    .map(
+      (p) =>
+        `<option value="${p.id}" ${selected === p.id ? "selected" : ""}>${escapeHtml(p.name)} · AD</option>`
+    )
+    .join("");
+}
 function playableHoursHtml(t, editable) {
   const billed = hoursOf(t);
   const artH = roundHours(t.assigneeHours) || hoursOwned(t);
   const help = helpEntries(t);
   const progH = roundHours(t.programmerHours);
-  const producer = roundHours(artH + help.reduce((s, row) => s + row.hours, 0) + progH);
-  const buffer = Math.max(0, roundHours(billed - producer));
-  const ads = artDirectors();
+  const crew = roundHours(artH + help.reduce((s, row) => s + row.hours, 0) + progH);
+  const buffer = Math.max(0, roundHours(billed - crew));
   const devs = programmers();
+  const mine = t.assigneeId === me().id || t.programmerId === me().id || helpedOn(t, me().id);
   if (!editable && !t.assigneeId && !t.programmerId && !help.length) return "";
-  const adSelect = (id, selected) =>
-    `<select id="${id}">
-      <option value="">— lead AD</option>
-      ${ads
-        .map(
-          (p) =>
-            `<option value="${p.id}" ${selected === p.id ? "selected" : ""}>${escapeHtml(p.name)} · AD</option>`
-        )
-        .join("")}
-    </select>`;
-  const splitSelect = (selected) =>
-    `<select id="stSplitAd">
-      <option value="">— no split</option>
-      ${ads
-        .filter((p) => p.id !== t.assigneeId)
-        .map(
-          (p) =>
-            `<option value="${p.id}" ${selected === p.id ? "selected" : ""}>${escapeHtml(p.name)} · AD</option>`
-        )
-        .join("")}
-    </select>`;
+  if (!editable && isPerformer() && !mine) return "";
   const split = help[0] || {};
   const body = editable
-    ? `<div class="ops-item"><label>Billed hours</label>
-        <input id="stHours" type="number" min="0" step="0.1" value="${t.hours ?? ""}" />
-        <p class="status-hint">Client $40/h. Buffer stays studio.</p></div>
-       <div class="ops-item"><label>Lead AD hours</label>
+    ? `<div class="ops-item"><label>Lead AD hours</label>
         <input id="stAdHours" type="number" min="0" step="0.1" value="${artH || ""}" /></div>
        <div class="ops-item"><label>Split AD</label>
-        ${splitSelect(split.id || "")}
+        <select id="stSplitAd">
+          <option value="">— no split</option>
+          ${playableSplitOptions(t, split.id || "")}
+        </select>
         <input id="stSplitHours" type="number" min="0" step="0.1" value="${split.hours || ""}" /></div>
        <div class="ops-item"><label>Programmer</label>
         <select id="stProgrammer">
@@ -4047,14 +4056,53 @@ function playableHoursHtml(t, editable) {
         <input id="stProgHours" type="number" min="0" step="0.1" value="${progH || ""}" /></div>`
     : `<p class="status-hint">Lead ${escapeHtml(person(t.assigneeId)?.name || "—")} ${artH || 0}h
         ${split.id ? ` · split ${escapeHtml(person(split.id)?.name || "")} ${split.hours}h` : ""}
-        ${t.programmerId ? ` · DEV ${escapeHtml(person(t.programmerId)?.name || "")} ${progH || 0}h` : ""}</p>`;
-  return `<section class="help-split">
-      <label>Playable hours</label>
-      <p class="status-hint">Producer pay is art + DEV. Billed may include a studio buffer. LP $7 is on producer hours only.</p>
-      ${body}
-      <div class="help-owner"><span>Producer</span><b id="playProducer">${producer}h</b></div>
+        ${t.programmerId ? ` · DEV ${escapeHtml(person(t.programmerId)?.name || "")} ${progH || 0}h` : ""}
+        ${mine && hoursForPerson(t, me().id) ? ` · you ${hoursForPerson(t, me().id)}h` : ""}</p>`;
+  const financeStrip = isFinance()
+    ? `<section class="help-split play-finance">
+      <label>Studio</label>
+      <div class="ops-item"><label>Billed hours</label>
+        <input id="stHours" type="number" min="0" step="0.1" value="${t.hours ?? ""}" /></div>
       <div class="help-owner"><span>Studio buffer</span><b id="playBuffer">${buffer}h</b></div>
-    </section>`;
+    </section>`
+    : "";
+  return `<section class="help-split">
+      <label>Hours split</label>
+      ${body}
+      <div class="help-owner"><span>Crew</span><b id="playCrew">${crew}h</b></div>
+    </section>${financeStrip}`;
+}
+function readPlayableCrewFromCard() {
+  const artH = roundHours(String($("stAdHours")?.value || "").replace(",", "."));
+  const splitH = roundHours(String($("stSplitHours")?.value || "").replace(",", "."));
+  const progH = roundHours(String($("stProgHours")?.value || "").replace(",", "."));
+  return roundHours(artH + splitH + progH);
+}
+function refreshPlayableCrew(t) {
+  const crewEl = $("playCrew");
+  const crew = readPlayableCrewFromCard();
+  if (crewEl) crewEl.textContent = `${crew}h`;
+  const buffer = $("playBuffer");
+  if (buffer) {
+    const billed = $("stHours") ? parseShifts($("stHours").value) ?? hoursOf(t) : hoursOf(t);
+    buffer.textContent = `${Math.max(0, roundHours(billed - crew))}h`;
+  }
+}
+function bindPlayableCrew(t) {
+  if (!canEditPlayableCrew()) return;
+  const paint = () => refreshPlayableCrew(t);
+  ["stAdHours", "stSplitHours", "stProgHours", "stHours"].forEach((id) => {
+    $(id)?.addEventListener("input", paint);
+  });
+  $("stPerson")?.addEventListener("change", () => {
+    const lead = $("stPerson")?.value || "";
+    const sel = $("stSplitAd");
+    if (!sel) return;
+    const keep = sel.value === lead ? "" : sel.value;
+    sel.innerHTML = `<option value="">— no split</option>${playableSplitOptions(t, keep, lead)}`;
+    if (keep && [...sel.options].some((o) => o.value === keep)) sel.value = keep;
+    paint();
+  });
 }
 function helpSplitHtml(t, editable) {
   const total = hoursOf(t);
@@ -4229,7 +4277,7 @@ function openTask(id) {
           : `<h2>${escapeHtml(t.name)}</h2>`
       }
     </div>
-    <div class="meta"><span class="pill line-${t.line}">${t.line}</span> ${play ? `${t.hours || 0} h billed` : `${t.shifts || 0} shift · ${t.hours || 0} h`} · <span id="stMetaStatus" class="pill ${st.cls}">${st.label}</span></div>
+    <div class="meta"><span class="pill line-${t.line}">${t.line}</span> ${play ? (playableCardMeta(t) ? `${playableCardMeta(t)} · ` : "") : `${t.shifts || 0} shift · ${t.hours || 0} h · `}<span id="stMetaStatus" class="pill ${st.cls}">${st.label}</span></div>
     <div class="drawer-body">
     <div class="card-job tone-${job.tone}">
       ${jobBadgeHtml(me())}
@@ -4243,7 +4291,7 @@ function openTask(id) {
     ${notesHtml(t)}
     ${sourceBlock || resultBlock ? `<div class="io-stack">${sourceBlock}${resultBlock}</div>` : ""}
     ${whoBlock}
-    ${play ? (isFinance() ? playableHoursHtml(t, true) : "") : helpSplitHtml(t, canEditHelp())}
+    ${play ? playableHoursHtml(t, canEditPlayableCrew()) : helpSplitHtml(t, canEditHelp())}
     ${opsTime ? `<div class="card-ops">${opsTime}</div>` : ""}
     </div>
     <div class="drawer-actions">
@@ -4538,8 +4586,8 @@ function openTask(id) {
     const assigneeId = canAssign() && $("stPerson") ? $("stPerson").value : t.assigneeId;
     const patch = { studioStatus, role: me().role };
     if (canAssign()) patch.assigneeId = assigneeId;
-    if (isPlayables(t) && isFinance() && $("stAdHours")) {
-      if ($("stHours")) {
+    if (isPlayables(t) && canEditPlayableCrew() && $("stAdHours")) {
+      if (isFinance() && $("stHours")) {
         const hours = parseShifts($("stHours").value);
         if (hours === null) {
           toast("Hours must be 0 or more");
@@ -4660,7 +4708,8 @@ function openTask(id) {
       { close: true }
     );
   });
-  if (!isPlayables(t)) bindHelpSplit(t);
+  if (isPlayables(t)) bindPlayableCrew(t);
+  else bindHelpSplit(t);
   $("ensureDrive")?.addEventListener("click", () => retryDrivePack(t));
   fillDrivePackIfMissing(t);
   $("copyOne")?.addEventListener("click", async () => {

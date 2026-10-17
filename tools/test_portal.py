@@ -526,8 +526,19 @@ def test_playables_desk() -> None:
         dl_view = auth_io.view_state(scratch, {"role": "finance", "email": "dmytro@lisenbart.games"})
         dl_dice = next((t for t in (dl_view.get("tasks") or []) if "MemoryDice" in (t.get("name") or "")), None)
         check("DL view keeps producerHours", bool(dl_dice and dl_dice.get("producerHours")))
+        lp_view = auth_io.view_state(scratch, {"role": "manager", "email": "anastasiia@lisenbart.games"})
+        lp_dice = next((t for t in (lp_view.get("tasks") or []) if "MemoryDice" in (t.get("name") or "")), None)
+        check("LP view keeps assigneeHours", bool(lp_dice and lp_dice.get("assigneeHours")))
+        check("LP view hides producerHours", lp_dice is not None and "producerHours" not in lp_dice)
         js = (ROOT / "public" / "assets" / "app.js").read_text(encoding="utf-8")
-        check("PLAYABLE HOURS card is finance only", "isFinance() ? playableHoursHtml" in js)
+        check("LP edits playable crew hours", "playableHoursHtml(t, canEditPlayableCrew())" in js)
+        check("billed buffer is DL only", "const financeStrip = isFinance()" in js and "Studio buffer" in js)
+        py = (ROOT / "server.py").read_text(encoding="utf-8")
+        check(
+            "playable crew save allows LP",
+            'role not in {"finance", "manager", "teamlead"}' in py
+            and 'playable and role != "finance"' in py,
+        )
         css = (ROOT / "public" / "assets" / "board.css").read_text(encoding="utf-8")
         check("DS line is not Need Fixing burgundy", ".line-DS { background: #0d9488" in css and ".line-DS { background: #bb3354" not in css)
         check("client hours report splits MGX and Playable totals", "MGX TOTAL" in js and "Playable TOTAL" in js)

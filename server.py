@@ -30,7 +30,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-17p"
+BUILD = "2026-10-17q"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -2393,10 +2393,12 @@ class Handler(SimpleHTTPRequestHandler):
                         task.setdefault("activity", []).append(
                             {"at": utc_now(), "text": f"Renamed {old_name} → {new_name}"}
                         )
-                if playable and role != "finance":
+                if playable and role not in {"finance", "manager", "teamlead"}:
                     for key in ("assigneeHours", "programmerHours", "motionHours", "producerHours"):
                         data.pop(key, None)
                     data.pop("help", None)
+                elif playable and role != "finance":
+                    data.pop("producerHours", None)
                 brief_before = task.get("brief")
                 for key in (
                     "studioStatus",
@@ -2449,6 +2451,12 @@ class Handler(SimpleHTTPRequestHandler):
                     }
                 excel_io.normalize_help(task, crew_ids)
                 if playable:
+                    art = excel_io.round_hours(task.get("assigneeHours"))
+                    help_h = sum(row["hours"] for row in excel_io.help_entries(task))
+                    prog = excel_io.round_hours(task.get("programmerHours"))
+                    motion = excel_io.round_hours(task.get("motionHours"))
+                    task["producerHours"] = round(art + help_h + prog + motion, 1)
+                if playable:
                     st = task.get("studioStatus")
                     if st in direction_io.PLAY_STATUS:
                         task["mondayStatus"] = direction_io.PLAY_STATUS[st]
@@ -2468,7 +2476,18 @@ class Handler(SimpleHTTPRequestHandler):
                 if note:
                     task.setdefault("activity", []).append({"at": utc_now(), "text": note})
                 notice_io.on_task_change(db, task, before, data.get("actorId") or "")
-                money = "assigneeId" in data or "shifts" in data or "help" in data
+                money = any(
+                    key in data
+                    for key in (
+                        "assigneeId",
+                        "shifts",
+                        "hours",
+                        "help",
+                        "assigneeHours",
+                        "programmerId",
+                        "programmerHours",
+                    )
+                )
                 save_db(db)
                 self._json(
                     200,
