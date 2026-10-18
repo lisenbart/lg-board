@@ -892,18 +892,18 @@ def test_playables_desk() -> None:
             client_formula = str(ws.cell(row_n, client_col).value or "") if client_col else ""
             wb.close()
             check(
-                "Playables calculator billed hours include buffer",
-                abs(float(hours or 0) - 30) < 0.05,
+                "Playables calculator HOURS are crew without buffer",
+                abs(float(hours or 0) - 29) < 0.05,
                 str(hours),
             )
             check(
-                "Playables calculator LP pay is crew not buffer",
-                lp_formula.replace(" ", "") in {"=29*7", "=29.0*7"},
+                "Playables calculator LP pay is HOURS cell × rate",
+                lp_formula.replace(" ", "") == f"=D{row_n}*7",
                 lp_formula,
             )
             check(
-                "Playables calculator CLIENT IN is $40",
-                "*40" in client_formula.replace(" ", ""),
+                "Playables calculator CLIENT IN is HOURS cell × $40",
+                client_formula.replace(" ", "") == f"=D{row_n}*40",
                 client_formula,
             )
             check(

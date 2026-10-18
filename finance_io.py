@@ -926,29 +926,32 @@ def _write_playable_month_body(db, ym, path, wb, nbu_rate) -> Path:
         ws.cell(row, 1).fill = LINE_FILL.get(line, HEADER_FILL)
 
     def write_task(row: int, task: dict) -> None:
-        billed = playables_io.billed_hours(task)
-        producer = playables_io.producer_hours(task)
+        crew_h = playables_io.crew_hours(task)
         ws.cell(row, 2, task.get("name") or "")
         ws.cell(row, 3, None)
-        ws.cell(row, 4, billed if billed else None)
+        ws.cell(row, 4, crew_h if crew_h else None)
+        hours_ref = f"D{row}"
         for i, person in enumerate(crew):
             cell = ws.cell(row, empl_start + i)
             rate = person_rate(person, meta=meta, direction=direction_io.PLAYABLES)
             if person.get("role") == "manager":
-                cell.value = f"={producer:g}*{rate:g}"
+                cell.value = f"={hours_ref}*{rate:g}"
                 on_row = True
             else:
                 share = excel_io.hours_for_person(task, person["id"])
                 on_row = share > 0
                 if share > 0:
-                    cell.value = f"={share:g}*{rate:g}"
+                    if crew_h and abs(share - crew_h) < 0.05:
+                        cell.value = f"={hours_ref}*{rate:g}"
+                    else:
+                        cell.value = f"={share:g}*{rate:g}"
             if on_row:
                 raw = (person.get("color") or "92D050").replace("#", "")
                 cell.fill = PatternFill("solid", fgColor=raw[:6] or "92D050")
         last_empl = get_column_letter(empl_start + n_empl - 1)
         first_empl = get_column_letter(empl_start)
         ws.cell(row, total_empl_col, f"=SUM({first_empl}{row}:{last_empl}{row})")
-        ws.cell(row, client_col, f"=D{row}*{client_rate:g}")
+        ws.cell(row, client_col, f"={hours_ref}*{client_rate:g}")
         _style_row(ws, row, client_col)
 
     r = 5
