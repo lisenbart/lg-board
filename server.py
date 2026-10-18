@@ -30,7 +30,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-18u"
+BUILD = "2026-10-18v"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -1272,6 +1272,12 @@ class Handler(SimpleHTTPRequestHandler):
     def _session(self) -> dict | None:
         return auth_io.session_of(self._token())
 
+    def _peer_ip(self) -> str:
+        forwarded = (self.headers.get("X-Forwarded-For") or "").split(",")[0].strip()
+        if forwarded:
+            return forwarded
+        return str((self.client_address or ("",))[0] or "")
+
     def _bind_actor(self, data: dict, sess: dict) -> dict:
         data = dict(data or {})
         data["role"] = sess.get("role") or ""
@@ -1634,10 +1640,6 @@ class Handler(SimpleHTTPRequestHandler):
             pin = str(data.get("pin") or "")
             door = str(data.get("door") or "")
             if door == "client":
-                email = auth_io.resolve_email(data.get("email") or "")
-                if email not in {auth_io.CLIENT_EMAIL, "superplay@lg-board"}:
-                    self._json(403, {"error": "wrong login or PIN"})
-                    return
                 if not auth_io.pin_ok_for_role("client", pin) and not auth_io.pin_ok(
                     auth_io.CLIENT_EMAIL, pin
                 ):
@@ -1660,15 +1662,6 @@ class Handler(SimpleHTTPRequestHandler):
                 email = auth_io.resolve_email(data.get("email") or "")
                 seat = None
                 if door == "client":
-                    email = auth_io.resolve_email(data.get("email") or "")
-                    if email not in {auth_io.CLIENT_EMAIL, "superplay@lg-board"}:
-                        self._json(403, {"error": "wrong login or PIN"})
-                        return
-                    if not auth_io.pin_ok_for_role("client", pin) and not auth_io.pin_ok(
-                        auth_io.CLIENT_EMAIL, pin
-                    ):
-                        self._json(403, {"error": "wrong login or PIN"})
-                        return
                     email = auth_io.CLIENT_EMAIL
                     person = next((p for p in people if p.get("role") == "client"), None)
                     if not person:
@@ -1711,6 +1704,12 @@ class Handler(SimpleHTTPRequestHandler):
                     return
                 token = auth_io.create_session(email, seat)
                 sess = auth_io.session_of(token)
+                if str(seat.get("role") or "") == "client":
+                    auth_io.record_client_visit(
+                        login=str(data.get("email") or ""),
+                        ip=self._peer_ip(),
+                        ua=self.headers.get("User-Agent") or "",
+                    )
                 cookie = auth_io.cookie_header(token, secure=self._cookie_secure())
                 payload = {
                     "ok": True,

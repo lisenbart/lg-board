@@ -1783,6 +1783,34 @@ a.pack-work:hover { background: #e2e4ec; }
 .sp-kpis .sp-stamp { min-width: 132px; }
 .sp-download { padding: 4px 0 8px; }
 .sp-download .btn { padding: 8px 16px; }
+.sp-visits {
+  margin-top: 8px;
+  padding-top: 16px;
+  border-top: 1px solid #e4eaf1;
+}
+.sp-visits h3 { margin: 0 0 4px; font-size: 14px; font-weight: 600; }
+.sp-visits p { margin: 0 0 10px; color: var(--muted); font-size: 12px; }
+.sp-visits-empty { color: var(--muted); }
+.sp-visits-scroll { overflow: auto; max-height: 280px; border: 1px solid #dce4ee; background: #fff; }
+.sp-visits-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.sp-visits-table th, .sp-visits-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid #eef2f7;
+  text-align: left;
+  white-space: nowrap;
+}
+.sp-visits-table th {
+  background: #f4f7fb;
+  font-weight: 600;
+  color: var(--muted);
+  position: sticky;
+  top: 0;
+}
+.sp-visits-table td:nth-child(2) { font-weight: 500; }
 .sp-blocks {
   display: flex;
   flex-direction: column;
@@ -1804,6 +1832,7 @@ a.pack-work:hover { background: #e2e4ec; }
   font-size: 13px;
 }
 .sp-table col.sp-col-name { width: auto; }
+.sp-table col.sp-col-st { width: 5.6rem; }
 .sp-table col.sp-col-num { width: 6.5rem; }
 .sp-table th, .sp-table td {
   border: 1px solid #dce4ee;
@@ -1833,6 +1862,19 @@ a.pack-work:hover { background: #e2e4ec; }
   text-align: center;
   font-variant-numeric: tabular-nums;
   width: 6.5rem;
+}
+.sp-table .sp-st {
+  text-align: center;
+  width: 5.6rem;
+  white-space: nowrap;
+}
+.sp-table td.sp-st {
+  padding: 3px 6px;
+}
+.sp-table .sp-st .notice-chip {
+  margin: 0;
+  font-size: 11px;
+  padding: 2px 7px;
 }
 .sp-table .sp-sum-h {
   background: var(--sp-head);

@@ -375,7 +375,9 @@ function showDoorForm(door, error) {
   $("loginTitle").hidden = false;
   $("loginLead").hidden = false;
   $("loginTitle").textContent = isHoursPage() ? "SuperPlay" : "Client";
-  $("loginLead").textContent = isHoursPage() ? "Your projects this month." : "Hours for your projects.";
+  $("loginLead").textContent = isHoursPage()
+    ? "Type your name, then the SuperPlay PIN."
+    : "Type your name, then the PIN.";
   document.title = isHoursPage() ? "SuperPlay — Lisenbart Board" : "Client — Lisenbart Board";
   $("loginAccounts").innerHTML = `
     <form id="loginForm" class="login-form">
@@ -2558,6 +2560,60 @@ function reportDirBlock(sections, dir) {
   return { rows, hours, shifts };
 }
 
+function kyivVisitStamp(iso) {
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return "—";
+  const fmt = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/Kyiv",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  const parts = Object.fromEntries(fmt.formatToParts(at).map((p) => [p.type, p.value]));
+  return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute} (Kyiv)`;
+}
+function uaLabel(ua) {
+  const s = String(ua || "");
+  if (/Edg\//i.test(s)) return "Edge";
+  if (/Chrome\//i.test(s) && !/Edg\//i.test(s)) return "Chrome";
+  if (/Firefox\//i.test(s)) return "Firefox";
+  if (/Safari\//i.test(s) && !/Chrome/i.test(s)) return "Safari";
+  return s.slice(0, 28) || "—";
+}
+function superplayVisitsHtml() {
+  const rows = Array.isArray(state.db?.superplayVisits) ? state.db.superplayVisits : [];
+  if (!rows.length) {
+    return `<section class="sp-visits">
+      <h3>Sign-ins</h3>
+      <p>Each SuperPlay PIN sign-in. Shared PIN — the name is whatever they typed in Login.</p>
+      <p class="sp-visits-empty">No SuperPlay sign-ins yet.</p>
+    </section>`;
+  }
+  const body = rows
+    .map(
+      (row) => `<tr>
+        <td>${escapeHtml(kyivVisitStamp(row.at))}</td>
+        <td>${escapeHtml(row.login || "SuperPlay")}</td>
+        <td>${escapeHtml(row.ip || "—")}</td>
+        <td title="${escapeHtml(row.ua || "")}">${escapeHtml(uaLabel(row.ua))}</td>
+      </tr>`
+    )
+    .join("");
+  return `<section class="sp-visits">
+      <h3>Sign-ins · ${rows.length}</h3>
+      <p>Each SuperPlay PIN sign-in. Shared PIN — the name is whatever they typed in Login.</p>
+      <div class="sp-visits-scroll">
+        <table class="sp-visits-table">
+          <thead><tr><th>When</th><th>Login</th><th>IP</th><th>Browser</th></tr></thead>
+          <tbody>${body}</tbody>
+        </table>
+      </div>
+    </section>`;
+}
+
 function hoursKpiHtml(value, label, dir) {
   const on = dir ? state.hoursDir === dir : !state.hoursDir;
   const key = dir || "";
@@ -2593,6 +2649,7 @@ function renderClientReport() {
       .map(
         (t) => `<tr class="sp-row">
             <td class="sp-name" title="${escapeHtml(t.name)}">${escapeHtml(t.name)}</td>
+            <td class="sp-st">${statusChip(t)}</td>
             <td class="sp-num">${fmtReportNum(t.shifts, 3)}</td>
             <td class="sp-num">${fmtReportNum(hoursOf(t), 1)}</td>
             <td class="sp-num"></td>
@@ -2601,6 +2658,7 @@ function renderClientReport() {
       .join("");
     return `<tr class="sp-sec">
           <th class="sp-name">${escapeHtml(sec.label)}</th>
+          <th class="sp-st"></th>
           <th class="sp-num"></th>
           <th class="sp-num"></th>
           <th class="sp-num sp-sec-sum">${fmtReportNum(sec.hours, 1)}</th>
@@ -2609,6 +2667,7 @@ function renderClientReport() {
   const dirTotalRow = (label, block) =>
     `<tr class="sp-dir-total">
             <td class="sp-name">${escapeHtml(label)}</td>
+            <td class="sp-st"></td>
             <td class="sp-num">${fmtReportNum(block.shifts, 1)}</td>
             <td class="sp-num sp-hours">${fmtReportNum(block.hours, 1)}</td>
             <td class="sp-num sp-hours">${fmtReportNum(block.hours, 1)}</td>
@@ -2619,6 +2678,7 @@ function renderClientReport() {
           <table class="sp-table">
             <colgroup>
               <col class="sp-col-name" />
+              <col class="sp-col-st" />
               <col class="sp-col-num" />
               <col class="sp-col-num" />
               <col class="sp-col-num" />
@@ -2626,6 +2686,7 @@ function renderClientReport() {
             <thead>
               <tr>
                 <th class="sp-name">${escapeHtml(year)} PROJECT NAME</th>
+                <th class="sp-st">STATUS</th>
                 <th class="sp-num">SHIFTS</th>
                 <th class="sp-num">HOURS</th>
                 <th class="sp-num sp-sum-h"></th>
@@ -2656,6 +2717,7 @@ function renderClientReport() {
       <div class="sp-download">
         <button type="button" class="btn green" id="btnHoursXlsx">Download Excel</button>
       </div>
+      ${isFinance() ? superplayVisitsHtml() : ""}
     </section>`;
   $("board").querySelectorAll("[data-hours-dir]").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -2973,8 +3035,9 @@ function renderGuide() {
           "Клієнт. Своя сторінка годин, без черги студії.",
           [
             `Адреса студії ${ui("board.lisenbart.games")}. Кнопка ${ui("Client")} → логін + PIN. Після входу — ${ui("SuperPlay")}.`,
-            `Можна кинути пряме посилання ${ui("/superplay")}. Старе ${ui("/hours")} туди ж. Список як у інвойсі: ${ui("PROJECT NAME")} / ${ui("SHIFTS")} / ${ui("HOURS")}.`,
-            `Секції ${ui("MGX")} і ${ui("Playable")} (DX / DD / DS), ${ui("TOTAL")} знизу. Імен виконавців, ставок і карток немає.`,
+            `Можна кинути пряме посилання ${ui("/superplay")}. Старе ${ui("/hours")} туди ж. Список: ${ui("PROJECT NAME")} / ${ui("STATUS")} / ${ui("SHIFTS")} / ${ui("HOURS")}.`,
+            `У ${ui("Login")} можна написати ім’я — PIN спільний. ${ui("DL")} бачить журнал входів (час Київ, Login, IP, браузер).`,
+            `Секції ${ui("MGX")} і ${ui("Playable")} (DX / DD / DS), статус як на пайплайні, ${ui("TOTAL")} знизу. Імен виконавців, ставок і карток немає.`,
           ]
         )}
       </div>

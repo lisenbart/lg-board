@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import re
 import secrets
+import threading
 from datetime import datetime, timezone
 from http.cookies import SimpleCookie
 from pathlib import Path
@@ -15,6 +16,9 @@ DATA = ROOT / "data"
 SECRETS = DATA / "secrets"
 PINS_PATH = SECRETS / "pins.json"
 SESSIONS_PATH = SECRETS / "sessions.json"
+VISITS_PATH = SECRETS / "superplay_visits.json"
+MAX_VISITS = 400
+_VISITS_LOCK = threading.Lock()
 
 COOKIE = "lg"
 MAX_SESSIONS = 200
@@ -588,6 +592,44 @@ def token_from_header(cookie_header_value: str) -> str:
     return (morsel.value if morsel else "") or ""
 
 
+def record_client_visit(*, login: str = "", ip: str = "", ua: str = "") -> None:
+    row = {
+        "at": utc_now(),
+        "login": " ".join(str(login or "").split())[:80] or "SuperPlay",
+        "ip": str(ip or "").strip()[:80],
+        "ua": str(ua or "").strip()[:180],
+    }
+    try:
+        with _VISITS_LOCK:
+            rows = _load_json(VISITS_PATH, [])
+            if not isinstance(rows, list):
+                rows = []
+            rows.insert(0, row)
+            _save_json(VISITS_PATH, rows[:MAX_VISITS])
+    except OSError:
+        return
+
+
+def client_visits() -> list:
+    with _VISITS_LOCK:
+        rows = _load_json(VISITS_PATH, [])
+    if not isinstance(rows, list):
+        return []
+    out = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        out.append(
+            {
+                "at": str(row.get("at") or ""),
+                "login": str(row.get("login") or "SuperPlay"),
+                "ip": str(row.get("ip") or ""),
+                "ua": str(row.get("ua") or ""),
+            }
+        )
+    return out
+
+
 def client_state(db: dict) -> dict:
     meta = db.get("meta") or {}
     return {
@@ -612,6 +654,7 @@ def client_state(db: dict) -> dict:
                 "month": t.get("month"),
                 "shifts": t.get("shifts"),
                 "hours": t.get("hours"),
+                "studioStatus": t.get("studioStatus") or "new",
             }
             for t in db.get("tasks") or []
         ],
@@ -628,7 +671,9 @@ def view_state(db: dict, sess: dict | None) -> dict:
     if sess.get("role") == "client" or sess.get("email") == CLIENT_EMAIL:
         return client_state(db)
     if sess.get("role") == "finance":
-        return attach_pins(db)
+        out = attach_pins(db)
+        out["superplayVisits"] = client_visits()
+        return out
     people = []
     for person in db.get("people") or []:
         row = {key: val for key, val in person.items() if key not in PAY_PEOPLE_KEYS}

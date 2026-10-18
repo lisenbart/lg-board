@@ -1295,6 +1295,62 @@ def test_card_folder_buttons() -> None:
     )
 
 
+def test_superplay_visits_and_status() -> None:
+    db = {
+        "meta": {"month": "2026-10", "clientRateUsd": 35},
+        "people": [
+            {"id": "client", "name": "SuperPlay", "role": "client"},
+            {"id": "finance", "name": "Dmytro", "role": "finance", "iban": "UA1"},
+        ],
+        "tasks": [
+            {
+                "id": "t-1",
+                "name": "DD-A",
+                "line": "DD",
+                "month": "2026-10",
+                "hours": 9,
+                "studioStatus": "wip",
+                "assigneeId": "md",
+                "brief": "secret",
+            }
+        ],
+        "events": [{"text": "nope"}],
+    }
+    client = auth_io.client_state(db)
+    task = (client.get("tasks") or [{}])[0]
+    check("client hours carry studio status", task.get("studioStatus") == "wip")
+    check("client hours hide assignee and brief", "assigneeId" not in task and "brief" not in task)
+    check("client state has no visit log", "superplayVisits" not in client)
+    fin = auth_io.view_state(db, {"role": "finance", "email": "dmytro@lisenbart.games"})
+    check("finance state has visit log", isinstance(fin.get("superplayVisits"), list))
+    check("finance visit log is not written into db", "superplayVisits" not in db)
+    prev = auth_io.VISITS_PATH
+    tmp = Path(tempfile.mkdtemp()) / "visits.json"
+    auth_io.VISITS_PATH = tmp
+    try:
+        auth_io.record_client_visit(login="Olena", ip="10.0.0.8", ua="Mozilla/5.0 Chrome/120.0")
+        rows = auth_io.client_visits()
+        check(
+            "sign-in log keeps login and ip",
+            bool(rows) and rows[0].get("login") == "Olena" and rows[0].get("ip") == "10.0.0.8",
+            str(rows[:1]),
+        )
+        check("sign-in log has a timestamp", bool((rows or [{}])[0].get("at")))
+    finally:
+        auth_io.VISITS_PATH = prev
+    js = (ROOT / "public" / "assets" / "app.js").read_text(encoding="utf-8")
+    py = (ROOT / "server.py").read_text(encoding="utf-8")
+    check("SuperPlay table has STATUS", ">STATUS</th>" in js and "${statusChip(t)}" in js)
+    check(
+        "DL SuperPlay tab shows sign-ins",
+        "function superplayVisitsHtml" in js and "isFinance() ? superplayVisitsHtml()" in js,
+    )
+    check(
+        "SuperPlay Login is a name, PIN is the key",
+        'if email not in {auth_io.CLIENT_EMAIL, "superplay@lg-board"}:' not in py,
+    )
+
+
 def test_lp_can_close_without_send() -> None:
     src = (ROOT / "server.py").read_text(encoding="utf-8")
     js = (ROOT / "public" / "assets" / "app.js").read_text(encoding="utf-8")
@@ -1831,6 +1887,50 @@ def test_http(base: str) -> str | None:
     code, payload, _ = _http(f"{base}/api/hours/file?month=2026-10")
     check("hours xlsx requires sign in", code == 401)
 
+    code, payload, _ = _http(f"{base}/api/login", {"door": "client", "email": "Olena-test", "pin": "0000"})
+    check("SuperPlay wrong PIN is 403", code == 403, str(payload))
+
+    code, payload, headers = _http(
+        f"{base}/api/login",
+        {"door": "client", "email": "Olena-test", "pin": "3500"},
+    )
+    sp_cookie = headers.get("Set-Cookie") if hasattr(headers, "get") else None
+    sp_sess = payload.get("session") or {}
+    sp_state = payload.get("state") or {}
+    sp_tasks = sp_state.get("tasks") or []
+    check(
+        "SuperPlay login accepts a typed name",
+        code == 200 and sp_sess.get("role") == "client" and bool(sp_cookie),
+        str(payload.get("error") or sp_sess),
+    )
+    check(
+        "SuperPlay hours payload has STATUS",
+        bool(sp_tasks) and all("studioStatus" in t for t in sp_tasks),
+        str(sp_tasks[:1] if sp_tasks else None),
+    )
+    check("SuperPlay hours hide the sign-in log", "superplayVisits" not in sp_state)
+    check(
+        "SuperPlay hours hide assignee and brief",
+        not sp_tasks or ("assigneeId" not in sp_tasks[0] and "brief" not in sp_tasks[0]),
+        str(sp_tasks[:1] if sp_tasks else None),
+    )
+    if sp_cookie:
+        code, payload, _ = _http(f"{base}/api/me", cookie=sp_cookie.split(";", 1)[0])
+        me_state = (payload or {}).get("state") or {}
+        check(
+            "SuperPlay /api/me has no visit log",
+            code == 200 and "superplayVisits" not in me_state,
+            str(list(me_state)[:12]),
+        )
+    if cookie:
+        code, payload, _ = _http(f"{base}/api/me", cookie=cookie.split(";", 1)[0])
+        visits = ((payload or {}).get("state") or {}).get("superplayVisits") or []
+        check(
+            "DL sees SuperPlay sign-in Login",
+            any(v.get("login") == "Olena-test" for v in visits),
+            str(visits[:3]),
+        )
+
     if cookie:
         t0 = time.monotonic()
         code, payload, headers = _http(
@@ -2139,6 +2239,7 @@ def main() -> int:
         test_card_presence,
         test_urgent_marker,
         test_card_folder_buttons,
+        test_superplay_visits_and_status,
         test_lp_can_close_without_send,
         test_finance_reads_board_not_xlsx,
     ):
