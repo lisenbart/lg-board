@@ -135,6 +135,8 @@ a { color: var(--blue); }
 .month-now small { display: block; color: var(--muted); font-size: 10px; font-weight: 400; }
 .month-now.this-month strong { color: var(--blue); font-weight: 500; }
 .board-title { font-size: var(--fs-title); font-weight: 500; margin: 0; letter-spacing: -0.02em; }
+.board-title[hidden],
+.pill[hidden] { display: none !important; }
 .side-foot:empty, .kpis:empty { display: none; }
 .month-now small:empty { display: none; }
 .views {

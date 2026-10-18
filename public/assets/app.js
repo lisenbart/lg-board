@@ -1287,8 +1287,14 @@ function renderChrome() {
   }
   document.title = isHoursView() ? "SuperPlay — Lisenbart Board" : "Lisenbart Board";
   const title = document.querySelector(".board-title");
+  const clientHours = isClient() || isHoursPage();
   if (title) {
-    title.textContent = isHoursView() ? "SuperPlay" : DIR_LABEL[state.direction] || DIR_LABEL.mgx;
+    title.hidden = clientHours;
+    title.textContent = clientHours
+      ? ""
+      : isHoursView()
+        ? "SuperPlay"
+        : DIR_LABEL[state.direction] || DIR_LABEL.mgx;
   }
   const pill = document.querySelector(".top-row > .pill");
   if (pill) {

@@ -970,6 +970,12 @@ def test_playables_desk() -> None:
             and "background: #000" not in css.split(".who-logo")[1].split("}")[0],
         )
         check(
+            "client hours hide the SuperPlay word title",
+            "title.hidden = clientHours" in js
+            and ".board-title[hidden]" in css
+            and ".pill[hidden]" in css,
+        )
+        check(
             "SuperPlay logo stays on the title row",
             "html.hours-host .top-row" in css
             and "flex-wrap: nowrap" in css.split("html.hours-host .top-row")[1].split("}")[0]
