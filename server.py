@@ -30,7 +30,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-18s"
+BUILD = "2026-10-18t"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -2662,6 +2662,8 @@ class Handler(SimpleHTTPRequestHandler):
                     task["mondayStatus"] = "Done"
                 elif nxt == "new":
                     task["mondayStatus"] = "Ready to Start"
+                if str(task.get("studioStatus") or "") == "closed":
+                    task["urgent"] = False
                 note = data.get("note")
                 if note:
                     task.setdefault("activity", []).append({"at": utc_now(), "text": note})

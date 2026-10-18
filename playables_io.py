@@ -352,6 +352,7 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
             if excel_status == "closed":
                 task["studioStatus"] = "closed"
                 task["mondayStatus"] = "Closed"
+                task["urgent"] = False
             elif current not in {"", "new"}:
                 # Board pipeline wins. Excel blue/WIP fill is not a reason to bounce WIP → Ready.
                 task["studioStatus"] = current

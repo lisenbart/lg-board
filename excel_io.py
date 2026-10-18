@@ -689,6 +689,7 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
             if excel_status == "closed":
                 task["studioStatus"] = "closed"
                 task["mondayStatus"] = "Closed"
+                task["urgent"] = False
             elif excel_status == "wip" and current in {"", "new"}:
                 task["studioStatus"] = "wip"
                 task["mondayStatus"] = "WIP"

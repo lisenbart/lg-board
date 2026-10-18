@@ -2949,7 +2949,7 @@ function renderGuide() {
           `Рядок фарбується за статусом. Чіп: ${ui("Ready")} / ${ui("WIP")} / ${ui("Fix")} / ${ui("Done")} / ${ui("Appr.")} / ${ui("Closed")}. Не ${ui("Send")}.`,
           `${ui("Excel")} — години як у файлі. Чіп зліва той самий, що в пайплайні, не лише WIP/Closed. ${ui("Dead Line")} = ${ui("DEADLINE")}. ${ui("URGENT")} — маркер ${ui("!")}, не статус.`,
           `${ui("Send to client")} лише з ${ui("Done")} + лінк файлу. Копіює текст у External Weekly. ${ui("Appr.")} сам не ставиться.`,
-          `${ui("Mark Closed")} коли клієнт прийняв — можна без ${ui("Send")}. Темно-зелений штамп, білий напис — не той самий колір, що ${ui("Done")}. Якщо відбили — ${ui("Need Fixing")}.`,
+          `${ui("Mark Closed")} коли клієнт прийняв — можна без ${ui("Send")}. Темно-зелений штамп, білий напис — не той самий колір, що ${ui("Done")}. ${ui("URGENT")} знімається сам. Якщо відбили — ${ui("Need Fixing")}.`,
           `${ui("Hours split")} на картці: клієнтські години не ростуть. 0.5h тому, хто відрендерив замість колеги. Who лишається власником ${ui("Done")}.`,
         ])}
         ${card("teamlead", "TL", "Team Lead", "Настя. Усі проєкти + свої як виконавця.", [
@@ -5508,6 +5508,7 @@ function openTask(id) {
     if (canOps() && $("stUrgent")) {
       patch.urgent = $("stUrgent").value === "1";
     }
+    if (studioStatus === "closed") patch.urgent = false;
     const helpNote = patch.help
       ? patch.help.map((row) => `${person(row.id)?.name || row.id} ${row.hours}h`).join(", ")
       : "";
@@ -5524,12 +5525,12 @@ function openTask(id) {
           ? patch.deadline
             ? `${me().name} set deadline ${excelDate(patch.deadline)}`
             : `${me().name} cleared deadline`
+        : studioStatus === "closed" && t.studioStatus !== "closed"
+          ? `${me().name} marked Closed (client accepted)`
         : patch.urgent !== undefined && Boolean(patch.urgent) !== Boolean(t.urgent)
           ? patch.urgent
             ? `${me().name} marked URGENT`
             : `${me().name} cleared URGENT`
-        : studioStatus === "closed" && t.studioStatus !== "closed"
-          ? `${me().name} marked Closed (client accepted)`
           : resultUrl && resultUrl !== t.resultUrl
             ? `${me().name} pasted the result`
             : `${me().name} updated status`;
@@ -5566,6 +5567,7 @@ function openTask(id) {
       t.id,
       {
         studioStatus: "closed",
+        urgent: false,
         role: me().role,
         note: `${me().name} marked Closed (client accepted)`,
       },

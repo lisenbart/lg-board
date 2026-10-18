@@ -1260,6 +1260,9 @@ def test_urgent_marker() -> None:
     check("card has URGENT toggle", 'id="stUrgent"' in js and "function urgentMark" in js)
     check("urgent mark is a ! badge", 'class="urgent-mark"' in js and ".urgent-mark" in css)
     check("urgent sorts above same status", "Number(isUrgent(b)) - Number(isUrgent(a))" in js)
+    closed_bit = src.split('elif nxt == "new":')[-1].split("note = data.get")[0]
+    check("Closed drops URGENT on the server", 'task["urgent"] = False' in closed_bit)
+    check("Mark Closed sends urgent off", "urgent: false" in js.split('$("closeOne")')[-1].split("fillDrivePackIfMissing")[0])
 
 
 def test_card_folder_buttons() -> None:
@@ -1769,6 +1772,32 @@ def test_http(base: str) -> str | None:
                 code == 200 and cleared.get("urgent") is False,
                 str(payload.get("error") or cleared),
             )
+        _http(
+            f"{base}/api/tasks/update",
+            {
+                "id": urgent_id,
+                "role": "manager",
+                "actorId": "manager",
+                "urgent": True,
+            },
+            cookie=lp_ck,
+        )
+        code, payload, _ = _http(
+            f"{base}/api/tasks/update",
+            {
+                "id": urgent_id,
+                "role": "manager",
+                "actorId": "manager",
+                "studioStatus": "closed",
+            },
+            cookie=lp_ck,
+        )
+        shut = (payload or {}).get("task") or {}
+        check(
+            "Closed clears URGENT",
+            code == 200 and shut.get("studioStatus") == "closed" and shut.get("urgent") is False,
+            str(payload.get("error") or {k: shut.get(k) for k in ("studioStatus", "urgent")}),
+        )
         _http(
             f"{base}/api/tasks/delete",
             {"id": urgent_id, "role": "manager", "actorId": "manager"},
