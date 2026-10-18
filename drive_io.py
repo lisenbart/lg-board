@@ -647,10 +647,14 @@ def rename_live_pack(db: dict, task: dict, new_name: str) -> dict:
         body = {"name": new_name}
         query = {}
         if new_line != old_line:
-            new_parent = live_line_parent_id(db, ym, new_line, token)
+            import direction_io
+
+            new_playable = direction_io.of_name(new_name) == direction_io.PLAYABLES
+            old_playable = direction_io.of_name(old_name) == direction_io.PLAYABLES
+            new_parent = live_line_parent_id(db, ym, new_line, token, playable=new_playable)
             meta = _api(token, "GET", f"files/{fid}", query={"fields": "parents"})
             parents = [str(p) for p in (meta.get("parents") or [])]
-            old_parent = live_line_parent_id(db, ym, old_line, token)
+            old_parent = live_line_parent_id(db, ym, old_line, token, playable=old_playable)
             if new_parent and new_parent not in parents:
                 query["addParents"] = new_parent
                 drop = old_parent if old_parent in parents else (parents[0] if parents else "")

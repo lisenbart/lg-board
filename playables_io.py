@@ -544,33 +544,152 @@ def write_month(db: dict, ym: str, path: Path | None = None) -> Path | None:
             cell.border = THIN
             cell.alignment = CENTER
 
-        # Keep existing layout: rewrite matching rows, append unknown names under their line.
-        by_name = {}
-        line = "DX"
-        last = 2
-        total_row = None
-        for r in range(2, (ws.max_row or 1) + 1):
-            a = _cell_text(ws.cell(r, 1).value)
-            b = _cell_text(ws.cell(r, 2).value)
-            if a.lower() == "total":
-                total_row = r
-                last = max(last, r)
-                continue
-            if a.upper() in LINE_MARKS:
-                line = a.upper()
-                last = r
-                continue
-            name = excel_io._project_name(a, b)
-            if name:
-                by_name[excel_io._norm_name(name)] = r
-                last = r
+        scan = _scan_sheet(ws)
+        excel_io._drop_dropped_rows(ws, scan, db)
+        id_index = {
+            excel_io._id_key(item["name"]): item
+            for item in scan["rows"].values()
+            if excel_io._id_key(item.get("name") or "")
+        }
         for task in tasks:
-            row = by_name.get(excel_io._norm_name(task.get("name") or ""))
-            if not row:
+            key = excel_io._norm_name(task.get("name") or "")
+            kid = excel_io._id_key(task.get("name") or "")
+            found = scan["rows"].get(key)
+            if not found and kid:
+                found = id_index.get(kid)
+            if found and scan.get("total_row") and found["row"] > scan["total_row"]:
+                excel_io._delete_sheet_row(ws, scan, found["row"])
+                id_index = {
+                    excel_io._id_key(item["name"]): item
+                    for item in scan["rows"].values()
+                    if excel_io._id_key(item.get("name") or "")
+                }
+                found = None
+            if found:
+                _write_task_row(ws, found["row"], task, columns)
                 continue
+            line = (task.get("line") or "DD").upper()
+            if line not in {"DX", "DD", "DS"}:
+                line = "DD"
+            if line not in scan["headers"]:
+                _ensure_line_header(ws, scan, line, last_header)
+            if line not in scan["headers"]:
+                line = "DD" if "DD" in scan["headers"] else next(iter(scan["headers"]), "DX")
+            row = excel_io._insert_in_section(ws, scan, line)
             _write_task_row(ws, row, task, columns)
+            rec = {"row": row, "line": line, "name": task.get("name")}
+            scan["rows"][key] = rec
+            if kid:
+                id_index[kid] = rec
+        _refresh_total(ws, scan, columns)
         excel_io._atomic_save(wb, path)
         return path
+    finally:
+        try:
+            wb.close()
+        except Exception:
+            pass
+
+
+def _scan_sheet(ws) -> dict:
+    headers = {}
+    rows = {}
+    total_row = None
+    line = "DX"
+    last_used = 1
+    for r in range(2, (ws.max_row or 1) + 1):
+        a = _cell_text(ws.cell(r, 1).value)
+        b = _cell_text(ws.cell(r, 2).value)
+        if a.lower() == "total":
+            if total_row is None:
+                total_row = r
+            last_used = max(last_used, r)
+            continue
+        if a.upper() in LINE_MARKS and (not b or b.lower().replace(" ", "") in ROW_LABELS):
+            line = a.upper()
+            headers[line] = r
+            last_used = r
+            continue
+        name = excel_io._project_name(a, b)
+        if not name:
+            continue
+        rows[excel_io._norm_name(name)] = {"row": r, "line": line, "name": name}
+        last_used = r
+    return {"headers": headers, "rows": rows, "total_row": total_row, "last_used": last_used}
+
+
+def _ensure_line_header(ws, scan: dict, line: str, last_header: int) -> None:
+    if line in scan["headers"]:
+        return
+    insert_at = scan.get("total_row") or ((scan.get("last_used") or 1) + 1)
+    ws.insert_rows(insert_at)
+    if scan.get("total_row") and scan["total_row"] >= insert_at:
+        scan["total_row"] = scan["total_row"] + 1
+    for key, r in list(scan["headers"].items()):
+        if r >= insert_at:
+            scan["headers"][key] = r + 1
+    for item in scan["rows"].values():
+        if item["row"] >= insert_at:
+            item["row"] += 1
+    ws.cell(insert_at, 1, line)
+    ws.cell(insert_at, 2, "PlayableADs")
+    ws.cell(insert_at, 3, "HOURS")
+    for c in range(1, max(last_header, 4) + 1):
+        cell = ws.cell(insert_at, c)
+        cell.fill = HEADER_FILL
+        cell.font = CALIBRI_BOLD
+        cell.border = THIN
+        cell.alignment = CENTER
+    scan["headers"][line] = insert_at
+    scan["last_used"] = max(scan.get("last_used") or 1, insert_at)
+
+
+def _refresh_total(ws, scan: dict, columns: list[tuple[int, dict]]) -> None:
+    total_row = scan.get("total_row")
+    if not total_row:
+        return
+    end = max(total_row - 1, 3)
+    hour_cols = [col for col, _ in columns]
+    last = max(hour_cols + [4, 3])
+    ws.cell(total_row, 1, "total")
+    ws.cell(total_row, 3, f"=SUM(C3:C{end})")
+    ws.cell(total_row, 4, f"=SUM(D3:D{end})")
+    for col in hour_cols:
+        letter = get_column_letter(col)
+        ws.cell(total_row, col, f"=SUM({letter}3:{letter}{end})")
+    for c in range(1, last + 1):
+        cell = ws.cell(total_row, c)
+        cell.fill = HEADER_FILL
+        cell.font = CALIBRI_BOLD
+        cell.border = THIN
+        cell.alignment = CENTER
+
+
+def rewrite_existing_name(db: dict, ym: str, old_name: str, task: dict, path: Path | None = None) -> bool:
+    """Change PROJECT NAME on an existing Playables sheet row. Does not add a new row."""
+    path = Path(path or XLSX_PATH)
+    if not path.exists():
+        return False
+    wb = load_workbook(path)
+    try:
+        ws = excel_io.find_sheet(wb, ym)
+        if ws is None:
+            return False
+        scan = _scan_sheet(ws)
+        columns = _bind_crew_columns(ws, crew(db))
+        found = scan["rows"].get(excel_io._norm_name(old_name))
+        if not found:
+            old_key = excel_io._id_key(old_name)
+            if old_key:
+                found = next(
+                    (item for item in scan["rows"].values() if excel_io._id_key(item.get("name") or "") == old_key),
+                    None,
+                )
+        if not found:
+            return False
+        _write_task_row(ws, found["row"], task, columns)
+        excel_io._atomic_save(wb, path)
+        return True
     finally:
         try:
             wb.close()
@@ -605,3 +724,6 @@ def _write_task_row(ws, row: int, task: dict, columns: list[tuple[int, dict]]) -
         ws.cell(row, c).font = CALIBRI
     ws.cell(row, 2).alignment = Alignment(vertical="center")
     ws.cell(row, 3).alignment = CENTER
+    mark = excel_io.line_fill_for_status(task.get("studioStatus") or "")
+    if mark is not None:
+        ws.cell(row, 1).fill = mark

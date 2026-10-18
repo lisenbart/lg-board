@@ -453,15 +453,13 @@ def _rfc3339_ts(raw: str) -> float:
         return 0.0
 
 
-def drive_excel_is_newer_than_local() -> bool:
-    """Do not push a stale VPS copy over rows someone just typed in Drive."""
-    import excel_io
-
-    path = excel_io.XLSX_PATH
+def drive_file_is_newer_than_local(fid: str, path: Path, *, slack: float = 8) -> bool:
+    """Do not push a stale VPS copy over a Drive file someone just typed in."""
+    path = Path(path)
     if not path.exists():
         return True
     token = access_token()
-    fid = str(roots().get("excel") or "")
+    fid = str(fid or "")
     if not token or not fid:
         return False
     try:
@@ -476,48 +474,63 @@ def drive_excel_is_newer_than_local() -> bool:
     drive_ts = _rfc3339_ts(str((meta or {}).get("modifiedTime") or ""))
     if not drive_ts:
         return False
-    local_ts = path.stat().st_mtime
-    return drive_ts > local_ts + 8
+    return drive_ts > path.stat().st_mtime + slack
+
+
+def drive_excel_is_newer_than_local() -> bool:
+    import excel_io
+
+    return drive_file_is_newer_than_local(str(roots().get("excel") or ""), excel_io.XLSX_PATH)
+
+
+def _push_xlsx(uploaded: list, name: str, fid: str, path: Path, *, required: bool = False) -> None:
+    path = Path(path)
+    fid = str(fid or "")
+    if not path.exists():
+        if required:
+            raise DriveSyncError(f"Excel missing: {path}")
+        return
+    if not fid:
+        if required:
+            raise DriveSyncError(f"live {name} id is not configured")
+        return
+    if drive_file_is_newer_than_local(fid, path):
+        print(f"[drive] skip {name} push — Drive file is newer than the desk copy", flush=True)
+        return
+    out = upload_media(fid, path.read_bytes(), XLSX_MIME)
+    uploaded.append(
+        {
+            "name": name,
+            "id": out.get("id") or fid,
+            "url": out.get("webViewLink") or file_url(fid),
+        }
+    )
 
 
 def push_workbooks(*, excel: bool = True, calculator: bool = False) -> dict:
-    """Write local SP_MGX_check / calculator onto the live Drive files."""
+    """Write local check sheets + calculator onto the live Drive files."""
     import excel_io
+    import playables_io
 
     if not connected():
         return {"ok": False, "skipped": True, "reason": "Drive is not connected"}
     cfg = roots()
     uploaded = []
     if excel:
-        path = excel_io.XLSX_PATH
-        fid = str(cfg.get("excel") or "")
-        if not path.exists():
-            raise DriveSyncError(f"Excel missing: {path}")
-        if not fid:
-            raise DriveSyncError("live Excel id is not configured")
-        if drive_excel_is_newer_than_local():
-            print("[drive] skip Excel push — Drive file is newer than the desk copy", flush=True)
-        else:
-            out = upload_media(fid, path.read_bytes(), XLSX_MIME)
-            uploaded.append(
-                {
-                    "name": "SP_MGX_check.xlsx",
-                    "id": out.get("id") or fid,
-                    "url": out.get("webViewLink") or file_url(fid),
-                }
-            )
+        _push_xlsx(uploaded, "SP_MGX_check.xlsx", str(cfg.get("excel") or ""), excel_io.XLSX_PATH, required=True)
+        _push_xlsx(
+            uploaded,
+            "SP_PLBL_check.xlsx",
+            str(cfg.get("playableExcel") or ""),
+            playables_io.XLSX_PATH,
+        )
     if calculator:
-        path = finance_io.CALC_PATH
-        fid = str(cfg.get("calculator") or "")
-        if path.exists() and fid:
-            out = upload_media(fid, path.read_bytes(), XLSX_MIME)
-            uploaded.append(
-                {
-                    "name": "SUPERPLAY_MGX_Calculator.xlsx",
-                    "id": out.get("id") or fid,
-                    "url": out.get("webViewLink") or file_url(fid),
-                }
-            )
+        _push_xlsx(
+            uploaded,
+            "SUPERPLAY_MGX_Calculator.xlsx",
+            str(cfg.get("calculator") or ""),
+            finance_io.CALC_PATH,
+        )
     return {"ok": True, "uploaded": uploaded, "count": len(uploaded)}
 
 

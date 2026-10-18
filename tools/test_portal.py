@@ -754,6 +754,13 @@ def test_playables_desk() -> None:
             "board-update keeps live db and Playables Excel",
             "data/db.json" in update_sh and "data/SP_PLBL_check.xlsx" in update_sh,
         )
+        drive_py = (ROOT / "drive_sync.py").read_text(encoding="utf-8")
+        check(
+            "Drive push writes Playables check like MGX",
+            "SP_PLBL_check.xlsx" in drive_py.split("def push_workbooks")[1].split("def _kind")[0]
+            and "playableExcel" in drive_py.split("def push_workbooks")[1].split("def _kind")[0],
+        )
+        check("Playables rename rewrites the Excel row", "playables_io.rewrite_existing_name" in py)
         check("LP/DL skip Art-ready DEV assign gate", "playable_may_assign_dev(trial, role)" in py)
         css = (ROOT / "public" / "assets" / "board.css").read_text(encoding="utf-8")
         check("DS line is not Need Fixing burgundy", ".line-DS { background: #0d9488" in css and ".line-DS { background: #bb3354" not in css)
@@ -811,6 +818,40 @@ def test_playables_desk() -> None:
                 bool(dice2 and abs(float(dice2.get("assigneeHours") or 0) - 1) < 0.05),
                 str(dice2),
             )
+            portal_task = {
+                "id": "t-pl-portal",
+                "name": "DS-P-999_PortalOnly",
+                "line": "DS",
+                "department": "Playables",
+                "month": "2026-10",
+                "hours": 3,
+                "studioBuffer": 1,
+                "assigneeId": "artdir1",
+                "assigneeHours": 3,
+                "programmerId": "programmer1",
+                "programmerHours": 0,
+                "studioStatus": "new",
+            }
+            playables_io.attach_studio_buffer(portal_task)
+            scratch.setdefault("tasks", []).append(portal_task)
+            playables_io.write_month(scratch, "2026-10", path)
+            parsed3 = playables_io.parse_workbook(path, "2026-10")
+            portal_row = next((r for r in (parsed3.get("rows") or []) if "PortalOnly" in (r.get("name") or "")), None)
+            check(
+                "portal Playables land on the Excel sheet",
+                bool(
+                    portal_row
+                    and abs(float(portal_row.get("hours") or 0) - 4) < 0.05
+                    and abs(float(portal_row.get("assigneeHours") or 0) - 3) < 0.05
+                ),
+                str(portal_row),
+            )
+            scratch["droppedNames"] = ["DS-P-999_PortalOnly"]
+            scratch["tasks"] = [t for t in scratch["tasks"] if t.get("id") != "t-pl-portal"]
+            playables_io.write_month(scratch, "2026-10", path)
+            parsed4 = playables_io.parse_workbook(path, "2026-10")
+            gone = next((r for r in (parsed4.get("rows") or []) if "PortalOnly" in (r.get("name") or "")), None)
+            check("dropped Playables leave the Excel sheet", gone is None, str(gone))
         check(
             "Producer hours land on Anastasiia",
             playables_io.hours_for_person(dice, "manager") > 0,

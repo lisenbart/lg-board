@@ -30,7 +30,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-18g"
+BUILD = "2026-10-18h"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -317,7 +317,7 @@ def sync_excel(db: dict, month: str | None = None, calculator: bool = False) -> 
     meta = db.setdefault("meta", {})
     if drive.get("ok"):
         meta["drivePushedAt"] = drive_sync.utc_now()
-        meta["mirrorSource"] = "SP_MGX_check.xlsx · portal writes to Drive"
+        meta["mirrorSource"] = "SP_MGX_check.xlsx · SP_PLBL_check.xlsx · portal writes to Drive"
     return drive
 
 
@@ -387,12 +387,9 @@ def _rename_then_excel(old_name: str, task: dict, ym: str | None, brief: bool, m
             with LOCK:
                 db = _read_db_file()
             with _FILES_LOCK:
-                excel_io.rewrite_existing_name(
-                    db,
-                    str(ym or (db.get("meta") or {}).get("month") or "2026-10"),
-                    old_name,
-                    task,
-                )
+                month = str(ym or (db.get("meta") or {}).get("month") or "2026-10")
+                excel_io.rewrite_existing_name(db, month, old_name, task)
+                playables_io.rewrite_existing_name(db, month, old_name, task)
         except Exception as e:
             print(f"[excel] rename {old_name}: {e}", flush=True)
     if brief:
