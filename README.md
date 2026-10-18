@@ -24,6 +24,8 @@ ssh board-update    # deploy the desk
 ssh board-status    # live build
 ```
 
+After a studio push, the agent always runs `ssh board-update` itself — do not wait to copy it.
+
 Google Drive is always the live disk ([LLC/docs](https://drive.google.com/drive/folders/191q3zTumkNi-2tc9LCB1SG2lZwtu0pVs)). The VPS stays signed in with a service account file at `data/secrets/google_service.json` (share October DD/DX with that account). **Create task** then makes the folder + brief Doc; **Save** on the card writes the brief into the Doc. To update the live desk: `bash deploy/update.sh` on the VPS, then hard-refresh the browser.
 
 Home: **Client** or **Studio**. Seats: Finance, LP, TL, MD, AD, DEV, Client. PINs live in `data/secrets/pins.json`. The PIN is a key, not a home desk: you sit the tile you tapped if your PIN ranks high enough. **DL** opens every seat. **LP** opens LP and below (not DL). **TL** opens TL / MD / AD / DEV. Team PIN `4429` is MD / AD / DEV only — several people on that door still asks who is at the desk. A personal PIN on Team **replaces** the old one: the previous PIN no longer opens that seat, and it does not open other performer desks. Save on a Team row (and on a card) stays dim until there is something to write. One-direction people stay on their board; dual-seat people (LP, DL, Сергій, SuperPlay) see **MGX | Playables**.

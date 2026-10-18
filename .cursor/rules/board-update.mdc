@@ -1,0 +1,10 @@
+---
+description: Deploy the live desk after every studio push
+alwaysApply: true
+---
+
+After you push board changes to GitHub `studio` (or `main:studio`), always run `ssh board-update` yourself in this session. Do not wait for Dmytro. Do not only print the command in a copy box.
+
+`ssh board-update` backups live Excel/db, `git reset --hard origin/studio`, restores those files, restarts systemd `lg-board`. Then run `ssh board-status` and check `/api/version` build matches the commit you just shipped.
+
+Skip only when there was no push (docs-only local notes, or the change is not on the live desk).
