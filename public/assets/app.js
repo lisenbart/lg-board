@@ -2274,10 +2274,16 @@ function statusRank(t) {
   return STATUS[t.studioStatus]?.order || 99;
 }
 
+function isUrgent(t) {
+  return Boolean(t && t.urgent);
+}
+
 function sortedTasks(list) {
   return list.slice().sort((a, b) => {
     const d = statusRank(a) - statusRank(b);
     if (d) return d;
+    const u = Number(isUrgent(b)) - Number(isUrgent(a));
+    if (u) return u;
     return String(a.name).localeCompare(String(b.name));
   });
 }
@@ -2414,6 +2420,19 @@ function deadlineMark(t) {
 function dueCell(t) {
   const d = deadlineMark(t);
   return `<div class="due due-${d.cls}" title="${escapeHtml(d.title)}"><span>${escapeHtml(d.label)}</span><i class="due-bar" aria-hidden="true"><b style="width:${Math.round(d.fill * 100)}%"></b></i></div>`;
+}
+
+function urgentMark(t) {
+  if (!isUrgent(t)) return "";
+  return `<span class="urgent-mark" title="Urgent — do this first">!</span>`;
+}
+
+function withUrgentCue(t, job) {
+  if (!isUrgent(t) || t.studioStatus === "closed") return job;
+  return {
+    ...job,
+    body: `Marked URGENT — take this before other work. ${job.body}`,
+  };
 }
 
 function fmtHours(n) {
@@ -2689,9 +2708,9 @@ function renderExcelSheet() {
       : `<td class="xl-num">${t.shifts ?? ""}</td>
       <td class="xl-num">${fmtHours(t.hours)}</td>
       <td class="xl-num">${escapeHtml(excelDate(t.deadline))}</td>`;
-    return `<tr class="xl-row${t.studioStatus === "closed" ? " is-closed" : ""}" data-id="${t.id}">
+    return `<tr class="xl-row${t.studioStatus === "closed" ? " is-closed" : ""}${isUrgent(t) ? " is-urgent" : ""}" data-id="${t.id}">
       <td class="xl-st st-${mark.cls}" title="${escapeHtml(mark.title)}">${escapeHtml(mark.label)}</td>
-      <td class="xl-name" title="${escapeHtml(t.name)}">${escapeHtml(t.name)}</td>
+      <td class="xl-name${isUrgent(t) ? " is-urgent" : ""}" title="${escapeHtml((isUrgent(t) ? "URGENT · " : "") + t.name)}">${urgentMark(t)}${escapeHtml(t.name)}</td>
       ${meta}
       ${cells}
     </tr>`;
@@ -2928,9 +2947,9 @@ function renderGuide() {
         ${card("manager", "LP", "Line Producer", "Анастасія. Бачить усе.", [
           `Новий пак: ${ui("Create task")} (тека + бриф на Drive) або ${ui("Shift email")} (NAME 0.3 shift — тире, пробіл або |).`,
           `Бриф на картці пишеться в Google Doc. ${ui("Client notes")} одразу під ним: встав текст і скрін (Ctrl+V) з Monday.`,
-          `Години: ${ui("Shifts")} у рядку або в картці. 1 shift = 9 годин. Виконавця ставить TL.`,
+          `Години: ${ui("Shifts")} у рядку або в картці. 1 shift = 9 годин. Виконавця ставить TL. ${ui("Dead Line")} — дата з Excel. ${ui("URGENT")} — червоний ${ui("!")} на імені, вмикаєш з картки, це не статус.`,
           `Рядок фарбується за статусом. Чіп: ${ui("Ready")} / ${ui("WIP")} / ${ui("Fix")} / ${ui("Done")} / ${ui("Appr.")} / ${ui("Closed")}. Не ${ui("Send")}.`,
-          `${ui("Excel")} — години як у файлі. Чіп зліва той самий, що в пайплайні, не лише WIP/Closed. ${ui("Due")} = ${ui("DEADLINE")}.`,
+          `${ui("Excel")} — години як у файлі. Чіп зліва той самий, що в пайплайні, не лише WIP/Closed. ${ui("Dead Line")} = ${ui("DEADLINE")}. ${ui("URGENT")} — маркер ${ui("!")}, не статус.`,
           `${ui("Send to client")} лише з ${ui("Done")} + лінк файлу. Копіює текст у External Weekly. ${ui("Appr.")} сам не ставиться.`,
           `${ui("Mark Closed")} коли клієнт прийняв — можна без ${ui("Send")}. Темно-зелений штамп, білий напис — не той самий колір, що ${ui("Done")}. Якщо відбили — ${ui("Need Fixing")}.`,
           `${ui("Hours split")} на картці: клієнтські години не ростуть. 0.5h тому, хто відрендерив замість колеги. Who лишається власником ${ui("Done")}.`,
@@ -2968,7 +2987,7 @@ function renderGuide() {
         </div>
         <div>
           <h3>Excel</h3>
-          <p>Місяць як ${ui("SP_MGX_check")}. Зліва жирні ${ui("DX")} / ${ui("DD")}, у тій клітинці чіп проєкту: ${ui("Ready")} / ${ui("WIP")} / ${ui("Fix")} / ${ui("Done")} / ${ui("Appr.")} / ${ui("Closed")}. ${ui("DEADLINE")} у файлі = ${ui("Due")} на пайплайні. ${ui("Send")} там немає.</p>
+          <p>Місяць як ${ui("SP_MGX_check")}. Зліва жирні ${ui("DX")} / ${ui("DD")}, у тій клітинці чіп проєкту: ${ui("Ready")} / ${ui("WIP")} / ${ui("Fix")} / ${ui("Done")} / ${ui("Appr.")} / ${ui("Closed")}. ${ui("DEADLINE")} у файлі = ${ui("Dead Line")} на пайплайні. ${ui("URGENT")} — окремий маркер ${ui("!")} від LP/DL, не колонка в Excel. ${ui("Send")} там немає.</p>
         </div>
         <div>
           <h3>Правила</h3>
@@ -3021,7 +3040,7 @@ function renderBoard() {
         <div class="cell">Brief</div>
         <div class="cell">Result</div>
         <div class="cell">Who</div>
-        <div class="cell">Due</div>
+        <div class="cell">Dead Line</div>
       </div>
     </div>`;
 
@@ -3234,19 +3253,21 @@ function rowHtml(t, mode, gap) {
         : ""
       : "";
   const chip = statusChip(t);
+  const flag = urgentMark(t);
+  const nameTitle = escapeHtml((isUrgent(t) ? "URGENT · " : "") + t.name);
   const frozen =
     mode === "ops"
       ? `<div class="frozen">
           <div class="cell"><span class="pill line-${t.line}">${t.line}</span></div>
           <div class="cell">${pick}</div>
-          <div class="cell name" title="${escapeHtml(t.name)}">${chip}<span class="name-text">${escapeHtml(t.name)}</span></div>
+          <div class="cell name" title="${nameTitle}">${chip}${flag}<span class="name-text">${escapeHtml(t.name)}</span></div>
         </div>`
       : `<div class="frozen">
           <div class="cell"><span class="pill line-${t.line}">${t.line}</span></div>
-          <div class="cell name" title="${escapeHtml(t.name)}">${chip}${escapeHtml(t.name)}</div>
+          <div class="cell name" title="${nameTitle}">${chip}${flag}<span class="name-text">${escapeHtml(t.name)}</span></div>
         </div>`;
   return `
-    <div class="row ${mode} tone-${escapeHtml(isPlayables(t) ? playableStatusKey(t) : t.studioStatus || "new")}${gapCls} ${checked ? "selected" : ""}" data-id="${t.id}">
+    <div class="row ${mode} tone-${escapeHtml(isPlayables(t) ? playableStatusKey(t) : t.studioStatus || "new")}${gapCls}${isUrgent(t) ? " is-urgent" : ""} ${checked ? "selected" : ""}" data-id="${t.id}">
       ${frozen}
       <div class="meta">
         <div class="cell">${timeCell(t)}</div>
@@ -4893,6 +4914,7 @@ function cardRemoteStamp(t) {
     programmerHelp: t.programmerHelp || [],
     resultUrl: t.resultUrl || "",
     deadline: t.deadline || "",
+    urgent: Boolean(t.urgent),
     brief: t.brief || "",
   });
 }
@@ -4958,7 +4980,7 @@ function openTask(id) {
   const mine = onMyPlayable(t);
   const canEdit = canOps() || canAssign() || mine;
   const lockedStatus = (t.studioStatus === "approve" || t.studioStatus === "closed") && !canOps();
-  const job = cardJob(t);
+  const job = withUrgentCue(t, cardJob(t));
   const play = isPlayables(t);
   const performer = mine && (isDesigner() || isTeamLead() || isArtDirector() || isProgrammer());
   const canPaste = canPasteResult(t);
@@ -4985,18 +5007,27 @@ function openTask(id) {
   const whoAssign = showAssignee
     ? `<div class="who-assign"><label>Who works this</label>${mayAssign ? assignSelect : personCell(t.assigneeId)}</div>`
     : "";
+  const opsUrgent = canOps()
+    ? `<div class="ops-item">
+        <label>Flag</label>
+        <button type="button" class="urgent-toggle${isUrgent(t) ? " is-on" : ""}" id="stUrgentBtn" aria-pressed="${isUrgent(t) ? "true" : "false"}">
+          <span class="urgent-mark" aria-hidden="true">!</span> URGENT
+        </button>
+        <input type="hidden" id="stUrgent" value="${isUrgent(t) ? "1" : "0"}" />
+      </div>`
+    : "";
   const opsTime = canEditTime() && !play
     ? `<div class="ops-item"><label>Shifts</label>
         <input id="stShifts" type="number" min="0" step="0.1" value="${t.shifts ?? ""}" />
         <p class="status-hint" id="stHoursHint">${hoursFromShifts(t.shifts || 0)} h</p></div>
-       <div class="ops-item"><label>Deadline</label>
+       <div class="ops-item"><label>Dead Line</label>
         <input id="stDeadline" type="date" value="${parseDeadlineIso(t.deadline)}" />
-        </div>`
+        </div>${opsUrgent}`
     : canEditTime() && play
-      ? `<div class="ops-item"><label>Deadline</label>
+      ? `<div class="ops-item"><label>Dead Line</label>
         <input id="stDeadline" type="date" value="${parseDeadlineIso(t.deadline)}" />
-        </div>`
-      : "";
+        </div>${opsUrgent}`
+      : opsUrgent;
   const statusKeys = statusActions(t);
   const statusChrome = statusKeys.length
     ? `<div class="who-status">
@@ -5022,7 +5053,7 @@ function openTask(id) {
           : `<h2>${escapeHtml(t.name)}</h2>`
       }
     </div>
-    <div class="meta"><span class="pill line-${t.line}">${t.line}</span> ${play ? (playableCardMeta(t) ? `${playableCardMeta(t)} · ` : "") : `${t.shifts || 0} shift · ${t.hours || 0} h · `}<span id="stMetaStatus" class="pill ${st.cls}">${statusText(t.studioStatus || "new", t)}</span></div>
+    <div class="meta"><span class="pill line-${t.line}">${t.line}</span> ${isUrgent(t) ? `<span class="urgent-flag">${urgentMark(t)} URGENT</span>` : ""} ${play ? (playableCardMeta(t) ? `${playableCardMeta(t)} · ` : "") : `${t.shifts || 0} shift · ${t.hours || 0} h · `}<span id="stMetaStatus" class="pill ${st.cls}">${statusText(t.studioStatus || "new", t)}</span></div>
     <p class="card-watch" id="cardWatch" hidden></p>
     <div class="drawer-body">
     <div class="card-job tone-${job.tone}">
@@ -5476,6 +5507,9 @@ function openTask(id) {
       }
       patch.deadline = deadline;
     }
+    if (canOps() && $("stUrgent")) {
+      patch.urgent = $("stUrgent").value === "1";
+    }
     const helpNote = patch.help
       ? patch.help.map((row) => `${person(row.id)?.name || row.id} ${row.hours}h`).join(", ")
       : "";
@@ -5492,6 +5526,10 @@ function openTask(id) {
           ? patch.deadline
             ? `${me().name} set deadline ${excelDate(patch.deadline)}`
             : `${me().name} cleared deadline`
+        : patch.urgent !== undefined && Boolean(patch.urgent) !== Boolean(t.urgent)
+          ? patch.urgent
+            ? `${me().name} marked URGENT`
+            : `${me().name} cleared URGENT`
         : studioStatus === "closed" && t.studioStatus !== "closed"
           ? `${me().name} marked Closed (client accepted)`
           : resultUrl && resultUrl !== t.resultUrl
@@ -5550,6 +5588,15 @@ function openTask(id) {
     }
   });
   cardBaseline = cardFingerprint();
+  $("stUrgentBtn")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const on = $("stUrgent")?.value !== "1";
+    if ($("stUrgent")) $("stUrgent").value = on ? "1" : "0";
+    $("stUrgentBtn").classList.toggle("is-on", on);
+    $("stUrgentBtn").setAttribute("aria-pressed", on ? "true" : "false");
+    refreshCardActions();
+  });
   $("drawer")?.addEventListener("input", refreshCardActions);
   $("drawer")?.addEventListener("change", refreshCardActions);
   $("stComment")?.addEventListener("input", refreshCardActions);

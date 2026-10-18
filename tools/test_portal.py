@@ -1248,6 +1248,19 @@ def test_card_presence() -> None:
     check("presence does not bump db rev", "def touch_presence" in src and "bump_rev" not in src.split("def touch_presence")[1].split("def drop_presence")[0])
 
 
+def test_urgent_marker() -> None:
+    src = (ROOT / "server.py").read_text(encoding="utf-8")
+    js = (ROOT / "public" / "assets" / "app.js").read_text(encoding="utf-8")
+    css = (ROOT / "public" / "assets" / "board.css").read_text(encoding="utf-8")
+    check("pipeline header is Dead Line", '<div class="cell">Dead Line</div>' in js)
+    check("Due is no longer the pipeline header", '<div class="cell">Due</div>' not in js)
+    check("urgent is not a studio status", '"urgent"' not in src.split("STATUS_BY_ROLE")[0] and "urgent" not in server.STATUS_BY_ROLE.get("manager", []))
+    check("LP/DL may mark urgent", "only manager or finance can mark urgent" in src)
+    check("card has URGENT toggle", 'id="stUrgent"' in js and "function urgentMark" in js)
+    check("urgent mark is a ! badge", 'class="urgent-mark"' in js and ".urgent-mark" in css)
+    check("urgent sorts above same status", "Number(isUrgent(b)) - Number(isUrgent(a))" in js)
+
+
 def test_lp_can_close_without_send() -> None:
     src = (ROOT / "server.py").read_text(encoding="utf-8")
     js = (ROOT / "public" / "assets" / "app.js").read_text(encoding="utf-8")
@@ -1680,6 +1693,59 @@ def test_http(base: str) -> str | None:
             {"id": play_id, "role": "manager", "actorId": "manager"},
             cookie=lp_ck,
         )
+        stamp = datetime.utcnow().strftime("%H%M%S")
+        urgent_name = f"DD-TEST-URGENT-{stamp}"
+        code, payload, _ = _http(
+            f"{base}/api/tasks/create",
+            {"name": urgent_name, "month": "2026-10", "role": "manager", "actorId": "manager"},
+            cookie=lp_ck,
+        )
+        created = (payload or {}).get("task") or {}
+        urgent_id = str(created.get("id") or "")
+        check(
+            "LP creates MGX task for urgent flag",
+            code == 200 and urgent_id.startswith("t-") and created.get("urgent") is False,
+            str(payload.get("error") or created),
+        )
+        code, payload, _ = _http(
+            f"{base}/api/tasks/update",
+            {
+                "id": urgent_id,
+                "role": "manager",
+                "actorId": "manager",
+                "urgent": True,
+            },
+            cookie=lp_ck,
+        )
+        flagged = (payload or {}).get("task") or {}
+        check(
+            "LP can mark a task URGENT",
+            code == 200 and flagged.get("urgent") is True and flagged.get("studioStatus") == created.get("studioStatus"),
+            str(payload.get("error") or flagged),
+        )
+        dl_ck = cookie.split(";", 1)[0] if cookie else ""
+        if dl_ck:
+            code, payload, _ = _http(
+                f"{base}/api/tasks/update",
+                {
+                    "id": urgent_id,
+                    "role": "finance",
+                    "actorId": "finance",
+                    "urgent": False,
+                },
+                cookie=dl_ck,
+            )
+            cleared = (payload or {}).get("task") or {}
+            check(
+                "DL can clear URGENT",
+                code == 200 and cleared.get("urgent") is False,
+                str(payload.get("error") or cleared),
+            )
+        _http(
+            f"{base}/api/tasks/delete",
+            {"id": urgent_id, "role": "manager", "actorId": "manager"},
+            cookie=lp_ck,
+        )
 
     code, payload, _ = _http(f"{base}/api/hours/file?month=2026-10")
     check("hours xlsx requires sign in", code == 401)
@@ -1990,6 +2056,7 @@ def main() -> int:
         test_drive_folder_lock,
         test_playable_card_pipeline,
         test_card_presence,
+        test_urgent_marker,
         test_lp_can_close_without_send,
         test_finance_reads_board_not_xlsx,
     ):

@@ -30,7 +30,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-18q"
+BUILD = "2026-10-18r"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -2096,6 +2096,7 @@ class Handler(SimpleHTTPRequestHandler):
                     "shifts": 0,
                     "hours": 0,
                     "deadline": "",
+                    "urgent": False,
                     "month": ym,
                     "studioStatus": "new",
                     "mondayStatus": "Ready" if direction == direction_io.PLAYABLES else "Ready to Start",
@@ -2250,6 +2251,7 @@ class Handler(SimpleHTTPRequestHandler):
                         "shifts": row["shifts"],
                         "hours": row["hours"],
                         "deadline": "",
+                        "urgent": False,
                         "month": ym,
                         "studioStatus": "new",
                         "mondayStatus": "Ready" if dept == direction_io.PLAYABLES else "Ready to Start",
@@ -2506,6 +2508,16 @@ class Handler(SimpleHTTPRequestHandler):
                         self._json(400, {"error": "deadline must be a date"})
                         return
                     task["deadline"] = raw[:10] if raw else ""
+                if "urgent" in data:
+                    if role not in {"manager", "finance"}:
+                        self._json(403, {"error": "only manager or finance can mark urgent"})
+                        return
+                    raw_flag = data.get("urgent")
+                    if isinstance(raw_flag, bool):
+                        flagged = raw_flag
+                    else:
+                        flagged = str(raw_flag or "").strip().lower() in {"1", "true", "yes", "on"}
+                    task["urgent"] = bool(flagged)
                 data.pop("comments", None)
                 pending_rename = ""
                 if "name" in data:

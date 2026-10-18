@@ -721,6 +721,55 @@ button.kpi.on { border-color: var(--blue); box-shadow: 0 0 0 1px rgba(0,115,234,
 .due-late .due-bar b { background: #bb3354; }
 .due-closed .due-bar b { background: #00c875; }
 .due-none { color: var(--muted); }
+.urgent-mark {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  background: #bb3354;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+.urgent-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  color: #9b2245;
+}
+.urgent-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+.urgent-toggle:hover { border-color: #bb3354; color: #9b2245; }
+.urgent-toggle.is-on {
+  background: #fde8ee;
+  border-color: #e39aab;
+  color: #9b2245;
+}
+.row.is-urgent .frozen { box-shadow: inset 3px 0 0 #bb3354; }
+.xl-name.is-urgent { font-weight: 650; }
+.xl-name .urgent-mark { margin-right: 6px; vertical-align: -2px; }
 .time-edit { display: inline-flex; align-items: center; gap: 4px; overflow: visible; }
 .num-step {
   display: inline-flex;
