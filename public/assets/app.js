@@ -950,8 +950,9 @@ function isSendable(t) {
   if (!t) return false;
   if (isPlayables(t)) {
     const st = playableStatusKey(t);
-    if (st === "check") return true;
-    return st === "done" && Boolean(String(t.resultUrl || "").trim());
+    const hasLink = Boolean(String(t.resultUrl || "").trim());
+    if (st === "check") return hasLink;
+    return st === "done" && hasLink;
   }
   return t.studioStatus === "done" && Boolean(String(t.resultUrl || "").trim());
 }
@@ -959,7 +960,7 @@ function canPasteResult(t) {
   if (canOps()) return true;
   if (!t) return false;
   if (isPlayables(t)) {
-    if (isProgrammer() && String(t.programmerId || "") === String(me().id)) return true;
+    if (isProgrammer() && String(t.programmerId || "") === String(me().id) && playableInHtml(t)) return true;
     if (isArtDirector() && playableAdId(t) === me().id && !playableInHtml(t)) return true;
     return false;
   }
@@ -1926,11 +1927,16 @@ function resultHtml(t, performer, canPaste) {
     ? `<input id="stResult" value="${escapeHtml(t.resultUrl || "")}" placeholder="${placeholder}" />
         <p class="io-hint">${hint}</p>`
     : t.resultUrl
-      ? `<a class="pin-link" href="${escapeHtml(t.resultUrl)}" target="_blank" rel="noreferrer">Open result</a>`
+      ? `<a class="pin-link" href="${escapeHtml(t.resultUrl)}" target="_blank" rel="noreferrer">${html ? "Open HTML" : "Open storyboard"}</a>`
       : `<p class="io-empty">Waiting for ${escapeHtml(person(html ? t.programmerId : t.assigneeId)?.name || "designer")}</p>`;
+  const board = play ? String(t.storyboardUrl || "").trim() : "";
+  const boardLink = html && board
+    ? `<p class="io-hint"><a class="pin-link" href="${escapeHtml(board)}" target="_blank" rel="noreferrer">Open storyboard</a></p>`
+    : "";
   return `<section class="io io-result${performer ? " is-focus" : ""}">
       <h3>${title}</h3>
       ${body}
+      ${boardLink}
     </section>`;
 }
 function hasDriveDoc(t) {
@@ -2055,13 +2061,14 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
     }
     if (st === "closed") return { tone: "ok", title: "Closed", body: "Client accepted. This playable is finished." };
     if (st === "approve") return { tone: "ok", title: "Sent to client", body: "LP already sent the HTML. Nothing else on this card." };
-    if (st === "done" || html) return { tone: "wait", title: "Waiting for DEV / LP", body: "Art is done. Programmer builds HTML. LP sends it." };
+    if (st === "artready") return { tone: "wait", title: "Art ready", body: "DEV starts HTML from here. You are done with this stage." };
+    if (st === "done") return { tone: "wait", title: "Waiting for LP", body: "HTML is in. Line Producer sends it." };
+    if (html) return { tone: "wait", title: "Waiting for DEV / LP", body: "Art is done. Programmer builds HTML. LP sends it." };
     if (st === "clientart") return { tone: "wait", title: "Sent", body: "Storyboard is with the client. LP sets Need Fixing if they bounce it, or Final art when they approve." };
     if (st === "check") return { tone: "wait", title: "Waiting for LP", body: "Storyboard is ready. LP sends it. Only LP talks to the client." };
-    if (st === "finalart") return { tone: "do", title: "Final art", body: "Finish art, then Art ready so LP can assign DEV." };
-    if (st === "artready") return { tone: "wait", title: "Art ready", body: "LP assigns DEV. You are done with this stage." };
-    if (st === "revision") return { tone: "fix", title: "Need Fixing", body: "Fix the storyboard, set WIP, then Check when it is back with LP." };
-    if (st === "wip") return { tone: "do", title: "WIP", body: "Finish the storyboard, then Check so LP can send it." };
+    if (st === "finalart") return { tone: "do", title: "Final art", body: "Finish art, then Art ready so DEV can start HTML." };
+    if (st === "revision") return { tone: "fix", title: "Need Fixing", body: "Fix the storyboard, set WIP, paste the new board link, then Check." };
+    if (st === "wip") return { tone: "do", title: "WIP", body: "Paste the storyboard link, then Check so LP can send it." };
     return { tone: "do", title: "Your job", body: "Set WIP, paste the storyboard link, then Check so LP can send it." };
   }
   if (role === "programmer") {
@@ -2069,13 +2076,13 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
     if (st === "closed" || st === "approve") return { tone: "ok", title: st === "closed" ? "Closed" : "Sent to client", body: "Nothing else on this card." };
     if (!onDev) return { tone: "wait", title: "Not on you yet", body: "You are not on this card. LP can assign you from Ready — you start HTML after Art ready." };
     if (st === "done") return { tone: "wait", title: "Waiting for LP", body: "HTML link is in. Line Producer sends it. Need Fixing if the client bounces it." };
-    if (st === "wip" || st === "revision" || !playableAdId(t)) {
+    if (html) {
       if (st === "revision") return { tone: "fix", title: "Need Fixing", body: "Fix the HTML, set WIP, paste a new link, then Done." };
+      if (st === "artready") return { tone: "do", title: "Art ready", body: "Art is in. Set WIP, paste the HTML link, then Done." };
       if (!hasResult) return { tone: "do", title: "Your job", body: "Build the playable, paste the HTML link, then Done." };
       return { tone: "do", title: "Done", body: "Link is in. Set Done so LP can send." };
     }
-    if (st === "artready") return { tone: "do", title: "Art ready", body: "Art is in. Set WIP and start the HTML." };
-    return { tone: "wait", title: "Art is still in progress", body: "You start when AD sets Art ready and LP puts you on DEV." };
+    return { tone: "wait", title: "Art is still in progress", body: "You start HTML after AD sets Art ready. Storyboard is not your field." };
   }
   if (role === "designer") {
     return { tone: "ok", title: "Art help", body: `${hoursForPerson(t, me().id) || 0}h on this playable. AD owns status — you do not change it.` };
@@ -2120,12 +2127,11 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
   return { tone: "wait", title: "In progress", body: `${name || "Art Director"} is on this. Send the storyboard, then HTML.` };
 }
 function showResultField(t) {
-  if (String(t.resultUrl || "").trim()) return true;
+  if (String(t.resultUrl || "").trim() || String(t.storyboardUrl || "").trim()) return true;
   if (isPlayables(t)) {
-    if (isProgrammer() && String(t.programmerId || "") === String(me().id)) return true;
+    if (canOps()) return true;
+    if (isProgrammer() && String(t.programmerId || "") === String(me().id) && playableInHtml(t)) return true;
     if (isArtDirector() && playableAdId(t) === me().id && !playableInHtml(t)) return true;
-    if (canOps() && !playableInHtml(t)) return true;
-    if (canOps() && ["artready", "wip", "revision", "done", "approve", "closed"].includes(playableStatusKey(t)) && (t.programmerId || playableInHtml(t))) return true;
     return false;
   }
   if (t.assigneeId === me().id && (isDesigner() || isTeamLead())) return true;
@@ -2754,13 +2760,13 @@ function renderGuide() {
     <section class="guide">
       <div class="guide-intro">
         <h2>Як працює Playables</h2>
-        <p>Прорахунок лишається в Telegram. На дошці робота вже після апруву годин. Два кола: арт / сторіборд, потім HTML. DEV ставимо лише після ${ui("Art ready")}.</p>
+        <p>Прорахунок лишається в Telegram. На дошці робота вже після апруву годин. Два кола: арт / сторіборд, потім HTML. DEV можна посадити з Ready — HTML він починає лише після ${ui("Art ready")}.</p>
       </div>
       <div class="guide-block">
         <h3>Статуси</h3>
         <p class="guide-lead">Один наступний крок на картці. WIP / Check / Done — ті самі слова, що в MGX.</p>
         <div class="guide-status-grid">
-          ${statusCard("ready", "Ready", "Ready", "Хто: LP створила, назначила AD", "Картка в роботі. AD ставить WIP. DEV ще не на картці.")}
+          ${statusCard("ready", "Ready", "Ready", "Хто: LP створила, назначила AD / DEV", "Картка в роботі. AD ставить WIP і вставляє сторіборд. DEV уже може сидіти, HTML починає після Art ready.")}
           ${statusCard("wip", "WIP", "WIP", "Хто: хто в колонці Who", "AD малює сторіборд, або DEV збирає HTML після Art ready.")}
           ${statusCard("check", "Check", "Check", "Хто: AD здав борд, далі LP", "Сторіборд готовий, лінк у картці. Тільки LP шле клієнту — це стає Sent.")}
           ${statusCard("fix", "Fix", "Need Fixing", "Хто: відбій клієнта", "Сторіборд — AD править, знову Check. HTML — DEV править, знову Done.")}
@@ -3192,8 +3198,9 @@ function playableStatusKey(t) {
 }
 function playableInHtml(t) {
   const st = playableStatusKey(t);
-  if (["done", "approve", "closed"].includes(st)) return true;
-  if (["wip", "revision"].includes(st) && String(t?.programmerId || "").trim()) return true;
+  if (["artready", "done", "approve", "closed"].includes(st)) return true;
+  if (t?.playableHtml) return true;
+  if (!playableAdId(t) && String(t?.programmerId || "").trim()) return true;
   return false;
 }
 function playableDevUnlocked(t) {
@@ -3274,7 +3281,7 @@ function statusButtonDisabled(task, key, opts) {
   if (!opts.canEdit) return true;
   if (on) return true;
   if (isPlayables(task)) {
-    if (key === "done" && !hasResultLink(task, opts.typedResult)) return true;
+    if ((key === "done" || key === "check") && !hasResultLink(task, opts.typedResult)) return true;
     return !canSetStatus(key, task);
   }
   if (key === "tlcheck" && !hasResultLink(task, opts.typedResult)) return true;
@@ -4762,13 +4769,20 @@ function openTask(id) {
         <input id="stDeadline" type="date" value="${parseDeadlineIso(t.deadline)}" />
         </div>`
       : "";
-  const whoBlock = `<section class="who-block">
-      ${whoAssign}
-      <div class="who-status">
+  const statusKeys = statusActions(t);
+  const statusChrome = statusKeys.length
+    ? `<div class="who-status">
         <label>Status</label>
         ${statusButtonsHtml(t, canEdit, lockedStatus)}
-      </div>
-    </section>`;
+      </div>`
+    : `<input type="hidden" id="stStatus" value="${escapeHtml(t.studioStatus || "new")}" />
+      <p class="status-hint" id="stDoneHint" hidden></p>`;
+  const whoBlock = whoAssign || statusKeys.length
+    ? `<section class="who-block">
+      ${whoAssign}
+      ${statusChrome}
+    </section>`
+    : statusChrome;
   const st = STATUS[t.studioStatus] || STATUS.new;
   const sourceBlock = sourceHtml(t);
   const resultBlock = resultHtml(t, performer, canPaste);
@@ -4948,30 +4962,16 @@ function openTask(id) {
     const hint = $("stDoneHint");
     const typed = $("stResult")?.value || "";
     const hasResult = hasResultLink(t, typed);
-    const checkBtn = $("drawer")?.querySelector('.status-btn[data-status="tlcheck"]');
-    if (checkBtn && t.studioStatus !== "tlcheck") {
-      checkBtn.disabled = statusButtonDisabled(t, "tlcheck", {
-        canEdit,
-        locked: lockedStatus,
-        typedResult: typed,
-      });
-    }
-    const doneBtn = $("drawer")?.querySelector('.status-btn[data-status="done"]');
-    if (doneBtn && t.studioStatus !== "done") {
-      doneBtn.disabled = statusButtonDisabled(t, "done", {
-        canEdit,
-        locked: lockedStatus,
-        typedResult: typed,
-      });
-    }
-    const htmlBtn = $("drawer")?.querySelector('.status-btn[data-status="done"]');
-    if (htmlBtn && playableStatusKey(t) !== "done") {
-      htmlBtn.disabled = statusButtonDisabled(t, "done", {
-        canEdit,
-        locked: lockedStatus,
-        typedResult: typed,
-      });
-    }
+    ["tlcheck", "check", "done"].forEach((key) => {
+      const btn = $("drawer")?.querySelector(`.status-btn[data-status="${key}"]`);
+      if (btn && (t.studioStatus || "new") !== key) {
+        btn.disabled = statusButtonDisabled(t, key, {
+          canEdit,
+          locked: lockedStatus,
+          typedResult: typed,
+        });
+      }
+    });
     if (hint) {
       const playSt = playableStatusKey(t);
       if (isPlayables(t)) {
@@ -5032,6 +5032,10 @@ function openTask(id) {
         toast("Only LP can mark Closed");
         return;
       }
+      if (isPlayables(t) && key === "check" && !($("stResult")?.value || t.resultUrl || "").trim()) {
+        toast("Paste the storyboard link before Check");
+        return;
+      }
       if (isPlayables(t) && key === "done" && !($("stResult")?.value || t.resultUrl || "").trim()) {
         toast("Paste the HTML link before Done");
         return;
@@ -5083,6 +5087,10 @@ function openTask(id) {
     }
     if (studioStatus === "closed" && t.studioStatus !== "closed" && !canOps()) {
       toast("Only LP can mark Closed");
+      return;
+    }
+    if (isPlayables(t) && studioStatus === "check" && !resultUrl) {
+      toast("Paste the storyboard link before Check");
       return;
     }
     if (isPlayables(t) && studioStatus === "done" && !resultUrl) {

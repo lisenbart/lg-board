@@ -167,14 +167,28 @@ def on_playable_seat(task: dict | None, actor_id: str) -> bool:
 
 
 def playable_in_html(task: dict | None) -> bool:
-    """HTML loop: DEV is on the card, or status is already past Art ready."""
+    """HTML loop starts at Art ready (or a DEV-only card). Seating DEV on Ready is still art."""
     task = task or {}
     st = playable_norm_status(task.get("studioStatus"))
-    if st in {"done", "approve", "closed"}:
+    if st in {"artready", "done", "approve", "closed"}:
         return True
-    if st in {"wip", "revision"} and str(task.get("programmerId") or "").strip():
+    if task.get("playableHtml"):
+        return True
+    if not playable_has_ad(task) and str(task.get("programmerId") or "").strip():
         return True
     return False
+
+
+def touch_playable_html(task: dict | None) -> None:
+    """Lock the HTML loop once art is handed off, so later WIP is DEV not AD."""
+    if not task:
+        return
+    if playable_in_html(task):
+        task["playableHtml"] = True
+        st = playable_norm_status(task.get("studioStatus"))
+        board = str(task.get("resultUrl") or "").strip()
+        if st == "artready" and board and not str(task.get("storyboardUrl") or "").strip():
+            task["storyboardUrl"] = board
 
 
 def playable_may_assign_dev(task: dict | None, role: str | None = None) -> bool:
@@ -433,5 +447,8 @@ def ensure_crew(db: dict) -> bool:
                 task["programmerId"] = ""
             task["studioStatus"] = nxt
             task["mondayStatus"] = PLAY_STATUS.get(nxt, task.get("mondayStatus"))
+            dirty = True
+        if playable_in_html(task) and not task.get("playableHtml"):
+            touch_playable_html(task)
             dirty = True
     return dirty

@@ -30,7 +30,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-18j"
+BUILD = "2026-10-18k"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -1056,7 +1056,7 @@ def is_sendable(task: dict) -> bool:
     status = direction_io.playable_norm_status(task.get("studioStatus")) if direction_io.is_playables(task) else task.get("studioStatus")
     if direction_io.is_playables(task):
         if status == "check":
-            return True
+            return bool(str(task.get("resultUrl") or "").strip())
         return status == "done" and bool(str(task.get("resultUrl") or "").strip())
     return status == "done" and bool(str(task.get("resultUrl") or "").strip())
 
@@ -2361,6 +2361,9 @@ class Handler(SimpleHTTPRequestHandler):
                     ):
                         self._json(403, {"error": "Done is after TL Check"})
                         return
+                elif playable and status_after == "check" and not str(result_after or "").strip():
+                    self._json(400, {"error": "paste the storyboard link before Check"})
+                    return
                 elif playable and status_after == "done" and not str(result_after or "").strip():
                     self._json(400, {"error": "paste the HTML link before Done"})
                     return
@@ -2434,6 +2437,8 @@ class Handler(SimpleHTTPRequestHandler):
                         )
                 if playable:
                     data.pop("hours", None)
+                    data.pop("playableHtml", None)
+                    data.pop("storyboardUrl", None)
                     if role not in {"finance", "manager", "teamlead"}:
                         for key in ("assigneeHours", "programmerHours", "motionHours", "producerHours"):
                             data.pop(key, None)
@@ -2531,6 +2536,7 @@ class Handler(SimpleHTTPRequestHandler):
                     task["studioStatus"] = st
                     if st in direction_io.PLAY_STATUS:
                         task["mondayStatus"] = direction_io.PLAY_STATUS[st]
+                    direction_io.touch_playable_html(task)
                 elif task.get("studioStatus") == "closed":
                     task["mondayStatus"] = "Closed"
                 elif nxt == "revision":

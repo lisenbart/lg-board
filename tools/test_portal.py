@@ -934,6 +934,16 @@ def test_playable_card_pipeline() -> None:
     check("DEV with AD waits on Ready", direction_io.playable_next_statuses("programmer", {**ad, "programmerId": "programmer1"}) == [])
     ad["studioStatus"] = "wip"
     check("AD WIP offers Check", direction_io.playable_next_statuses("art_director", ad) == ["check"])
+    art_wip = {"studioStatus": "wip", "assigneeId": "artdir1", "programmerId": "programmer1"}
+    check("DEV on the card is not HTML yet", not direction_io.playable_in_html(art_wip))
+    check(
+        "AD WIP with DEV still offers Check",
+        direction_io.playable_next_statuses("art_director", art_wip) == ["check"],
+    )
+    check(
+        "DEV on AD WIP has no HTML chips",
+        direction_io.playable_next_statuses("programmer", art_wip) == [],
+    )
     ad["studioStatus"] = "check"
     check("AD waits on Check for LP", direction_io.playable_next_statuses("art_director", ad) == [])
     check("LP does not chip-set Send", not direction_io.playable_can_set("manager", ad, "approve")[0])
@@ -957,12 +967,23 @@ def test_playable_card_pipeline() -> None:
     check("DEV on Art ready offers WIP", direction_io.playable_next_statuses("programmer", {**ad, "programmerId": "programmer1"}) == ["wip"])
     check("AD is done at Art ready", direction_io.playable_next_statuses("art_director", ad) == [])
 
-    html = {"studioStatus": "wip", "assigneeId": "artdir1", "programmerId": "programmer1"}
+    html = {
+        "studioStatus": "wip",
+        "assigneeId": "artdir1",
+        "programmerId": "programmer1",
+        "playableHtml": True,
+    }
+    check("HTML loop starts after Art ready", direction_io.playable_in_html(html))
     check("DEV HTML WIP offers Done", direction_io.playable_next_statuses("programmer", html) == ["done"])
     check("AD does not drive HTML WIP", direction_io.playable_next_statuses("art_director", html) == [])
     ok_html, err_html = direction_io.playable_can_set("programmer", html, "done", actor_id="programmer1")
     check("DEV can pick Done from HTML WIP", ok_html, err_html)
-    html_bounce = {"studioStatus": "approve", "assigneeId": "artdir1", "programmerId": "programmer1"}
+    html_bounce = {
+        "studioStatus": "approve",
+        "assigneeId": "artdir1",
+        "programmerId": "programmer1",
+        "playableHtml": True,
+    }
     check("LP HTML bounce is Need Fixing", direction_io.playable_next_statuses("manager", html_bounce) == ["revision"])
     html_bounce["studioStatus"] = "revision"
     check("DEV HTML Fix offers WIP", direction_io.playable_next_statuses("programmer", html_bounce) == ["wip"])
@@ -986,9 +1007,27 @@ def test_playable_card_pipeline() -> None:
     check("LP seats DEV from Ready in copy", "You can already put DEV on the card" in js)
     check("Playables guide names the pipeline", "Ready → WIP → Check → Sent → Final art → Art ready → WIP → Done → Send → Closed" in js)
     check("AD owns Playables status copy", "AD owns status — you do not change it" in js)
-    check("DEV HTML paste is owner-only", "isProgrammer() && String(t.programmerId || \"\") === String(me().id)" in js)
+    check("DEV HTML paste is owner-only", "isProgrammer() && String(t.programmerId || \"\") === String(me().id) && playableInHtml(t)" in js)
     check("AD can paste a storyboard link", "isArtDirector() && playableAdId(t) === me().id && !playableInHtml(t)" in js)
+    check("empty Status plaque is hidden", "const statusKeys = statusActions(t)" in js and "statusKeys.length" in js)
+    check("Check needs the storyboard link", '(key === "done" || key === "check")' in js)
+    check("Check unlocks after the storyboard paste", '["tlcheck", "check", "done"].forEach' in js)
+    check("playableInHtml uses Art ready flag", "t?.playableHtml" in js)
     check("designer Playables status set is empty", "designer: []" in js.split("const PLAY_STATUS_BY_ROLE")[1].split("const LINES")[0])
+
+    ready_check = {
+        "department": "Playables",
+        "studioStatus": "check",
+        "assigneeId": "artdir1",
+        "resultUrl": "",
+    }
+    check("Check without storyboard is not sendable", not server.is_sendable(ready_check))
+    ready_check["resultUrl"] = "https://board.example/story"
+    check("Check with storyboard is sendable", server.is_sendable(ready_check))
+    art = {"studioStatus": "artready", "assigneeId": "artdir1", "programmerId": "programmer1", "resultUrl": "https://board.example/story"}
+    direction_io.touch_playable_html(art)
+    check("Art ready locks the HTML loop", art.get("playableHtml") is True)
+    check("Art ready keeps the storyboard URL", art.get("storyboardUrl") == "https://board.example/story")
 
 
 def test_lp_can_close_without_send() -> None:
