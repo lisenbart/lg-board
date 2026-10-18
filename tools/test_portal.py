@@ -964,9 +964,16 @@ def test_playables_desk() -> None:
         check(
             "client identity is SuperPlay logo",
             'id="whoLogo"' in html
-            and 'src="assets/superplay.png"' in html
-            and (ROOT / "public" / "assets" / "superplay.png").is_file()
-            and 'logo.hidden = !client' in js,
+            and 'src="assets/superplay.svg"' in html
+            and (ROOT / "public" / "assets" / "superplay.svg").is_file()
+            and 'logo.hidden = !client' in js
+            and "background: #000" not in css.split(".who-logo")[1].split("}")[0],
+        )
+        check(
+            "SuperPlay logo stays on the title row",
+            "html.hours-host .top-row" in css
+            and "flex-wrap: nowrap" in css.split("html.hours-host .top-row")[1].split("}")[0]
+            and "html.hours-host .top-end { width: auto; }" in css,
         )
         check("PIN Open is a form submit", 'id="loginForm"' in js and 'type="submit"' in js and "submitDoorLogin" in js)
         check("Create task name is one line", 'id="createTaskName"' in html and "<textarea id=\"createTaskName\"" not in html)

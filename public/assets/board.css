@@ -286,18 +286,29 @@ a { color: var(--blue); }
   gap: 4px;
   min-width: 0;
 }
-.who-tools { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.who-tools { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-shrink: 0; }
 .who-logo {
   display: none;
   height: 32px;
-  width: auto;
-  background: #000;
-  border-radius: 6px;
+  width: 61px;
+  flex: 0 0 61px;
+  min-width: 61px;
+  background: transparent;
   object-fit: contain;
 }
+.who-logo[hidden] { display: none !important; }
 .who-logo:not([hidden]) { display: block; }
-#signOut { height: 32px; padding: 0 10px; }
-html.hours-host .top-end { align-items: center; }
+#signOut { height: 32px; padding: 0 10px; flex-shrink: 0; }
+html.hours-host .top-row {
+  flex-wrap: nowrap;
+  align-items: center;
+}
+html.hours-host .top-end,
+html.hours-host .who,
+html.hours-host .who-tools {
+  flex-shrink: 0;
+  width: auto;
+}
 .who-id {
   display: flex;
   flex-direction: column;
@@ -2151,6 +2162,7 @@ a.pack-work:hover { background: #e2e4ec; }
   .app { grid-template-columns: 1fr; }
   .sidebar { display: none; }
   .top-end { width: 100%; justify-content: flex-end; }
+  html.hours-host .top-end { width: auto; }
   .team-row { grid-template-columns: 1fr; }
   .group.sheet { --meta-width: 626px; }
   .cols.ops .meta, .row.ops .meta,
