@@ -75,14 +75,29 @@ if [[ "${1:-}" != "--restart-only" ]]; then
   exec bash "$ROOT/deploy/update.sh" --restart-only
 fi
 
+PY="${ROOT}/.venv/bin/python"
+if [[ ! -x "$PY" ]]; then
+  PY="$(command -v python3)"
+fi
 if [[ ! -f "$PRESERVE_FLAG" ]]; then
-  PY="${ROOT}/.venv/bin/python"
-  if [[ ! -x "$PY" ]]; then
-    PY="$(command -v python3)"
-  fi
   "$PY" "$ROOT/deploy/restore_workbooks.py" || true
 fi
 rm -f "$PRESERVE_FLAG"
+"$PY" - <<'PY' || true
+import json
+from pathlib import Path
+import excel_io
+import finance_io
+db = json.loads(Path("data/db.json").read_text(encoding="utf-8"))
+ym = str((db.get("meta") or {}).get("month") or "2026-10")
+excel_io.write_month(db, ym)
+print("[update] MGX check seats rewritten", flush=True)
+try:
+    finance_io.write_month(db, ym)
+    print("[update] MGX calculator seats rewritten", flush=True)
+except Exception as e:
+    print(f"[update] calculator seats: {e}", flush=True)
+PY
 
 ensure_pdf
 sudo systemctl restart lg-board

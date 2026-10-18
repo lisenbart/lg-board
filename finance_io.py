@@ -814,6 +814,32 @@ LINE_FILL = {
     "DD": PatternFill("solid", fgColor="BFBFBF"),
     "DS": PatternFill("solid", fgColor="C6B19B"),
 }
+_SEAT_HEAD = ("EMPL", "LP ", "TL ", "MD ", "ARTD", "DEV ")
+
+
+def _relabel_calculator_seats(wb, crew: list[dict], skip_title: str, board: str) -> None:
+    labels = excel_io.seat_labels_for(crew, board=board)
+    empl_start = 6
+    for ws in wb.worksheets:
+        if str(ws.title).strip().lower() in {"employeers", "invoices"}:
+            continue
+        for r in range(1, min((ws.max_row or 1), 80) + 1):
+            a = str(ws.cell(r, 1).value or "").strip().upper()
+            head = str(ws.cell(r, empl_start).value or "").strip().upper()
+            if a not in {"DX", "DD", "DS"}:
+                continue
+            if not head.startswith(_SEAT_HEAD):
+                continue
+            for i, label in enumerate(labels):
+                cur = str(ws.cell(r, empl_start + i).value or "").strip().upper()
+                if cur.startswith(("TOTAL", "CLIENT", "STUDIO")):
+                    break
+                cell = ws.cell(r, empl_start + i, label)
+                cell.fill = HEADER_FILL
+                cell.font = CALIBRI_BOLD
+                cell.alignment = CENTER
+                cell.border = THIN
+        excel_io.rewrite_empl_tokens_on_sheet(ws, labels)
 
 
 def sheet_name_for(ym: str) -> str:
@@ -909,13 +935,14 @@ def _write_playable_month_body(db, ym, path, wb, nbu_rate) -> Path:
     ws.cell(2, 2, datetime(y, m, 1).strftime("%Y %B").upper())
     ws.cell(2, 2).font = CALIBRI_BOLD
     for i, person in enumerate(crew):
-        cell = ws.cell(2, empl_start + i, person.get("name") or f"EMPL {i + 1}")
+        cell = ws.cell(2, empl_start + i, person.get("name") or excel_io.role_seat_label(person, {}))
         cell.font = CALIBRI_BOLD
         cell.alignment = CENTER
+    play_seats = excel_io.seat_labels_for(crew, board="playables")
 
     def write_header(row: int, line: str) -> None:
         labels = [line, "Playable", "SHIFTS", "HOURS", "D.LINE"]
-        labels += [f"EMPL {i + 1}" for i in range(n_empl)]
+        labels += play_seats
         labels += ["Total EMPL", "CLIENT IN"]
         for c, label in enumerate(labels, 1):
             cell = ws.cell(row, c, label)
@@ -1025,6 +1052,7 @@ def _write_playable_month_body(db, ym, path, wb, nbu_rate) -> Path:
     for col in range(3, tax_col + 1):
         ws.column_dimensions[get_column_letter(col)].width = 14
     _write_employeers_sheet(wb, db)
+    _relabel_calculator_seats(wb, crew, name, "playables")
     _atomic_save(wb, path)
     return path
 
@@ -1079,13 +1107,14 @@ def _write_month_body(db, ym, path, wb, client_rate, tax, fx, crew, by_line, act
     ws.cell(2, 2, datetime(y, m, 1).strftime("%Y %B").upper())
     ws.cell(2, 2).font = CALIBRI_BOLD
     for i, person in enumerate(crew):
-        cell = ws.cell(2, empl_start + i, person.get("name") or f"EMPL {i + 1}")
+        cell = ws.cell(2, empl_start + i, person.get("name") or excel_io.role_seat_label(person, {}))
         cell.font = CALIBRI_BOLD
         cell.alignment = CENTER
+    mgx_seats = excel_io.seat_labels_for(crew)
 
     def write_header(row: int, line: str) -> None:
         labels = [line, "MGX", "SHIFTS", "HOURS", "D.LINE"]
-        labels += [f"EMPL {i + 1}" for i in range(n_empl)]
+        labels += mgx_seats
         labels += ["Total EMPL", "CLIENT IN"]
         for c, label in enumerate(labels, 1):
             cell = ws.cell(row, c, label)
@@ -1187,6 +1216,7 @@ def _write_month_body(db, ym, path, wb, client_rate, tax, fx, crew, by_line, act
     for col in range(3, tax_col + 1):
         ws.column_dimensions[get_column_letter(col)].width = 14
     _write_employeers_sheet(wb, db)
+    _relabel_calculator_seats(wb, crew, name, "mgx")
     _atomic_save(wb, path)
     return path
 

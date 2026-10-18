@@ -257,6 +257,73 @@ def designers(db: dict) -> list[dict]:
     return sorted(people, key=lambda p: (p.get("payOrder") or 99, p.get("name") or ""))
 
 
+def role_seat_label(person: dict | None, used: dict, board: str = "mgx") -> str:
+    """EMPL N → LP 1 / TL 1 / MD 1 / ARTD 1 / DEV 1, counted left to right."""
+    role = str((person or {}).get("role") or "")
+    if role == "manager":
+        used["lp"] = used.get("lp", 0) + 1
+        return f"LP {used['lp']}"
+    if role == "teamlead":
+        used["tl"] = used.get("tl", 0) + 1
+        return f"TL {used['tl']}"
+    if role == "programmer":
+        used["dev"] = used.get("dev", 0) + 1
+        return f"DEV {used['dev']}"
+    if role == "art_director":
+        used["art"] = used.get("art", 0) + 1
+        return f"ARTD {used['art']}"
+    if board == "playables":
+        return "MOTION"
+    used["md"] = used.get("md", 0) + 1
+    return f"MD {used['md']}"
+
+
+def seat_labels_for(people: list[dict], board: str = "mgx") -> list[str]:
+    used: dict = {}
+    return [role_seat_label(p, used, board=board) for p in people or []]
+
+
+_EMPL_SEAT_RE = re.compile(r"^EMPL\s*(\d+)$", re.I)
+_ROLE_SEAT_RE = re.compile(r"^(LP|TL|MD|ARTD|DEV)\s*\d+$", re.I)
+
+
+def is_empl_seat(value) -> bool:
+    return bool(_EMPL_SEAT_RE.match(str(value or "").strip()))
+
+
+def rewrite_empl_tokens_on_sheet(ws, labels: list[str]) -> None:
+    """EMPL 1 / EMPL 2… → LP 1, TL 1, MD 1… on header rows. Leave Total EMPL alone."""
+    if not labels:
+        return
+    max_r = min(ws.max_row or 1, 160)
+    max_c = min(ws.max_column or 1, 36)
+    for r in range(1, max_r + 1):
+        b = _cell_text(ws.cell(r, 2).value)
+        if PROJECT_NAME_RE.match(b or ""):
+            continue
+        a = _cell_text(ws.cell(r, 1).value)
+        if a.isdigit() and len(b) > 18:
+            continue
+        empl_cols: list[int] = []
+        present: list[str] = []
+        for c in range(1, max_c + 1):
+            v = str(ws.cell(r, c).value or "").strip()
+            if is_empl_seat(v):
+                empl_cols.append(c)
+            elif _ROLE_SEAT_RE.match(v):
+                present.append(v)
+        if not empl_cols:
+            continue
+        needed = [lab for lab in labels if lab not in present]
+        for i, c in enumerate(empl_cols):
+            cell = ws.cell(r, c)
+            cell.value = needed[i] if i < len(needed) else None
+            cell.fill = HEADER_FILL
+            cell.font = CALIBRI_BOLD
+            cell.alignment = CENTER
+            cell.border = THIN
+
+
 def _as_shift(value) -> float:
     if value in (None, ""):
         return 0.0
@@ -677,15 +744,72 @@ def _style_range(ws, row: int, cols: int) -> None:
         cell.alignment = CENTER if c != 2 else Alignment(vertical="center")
 
 
-def _label_section_empl(ws, col: int, n: int) -> None:
+def _label_section_empl(ws, col: int, label: str) -> None:
     for r in range(2, min((ws.max_row or 2) + 1, 80)):
         a = str(ws.cell(r, 1).value or "").strip().upper()
         if a in {"DX", "DD", "DS"}:
-            cell = ws.cell(r, col, f"EMPL {n}")
+            cell = ws.cell(r, col, label)
             cell.fill = HEADER_FILL
             cell.font = CALIBRI_BOLD
             cell.alignment = CENTER
             cell.border = THIN
+
+
+def _apply_mgx_seat_headers(
+    ws, columns: list[tuple[int, dict | None]], people: list[dict] | None = None
+) -> None:
+    used: dict = {}
+    labels: dict[int, str] = {}
+    last = 5
+    for col, person in columns:
+        last = max(last, int(col))
+        if person:
+            labels[int(col)] = role_seat_label(person, used)
+    header_rows = []
+    for r in range(2, min((ws.max_row or 2) + 1, 200)):
+        a = _cell_text(ws.cell(r, 1).value)
+        b = _cell_text(ws.cell(r, 2).value)
+        if a.upper() not in LINE_MARKS:
+            continue
+        if b and b.lower() not in ROW_LABELS:
+            continue
+        header_rows.append(r)
+        c = last + 1
+        while is_empl_seat(ws.cell(r, c).value):
+            last = max(last, c)
+            c += 1
+    for r in header_rows:
+        for c in range(6, last + 1):
+            cell = ws.cell(r, c)
+            if c in labels:
+                cell.value = labels[c]
+            elif is_empl_seat(cell.value):
+                cell.value = None
+            cell.fill = HEADER_FILL
+            cell.font = CALIBRI_BOLD
+            cell.alignment = CENTER
+            cell.border = THIN
+    bound = [p for _, p in columns if p]
+    rewrite_empl_tokens_on_sheet(ws, seat_labels_for(people or bound))
+
+
+def _existing_people_columns(ws, people: list[dict]) -> list[tuple[int, dict | None]]:
+    by_id = {p["id"]: p for p in people}
+    by_name = people_by_name(people)
+    used: set[str] = set()
+    columns: list[tuple[int, dict | None]] = []
+    for h in _header_columns(ws):
+        person = by_id.get(h["id"]) if h.get("id") else None
+        if person and person["id"] in used:
+            person = None
+        if person is None and h.get("name"):
+            candidate = by_name.get(h["name"].strip().lower())
+            if candidate and candidate["id"] not in used:
+                person = candidate
+        if person:
+            used.add(person["id"])
+        columns.append((h["col"], person))
+    return columns
 
 
 def _bind_people_columns(ws, people: list[dict]) -> list[tuple[int, dict | None]]:
@@ -716,7 +840,7 @@ def _bind_people_columns(ws, people: list[dict]) -> list[tuple[int, dict | None]
         if person["id"] in used:
             continue
         _stamp_person_header(ws.cell(1, next_col), person)
-        _label_section_empl(ws, next_col, n)
+        _label_section_empl(ws, next_col, role_seat_label(person, {}))
         ws.column_dimensions[get_column_letter(next_col)].width = 13
         columns.append((next_col, person))
         used.add(person["id"])
@@ -920,7 +1044,7 @@ def _write_month_body(db: dict, ym: str, path: Path, wb) -> Path:
         ws.cell(1, 2, f"{y} PROJECT NAME")
         for i, person in enumerate(people):
             _stamp_person_header(ws.cell(1, 6 + i), person)
-        labels = ["DX", "MGX", "SHIFTS", "HOURS", "DEADLINE"] + [f"EMPL {i + 1}" for i in range(len(people))]
+        labels = ["DX", "MGX", "SHIFTS", "HOURS", "DEADLINE"] + seat_labels_for(people)
         for c, label in enumerate(labels, 1):
             cell = ws.cell(2, c, label)
             cell.fill = HEADER_FILL
@@ -945,6 +1069,11 @@ def _write_month_body(db: dict, ym: str, path: Path, wb) -> Path:
     if "DX" not in scan["headers"]:
         scan["headers"]["DX"] = 2
     columns = _bind_people_columns(ws, people)
+    _apply_mgx_seat_headers(ws, columns, people)
+    for other in wb.worksheets:
+        if other is ws:
+            continue
+        _apply_mgx_seat_headers(other, _existing_people_columns(other, people), people)
     _drop_dropped_rows(ws, scan, db)
     id_index = {
         _id_key(item["name"]): item for item in scan["rows"].values() if _id_key(item["name"])

@@ -402,6 +402,66 @@ def test_live_workbook_if_present() -> None:
     check("matched count equals parsed names", stats["matched"] == len(set(names)), str(stats))
 
 
+def _empl_n_headers(path: Path) -> list[str]:
+    wb = load_workbook(path)
+    found = []
+    try:
+        for ws in wb.worksheets:
+            max_r = min(ws.max_row or 1, 80)
+            max_c = min(ws.max_column or 1, 20)
+            for r in range(1, max_r + 1):
+                b = excel_io._cell_text(ws.cell(r, 2).value)
+                if excel_io.PROJECT_NAME_RE.match(b or ""):
+                    continue
+                for c in range(1, max_c + 1):
+                    cell = ws.cell(r, c)
+                    if excel_io.is_empl_seat(cell.value):
+                        found.append(f"{ws.title}!{cell.coordinate}={cell.value}")
+    finally:
+        wb.close()
+    return found
+
+
+def test_mgx_seat_headers() -> None:
+    db = json.loads((ROOT / "data" / "db.json").read_text(encoding="utf-8"))
+    live = ROOT / "data" / "SP_MGX_check.xlsx"
+    with tempfile.TemporaryDirectory() as raw:
+        path = Path(raw) / "mgx.xlsx"
+        shutil.copy(live, path)
+        excel_io.write_month(db, "2026-10", path)
+        wb = load_workbook(path)
+        ws = excel_io.find_sheet(wb, "2026-10")
+        labels = [str(ws.cell(2, c).value or "") for c in range(6, 12)]
+        joined = " ".join(labels)
+        dec = next((s for s in wb.sheetnames if "December 25" in s), None)
+        dec_e = str(wb[dec].cell(2, 5).value or "") if dec else ""
+        wb.close()
+        check(
+            "MGX check seats are TL / MD not EMPL",
+            "TL 1" in labels and "MD 1" in labels and "EMPL" not in joined,
+            str(labels),
+        )
+        leftover = _empl_n_headers(path)
+        check("MGX check has no leftover EMPL N seats", not leftover, str(leftover[:12]))
+        if dec:
+            check("December 25 seat row has no EMPL 1", not excel_io.is_empl_seat(dec_e), dec_e)
+    with tempfile.TemporaryDirectory() as raw:
+        path = Path(raw) / "calc.xlsx"
+        shutil.copy(finance_io.CALC_PATH, path)
+        finance_io.write_month(db, "2026-10", path=path)
+        wb = load_workbook(path)
+        ws = wb[finance_io.sheet_name_for("2026-10")]
+        labels = [str(ws.cell(5, c).value or "") for c in range(6, 13)]
+        wb.close()
+        check(
+            "MGX calculator seats are LP TL MD",
+            labels[:4] == ["LP 1", "TL 1", "MD 1", "MD 2"] and "EMPL 1" not in labels,
+            str(labels),
+        )
+        leftover = _empl_n_headers(path)
+        check("MGX calculator has no leftover EMPL N seats", not leftover, str(leftover[:12]))
+
+
 def test_corrupt_db_recovery() -> None:
     with tempfile.TemporaryDirectory() as raw:
         data = Path(raw)
@@ -791,7 +851,11 @@ def test_playables_desk() -> None:
         )
         check(
             "Playables Excel seats are LP / ARTD / DEV",
-            'return "LP 1"' in js and "return `ARTD ${used.art}`" in js and "return `DEV ${used.dev}`" in js,
+            "return `LP ${used.lp}`" in js and "return `ARTD ${used.art}`" in js and "return `DEV ${used.dev}`" in js,
+        )
+        check(
+            "MGX Excel seats are LP / TL / MD",
+            "return `TL ${used.tl}`" in js and "return `MD ${used.md}`" in js and "`EMPL ${i + 1}`" not in js,
         )
         check(
             "DL card edits studioBuffer and billed follows crew",
@@ -832,6 +896,12 @@ def test_playables_desk() -> None:
         )
         check("save strips programmer from playable AD", "playables_io.ad_id" in py)
         update_sh = (ROOT / "deploy" / "update.sh").read_text(encoding="utf-8")
+        check(
+            "board-update rewrites MGX seat headers",
+            "MGX check seats rewritten" in update_sh
+            and "excel_io.write_month" in update_sh
+            and "finance_io.write_month" in update_sh,
+        )
         check(
             "board-update keeps live db and Playables Excel",
             "data/db.json" in update_sh
@@ -986,6 +1056,12 @@ def test_playables_desk() -> None:
             anna_formula = str(ws.cell(row_n, anna_col).value or "") if anna_col else ""
             client_formula = str(ws.cell(row_n, client_col).value or "") if client_col else ""
             wb.close()
+            seats = [str(ws.cell(5, c).value or "") for c in range(6, 12)]
+            check(
+                "Playables calculator seats are LP / ARTD / DEV",
+                "LP 1" in seats and "ARTD 1" in seats and "EMPL 1" not in seats,
+                str(seats),
+            )
             check(
                 "Playables calculator HOURS are crew without buffer",
                 abs(float(hours or 0) - 29) < 0.05,
@@ -1783,6 +1859,7 @@ def main() -> int:
         test_write_month_roundtrip,
         test_corrupt_xlsx_empty,
         test_live_workbook_if_present,
+        test_mgx_seat_headers,
         test_corrupt_db_recovery,
         test_save_db_atomic,
         test_unreadable_ingest_does_not_wipe,

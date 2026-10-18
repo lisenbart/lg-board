@@ -1000,14 +1000,25 @@ function excelPeople() {
   return lp ? [lp, ...crew] : crew;
 }
 function excelSeatLabel(p, used) {
-  if (p.role === "manager") return "LP 1";
+  if (p.role === "manager") {
+    used.lp = (used.lp || 0) + 1;
+    return `LP ${used.lp}`;
+  }
+  if (p.role === "teamlead") {
+    used.tl = (used.tl || 0) + 1;
+    return `TL ${used.tl}`;
+  }
   if (p.role === "programmer") {
     used.dev = (used.dev || 0) + 1;
     return `DEV ${used.dev}`;
   }
-  if (p.role === "designer") return "MOTION";
-  used.art = (used.art || 0) + 1;
-  return `ARTD ${used.art}`;
+  if (p.role === "art_director") {
+    used.art = (used.art || 0) + 1;
+    return `ARTD ${used.art}`;
+  }
+  if (state.direction === "playables") return "MOTION";
+  used.md = (used.md || 0) + 1;
+  return `MD ${used.md}`;
 }
 function artDirectors() {
   return sortPeople(
@@ -2642,7 +2653,7 @@ function renderExcelSheet() {
   const nameHeads = people.map((p) => `<th class="xl-person">${escapeHtml(p.name)}</th>`).join("");
   const usedSeats = {};
   const emplHeads = people
-    .map((p, i) => `<th>${play ? escapeHtml(excelSeatLabel(p, usedSeats)) : `EMPL ${i + 1}`}</th>`)
+    .map((p) => `<th>${escapeHtml(excelSeatLabel(p, usedSeats))}</th>`)
     .join("");
 
   const rowHtml = (t) => {
