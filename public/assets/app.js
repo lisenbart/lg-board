@@ -104,7 +104,7 @@ const ACCOUNTS = [
   {
     email: "superplay@lg-board",
     name: "SuperPlay",
-    blurb: "Hours report",
+    blurb: "SuperPlay",
     lockRole: "client",
   },
 ];
@@ -151,14 +151,14 @@ function isLocalHost() {
 function isHoursPage() {
   return (
     document.documentElement.classList.contains("hours-host") ||
-    /^\/hours\/?$/.test(location.pathname)
+    /^\/(superplay|hours)\/?$/.test(location.pathname)
   );
 }
 function isHoursView() {
   return isClient() || isHoursPage() || (isFinance() && state.view === "report");
 }
 function clientLink() {
-  return `${location.origin}/hours`;
+  return `${location.origin}/superplay`;
 }
 function studioAccounts() {
   return ACCOUNTS.filter((a) => a.lockRole !== "client");
@@ -227,7 +227,7 @@ function applySession(session) {
 function enterStudio() {
   document.documentElement.classList.add("in-app");
   $("loginGate").hidden = true;
-  document.title = isHoursPage() ? "Hours — Lisenbart Board" : "Lisenbart Board";
+  document.title = isHoursPage() ? "SuperPlay — Lisenbart Board" : "Lisenbart Board";
   startLiveSync();
 }
 function openLoginGate() {
@@ -374,9 +374,9 @@ function showDoorForm(door, error) {
   $("loginCard")?.classList.remove("is-home");
   $("loginTitle").hidden = false;
   $("loginLead").hidden = false;
-  $("loginTitle").textContent = "Client";
-  $("loginLead").textContent = "Hours for your projects.";
-  document.title = isHoursPage() ? "Hours — Lisenbart Board" : "Client — Lisenbart Board";
+  $("loginTitle").textContent = isHoursPage() ? "SuperPlay" : "Client";
+  $("loginLead").textContent = isHoursPage() ? "Your projects this month." : "Hours for your projects.";
+  document.title = isHoursPage() ? "SuperPlay — Lisenbart Board" : "Client — Lisenbart Board";
   $("loginAccounts").innerHTML = `
     <form id="loginForm" class="login-form">
       <button type="button" class="btn ghost login-back" id="loginBack">Back</button>
@@ -434,7 +434,7 @@ async function submitDoorLogin(seatId) {
     return;
   }
   if ((sess.role === "client" || door === "client") && !isHoursPage()) {
-    location.replace("/hours");
+    location.replace("/superplay");
     return;
   }
   enterStudio();
@@ -1277,10 +1277,10 @@ function renderChrome() {
     $("soundWrap").hidden = hideSound;
     if (hideSound) setSoundOpen(false);
   }
-  document.title = isHoursView() ? "Hours — Lisenbart Board" : "Lisenbart Board";
+  document.title = isHoursView() ? "SuperPlay — Lisenbart Board" : "Lisenbart Board";
   const title = document.querySelector(".board-title");
   if (title) {
-    title.textContent = isHoursView() ? "SuperPlay Hours" : DIR_LABEL[state.direction] || DIR_LABEL.mgx;
+    title.textContent = isHoursView() ? "SuperPlay" : DIR_LABEL[state.direction] || DIR_LABEL.mgx;
   }
   const pill = document.querySelector(".top-row > .pill");
   if (pill) {
@@ -1318,7 +1318,7 @@ function renderChrome() {
 
   const tabs = [];
   if (isClient()) {
-    tabs.push({ id: "report", label: "Hours" });
+    tabs.push({ id: "report", label: "SuperPlay" });
   } else {
     tabs.push({
       id: "board",
@@ -2972,8 +2972,8 @@ function renderGuide() {
           "SuperPlay",
           "Клієнт. Своя сторінка годин, без черги студії.",
           [
-            `Адреса студії ${ui("board.lisenbart.games")}. Кнопка ${ui("Client")} → логін + PIN. Після входу — лише ${ui("Hours")}.`,
-            `Можна кинути пряме посилання ${ui("/hours")}. Список як у інвойсі: ${ui("PROJECT NAME")} / ${ui("SHIFTS")} / ${ui("HOURS")}.`,
+            `Адреса студії ${ui("board.lisenbart.games")}. Кнопка ${ui("Client")} → логін + PIN. Після входу — ${ui("SuperPlay")}.`,
+            `Можна кинути пряме посилання ${ui("/superplay")}. Старе ${ui("/hours")} туди ж. Список як у інвойсі: ${ui("PROJECT NAME")} / ${ui("SHIFTS")} / ${ui("HOURS")}.`,
             `Секції ${ui("MGX")} і ${ui("Playable")} (DX / DD / DS), ${ui("TOTAL")} знизу. Імен виконавців, ставок і карток немає.`,
           ]
         )}
@@ -6231,7 +6231,7 @@ probeStudioApi()
       return;
     }
     if ((meOut.session.role === "client" || meOut.session.email === "superplay@lg-board") && !isHoursPage()) {
-      location.replace("/hours");
+      location.replace("/superplay");
       return;
     }
     enterStudio();

@@ -934,6 +934,9 @@ def test_playables_desk() -> None:
             and 'id="navClientSuperplay"' in html
             and "function isHoursView" in js,
         )
+        check("client page is /superplay", "`${location.origin}/superplay`" in js or "origin}/superplay`" in js)
+        check("client page title is SuperPlay", "SuperPlay — Lisenbart Board" in js and "Hours — Lisenbart Board" not in js)
+        check("client tab is SuperPlay not Hours", '{ id: "report", label: "Hours" }' not in js)
         check("card warns if it changed while open", "This card changed while it was open" in js)
         check("card shows who is writing", "is on this card" in js and "function paintCardWatch" in js)
         check("presence ping is not a db save", '"/api/presence"' in js)
@@ -1439,6 +1442,27 @@ def test_http(base: str) -> str | None:
         and "image/svg+xml" not in html,
         html[html.find("<title>") : html.find("</title>") + 8] if "<title>" in html else html[:120],
     )
+    code, payload, _ = _http(f"{base}/superplay")
+    sp_html = payload.decode("utf-8", errors="replace") if isinstance(payload, (bytes, bytearray)) else str(payload)
+    check(
+        "GET /superplay is the client desk",
+        code == 200 and "hours-host" in sp_html and "SuperPlay — Lisenbart Board" in sp_html,
+        sp_html[sp_html.find("<title>") : sp_html.find("</title>") + 8] if "<title>" in sp_html else str(code),
+    )
+    try:
+        with urllib.request.urlopen(f"{base}/hours", timeout=2) as res:
+            check(
+                "GET /hours lands on /superplay",
+                res.status == 200 and "/superplay" in (res.geturl() or ""),
+                res.geturl(),
+            )
+    except urllib.error.HTTPError as e:
+        loc = (e.headers.get("Location") if e.headers else "") or ""
+        check(
+            "GET /hours redirects to /superplay",
+            e.code in {301, 302, 303, 307, 308} and "/superplay" in loc,
+            f"{e.code} {loc}",
+        )
 
     t0 = time.monotonic()
     code, payload, _ = _http(f"{base}/api/roster", timeout=2)

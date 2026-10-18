@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-build="2026-10-18t">
+<html lang="en" data-build="2026-10-18u">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -23,9 +23,9 @@
       ) {
         document.documentElement.classList.add("studio-host");
       }
-      if (/^\/hours\/?$/.test(location.pathname)) {
+      if (/^\/(superplay|hours)\/?$/.test(location.pathname)) {
         document.documentElement.classList.add("hours-host");
-        document.title = "Hours — Lisenbart Board";
+        document.title = "SuperPlay — Lisenbart Board";
       }
     })();
   </script>
@@ -203,6 +203,6 @@
 
   <div class="toast" id="toast"></div>
   <script src="assets/notices.js?v=4"></script>
-  <script src="assets/app.js?v=196"></script>
+  <script src="assets/app.js?v=197"></script>
 </body>
 </html>

@@ -2,7 +2,7 @@
 
 Internal studio board. Superplay stays on Monday (`External Weekly`). Designers work here and are never added to Monday.
 
-One portal: **SUPERPLAY MGX** and **SUPERPLAY Playables** on the same desk (`board.lisenbart.games`). The sidebar switches boards. Finance and SuperPlay Hours stay combined — no page hop.
+One portal: **SUPERPLAY MGX** and **SUPERPLAY Playables** on the same desk (`board.lisenbart.games`). The sidebar switches boards. Finance and SuperPlay stay combined — no page hop.
 
 The board is one month at a time. Hours and load follow the selected month — same idea as a tab in `SP_MGX_check.xlsx` / `SP_PLBL_check.xlsx`.
 
@@ -36,7 +36,7 @@ Then:
 - **Designer** — only their queue, plus a read-only Excel picture of the month. Сергій sits Playables as well as MGX.
 - **Art Director / Programmer** — Playables queue only. Hours are agreed in Telegram before the card exists. AD: Ready→WIP, paste storyboard link, Check. LP sends the board (Sent). Bounce is Need Fixing; approve is Final art. AD sets Art ready, then DEV starts HTML. DEV WIP → paste HTML → Done. Code-only (no AD) starts DEV at Ready. MD on Playables has hours, not status.
 - **Line producer / Finance** — both boards. **Create task** after the client approved hours. Assign AD and DEV on the new card, hours next to the person. DEV can sit on the card from Ready; they start HTML after Art ready. LP/DL can set any Playables work status if AD or DEV are away (WIP, Check, Art ready, Done…). Send to the client stays the footer button (Check for storyboard, Done for HTML). Bounce after Send is Need Fixing. **DL** also has **Clients → SuperPlay** (same Hours tables as the SuperPlay login, without switching seat). More clients can sit in that Clients list later. If two people have the same card open, the card says who is on it; Save warns if the card changed while it was open.
-- **Client (SuperPlay)** — **Hours**: MGX and Playable sit in two separate tables with the same three number columns. Tap the MGX or Playable hours KPI to show only that table (tap again, or **projects**, to show both). Fills are a pastel tone ladder — header light, section a step darker, totals darker still, final hours the darkest. A green **Download Excel** under the tables builds a fresh file at click time (no studio people or rates), stamped with the viewer’s local date, time, and city. `DS-P-` / `DD-P-` / `DX-P-` rows stay in the Playable block even if department is missing. No studio queue, no money.
+- **Client (SuperPlay)** — page is **https://board.lisenbart.games/superplay** (`/hours` still redirects). MGX and Playable sit in two separate tables with the same three number columns. Tap the MGX or Playable hours KPI to show only that table (tap again, or **projects**, to show both). Fills are a pastel tone ladder — header light, section a step darker, totals darker still, final hours the darkest. A green **Download Excel** under the tables builds a fresh file at click time (no studio people or rates), stamped with the viewer’s local date, time, and city. `DS-P-` / `DD-P-` / `DX-P-` rows stay in the Playable block even if department is missing. No studio queue, no money.
 
 Studio no longer uses a shared team mailbox. The name on the door is the seat.
 
@@ -88,4 +88,4 @@ python3 tools/test_portal.py
 3. **lisenbart.games@gmail.com** → Team lead — assign a designer.
 4. Same mailbox → a designer — own queue, Excel is the month picture.
 5. Back to Anastasiia: pick Done rows → **Send to client**.
-6. **SuperPlay** — Hours report for the month. Switch months with the arrows.
+6. **SuperPlay** — `/superplay` for the month. Switch months with the arrows.

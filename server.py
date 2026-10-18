@@ -30,7 +30,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-18t"
+BUILD = "2026-10-18u"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -1360,6 +1360,9 @@ class Handler(SimpleHTTPRequestHandler):
     def _handle_get(self) -> None:
         path = urlparse(self.path).path
         if path in {"/hours", "/hours/"}:
+            self._redirect("/superplay")
+            return
+        if path in {"/superplay", "/superplay/"}:
             self.path = "/index.html"
             return SimpleHTTPRequestHandler.do_GET(self)
         if path == "/health":
@@ -3071,7 +3074,7 @@ def main() -> None:
     httpd.daemon_threads = True
     httpd.timeout = 45
     print(f"LG Board http://127.0.0.1:{PORT}", flush=True)
-    print("SuperPlay hours http://127.0.0.1:%s/hours" % PORT, flush=True)
+    print("SuperPlay http://127.0.0.1:%s/superplay" % PORT, flush=True)
     httpd.serve_forever()
 
 

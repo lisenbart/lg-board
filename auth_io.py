@@ -1,4 +1,4 @@
-"""Studio PIN login. SuperPlay uses /hours. Pins live in data/secrets/pins.json."""
+"""Studio PIN login. SuperPlay uses /superplay. Pins live in data/secrets/pins.json."""
 from __future__ import annotations
 
 import json
