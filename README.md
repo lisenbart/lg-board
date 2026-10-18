@@ -24,7 +24,7 @@ ssh board-update    # deploy the desk
 ssh board-status    # live build
 ```
 
-After a studio push, the agent always runs `ssh board-update` itself — do not wait to copy it.
+After a studio push, the agent always puts `ssh board-update` in a copy box. Run that on the Mac to ship the live desk.
 
 Google Drive is always the live disk ([LLC/docs](https://drive.google.com/drive/folders/191q3zTumkNi-2tc9LCB1SG2lZwtu0pVs)). The VPS stays signed in with a service account file at `data/secrets/google_service.json` (share October DD/DX with that account). **Create task** then makes the folder + brief Doc; **Save** on the card writes the brief into the Doc. To update the live desk: `bash deploy/update.sh` on the VPS, then hard-refresh the browser.
 

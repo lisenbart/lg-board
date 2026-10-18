@@ -1,10 +1,14 @@
 ---
-description: Deploy the live desk after every studio push
+description: Always ship ssh board-update in a copy box after a studio push
 alwaysApply: true
 ---
 
-After you push board changes to GitHub `studio` (or `main:studio`), always run `ssh board-update` yourself in this session. Do not wait for Dmytro. Do not only print the command in a copy box.
+After pushing board changes to GitHub `studio` (or `main:studio`), always put this command in a copy box in the user reply so Dmytro can run it on his Mac:
 
-`ssh board-update` backups live Excel/db, `git reset --hard origin/studio`, restores those files, restarts systemd `lg-board`. Then run `ssh board-status` and check `/api/version` build matches the commit you just shipped.
+```bash
+ssh board-update
+```
 
-Skip only when there was no push (docs-only local notes, or the change is not on the live desk).
+Do not skip it, do not bury it in prose, do not wait for him to ask. If this session can actually SSH to the VPS (`Host board-update` in `~/.ssh/config`), run it too, then confirm with `ssh board-status`. This cloud VM often cannot reach `15.235.127.163:22` — still always emit the copy box.
+
+Skip only when there was no studio push.
