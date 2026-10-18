@@ -7,6 +7,8 @@ from datetime import datetime, timezone
 from http.cookies import SimpleCookie
 from pathlib import Path
 
+import playables_io
+
 ROOT = Path(__file__).resolve().parent
 DATA = ROOT / "data"
 SECRETS = DATA / "secrets"
@@ -467,6 +469,8 @@ def view_state(db: dict, sess: dict | None) -> dict:
         dept = str(row.get("department") or row.get("direction") or "").lower()
         if dept.startswith("play"):
             row.pop("producerHours", None)
+            row.pop("studioBuffer", None)
+            row["hours"] = playables_io.crew_hours(task)
         tasks.append(row)
     out = dict(db)
     out["people"] = people

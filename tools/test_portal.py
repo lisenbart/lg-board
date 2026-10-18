@@ -488,6 +488,29 @@ def test_playables_desk() -> None:
     )
     check("AD hours ignore billed buffer", excel_io.hours_for_person(db["tasks"][1], "artdir1") == 10)
     check("DEV hours sit on programmerId", excel_io.hours_for_person(db["tasks"][1], "programmer1") == 19)
+    sticky = dict(db["tasks"][1])
+    playables_io.attach_studio_buffer(sticky)
+    check(
+        "Excel leftover sticks as studioBuffer",
+        abs(float(sticky.get("studioBuffer") or 0) - 1) < 0.05
+        and abs(float(sticky.get("hours") or 0) - 30) < 0.05
+        and abs(playables_io.crew_hours(sticky) - 29) < 0.05,
+        str({k: sticky.get(k) for k in ("hours", "studioBuffer", "assigneeHours", "programmerHours")}),
+    )
+    sticky["programmerHours"] = 20
+    playables_io.attach_studio_buffer(sticky)
+    check(
+        "studioBuffer stays when crew grows",
+        abs(float(sticky.get("studioBuffer") or 0) - 1) < 0.05 and abs(float(sticky.get("hours") or 0) - 31) < 0.05,
+        str({k: sticky.get(k) for k in ("hours", "studioBuffer", "programmerHours")}),
+    )
+    sticky["studioBuffer"] = 2
+    playables_io.attach_studio_buffer(sticky)
+    check(
+        "DL studioBuffer is billed extra",
+        abs(float(sticky.get("hours") or 0) - 32) < 0.05 and abs(playables_io.billed_hours(sticky) - 32) < 0.05,
+        str(sticky.get("hours")),
+    )
     stuck = {
         "id": "t-pl-devonly",
         "name": "DS-P-000_DevOnly",
@@ -590,10 +613,54 @@ def test_playables_desk() -> None:
         dl_view = auth_io.view_state(scratch, {"role": "finance", "email": "dmytro@lisenbart.games"})
         dl_dice = next((t for t in (dl_view.get("tasks") or []) if "MemoryDice" in (t.get("name") or "")), None)
         check("DL view keeps producerHours", bool(dl_dice and dl_dice.get("producerHours")))
+        check(
+            "Excel leftover becomes DL studio buffer",
+            bool(
+                dice
+                and abs(float(dice.get("studioBuffer") or 0) - 1) < 0.05
+                and abs(float(dice.get("hours") or 0) - 26) < 0.05
+                and abs(float(dice.get("producerHours") or 0) - 25) < 0.05
+            ),
+            str({k: (dice or {}).get(k) for k in ("hours", "studioBuffer", "producerHours", "assigneeHours", "programmerHours")}),
+        )
+        check(
+            "Kraken Excel leftover is studio buffer not AD",
+            bool(
+                kraken
+                and abs(float(kraken.get("studioBuffer") or 0) - 1) < 0.05
+                and abs(float(kraken.get("hours") or 0) - 5) < 0.05
+                and not kraken.get("assigneeId")
+            ),
+            str({k: (kraken or {}).get(k) for k in ("hours", "studioBuffer", "programmerHours", "assigneeHours")}),
+        )
+        check("DL view keeps studioBuffer", bool(dl_dice and abs(float(dl_dice.get("studioBuffer") or 0) - 1) < 0.05))
         lp_view = auth_io.view_state(scratch, {"role": "manager", "email": "anastasiia@lisenbart.games"})
         lp_dice = next((t for t in (lp_view.get("tasks") or []) if "MemoryDice" in (t.get("name") or "")), None)
         check("LP view keeps assigneeHours", bool(lp_dice and lp_dice.get("assigneeHours")))
         check("LP view hides producerHours", lp_dice is not None and "producerHours" not in lp_dice)
+        check("LP view hides studioBuffer", lp_dice is not None and "studioBuffer" not in lp_dice)
+        check(
+            "LP playable hours are crew without buffer",
+            bool(lp_dice and abs(float(lp_dice.get("hours") or 0) - 25) < 0.05),
+            str((lp_dice or {}).get("hours")),
+        )
+        held_ad = float((held or {}).get("assigneeHours") or 0)
+        held_buf = float((held or {}).get("studioBuffer") or 0)
+        if held:
+            held["assigneeHours"] = held_ad + 1
+        playables_io.apply_to_db(wip_board, parsed, "2026-10")
+        held = next((t for t in wip_board["tasks"] if "MergeSolitaire" in (t.get("name") or "")), None)
+        check(
+            "second Excel ingest does not rewrite portal seats or buffer",
+            bool(
+                held
+                and held.get("studioStatus") == "wip"
+                and abs(float(held.get("assigneeHours") or 0) - (held_ad + 1)) < 0.05
+                and abs(float(held.get("studioBuffer") or 0) - held_buf) < 0.05
+                and abs(float(held.get("hours") or 0) - playables_io.billed_hours(held)) < 0.05
+            ),
+            str({k: (held or {}).get(k) for k in ("assigneeHours", "hours", "studioBuffer", "studioStatus")}),
+        )
         billed_zero = {
             "name": "DS-P-SPLIT-HELP",
             "department": "Playables",
@@ -635,12 +702,21 @@ def test_playables_desk() -> None:
         check(
             "pipeline Time uses crew hours, not billed",
             "playableCrewTotal(t)" in js.split("function timeCell")[1].split("function statusRank")[0]
+            and "playableDeskTotal(t)" in js.split("function timeCell")[1].split("function statusRank")[0]
             and "Billed hours" not in js.split("function timeCell")[1].split("function statusRank")[0]
             and "hoursForPerson(t, me().id)" in js.split("function timeCell")[1].split("function statusRank")[0],
         )
         check(
-            "Playables Excel HOURS is crew total",
-            "play ? playableCrewTotal(t)" in js.split("function renderExcelSheet")[1].split("function statusMark")[0],
+            "Playables Excel HOURS is crew, DL adds buffer",
+            "isFinance() ? playableDeskTotal(t) : playableCrewTotal(t)"
+            in js.split("function renderExcelSheet")[1].split("function statusMark")[0],
+        )
+        check(
+            "DL card edits studioBuffer and billed follows crew",
+            'id="stStudioBuffer"' in js
+            and "patch.studioBuffer" in js
+            and 'id="playBilled"' in js
+            and 'id="stHours"' not in js.split("function playableHoursHtml")[1].split("function readPlayableSplits")[0],
         )
         check("playable AD is never the programmer", "function playableAdId" in js and "if (id === String(t?.programmerId || \"\")) return \"\"" in js)
         check("playable hoursOwned is assigneeHours", "if (isPlayables(t)) return roundHours(t?.assigneeHours)" in js)
@@ -669,7 +745,8 @@ def test_playables_desk() -> None:
         check(
             "playable crew save allows LP",
             'role not in {"finance", "manager", "teamlead"}' in py
-            and 'playable and role != "finance"' in py,
+            and 'data.pop("studioBuffer", None)' in py
+            and "playables_io.attach_studio_buffer" in py,
         )
         check("save strips programmer from playable AD", "playables_io.ad_id" in py)
         update_sh = (ROOT / "deploy" / "update.sh").read_text(encoding="utf-8")

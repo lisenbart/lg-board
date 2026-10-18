@@ -44,14 +44,8 @@ def crew(db: dict) -> list[dict]:
     return sorted(people, key=lambda p: (p.get("payOrder") or 99, p.get("name") or ""))
 
 
-def billed_hours(task: dict) -> float:
-    return excel_io.round_hours(task.get("hours"))
-
-
-def producer_hours(task: dict) -> float:
-    raw = excel_io.round_hours(task.get("producerHours"))
-    if raw:
-        return raw
+def crew_hours(task: dict) -> float:
+    """AD + DEV + MOTION seats. No studio buffer."""
     total = 0.0
     total += excel_io.round_hours(task.get("assigneeHours"))
     for row in excel_io.help_entries(task):
@@ -61,6 +55,51 @@ def producer_hours(task: dict) -> float:
         total += excel_io.round_hours((row or {}).get("hours"))
     total += excel_io.round_hours(task.get("motionHours"))
     return round(total, 1)
+
+
+def producer_hours(task: dict) -> float:
+    return crew_hours(task)
+
+
+def studio_buffer(task: dict) -> float:
+    """DL-only extra on top of crew. Excel HOURS − people used to hold this."""
+    if task.get("studioBuffer") not in (None, ""):
+        return excel_io.round_hours(task.get("studioBuffer"))
+    crew = crew_hours(task)
+    billed = excel_io.round_hours(task.get("hours"))
+    return max(0.0, round(billed - crew, 1))
+
+
+def billed_hours(task: dict) -> float:
+    return round(crew_hours(task) + studio_buffer(task), 1)
+
+
+def attach_studio_buffer(task: dict) -> bool:
+    """Persist Excel leftover as studioBuffer and keep billed = crew + buffer."""
+    if not direction_io.is_playables(task):
+        return False
+    crew = crew_hours(task)
+    buf = studio_buffer(task)
+    billed = round(crew + buf, 1)
+    dirty = False
+    if excel_io.round_hours(task.get("studioBuffer")) != buf:
+        task["studioBuffer"] = buf
+        dirty = True
+    if excel_io.round_hours(task.get("hours")) != billed:
+        task["hours"] = billed
+        dirty = True
+    if excel_io.round_hours(task.get("producerHours")) != crew:
+        task["producerHours"] = crew
+        dirty = True
+    return dirty
+
+
+def attach_studio_buffers(db: dict) -> bool:
+    dirty = False
+    for task in db.get("tasks") or []:
+        if attach_studio_buffer(task):
+            dirty = True
+    return dirty
 
 
 def ad_id(task: dict, people: list[dict] | None = None) -> str:
@@ -301,35 +340,12 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
         excel_status = row.get("excelStatus") or ""
         task = existing.get(name)
         if task:
-            before = (
-                task.get("hours"),
-                task.get("assigneeId"),
-                task.get("assigneeHours"),
-                task.get("programmerId"),
-                task.get("programmerHours"),
-                task.get("motionId"),
-                task.get("motionHours"),
-                task.get("producerHours"),
-                task.get("studioStatus"),
-                task.get("excelStatus"),
-                tuple((h.get("id"), h.get("hours")) for h in (task.get("help") or [])),
-                tuple((h.get("id"), h.get("hours")) for h in (task.get("programmerHelp") or [])),
-            )
+            before = (task.get("studioStatus"), task.get("excelStatus"), task.get("mondayStatus"))
             task["name"] = name
-            task["hours"] = row["hours"]
-            task["shifts"] = 0
             task["line"] = row["line"]
             task["department"] = "Playables"
-            task["assigneeId"] = excel_ad or ad_id(task, people) or ""
-            task["assigneeHours"] = row.get("assigneeHours") or 0
-            task["help"] = help_rows
-            task["programmerId"] = programmer_id
-            task["programmerHours"] = row.get("programmerHours") or 0
-            task["programmerHelp"] = programmer_help
-            task["motionId"] = motion_id
-            task["motionHours"] = row.get("motionHours") or 0
-            task["producerHours"] = row.get("producerHours") or 0
             task["month"] = ym
+            # Portal owns seats, billed hours, and studio buffer. Excel does not rewrite them.
             if excel_status:
                 task["excelStatus"] = excel_status
             current = direction_io.playable_norm_status(task.get("studioStatus"))
@@ -340,20 +356,7 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
                 # Board pipeline wins. Excel blue/WIP fill is not a reason to bounce WIP → Ready.
                 task["studioStatus"] = current
                 task["mondayStatus"] = direction_io.PLAY_STATUS.get(current, task.get("mondayStatus"))
-            after = (
-                task.get("hours"),
-                task.get("assigneeId"),
-                task.get("assigneeHours"),
-                task.get("programmerId"),
-                task.get("programmerHours"),
-                task.get("motionId"),
-                task.get("motionHours"),
-                task.get("producerHours"),
-                task.get("studioStatus"),
-                task.get("excelStatus"),
-                tuple((h.get("id"), h.get("hours")) for h in (task.get("help") or [])),
-                tuple((h.get("id"), h.get("hours")) for h in (task.get("programmerHelp") or [])),
-            )
+            after = (task.get("studioStatus"), task.get("excelStatus"), task.get("mondayStatus"))
             if before != after:
                 updated += 1
         else:
@@ -392,9 +395,12 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
                 ],
             }
             db.setdefault("tasks", []).append(task)
+            attach_studio_buffer(task)
             existing[name] = task
             added += 1
     if normalize_playable_seats(db):
+        updated += 1
+    if attach_studio_buffers(db):
         updated += 1
     return {
         "added": added,

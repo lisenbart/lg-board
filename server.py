@@ -30,7 +30,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-18f"
+BUILD = "2026-10-18g"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -156,6 +156,8 @@ def load_db() -> dict:
         except Exception as e:
             print(f"[playables] ingest: {e}", flush=True)
     if playables_io.normalize_playable_seats(db):
+        dirty = True
+    if playables_io.attach_studio_buffers(db):
         dirty = True
     if dirty:
         save_db(db)
@@ -1999,6 +2001,7 @@ class Handler(SimpleHTTPRequestHandler):
                     "programmerHours": 0,
                     "programmerHelp": [],
                     "help": [],
+                    "studioBuffer": 0,
                     "brief": "",
                     "folderUrl": "",
                     "docUrl": "",
@@ -2426,13 +2429,16 @@ class Handler(SimpleHTTPRequestHandler):
                         task.setdefault("activity", []).append(
                             {"at": utc_now(), "text": f"Renamed {old_name} → {new_name}"}
                         )
-                if playable and role not in {"finance", "manager", "teamlead"}:
-                    for key in ("assigneeHours", "programmerHours", "motionHours", "producerHours"):
-                        data.pop(key, None)
-                    data.pop("help", None)
-                    data.pop("programmerHelp", None)
-                elif playable and role != "finance":
-                    data.pop("producerHours", None)
+                if playable:
+                    data.pop("hours", None)
+                    if role not in {"finance", "manager", "teamlead"}:
+                        for key in ("assigneeHours", "programmerHours", "motionHours", "producerHours"):
+                            data.pop(key, None)
+                        data.pop("help", None)
+                        data.pop("programmerHelp", None)
+                    elif role != "finance":
+                        data.pop("producerHours", None)
+                        data.pop("studioBuffer", None)
                 brief_before = task.get("brief")
                 for key in (
                     "studioStatus",
@@ -2506,15 +2512,17 @@ class Handler(SimpleHTTPRequestHandler):
                     }
                 excel_io.normalize_help(task, crew_ids)
                 if playable:
-                    art = excel_io.round_hours(task.get("assigneeHours"))
-                    help_h = sum(row["hours"] for row in excel_io.help_entries(task))
-                    prog = excel_io.round_hours(task.get("programmerHours"))
-                    split_dev = sum(
-                        excel_io.round_hours((row or {}).get("hours"))
-                        for row in (task.get("programmerHelp") or [])
-                    )
-                    motion = excel_io.round_hours(task.get("motionHours"))
-                    task["producerHours"] = round(art + help_h + prog + split_dev + motion, 1)
+                    if role == "finance" and "studioBuffer" in data:
+                        try:
+                            buf = float(str(data.get("studioBuffer") or "0").replace(",", "."))
+                        except (TypeError, ValueError):
+                            self._json(400, {"error": "studio buffer must be a number"})
+                            return
+                        if buf < 0:
+                            self._json(400, {"error": "studio buffer must be 0 or more"})
+                            return
+                        task["studioBuffer"] = round(buf, 1)
+                    playables_io.attach_studio_buffer(task)
                 if playable:
                     st = direction_io.playable_norm_status(task.get("studioStatus"))
                     task["studioStatus"] = st
@@ -2547,6 +2555,7 @@ class Handler(SimpleHTTPRequestHandler):
                         "programmerId",
                         "programmerHours",
                         "programmerHelp",
+                        "studioBuffer",
                     )
                 )
                 save_db(db)

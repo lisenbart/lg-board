@@ -726,9 +726,17 @@ function playableCrewTotal(t) {
   const motionH = roundHours(t?.motionHours);
   return roundHours(artH + adH + progH + devH + motionH);
 }
+function playableStudioBuffer(t) {
+  if (t?.studioBuffer != null && t.studioBuffer !== "") return roundHours(t.studioBuffer);
+  return Math.max(0, roundHours(hoursOf(t) - playableCrewTotal(t)));
+}
+function playableDeskTotal(t) {
+  return roundHours(playableCrewTotal(t) + playableStudioBuffer(t));
+}
 function deskHours(t) {
   if (isPlayables(t)) {
     if (isPerformer()) return hoursForPerson(t, me().id);
+    if (isFinance()) return playableDeskTotal(t);
     const crew = playableCrewTotal(t);
     if (crew) return crew;
   }
@@ -736,7 +744,7 @@ function deskHours(t) {
 }
 function playableCardMeta(t) {
   const crew = playableCrewTotal(t);
-  const billed = hoursOf(t);
+  const billed = playableDeskTotal(t);
   const mineH = hoursForPerson(t, me().id);
   if (isFinance()) return `${billed || 0} h billed · ${crew || 0} h crew`;
   if (canOps()) return crew ? `${crew} h crew` : "";
@@ -2164,7 +2172,11 @@ function bindDriveButtons() {
 function timeCell(t) {
   const hours = t.hours || hoursFromShifts(t.shifts || 0);
   if (isPlayables(t)) {
-    const shown = isPerformer() ? hoursForPerson(t, me().id) : playableCrewTotal(t);
+    const shown = isPerformer()
+      ? hoursForPerson(t, me().id)
+      : isFinance()
+        ? playableDeskTotal(t)
+        : playableCrewTotal(t);
     return shown ? `${shown}h` : `<span class="empty">—</span>`;
   }
   if (canEditTime()) {
@@ -2568,7 +2580,10 @@ function renderExcelSheet() {
     .sort((a, b) => String(a.line).localeCompare(String(b.line)) || String(a.name).localeCompare(String(b.name)));
   const hoursOfPerson = (personId) =>
     tasks.reduce((s, t) => s + hoursForPerson(t, personId), 0);
-  const projectHours = (t) => (play ? playableCrewTotal(t) : Number(t.hours) || 0);
+  const projectHours = (t) => {
+    if (!play) return Number(t.hours) || 0;
+    return isFinance() ? playableDeskTotal(t) : playableCrewTotal(t);
+  };
   const allHours = tasks.reduce((s, t) => s + projectHours(t), 0);
   const allShifts = tasks.reduce((s, t) => s + (Number(t.shifts) || 0), 0);
   const nameHeads = people.map((p) => `<th class="xl-person">${escapeHtml(p.name)}</th>`).join("");
@@ -4358,9 +4373,9 @@ function playableSeatHtml(kind, t, editable) {
     </div>`;
 }
 function playableHoursHtml(t, editable) {
-  const billed = hoursOf(t);
   const crew = playableCrewTotal(t);
-  const buffer = Math.max(0, roundHours(billed - crew));
+  const buffer = playableStudioBuffer(t);
+  const billed = roundHours(crew + buffer);
   const mine = onMyPlayable(t);
   const adId = playableAdId(t);
   const ads = playableAdSplits(t);
@@ -4376,9 +4391,9 @@ function playableHoursHtml(t, editable) {
   const financeStrip = isFinance()
     ? `<section class="help-split play-finance">
       <label>Studio</label>
-      <div class="ops-item"><label>Billed hours</label>
-        <input id="stHours" type="number" min="0" step="0.1" value="${t.hours ?? ""}" /></div>
-      <div class="help-owner"><span>Studio buffer</span><b id="playBuffer">${buffer}h</b></div>
+      <div class="ops-item"><label>Studio buffer</label>
+        <input id="stStudioBuffer" type="number" min="0" step="0.1" value="${buffer || ""}" /></div>
+      <div class="help-owner"><span>Billed</span><b id="playBilled">${billed}h</b></div>
     </section>`
     : "";
   return `<section class="help-split play-crew">
@@ -4466,11 +4481,12 @@ function refreshPlayableCrew(t) {
   }
   $("stAdHours")?.classList.toggle("is-over", ad.given > ad.pool + 0.001);
   $("stProgHours")?.classList.toggle("is-over", dev.given > dev.pool + 0.001);
-  if ($("playCrew")) $("playCrew").textContent = `${crew}h`;
-  const buffer = $("playBuffer");
-  if (buffer) {
-    const billed = $("stHours") ? parseShifts($("stHours").value) ?? hoursOf(t) : hoursOf(t);
-    buffer.textContent = `${Math.max(0, roundHours(billed - crew))}h`;
+  const live = roundHours(crew + roundHours(t?.motionHours));
+  if ($("playCrew")) $("playCrew").textContent = `${live}h`;
+  const billedEl = $("playBilled");
+  if (billedEl) {
+    const buf = Math.max(0, $("stStudioBuffer") ? parseShifts($("stStudioBuffer").value) ?? 0 : playableStudioBuffer(t));
+    billedEl.textContent = `${roundHours(live + buf)}h`;
   }
 }
 function refreshPlayableSplitSelects() {
@@ -4516,7 +4532,7 @@ function bindPlayableCrew(t) {
   };
   box.addEventListener("input", paint);
   box.addEventListener("change", paint);
-  $("stHours")?.addEventListener("input", paint);
+  $("stStudioBuffer")?.addEventListener("input", paint);
   const keepOutgoing = (sel, rowsId, kind, prevId, prevHours) => {
     const next = sel?.value || "";
     const started = playableStatusKey(t) !== "new";
@@ -5089,15 +5105,15 @@ function openTask(id) {
     let assigneeId = mayAssign && $("stPerson") ? $("stPerson").value : isPlayables(t) ? playableAdId(t) : t.assigneeId;
     const patch = { studioStatus, role: me().role };
     if (isPlayables(t) && mayAssign && $("stProgrammer")) patch.programmerId = $("stProgrammer").value;
-    if (isPlayables(t) && canEditPlayableCrew() && $("stAdHours")) {
-      if (isFinance() && $("stHours")) {
-        const hours = parseShifts($("stHours").value);
-        if (hours === null) {
-          toast("Hours must be 0 or more");
-          return;
-        }
-        patch.hours = hours;
+    if (isPlayables(t) && isFinance() && $("stStudioBuffer")) {
+      const buf = parseShifts($("stStudioBuffer").value);
+      if (buf === null) {
+        toast("Studio buffer must be 0 or more");
+        return;
       }
+      patch.studioBuffer = buf;
+    }
+    if (isPlayables(t) && canEditPlayableCrew() && $("stAdHours")) {
       applyPlayablePoolToOwner("ad");
       applyPlayablePoolToOwner("dev");
       const adSplits = readPlayableSplits("ad", assigneeId);
