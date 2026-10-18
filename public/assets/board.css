@@ -286,8 +286,18 @@ a { color: var(--blue); }
   gap: 4px;
   min-width: 0;
 }
-.who-tools { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+.who-tools { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.who-logo {
+  display: none;
+  height: 32px;
+  width: auto;
+  background: #000;
+  border-radius: 6px;
+  object-fit: contain;
+}
+.who-logo:not([hidden]) { display: block; }
 #signOut { height: 32px; padding: 0 10px; }
+html.hours-host .top-end { align-items: center; }
 .who-id {
   display: flex;
   flex-direction: column;

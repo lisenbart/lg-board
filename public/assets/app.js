@@ -1238,15 +1238,20 @@ function renderWho() {
   const sel = $("who");
   const out = $("signOut");
   const hint = $("roleHint");
+  const logo = $("whoLogo");
+  const ident = mail?.closest(".who-id");
   const badge = jobMeta(p);
-  mail.hidden = false;
-  mail.textContent = whoLabel(p);
+  const client = isClient();
+  if (logo) logo.hidden = !client;
+  if (ident) ident.hidden = client;
+  mail.hidden = client;
+  mail.textContent = client ? "" : whoLabel(p);
   out.hidden = false;
   sel.hidden = true;
   sel.innerHTML = "";
   if (hint) {
-    hint.hidden = !p || p.role === "client";
-    hint.textContent = badge.title || "";
+    hint.hidden = client || !p;
+    hint.textContent = client ? "" : badge.title || "";
     hint.className = `who-role who-role-${(badge.code || "").toLowerCase()}`;
   }
 }

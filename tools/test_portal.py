@@ -961,6 +961,13 @@ def test_playables_desk() -> None:
             "identity sits under Sign out",
             'class="who-tools"' in html and 'class="who-id"' in html and 'id="roleHint"' in html,
         )
+        check(
+            "client identity is SuperPlay logo",
+            'id="whoLogo"' in html
+            and 'src="assets/superplay.png"' in html
+            and (ROOT / "public" / "assets" / "superplay.png").is_file()
+            and 'logo.hidden = !client' in js,
+        )
         check("PIN Open is a form submit", 'id="loginForm"' in js and 'type="submit"' in js and "submitDoorLogin" in js)
         check("Create task name is one line", 'id="createTaskName"' in html and "<textarea id=\"createTaskName\"" not in html)
         check("Create task Enter submits", 'id="createTaskForm"' in html and 'type="submit"' in html.split('id="createTaskGo"')[0][-80:])
