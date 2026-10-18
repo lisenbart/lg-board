@@ -30,12 +30,16 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-18p"
+BUILD = "2026-10-18q"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
 _REV_COND = threading.Condition()
 _MEM_REV = 0
+_EVENT = 0
+_PRESENCE: dict[str, dict] = {}
+_PRESENCE_LOCK = threading.Lock()
+PRESENCE_TTL = 25.0
 _FILES_SYNCED = False
 _BRIEFS_SYNCED = False
 EXCEL_WATCH_SEC = 45
@@ -202,21 +206,107 @@ def read_rev(db: dict) -> int:
 
 
 def publish_rev(n: int) -> None:
-    global _MEM_REV
+    global _MEM_REV, _EVENT
     with _REV_COND:
         _MEM_REV = int(n)
+        _EVENT += 1
         _REV_COND.notify_all()
 
 
-def wait_for_newer(seen: int, timeout: float) -> int:
+def pulse_board() -> None:
+    global _EVENT
+    with _REV_COND:
+        _EVENT += 1
+        _REV_COND.notify_all()
+
+
+def wait_for_newer(seen: int, timeout: float, seen_event: int | None = None) -> int:
     deadline = time.monotonic() + max(0.0, float(timeout))
     with _REV_COND:
-        while _MEM_REV == seen:
+        while _MEM_REV == seen and (seen_event is None or _EVENT == seen_event):
             left = deadline - time.monotonic()
             if left <= 0:
                 return _MEM_REV
             _REV_COND.wait(timeout=left)
         return _MEM_REV
+
+
+def _prune_presence(now: float | None = None) -> bool:
+    now = time.monotonic() if now is None else now
+    dropped = False
+    for token, row in list(_PRESENCE.items()):
+        if now - float(row.get("at") or 0) > PRESENCE_TTL:
+            _PRESENCE.pop(token, None)
+            dropped = True
+    return dropped
+
+
+def touch_presence(token: str, sess: dict | None, task_id: str) -> None:
+    token = str(token or "")
+    task_id = str(task_id or "").strip()
+    if not token:
+        return
+    person_id = str((sess or {}).get("personId") or "")
+    role = str((sess or {}).get("role") or "")
+    name = role
+    if person_id and DB_PATH.exists():
+        try:
+            db = _read_db_file()
+        except Exception:
+            db = {}
+        person = next((p for p in (db.get("people") or []) if str(p.get("id") or "") == person_id), None)
+        name = str((person or {}).get("name") or "") or role
+    changed = False
+    with _PRESENCE_LOCK:
+        changed = _prune_presence()
+        if not task_id:
+            if token in _PRESENCE:
+                _PRESENCE.pop(token, None)
+                changed = True
+        else:
+            prev = _PRESENCE.get(token) or {}
+            _PRESENCE[token] = {
+                "taskId": task_id,
+                "personId": person_id,
+                "name": name,
+                "role": role,
+                "at": time.monotonic(),
+            }
+            if prev.get("taskId") != task_id or prev.get("personId") != person_id:
+                changed = True
+    if changed:
+        pulse_board()
+
+
+def drop_presence(token: str) -> None:
+    touch_presence(token, None, "")
+
+
+def presence_view(self_token: str = "") -> dict:
+    now = time.monotonic()
+    with _PRESENCE_LOCK:
+        if _prune_presence(now):
+            rows = dict(_PRESENCE)
+            notify = True
+        else:
+            rows = dict(_PRESENCE)
+            notify = False
+    if notify:
+        pulse_board()
+    by_task: dict[str, list] = {}
+    for token, row in rows.items():
+        tid = str(row.get("taskId") or "")
+        if not tid:
+            continue
+        by_task.setdefault(tid, []).append(
+            {
+                "personId": row.get("personId") or "",
+                "name": row.get("name") or "",
+                "role": row.get("role") or "",
+                "self": token == self_token,
+            }
+        )
+    return by_task
 
 
 def save_db(db: dict, origin: bool = False) -> None:
@@ -1329,14 +1419,19 @@ class Handler(SimpleHTTPRequestHandler):
             with LOCK:
                 db = peek_db()
                 rev = read_rev(db)
-            publish_rev(rev)
+            with _REV_COND:
+                if _MEM_REV != rev:
+                    _MEM_REV = rev
+                seen_event = _EVENT
             if client_rev and client_rev == rev and wait_s:
-                wait_for_newer(client_rev, wait_s)
+                wait_for_newer(client_rev, wait_s, seen_event)
                 with LOCK:
                     db = peek_db()
                     rev = read_rev(db)
+            token = self._token()
+            watchers = presence_view(token)
             if client_rev and client_rev == rev:
-                self._json(200, {"unchanged": True, "rev": rev})
+                self._json(200, {"unchanged": True, "rev": rev, "presence": watchers})
                 return
             self._json(
                 200,
@@ -1344,6 +1439,7 @@ class Handler(SimpleHTTPRequestHandler):
                     "unchanged": False,
                     "rev": rev,
                     "state": auth_io.view_state(db, sess),
+                    "presence": watchers,
                 },
             )
             return
@@ -1621,6 +1717,7 @@ class Handler(SimpleHTTPRequestHandler):
             self._json(200, payload, cookie=cookie)
             return
         if path == "/api/logout":
+            drop_presence(self._token())
             auth_io.drop_session(self._token())
             self._json(200, {"ok": True}, cookie=auth_io.cookie_header("", clear=True))
             return
@@ -1635,6 +1732,10 @@ class Handler(SimpleHTTPRequestHandler):
             self._json(403, {"error": "client cannot edit"})
             return
         data = self._bind_actor(data, sess)
+        if path == "/api/presence":
+            touch_presence(self._token(), sess, str(data.get("id") or ""))
+            self._json(200, {"ok": True, "presence": presence_view(self._token())})
+            return
         if path == "/api/excel/pull":
             with LOCK:
                 db = load_db()

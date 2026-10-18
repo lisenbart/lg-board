@@ -77,6 +77,7 @@ const STUDIO_ROLES = [
 ];
 const DIR_KEY = "lg-direction";
 const DIR_LABEL = { mgx: "SUPERPLAY MGX", playables: "SUPERPLAY Playables" };
+const CLIENTS = [{ id: "superplay", label: "SuperPlay" }];
 
 const MONTH_KEY = "lg-month";
 const SESSION_KEY = "lg-session";
@@ -116,6 +117,10 @@ const state = {
   openId: null,
   designerFilter: null,
   hoursDir: null,
+  hoursClient: "superplay",
+  presence: {},
+  cardOpenedStamp: "",
+  cardStale: false,
   month: "2026-10",
   teamDrafts: {},
   teamPins: {},
@@ -148,6 +153,9 @@ function isHoursPage() {
     document.documentElement.classList.contains("hours-host") ||
     /^\/hours\/?$/.test(location.pathname)
   );
+}
+function isHoursView() {
+  return isClient() || isHoursPage() || (isFinance() && state.view === "report");
 }
 function clientLink() {
   return `${location.origin}/hours`;
@@ -1262,25 +1270,28 @@ function setMonth(ym) {
 function renderChrome() {
   syncDirection();
   $("financeNav").hidden = !isFinance();
+  if ($("clientsNav")) $("clientsNav").hidden = !isFinance();
   if ($("inboxWrap")) $("inboxWrap").hidden = isClient();
   if ($("soundWrap")) {
     const hideSound = isClient() || isHoursPage();
     $("soundWrap").hidden = hideSound;
     if (hideSound) setSoundOpen(false);
   }
-  document.title = isHoursPage() ? "Hours — Lisenbart Board" : "Lisenbart Board";
+  document.title = isHoursView() ? "Hours — Lisenbart Board" : "Lisenbart Board";
   const title = document.querySelector(".board-title");
-  if (title) title.textContent = isClient() ? "Hours" : DIR_LABEL[state.direction] || DIR_LABEL.mgx;
+  if (title) {
+    title.textContent = isHoursView() ? "SuperPlay Hours" : DIR_LABEL[state.direction] || DIR_LABEL.mgx;
+  }
   const pill = document.querySelector(".top-row > .pill");
   if (pill) {
     const play = state.direction === "playables";
     pill.className = play ? "pill dep-playables" : "pill dep-MGX";
     pill.textContent = play ? "Playables" : "MGX";
-    pill.hidden = isClient();
+    pill.hidden = isHoursView();
   }
   const mgxNav = $("navMgx");
   const playNav = $("navPlay");
-  const onBoard = state.view !== "close" && state.view !== "team";
+  const onBoard = state.view !== "close" && state.view !== "team" && state.view !== "report";
   if (mgxNav) {
     mgxNav.hidden = isClient() || !canSeeDirection("mgx");
     mgxNav.classList.toggle("active", onBoard && state.direction === "mgx");
@@ -1289,6 +1300,9 @@ function renderChrome() {
     playNav.hidden = isClient() || !canSeeDirection("playables");
     playNav.classList.toggle("active", onBoard && state.direction === "playables");
   }
+  $("navClose")?.classList.toggle("active", isFinance() && state.view === "close");
+  $("navTeam")?.classList.toggle("active", isFinance() && state.view === "team");
+  $("navClientSuperplay")?.classList.toggle("active", isFinance() && state.view === "report");
   renderMonth();
   const meta = state.db?.meta || {};
   const brand = $("brandMode");
@@ -1315,6 +1329,7 @@ function renderChrome() {
     if (isFinance()) {
       tabs.push({ id: "close", label: "Finance" });
       tabs.push({ id: "team", label: "Team" });
+      tabs.push({ id: "report", label: "SuperPlay" });
     }
     tabs.push({ id: "guide", label: "Як це працює" });
   }
@@ -1333,6 +1348,7 @@ function renderChrome() {
     $("views").querySelectorAll(".view-tab").forEach((el) => {
       el.addEventListener("click", () => {
         state.view = el.dataset.view;
+        if (state.view === "report") state.hoursClient = "superplay";
         render();
       });
     });
@@ -4861,11 +4877,84 @@ function bindHelpSplit(t) {
   $("stShifts")?.addEventListener("input", paint);
 }
 
+function cardRemoteStamp(t) {
+  if (!t) return "";
+  return JSON.stringify({
+    name: t.name || "",
+    studioStatus: t.studioStatus || "",
+    assigneeId: t.assigneeId || "",
+    programmerId: t.programmerId || "",
+    hours: t.hours || 0,
+    shifts: t.shifts || 0,
+    assigneeHours: t.assigneeHours || 0,
+    programmerHours: t.programmerHours || 0,
+    studioBuffer: t.studioBuffer || 0,
+    help: t.help || [],
+    programmerHelp: t.programmerHelp || [],
+    resultUrl: t.resultUrl || "",
+    deadline: t.deadline || "",
+    brief: t.brief || "",
+  });
+}
+function othersOnOpenCard() {
+  const id = state.openId;
+  if (!id) return [];
+  return (state.presence?.[id] || []).filter((row) => !row.self);
+}
+function paintCardWatch() {
+  const el = $("cardWatch");
+  if (!el) return;
+  const names = othersOnOpenCard()
+    .map((row) => row.name || row.role)
+    .filter(Boolean);
+  const uniq = [...new Set(names)];
+  const bits = [];
+  if (uniq.length) {
+    bits.push(
+      uniq.length === 1
+        ? `${uniq[0]} is on this card`
+        : `${uniq.join(", ")} are on this card`
+    );
+  }
+  if (state.cardStale) bits.push("The card changed while it was open. Save will overwrite that write.");
+  el.hidden = !bits.length;
+  el.classList.toggle("is-stale", Boolean(state.cardStale));
+  el.textContent = bits.join(". ");
+}
+let presenceTimer = 0;
+function stopCardPresence() {
+  clearInterval(presenceTimer);
+  presenceTimer = 0;
+  api("/api/presence", { id: "" });
+}
+function startCardPresence(id) {
+  if (!id || isClient()) return;
+  api("/api/presence", { id }).then((out) => {
+    if (out?.presence) {
+      state.presence = out.presence;
+      paintCardWatch();
+    }
+  });
+  if (!presenceTimer) {
+    presenceTimer = window.setInterval(() => {
+      if (!state.openId) return;
+      api("/api/presence", { id: state.openId }).then((out) => {
+        if (out?.presence) {
+          state.presence = out.presence;
+          paintCardWatch();
+        }
+      });
+    }, 8000);
+  }
+}
+
 function openTask(id) {
   if (isClient()) return;
   const t = state.db.tasks.find((x) => x.id === id);
   if (!t) return;
   state.openId = id;
+  state.cardOpenedStamp = cardRemoteStamp(t);
+  state.cardStale = false;
   const mine = onMyPlayable(t);
   const canEdit = canOps() || canAssign() || mine;
   const lockedStatus = (t.studioStatus === "approve" || t.studioStatus === "closed") && !canOps();
@@ -4934,6 +5023,7 @@ function openTask(id) {
       }
     </div>
     <div class="meta"><span class="pill line-${t.line}">${t.line}</span> ${play ? (playableCardMeta(t) ? `${playableCardMeta(t)} · ` : "") : `${t.shifts || 0} shift · ${t.hours || 0} h · `}<span id="stMetaStatus" class="pill ${st.cls}">${statusText(t.studioStatus || "new", t)}</span></div>
+    <p class="card-watch" id="cardWatch" hidden></p>
     <div class="drawer-body">
     <div class="card-job tone-${job.tone}">
       ${jobBadgeHtml(me())}
@@ -5240,6 +5330,12 @@ function openTask(id) {
   $("saveTask")?.addEventListener("click", async () => {
     const saveBtn = $("saveTask");
     if (saveBtn?.disabled || saveBtn?.classList.contains("is-busy")) return;
+    if (
+      state.cardStale &&
+      !confirm("This card changed while it was open. Save anyway and overwrite the other write?")
+    ) {
+      return;
+    }
     if (canWriteNotes() && (String($("stComment")?.value || "").trim() || pendingShots.length)) {
       const ok = await postClientNote({ reopen: false });
       if (!ok) return;
@@ -5458,6 +5554,8 @@ function openTask(id) {
   $("drawer")?.addEventListener("change", refreshCardActions);
   $("stComment")?.addEventListener("input", refreshCardActions);
   refreshCardActions();
+  paintCardWatch();
+  startCardPresence(id);
 }
 
 function closeDrawer(opts = {}) {
@@ -5472,8 +5570,11 @@ function closeDrawer(opts = {}) {
     return false;
   }
   $("drawerBg").classList.remove("show");
+  stopCardPresence();
   state.openId = null;
   state.cardDirty = null;
+  state.cardOpenedStamp = "";
+  state.cardStale = false;
   return true;
 }
 
@@ -5678,6 +5779,11 @@ function applyRemoteState(db) {
     toast("This project was removed");
     return;
   }
+  const live = (db.tasks || []).find((row) => row.id === openId);
+  if (live && cardRemoteStamp(live) !== state.cardOpenedStamp) {
+    state.cardStale = true;
+    paintCardWatch();
+  }
   if (!dirty) openTask(openId);
 }
 
@@ -5738,6 +5844,10 @@ async function liveSyncLoop() {
       if (out.error) {
         await sleep(2000);
         continue;
+      }
+      if (out.presence) {
+        state.presence = out.presence;
+        paintCardWatch();
       }
       if (!out.unchanged && out.state) applyRemoteState(out.state);
     } catch (err) {
@@ -5907,6 +6017,7 @@ document.addEventListener("click", (e) => {
 });
 paintSoundCtrl();
 $("signOut").addEventListener("click", () => {
+  stopCardPresence();
   api("/api/logout", {});
   writeSession(null);
   state.roleId = "manager";
@@ -5924,12 +6035,12 @@ $("signOut").addEventListener("click", () => {
 });
 $("navMgx")?.addEventListener("click", () => {
   if (isClient()) return;
-  if (state.view === "close" || state.view === "team") state.view = "board";
+  if (state.view === "close" || state.view === "team" || state.view === "report") state.view = "board";
   setDirection("mgx");
 });
 $("navPlay")?.addEventListener("click", () => {
   if (isClient()) return;
-  if (state.view === "close" || state.view === "team") state.view = "board";
+  if (state.view === "close" || state.view === "team" || state.view === "report") state.view = "board";
   setDirection("playables");
 });
 $("navClose").addEventListener("click", () => {
@@ -5940,6 +6051,12 @@ $("navClose").addEventListener("click", () => {
 $("navTeam").addEventListener("click", () => {
   if (!isFinance()) return;
   state.view = "team";
+  render();
+});
+$("navClientSuperplay")?.addEventListener("click", () => {
+  if (!isFinance()) return;
+  state.view = "report";
+  state.hoursClient = "superplay";
   render();
 });
 $("delCancel").onclick = () => $("delModal").classList.remove("show");

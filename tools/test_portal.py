@@ -926,6 +926,16 @@ def test_playables_desk() -> None:
         check("hours table totals omit rates", "MGX TOTAL · $" not in js and "Playable TOTAL · $" not in js)
         check("hours report is two direction sheets", "sp-sheet-${kind}" in js and 'sheetHtml("mgx"' in js and 'sheetHtml("play"' in js)
         check("hours KPIs filter a direction", 'data-hours-dir="' in js and "state.hoursDir" in js)
+        html = (ROOT / "public" / "index.html").read_text(encoding="utf-8")
+        check(
+            "DL SuperPlay hours stay in the cabinet",
+            'id: "report", label: "SuperPlay"' in js
+            and 'id="navClientSuperplay"' in html
+            and "function isHoursView" in js,
+        )
+        check("card warns if it changed while open", "This card changed while it was open" in js)
+        check("card shows who is writing", "is on this card" in js and "function paintCardWatch" in js)
+        check("presence ping is not a db save", '"/api/presence"' in js)
         check("hours tables share column widths", "table-layout: fixed" in css and "sp-col-num" in css and "sp-col-name" in js)
         check("hours totals use pastel ladder", "--sp-total: #b5c9dc" in css and "--sp-total-sum: #9bb5ce" in css)
         check("hours final numbers are darker", ".sp-dir-total td.sp-hours" in css and "background: var(--sp-total-sum)" in css)
@@ -1217,6 +1227,27 @@ def test_playable_card_pipeline() -> None:
     check("Art ready keeps the storyboard URL", art.get("storyboardUrl") == "https://board.example/story")
 
 
+def test_card_presence() -> None:
+    server._PRESENCE.clear()
+    server.touch_presence("tok-a", {"personId": "manager", "role": "manager"}, "t-card")
+    other = server.presence_view("tok-b")
+    mine = server.presence_view("tok-a")
+    check(
+        "presence lists the other session",
+        any(not r.get("self") for r in other.get("t-card") or []),
+        str(other),
+    )
+    check(
+        "presence marks self",
+        any(r.get("self") for r in mine.get("t-card") or []),
+        str(mine),
+    )
+    server.drop_presence("tok-a")
+    check("presence clears on leave", "t-card" not in server.presence_view("tok-a"))
+    src = (ROOT / "server.py").read_text(encoding="utf-8")
+    check("presence does not bump db rev", "def touch_presence" in src and "bump_rev" not in src.split("def touch_presence")[1].split("def drop_presence")[0])
+
+
 def test_lp_can_close_without_send() -> None:
     src = (ROOT / "server.py").read_text(encoding="utf-8")
     js = (ROOT / "public" / "assets" / "app.js").read_text(encoding="utf-8")
@@ -1443,6 +1474,20 @@ def test_http(base: str) -> str | None:
         str(payload.get("error") or sess),
     )
     check("login sets cookie", bool(cookie), str(cookie))
+    if cookie:
+        ck = cookie.split(";", 1)[0]
+        with server.LOCK:
+            sample = next((t for t in (server.peek_db().get("tasks") or []) if t.get("id")), None)
+        tid = str((sample or {}).get("id") or "t-presence")
+        code, payload, _ = _http(f"{base}/api/presence", {"id": tid}, cookie=ck)
+        rows = ((payload or {}).get("presence") or {}).get(tid) or []
+        check(
+            "DL presence marks the open card",
+            code == 200 and any(r.get("self") for r in rows),
+            str(payload),
+        )
+        code, payload, _ = _http(f"{base}/api/presence", {"id": ""}, cookie=ck)
+        check("DL presence clears the card", code == 200 and tid not in ((payload or {}).get("presence") or {}), str(payload))
 
     code, payload, headers = _http(f"{base}/api/login", {"door": "studio", "role": "manager", "pin": "1726"})
     lp_cookie = headers.get("Set-Cookie") if hasattr(headers, "get") else None
@@ -1944,6 +1989,7 @@ def main() -> int:
         test_playables_desk,
         test_drive_folder_lock,
         test_playable_card_pipeline,
+        test_card_presence,
         test_lp_can_close_without_send,
         test_finance_reads_board_not_xlsx,
     ):
