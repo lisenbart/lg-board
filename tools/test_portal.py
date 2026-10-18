@@ -753,9 +753,14 @@ def test_playables_desk() -> None:
             and "hoursForPerson(t, me().id)" in js.split("function timeCell")[1].split("function statusRank")[0],
         )
         check(
-            "Playables Excel HOURS is crew, DL adds buffer",
+            "Playables Excel Hours is crew, DL adds buffer",
             "isFinance() ? playableDeskTotal(t) : playableCrewTotal(t)"
-            in js.split("function renderExcelSheet")[1].split("function statusMark")[0],
+            in js.split("function renderExcelSheet")[1].split("function statusMark")[0]
+            and 'play ? `<th>Hours</th>`' in js,
+        )
+        check(
+            "Playables Excel seats are LP / ARTD / DEV",
+            'return "LP 1"' in js and "return `ARTD ${used.art}`" in js and "return `DEV ${used.dev}`" in js,
         )
         check(
             "DL card edits studioBuffer and billed follows crew",
@@ -862,6 +867,19 @@ def test_playables_desk() -> None:
                 "write_month does not insert MOTION",
                 "MOTION" not in labels and "Сергій" not in names,
                 f"{names} {labels}",
+            )
+            hours_head = str(ws.cell(2, 3).value or "")
+            joined = " ".join(labels)
+            check(
+                "Playables Excel columns are Hours / LP / ARTD / DEV",
+                hours_head == "Hours"
+                and "LP 1" in labels
+                and "ARTD 1" in labels
+                and "DEV 1" in labels
+                and "Producer" not in labels
+                and "2DART" not in joined
+                and "PRGMM" not in joined,
+                f"{hours_head} {labels}",
             )
             parsed2 = playables_io.parse_workbook(path, "2026-10")
             dice2 = next((r for r in (parsed2.get("rows") or []) if "MemoryDice" in (r.get("name") or "")), None)

@@ -996,14 +996,14 @@ function excelPeople() {
   return lp ? [lp, ...crew] : crew;
 }
 function excelSeatLabel(p, used) {
-  if (p.role === "manager") return "Producer";
+  if (p.role === "manager") return "LP 1";
   if (p.role === "programmer") {
     used.dev = (used.dev || 0) + 1;
-    return `PRGMM${used.dev}`;
+    return `DEV ${used.dev}`;
   }
   if (p.role === "designer") return "MOTION";
   used.art = (used.art || 0) + 1;
-  return `2DART ${used.art}`;
+  return `ARTD ${used.art}`;
 }
 function artDirectors() {
   return sortPeople(
@@ -2626,7 +2626,7 @@ function renderExcelSheet() {
   const xlLabel = play ? "Playable" : "MGX";
   const section = (line) => {
     const rows = tasks.filter((t) => t.line === line);
-    const metaHeads = play ? `<th>HOURS</th>` : `<th>SHIFTS</th><th>HOURS</th><th>DEADLINE</th>`;
+    const metaHeads = play ? `<th>Hours</th>` : `<th>SHIFTS</th><th>HOURS</th><th>DEADLINE</th>`;
     return `<tbody>
       <tr class="xl-sec">
         <th class="xl-line">${line}</th><th>${xlLabel}</th>${metaHeads}${emplHeads}

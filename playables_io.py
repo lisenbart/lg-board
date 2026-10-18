@@ -170,11 +170,11 @@ def _num(value) -> float:
 
 def _kind_from_label(label: str) -> str:
     raw = str(label or "").strip().lower().replace(" ", "")
-    if "prgm" in raw or raw in {"dev", "dev1", "programmer"}:
+    if raw.startswith("dev") or "prgm" in raw or raw in {"programmer"}:
         return "programmer"
-    if "producer" in raw or raw in {"lp", "empl1"}:
+    if raw.startswith("lp") or "producer" in raw or raw in {"empl1"}:
         return "producer"
-    if "2dart" in raw or "art" in raw or "3dart" in raw:
+    if raw.startswith("artd") or "2dart" in raw or "3dart" in raw or raw.startswith("art"):
         return "art"
     if "motion" in raw:
         return "motion"
@@ -486,12 +486,31 @@ def _role_label(person: dict, used: dict) -> str:
     if role == "programmer":
         n = used.get("dev", 0) + 1
         used["dev"] = n
-        return f"PRGMM{n}"
+        return f"DEV {n}"
     if role == "designer":
         return "MOTION"
     n = used.get("art", 0) + 1
     used["art"] = n
-    return f"2DART {n}"
+    return f"ARTD {n}"
+
+
+def _seat_header_map(columns: list[tuple[int, dict]]) -> dict[int, str]:
+    used: dict = {}
+    labels = {3: "Hours", 4: "LP 1"}
+    for col, person in columns:
+        labels[int(col)] = _role_label(person, used)
+    return labels
+
+
+def _apply_header_labels(ws, row: int, labels: dict[int, str], last_header: int) -> None:
+    for c in range(1, max(last_header, 4) + 1):
+        cell = ws.cell(row, c)
+        if c in labels:
+            cell.value = labels[c]
+        cell.fill = HEADER_FILL
+        cell.font = CALIBRI_BOLD
+        cell.border = THIN
+        cell.alignment = CENTER
 
 
 def write_month(db: dict, ym: str, path: Path | None = None) -> Path | None:
@@ -510,16 +529,9 @@ def write_month(db: dict, ym: str, path: Path | None = None) -> Path | None:
         ws.cell(1, 2).font = CALIBRI_BOLD
         _drop_inserted_motion(ws, people)
         columns = _bind_crew_columns(ws, people)
-        used: dict = {}
+        labels = _seat_header_map(columns)
         for col, person in columns:
             _stamp(ws.cell(1, col), person)
-            lab = ws.cell(2, col)
-            if not _cell_text(lab.value):
-                lab.value = _role_label(person, used)
-            lab.fill = HEADER_FILL
-            lab.font = CALIBRI_BOLD
-            lab.alignment = CENTER
-            lab.border = THIN
         prod = ws.cell(
             1,
             4,
@@ -527,24 +539,14 @@ def write_month(db: dict, ym: str, path: Path | None = None) -> Path | None:
         )
         prod.font = CALIBRI_BOLD
         prod.alignment = CENTER
-        lab = ws.cell(2, 4)
-        if not _cell_text(lab.value):
-            lab.value = "Producer"
-        lab.fill = HEADER_FILL
-        lab.font = CALIBRI_BOLD
-        lab.alignment = CENTER
         ws.cell(2, 1, "DX")
         ws.cell(2, 2, "PlayableADs")
-        ws.cell(2, 3, "HOURS")
         last_header = max([c for c, _ in columns] + [4])
-        for c in range(1, last_header + 1):
-            cell = ws.cell(2, c)
-            cell.fill = HEADER_FILL
-            cell.font = CALIBRI_BOLD
-            cell.border = THIN
-            cell.alignment = CENTER
+        _apply_header_labels(ws, 2, labels, last_header)
 
         scan = _scan_sheet(ws)
+        for r in scan["headers"].values():
+            _apply_header_labels(ws, r, labels, last_header)
         excel_io._drop_dropped_rows(ws, scan, db)
         id_index = {
             excel_io._id_key(item["name"]): item
@@ -572,7 +574,7 @@ def write_month(db: dict, ym: str, path: Path | None = None) -> Path | None:
             if line not in {"DX", "DD", "DS"}:
                 line = "DD"
             if line not in scan["headers"]:
-                _ensure_line_header(ws, scan, line, last_header)
+                _ensure_line_header(ws, scan, line, last_header, labels)
             if line not in scan["headers"]:
                 line = "DD" if "DD" in scan["headers"] else next(iter(scan["headers"]), "DX")
             row = excel_io._insert_in_section(ws, scan, line)
@@ -618,7 +620,7 @@ def _scan_sheet(ws) -> dict:
     return {"headers": headers, "rows": rows, "total_row": total_row, "last_used": last_used}
 
 
-def _ensure_line_header(ws, scan: dict, line: str, last_header: int) -> None:
+def _ensure_line_header(ws, scan: dict, line: str, last_header: int, labels: dict[int, str] | None = None) -> None:
     if line in scan["headers"]:
         return
     insert_at = scan.get("total_row") or ((scan.get("last_used") or 1) + 1)
@@ -633,13 +635,7 @@ def _ensure_line_header(ws, scan: dict, line: str, last_header: int) -> None:
             item["row"] += 1
     ws.cell(insert_at, 1, line)
     ws.cell(insert_at, 2, "PlayableADs")
-    ws.cell(insert_at, 3, "HOURS")
-    for c in range(1, max(last_header, 4) + 1):
-        cell = ws.cell(insert_at, c)
-        cell.fill = HEADER_FILL
-        cell.font = CALIBRI_BOLD
-        cell.border = THIN
-        cell.alignment = CENTER
+    _apply_header_labels(ws, insert_at, labels or {3: "Hours", 4: "LP 1"}, last_header)
     scan["headers"][line] = insert_at
     scan["last_used"] = max(scan.get("last_used") or 1, insert_at)
 
