@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-build="2026-10-18m">
+<html lang="en" data-build="2026-10-18n">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@300;400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/board.css?v=145" />
+  <link rel="stylesheet" href="assets/board.css?v=146" />
   <script>
     (function () {
       const host = location.hostname;
@@ -138,7 +138,7 @@
         <p class="create-wait" id="createTaskWait" hidden>Writing Drive folder, brief Doc, and Excel row…</p>
         <div class="modal-actions">
           <button type="button" class="btn ghost" id="createTaskCancel">Cancel</button>
-          <button type="submit" class="btn primary" id="createTaskGo">Create</button>
+          <button type="submit" class="btn primary" id="createTaskGo" disabled>Create</button>
         </div>
       </form>
     </div>
@@ -164,7 +164,7 @@
       <p class="create-wait" id="emailWait" hidden>Writing Drive folders, briefs, and Excel hours…</p>
       <div class="modal-actions">
         <button class="btn ghost" id="emailCancel">Cancel</button>
-        <button class="btn primary" id="emailApply">Create tasks</button>
+        <button class="btn primary" id="emailApply" disabled>Create tasks</button>
       </div>
     </div>
   </div>
@@ -199,6 +199,6 @@
 
   <div class="toast" id="toast"></div>
   <script src="assets/notices.js?v=4"></script>
-  <script src="assets/app.js?v=189"></script>
+  <script src="assets/app.js?v=190"></script>
 </body>
 </html>

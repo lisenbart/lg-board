@@ -118,6 +118,7 @@ const state = {
   month: "2026-10",
   teamDrafts: {},
   teamPins: {},
+  cardDirty: null,
   session: null,
   finTab: "client",
   nbu: null,
@@ -305,7 +306,7 @@ function showStudioPin(role, error) {
       <label class="login-pin-lab" for="loginPin">PIN</label>
       <input id="loginPin" class="login-pin" type="password" inputmode="numeric" maxlength="8" autocomplete="current-password" />
       ${error ? `<p class="login-err">${escapeHtml(error)}</p>` : ""}
-      <button type="submit" class="btn primary login-go" id="loginGo">Open</button>
+      <button type="submit" class="btn primary login-go" id="loginGo" disabled>Open</button>
     </form>
   `;
   $("loginBack")?.addEventListener("click", () => showStudioRoster());
@@ -313,6 +314,7 @@ function showStudioPin(role, error) {
     e.preventDefault();
     submitDoorLogin();
   });
+  bindLoginGo();
   $("loginPin")?.focus();
 }
 function showSeatPicker(seats) {
@@ -374,7 +376,7 @@ function showDoorForm(door, error) {
       <label class="login-pin-lab" for="loginPin">Password</label>
       <input id="loginPin" class="login-pin" type="password" maxlength="32" autocomplete="current-password" />
       ${error ? `<p class="login-err">${escapeHtml(error)}</p>` : ""}
-      <button type="submit" class="btn primary login-go" id="loginGo">Open</button>
+      <button type="submit" class="btn primary login-go" id="loginGo" disabled>Open</button>
     </form>
   `;
   $("loginBack")?.addEventListener("click", loginBackHome);
@@ -382,10 +384,12 @@ function showDoorForm(door, error) {
     e.preventDefault();
     submitDoorLogin();
   });
+  bindLoginGo();
   $("loginEmail")?.focus();
 }
 async function submitDoorLogin(seatId) {
   const door = state.loginDoor || (isHoursPage() ? "client" : "studio");
+  if (!seatId && $("loginGo")?.disabled) return;
   const pin = $("loginPin") ? $("loginPin").value : state.loginPin || "";
   if (pin) state.loginPin = pin;
   const email = $("loginEmail") ? $("loginEmail").value : state.loginEmail || "";
@@ -1037,19 +1041,58 @@ function setBusy(el, on, label) {
   if (!el) return;
   if (on) {
     if (el.dataset.idleLabel == null) el.dataset.idleLabel = el.textContent;
+    el.dataset.idleDisabled = el.disabled ? "1" : "0";
     el.disabled = true;
     el.classList.add("is-busy");
     el.setAttribute("aria-busy", "true");
     if (label) el.textContent = label;
   } else {
-    el.disabled = false;
     el.classList.remove("is-busy");
     el.removeAttribute("aria-busy");
+    el.disabled = el.dataset.idleDisabled === "1";
+    delete el.dataset.idleDisabled;
     if (el.dataset.idleLabel != null) {
       el.textContent = el.dataset.idleLabel;
       delete el.dataset.idleLabel;
     }
   }
+}
+
+function setIdleEnabled(el, on) {
+  if (!el || el.classList.contains("is-busy")) return;
+  el.disabled = !on;
+}
+
+function pinLooksReady(pin, door) {
+  const got = String(pin || "").trim();
+  if (door === "client") return got.length >= 4;
+  return /^\d{4,8}$/.test(got);
+}
+
+function bindLoginGo() {
+  const pin = $("loginPin");
+  const email = $("loginEmail");
+  const go = $("loginGo");
+  const sync = () => {
+    const pinOk = pinLooksReady(pin?.value, state.loginDoor);
+    const emailOk = state.loginDoor !== "client" || String(email?.value || "").trim();
+    setIdleEnabled(go, pinOk && emailOk);
+  };
+  pin?.addEventListener("input", sync);
+  pin?.addEventListener("change", sync);
+  email?.addEventListener("input", sync);
+  email?.addEventListener("change", sync);
+  sync();
+  setTimeout(sync, 80);
+}
+
+function refreshCreateGo() {
+  const name = String($("createTaskName")?.value || "").replace(/\s+/g, " ").trim();
+  setIdleEnabled($("createTaskGo"), Boolean(name));
+}
+
+function refreshEmailGo() {
+  setIdleEnabled($("emailApply"), Boolean(String($("emailText")?.value || "").trim()));
 }
 
 async function api(path, payload) {
@@ -1342,6 +1385,7 @@ function renderToolbar() {
         : "One project per line. Creates the card, Drive folder, empty brief, and hours. Dash, space, or <code>|</code> before the hours — <code>shift</code> / <code>SHFT</code> / <code>SHIFT</code> all work.";
     }
     $("emailModal").classList.add("show");
+    refreshEmailGo();
   });
   $("btnExport")?.addEventListener("click", exportMonday);
   $("btnClientLink")?.addEventListener("click", copyClientPage);
@@ -1357,6 +1401,7 @@ function openCreateTask() {
   $("createTaskErr").textContent = "";
   $("createTaskName").value = "";
   $("createTaskModal").classList.add("show");
+  refreshCreateGo();
   $("createTaskName").focus();
 }
 function closeCreateTask() {
@@ -1408,7 +1453,7 @@ async function confirmDeleteTasks() {
     }
     closeTaskDelete();
     applyState(out.state);
-    closeDrawer();
+    closeDrawer({ force: true });
     toast(
       list.length === 1
         ? "Deleted on the board. Drive trash and Excel catch up in the background."
@@ -1423,6 +1468,7 @@ async function submitCreateTask() {
   const err = $("createTaskErr");
   if (!name) {
     if (err) err.textContent = "Paste the full project name";
+    refreshCreateGo();
     return;
   }
   const go = $("createTaskGo");
@@ -1887,7 +1933,7 @@ function notesHtml(t) {
         <div class="notes-compose-actions">
           <label class="btn ghost" for="stCommentFiles">Attach screenshot</label>
           <input id="stCommentFiles" type="file" accept="image/*" multiple hidden />
-          <button class="btn" type="button" id="addNote">Add note</button>
+          <button class="btn" type="button" id="addNote" disabled>Add note</button>
         </div>
       </div>`
     : "";
@@ -4104,9 +4150,33 @@ function teamRowPayload(row) {
   return payload;
 }
 
+function teamRowDirty(row) {
+  const id = row?.dataset.id;
+  const person = (state.db.people || []).find((p) => p.id === id);
+  if (!person) return false;
+  const name = String(row.querySelector(".team-name")?.value || "").trim();
+  const pin = String(row.querySelector(".team-pin")?.value || "").trim();
+  const jobEl = row.querySelector(".team-job");
+  if (name !== displayName(person)) return true;
+  if (pin !== String(person.pin || "").trim()) return true;
+  if (jobEl && jobEl.value !== person.role) return true;
+  return false;
+}
+
+function refreshTeamSaves() {
+  let any = false;
+  $("board")?.querySelectorAll(".team-row").forEach((row) => {
+    const dirty = teamRowDirty(row);
+    any = any || dirty;
+    setIdleEnabled(row.querySelector(".team-save"), dirty);
+  });
+  setIdleEnabled($("saveAllNames"), any);
+}
+
 async function flushTeamNames() {
   captureTeamDrafts();
   const people = [...($("board")?.querySelectorAll(".team-row") || [])]
+    .filter((row) => teamRowDirty(row))
     .map((row) => teamRowPayload(row))
     .filter((p) => p.id && p.name);
   const bad = people.find((p) => p.pinError);
@@ -4136,7 +4206,7 @@ function renderTeam() {
         ${crewJobSelect(p)}
         <input class="team-name" value="${escapeHtml(displayName(p))}" placeholder="Name" autocomplete="off" />
         <input class="team-pin" value="${escapeHtml(teamPinValue(p))}" placeholder="PIN" inputmode="numeric" maxlength="8" autocomplete="off" aria-label="PIN" />
-        <button class="btn primary team-save" type="button">Save</button>
+        <button class="btn primary team-save" type="button" disabled>Save</button>
         <button class="btn ghost team-del" type="button">Delete</button>
       </div>`
     )
@@ -4144,27 +4214,33 @@ function renderTeam() {
   $("board").innerHTML = `
     <section class="group" style="padding:18px">
       <h2 style="margin:0 0 12px">Team names</h2>
-      <p class="team-hint">Name and PIN save together. PIN is 4–8 digits. A unique PIN sits that person without asking who. Shared PIN still asks. Keep at least one Team Lead.</p>
+      <p class="team-hint">Name and PIN save together. Changing a PIN replaces the old one — the previous PIN no longer opens that seat. PIN is 4–8 digits. Keep at least one Team Lead.</p>
       ${rows}
       <div class="team-add">
         <select id="addJob">${TEAM_JOBS.map((j) => `<option value="${j.id}">${j.label}</option>`).join("")}</select>
         <button class="btn" type="button" id="addPerson">Add person</button>
-        <button class="btn primary" type="button" id="saveAllNames">Save all names</button>
+        <button class="btn primary" type="button" id="saveAllNames" disabled>Save all names</button>
       </div>
     </section>`;
   $("board").querySelectorAll(".team-name").forEach((input) => {
     input.addEventListener("input", () => {
       state.teamDrafts[input.closest(".team-row").dataset.id] = input.value;
+      refreshTeamSaves();
     });
   });
   $("board").querySelectorAll(".team-pin").forEach((input) => {
     input.addEventListener("input", () => {
       state.teamPins[input.closest(".team-row").dataset.id] = input.value;
+      refreshTeamSaves();
     });
+  });
+  $("board").querySelectorAll(".team-job").forEach((sel) => {
+    sel.addEventListener("change", refreshTeamSaves);
   });
   $("board").querySelectorAll(".team-save").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const row = btn.closest(".team-row");
+      if (!teamRowDirty(row)) return;
       const payload = teamRowPayload(row);
       if (!payload.name) {
         toast("Name cannot be empty");
@@ -4174,24 +4250,36 @@ function renderTeam() {
         toast(payload.pinError);
         return;
       }
-      const out = await api("/api/people/update", { ...payload, role: me().role });
-      if (out.error || !out.state) {
-        toast(out.error || "Could not save");
-        return;
+      setBusy(btn, true, "Saving…");
+      try {
+        const out = await api("/api/people/update", { ...payload, role: me().role });
+        if (out.error || !out.state) {
+          toast(out.error || "Could not save");
+          return;
+        }
+        delete state.teamDrafts[row.dataset.id];
+        delete state.teamPins[row.dataset.id];
+        applyState(out.state);
+        toast("Saved");
+      } finally {
+        setBusy(btn, false);
       }
-      delete state.teamDrafts[row.dataset.id];
-      delete state.teamPins[row.dataset.id];
-      applyState(out.state);
-      toast("Saved");
     });
   });
   $("board").querySelectorAll(".team-del").forEach((btn) => {
     btn.addEventListener("click", () => openDeletePerson(btn.closest(".team-row").dataset.id));
   });
   $("saveAllNames").onclick = async () => {
-    const out = await flushTeamNames();
-    if (out.error) toast(out.error);
-    else toast("All names and PINs saved");
+    const go = $("saveAllNames");
+    if (go?.disabled) return;
+    setBusy(go, true, "Saving…");
+    try {
+      const out = await flushTeamNames();
+      if (out.error) toast(out.error);
+      else toast("All names and PINs saved");
+    } finally {
+      setBusy(go, false);
+    }
   };
   $("addPerson").onclick = async () => {
     const job = $("addJob").value;
@@ -4208,6 +4296,7 @@ function renderTeam() {
     applyState(out.state);
     toast("Person added");
   };
+  refreshTeamSaves();
 }
 
 function assignedTo(id) {
@@ -4572,6 +4661,7 @@ function bindPlayableCrew(t) {
     }
     refreshPlayableSplitSelects();
     refreshPlayableCrew(t);
+    $("drawer")?.dispatchEvent(new Event("input", { bubbles: true }));
   };
   box.addEventListener("input", paint);
   box.addEventListener("change", paint);
@@ -4710,7 +4800,10 @@ function refreshHelpRemainder(t) {
 function bindHelpSplit(t) {
   const box = $("drawer")?.querySelector(".help-split");
   if (!box || !canEditHelp()) return;
-  const paint = () => refreshHelpRemainder(t);
+  const paint = () => {
+    refreshHelpRemainder(t);
+    $("drawer")?.dispatchEvent(new Event("input", { bubbles: true }));
+  };
   box.addEventListener("input", paint);
   box.addEventListener("change", paint);
   $("helpAdd")?.addEventListener("click", () => {
@@ -4857,11 +4950,36 @@ function openTask(id) {
       <div class="drawer-actions-end">
         <span class="save-wait" id="saveWait" hidden></span>
         <button type="button" class="btn ghost" id="closeCard">Close</button>
-        ${canEdit || canOps() ? `<button type="button" class="btn primary" id="saveTask">Save</button>` : ""}
+        ${canEdit || canOps() ? `<button type="button" class="btn primary" id="saveTask" disabled>Save</button>` : ""}
       </div>
     </div>
   `;
   const pendingShots = [];
+  function cardFingerprint() {
+    const d = $("drawer");
+    if (!d) return "";
+    const vals = [...d.querySelectorAll("input, textarea, select")]
+      .filter((el) => el.type !== "file")
+      .map((el) => `${el.id || el.className}=${el.value}`);
+    return JSON.stringify({
+      vals,
+      shots: pendingShots.length,
+      splits: d.querySelectorAll(".help-row, .play-split-row").length,
+    });
+  }
+  let cardBaseline = "";
+  function refreshAddNote() {
+    const ready = Boolean(String($("stComment")?.value || "").trim() || pendingShots.length);
+    setIdleEnabled($("addNote"), ready);
+  }
+  function refreshCardSave() {
+    setIdleEnabled($("saveTask"), cardFingerprint() !== cardBaseline);
+  }
+  function refreshCardActions() {
+    refreshAddNote();
+    refreshCardSave();
+  }
+  state.cardDirty = () => Boolean($("saveTask") || $("addNote")) && cardFingerprint() !== cardBaseline;
   function fileToShot(file) {
     return new Promise((resolve) => {
       if (!file || !String(file.type || "").startsWith("image/")) {
@@ -4895,6 +5013,7 @@ function openTask(id) {
         renderPendingShots();
       });
     });
+    refreshCardActions();
   }
   async function addPendingFiles(files) {
     for (const file of files || []) {
@@ -4934,7 +5053,10 @@ function openTask(id) {
     }
     return true;
   }
-  $("addNote")?.addEventListener("click", () => postClientNote());
+  $("addNote")?.addEventListener("click", () => {
+    if ($("addNote")?.disabled) return;
+    postClientNote();
+  });
   $("stCommentFiles")?.addEventListener("change", async (e) => {
     await addPendingFiles([...e.target.files]);
     e.target.value = "";
@@ -5089,6 +5211,7 @@ function openTask(id) {
         return;
       }
       paintStatusButtons(key);
+      refreshCardActions();
     });
   });
   syncDoneOption();
@@ -5106,7 +5229,7 @@ function openTask(id) {
   $("closeCard")?.addEventListener("click", closeDrawer);
   $("saveTask")?.addEventListener("click", async () => {
     const saveBtn = $("saveTask");
-    if (saveBtn?.classList.contains("is-busy")) return;
+    if (saveBtn?.disabled || saveBtn?.classList.contains("is-busy")) return;
     if (canWriteNotes() && (String($("stComment")?.value || "").trim() || pendingShots.length)) {
       const ok = await postClientNote({ reopen: false });
       if (!ok) return;
@@ -5320,12 +5443,28 @@ function openTask(id) {
       setBusy(btn, false);
     }
   });
+  cardBaseline = cardFingerprint();
+  $("drawer")?.addEventListener("input", refreshCardActions);
+  $("drawer")?.addEventListener("change", refreshCardActions);
+  $("stComment")?.addEventListener("input", refreshCardActions);
+  refreshCardActions();
 }
 
-function closeDrawer() {
+function closeDrawer(opts = {}) {
   closeShot();
+  if (
+    !opts.force &&
+    $("drawerBg")?.classList.contains("show") &&
+    typeof state.cardDirty === "function" &&
+    state.cardDirty() &&
+    !confirm("Discard unsaved changes?")
+  ) {
+    return false;
+  }
   $("drawerBg").classList.remove("show");
   state.openId = null;
+  state.cardDirty = null;
+  return true;
 }
 
 async function updateTask(id, patch, opts = {}) {
@@ -5345,7 +5484,7 @@ async function updateTask(id, patch, opts = {}) {
     toast("Saved");
   }
   if (opts.close) {
-    closeDrawer();
+    closeDrawer({ force: true });
     return;
   }
   if (state.openId && $("drawerBg").classList.contains("show")) openTask(id);
@@ -5419,22 +5558,12 @@ function unreadCount() {
 
 function cardIsDirty() {
   if (!$("drawerBg")?.classList.contains("show") || !state.openId) return false;
+  if (typeof state.cardDirty === "function" && state.cardDirty()) return true;
   const t = state.db?.tasks?.find((x) => x.id === state.openId);
   if (!t) return false;
   const active = document.activeElement;
   if (active && $("drawer")?.contains(active) && /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName)) {
     return true;
-  }
-  if ($("stBrief") && $("stBrief").value !== (t.brief || "")) return true;
-  if ($("stName") && String($("stName").value || "").replace(/\s+/g, " ").trim() !== t.name) return true;
-  if ($("stComment") && String($("stComment").value || "").trim()) return true;
-  if ($("stResult") && String($("stResult").value || "").trim() !== String(t.resultUrl || "").trim()) {
-    return true;
-  }
-  if (canEditHelp()) {
-    const now = JSON.stringify(readHelpFromCard($("stPerson")?.value || t.assigneeId));
-    const was = JSON.stringify(helpEntries(t));
-    if (now !== was) return true;
   }
   return false;
 }
@@ -5535,7 +5664,7 @@ function applyRemoteState(db) {
   if (!drawerOpen) return;
   const still = (db.tasks || []).some((t) => t.id === openId);
   if (!still) {
-    closeDrawer();
+    closeDrawer({ force: true });
     toast("This project was removed");
     return;
   }
@@ -5836,6 +5965,7 @@ $("taskDelModal")?.addEventListener("click", (e) => {
   if (e.target === $("taskDelModal")) closeTaskDelete();
 });
 $("createTaskCancel")?.addEventListener("click", closeCreateTask);
+$("createTaskName")?.addEventListener("input", refreshCreateGo);
 $("createTaskForm")?.addEventListener("submit", (e) => {
   e.preventDefault();
   submitCreateTask();
@@ -5844,9 +5974,10 @@ $("createTaskModal")?.addEventListener("click", (e) => {
   if (e.target === $("createTaskModal")) closeCreateTask();
 });
 $("emailCancel").onclick = () => $("emailModal").classList.remove("show");
+$("emailText")?.addEventListener("input", refreshEmailGo);
 $("emailApply").onclick = async () => {
   const go = $("emailApply");
-  if (go?.classList.contains("is-busy")) return;
+  if (go?.disabled || go?.classList.contains("is-busy")) return;
   const err = $("emailErr");
   const wait = $("emailWait");
   if (err) err.textContent = "";

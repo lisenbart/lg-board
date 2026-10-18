@@ -76,8 +76,10 @@ STUDIO_ROLES = (
     {"role": "art_director", "label": "AD", "blurb": "Art Director"},
     {"role": "programmer", "label": "DEV", "blurb": "Programmer"},
 )
-# PIN is a key, not an identity. Higher desk opens itself and every seat below.
-# DL > LP > TL > MD / AD / DEV. Performers share the team PIN.
+# Rank PINs (DL / LP / TL) open that desk and every seat below.
+# Performers share a role PIN until someone gets a personal PIN.
+# A personal PIN fully replaces the role PIN for that person — the old PIN
+# no longer sits them, and it does not open other performer desks.
 STUDIO_ROLE_IDS = (
     "finance",
     "manager",
@@ -104,6 +106,7 @@ ROLE_SEAT_ORDER = {
 }
 ROLE_SHORT = {row["role"]: row["label"] for row in STUDIO_ROLES}
 PIN_RE = re.compile(r"^\d{4,8}$")
+RANK_PIN_OWNERS = ("finance", "manager", "teamlead")
 
 LOCK_ROLE = {
     "dmytro@lisenbart.games": "finance",
@@ -272,6 +275,31 @@ def people_for_pin(people: list[dict], pin: str) -> list[dict]:
     return hits
 
 
+def people_who_accept_pin(people: list[dict], pin: str) -> list[dict]:
+    """Sit only people whose current PIN is this one. A personal PIN drops the role PIN."""
+    got = str(pin or "").strip()
+    if not got:
+        return []
+    personal = ensure_pins().get("people") or {}
+    hits = []
+    for person in people or []:
+        pid = str(person.get("id") or "")
+        want = str(personal.get(pid) or "").strip()
+        if want:
+            if _pin_eq(want, got):
+                hits.append(person)
+        elif pin_ok_for_role(str(person.get("role") or ""), got):
+            hits.append(person)
+    return hits
+
+
+def pin_rank(pin: str) -> str:
+    for owner in RANK_PIN_OWNERS:
+        if pin_ok_for_role(owner, pin):
+            return owner
+    return ""
+
+
 def _pin_eq(want: str, got: str) -> bool:
     if not want or not got or len(want) != len(got):
         return False
@@ -293,7 +321,19 @@ def pin_ok_for_role(role: str, pin: str) -> bool:
 
 
 def pin_owner_roles(pin: str, people: list[dict] | None = None) -> tuple[str, ...]:
-    """Roles this PIN may sit as. Same team PIN unlocks MD / AD / DEV."""
+    """Roles this PIN may sit as. Rank PINs open the desks below. Personal PINs sit that person only."""
+    rank = pin_rank(pin)
+    if rank:
+        return PIN_OPENS.get(rank, (rank,))
+    if people is not None:
+        unlocked: list[str] = []
+        seen: set[str] = set()
+        for person in people_who_accept_pin(people, pin):
+            role = str(person.get("role") or "")
+            if role and role not in seen:
+                seen.add(role)
+                unlocked.append(role)
+        return tuple(unlocked)
     unlocked: list[str] = []
     seen: set[str] = set()
 
@@ -303,41 +343,45 @@ def pin_owner_roles(pin: str, people: list[dict] | None = None) -> tuple[str, ..
                 seen.add(role)
                 unlocked.append(role)
 
-    for owner in ("manager", "teamlead", "finance", "designer", "art_director", "programmer"):
+    for owner in ("designer", "art_director", "programmer"):
         if pin_ok_for_role(owner, pin):
             add_owner(owner)
-    for person in people_for_pin(people or [], pin):
-        add_owner(str(person.get("role") or ""))
     return tuple(unlocked)
 
 
 def resolve_studio_login(people: list[dict], pin: str, door_role: str = "", seat_id: str | None = None) -> dict:
     """Sit the door you clicked, if this PIN ranks high enough to open it."""
-    unlocked = pin_owner_roles(pin, people)
-    if not unlocked:
-        return {"error": "wrong login or PIN"}
+    rank = pin_rank(pin)
     door = str(door_role or "").strip()
-    if door:
-        if door not in unlocked:
-            return {"error": "this PIN cannot open this seat"}
-        roles = (door,)
+    if rank:
+        unlocked = PIN_OPENS.get(rank, (rank,))
+        if door:
+            if door not in unlocked:
+                return {"error": "this PIN cannot open this seat"}
+            roles = (door,)
+        else:
+            roles = unlocked
+        matches = people_for_roles(people, roles)
     else:
-        roles = unlocked
-    personal = people_for_pin(people, pin)
-    if door:
-        personal = [p for p in personal if p.get("role") == door]
-    matches = personal or people_for_roles(people, roles)
+        accepts = people_who_accept_pin(people, pin)
+        unlocked = pin_owner_roles(pin, people)
+        if not unlocked:
+            return {"error": "wrong login or PIN"}
+        if door:
+            if door not in unlocked:
+                return {"error": "this PIN cannot open this seat"}
+            matches = [p for p in accepts if p.get("role") == door]
+        else:
+            matches = accepts
     if not matches:
         return {"error": "no seat for this login"}
     if seat_id:
         person = person_by_id(people, seat_id)
-        role = str((person or {}).get("role") or "")
-        if not person or role not in unlocked or (door and role != door):
+        allowed = {str(p.get("id") or "") for p in matches}
+        if not person or str(person.get("id") or "") not in allowed:
             return {"error": "wrong login or PIN"}
-        if personal:
-            allowed = {str(p.get("id") or "") for p in personal}
-            if str(person.get("id") or "") not in allowed:
-                return {"error": "wrong login or PIN"}
+        if door and str(person.get("role") or "") != door:
+            return {"error": "wrong login or PIN"}
         return {"person": person}
     if len(matches) == 1:
         return {"person": matches[0]}

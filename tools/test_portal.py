@@ -261,12 +261,40 @@ def test_person_pins() -> None:
             check("unique PIN sits that AD", (sit.get("person") or {}).get("id") == "ad", str(sit))
             blocked = auth_io.resolve_studio_login(people, "8811", "finance")
             check("AD PIN cannot open DL", "cannot open" in str(blocked.get("error") or ""), str(blocked))
+            mgx = auth_io.resolve_studio_login(people, "8811", "designer")
+            check("personal AD PIN cannot open MD", "cannot open" in str(mgx.get("error") or ""), str(mgx))
             team = auth_io.resolve_studio_login(people, "4429", "art_director")
             check(
-                "shared PIN still asks which AD",
-                team.get("needSeat") is True and [s.get("id") for s in team.get("seats") or []] == ["ad", "ad2"],
+                "old team PIN sits only the AD who did not change",
+                (team.get("person") or {}).get("id") == "ad2" and not team.get("needSeat"),
                 str(team),
             )
+            old_anna = auth_io.resolve_studio_login(people, "4429", "art_director", "ad")
+            check(
+                "old PIN cannot sit a person who changed it",
+                "wrong" in str(old_anna.get("error") or "").lower() or (old_anna.get("person") or {}).get("id") != "ad",
+                str(old_anna),
+            )
+            auth_io.set_person_pin(people, "ad", "4430")
+            auth_io.set_person_pin(people, "ad2", "4430")
+            gone = auth_io.resolve_studio_login(people, "4429", "art_director")
+            gone_err = str(gone.get("error") or "")
+            check(
+                "old team PIN is dead once every AD changed",
+                "cannot open" in gone_err or "no seat" in gone_err or "wrong" in gone_err,
+                str(gone),
+            )
+            play = auth_io.resolve_studio_login(people, "4430", "art_director")
+            play_ids = [s.get("id") for s in (play.get("seats") or [])]
+            if play.get("person"):
+                play_ids = [play["person"].get("id")]
+            check(
+                "new shared PIN sits the Playables ADs",
+                set(play_ids) == {"ad", "ad2"},
+                str(play),
+            )
+            auth_io.set_person_pin(people, "ad", "8811")
+            auth_io.drop_person_pin("ad2")
             auth_io.set_person_pin(people, "dl", "9999")
             check("solo desk PIN updates the door", auth_io.pin_ok_for_role("finance", "9999"))
             db = {"meta": {}, "people": people, "tasks": []}
@@ -282,6 +310,9 @@ def test_person_pins() -> None:
     check("Team row has a PIN box", 'class="team-pin"' in js and 'placeholder="PIN"' in js)
     check("PIN saves with the name", "payload.pin" in js and "PIN must be 4–8 digits" in js)
     check("PIN box sits next to Name", "7.5rem" in css and ".team-pin" in css)
+    check("Team Save waits for edits", "refreshTeamSaves" in js and "teamRowDirty" in js)
+    check("card Save waits for edits", "refreshCardSave" in js and "cardFingerprint" in js)
+    check("idle commit buttons start off", "bindLoginGo" in js and "refreshCreateGo" in js)
 
 
 def test_parse_past_total() -> None:
@@ -1526,6 +1557,7 @@ def test_http(base: str) -> str | None:
                 cookie=ck,
             )
 
+        orig_anna_pin = str((auth_io.ensure_pins().get("people") or {}).get("artdir1") or "").strip()
         try:
             code, payload, _ = _http(
                 f"{base}/api/people/update",
@@ -1551,8 +1583,25 @@ def test_http(base: str) -> str | None:
                 code == 200 and sess.get("role") == "art_director" and sess.get("personId") == "artdir1",
                 str(sess or login),
             )
+            code, old_login, _ = _http(
+                f"{base}/api/login",
+                {"door": "studio", "role": "art_director", "pin": "4429"},
+            )
+            old_sess = old_login.get("session") or {}
+            old_seats = [s.get("id") for s in (old_login.get("seats") or [])]
+            check(
+                "old team PIN no longer sits the AD who changed it",
+                old_sess.get("personId") != "artdir1" and "artdir1" not in old_seats,
+                str(old_login),
+            )
         finally:
-            auth_io.drop_person_pin("artdir1")
+            people = []
+            with server.LOCK:
+                people = list(server.peek_db().get("people") or [])
+            if orig_anna_pin:
+                auth_io.set_person_pin(people, "artdir1", orig_anna_pin)
+            else:
+                auth_io.drop_person_pin("artdir1")
 
         t0 = time.monotonic()
         code, payload, _ = _http(
