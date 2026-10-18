@@ -1633,7 +1633,7 @@ function normalizeDriveFolder(url) {
   const raw = String(url || "");
   const open = raw.match(/drive\.google\.com\/open\?id=([a-zA-Z0-9_-]+)/i);
   if (open) return `https://drive.google.com/drive/folders/${open[1]}`;
-  const fold = raw.match(/https:\/\/drive\.google\.com\/drive\/folders\/[a-zA-Z0-9_-]+/i);
+  const fold = raw.match(/https:\/\/drive\.google\.com\/drive\/(?:u\/\d+\/)?folders\/[a-zA-Z0-9_-]+/i);
   return fold ? fold[0] : "";
 }
 function driveFolderIn(text) {
@@ -1641,23 +1641,29 @@ function driveFolderIn(text) {
 }
 function labeledWorkFolder(text) {
   const m = String(text || "").match(
-    /(?:working folder|pls work here|please work here|work here|pls work)[:\s]*\n*(https:\/\/drive\.google\.com\/(?:drive\/folders\/|open\?id=)[a-zA-Z0-9_-]+)/i
+    /(?:working folder|pls work here|please work here|work here|pls work)[:\s]*\n*(https:\/\/drive\.google\.com\/(?:drive\/(?:u\/\d+\/)?folders\/|open\?id=)[a-zA-Z0-9_-]+)/i
   );
   return m ? normalizeDriveFolder(m[1]) : "";
 }
-function workFolder(t) {
-  return labeledWorkFolder(t?.brief) || String(t?.folderUrl || "").trim();
+function taskFolder(t) {
+  return String(t?.folderUrl || "").trim();
 }
-function packLinksHtml(t) {
+function workFolder(t) {
+  return labeledWorkFolder(t?.brief);
+}
+function packFolderButtons(t) {
+  const task = taskFolder(t);
   const work = workFolder(t);
   const brief = t.docUrl
     ? `<a class="btn pack-brief" href="${escapeHtml(t.docUrl)}" target="_blank" rel="noreferrer">Open brief</a>`
     : "";
-  const folder = work
-    ? `<a class="btn pack-folder" href="${escapeHtml(work)}" target="_blank" rel="noreferrer">Open folder</a>`
+  const taskBtn = task
+    ? `<a class="btn pack-folder" href="${escapeHtml(task)}" target="_blank" rel="noreferrer">Task folder</a>`
     : "";
-  if (!brief && !folder) return "";
-  return `<div class="pack-links">${brief}${folder}</div>`;
+  const workBtn = work
+    ? `<a class="btn pack-work" href="${escapeHtml(work)}" target="_blank" rel="noreferrer">Working folder</a>`
+    : `<button type="button" class="btn pack-work" disabled title="No working folder in the brief">Working folder</button>`;
+  return { brief, taskBtn, workBtn, task, work };
 }
 function parseBrief(t) {
   const raw = String(t?.brief || "").trim();
@@ -1682,20 +1688,12 @@ function pinHtml(t) {
     : raw
     ? `<div class="pin-body">${linkifyBrief(raw)}</div>`
     : `<div class="pin-body is-empty">No brief yet</div>`;
-  const work = workFolder(t);
-  const briefBtn = t.docUrl
-    ? `<a class="btn pack-brief" href="${escapeHtml(t.docUrl)}" target="_blank" rel="noreferrer">Open brief</a>`
-    : "";
-  const folderBtn = work
-    ? `<a class="btn pack-folder" href="${escapeHtml(work)}" target="_blank" rel="noreferrer">Open folder</a>`
-    : "";
-  const retry = canOps() && t.source === "portal" && !folderBtn
+  const pack = packFolderButtons(t);
+  const retry = canOps() && t.source === "portal" && !pack.task
     ? `<button type="button" class="btn" id="ensureDrive">Create Drive folder</button>`
     : "";
-  const actions = briefBtn || folderBtn || retry
-    ? `<footer class="pin-actions">${briefBtn}${folderBtn}${retry}</footer>`
-    : "";
-  const warn = canOps() && t.source === "portal" && !work
+  const actions = `<footer class="pin-actions">${pack.brief}${pack.taskBtn}${pack.workBtn}${retry}</footer>`;
+  const warn = canOps() && t.source === "portal" && !pack.task
     ? `<p class="drive-warn">No Drive folder yet. Click Create Drive folder.</p>`
     : "";
   return `<article class="pin">
@@ -2018,7 +2016,7 @@ function hasDriveDoc(t) {
   return Boolean(String(t?.docUrl || "").trim());
 }
 function hasDriveFolder(t) {
-  return Boolean(workFolder(t));
+  return Boolean(taskFolder(t));
 }
 function cardJob(t) {
   const play = isPlayables(t);
@@ -2946,7 +2944,7 @@ function renderGuide() {
       <div class="guide-grid">
         ${card("manager", "LP", "Line Producer", "Анастасія. Бачить усе.", [
           `Новий пак: ${ui("Create task")} (тека + бриф на Drive) або ${ui("Shift email")} (NAME 0.3 shift — тире, пробіл або |).`,
-          `Бриф на картці пишеться в Google Doc. ${ui("Client notes")} одразу під ним: встав текст і скрін (Ctrl+V) з Monday.`,
+          `Бриф на картці пишеться в Google Doc. ${ui("Open brief")} — Doc. ${ui("Task folder")} — тека цього таску на Drive студії. ${ui("Working folder")} — тека клієнта з рядка Working folder у брифі; якщо рядка немає, кнопка сіра. ${ui("Client notes")} одразу під брифом.`,
           `Години: ${ui("Shifts")} у рядку або в картці. 1 shift = 9 годин. Виконавця ставить TL. ${ui("Dead Line")} — дата з Excel. ${ui("URGENT")} — червоний ${ui("!")} на імені, вмикаєш з картки, це не статус.`,
           `Рядок фарбується за статусом. Чіп: ${ui("Ready")} / ${ui("WIP")} / ${ui("Fix")} / ${ui("Done")} / ${ui("Appr.")} / ${ui("Closed")}. Не ${ui("Send")}.`,
           `${ui("Excel")} — години як у файлі. Чіп зліва той самий, що в пайплайні, не лише WIP/Closed. ${ui("Dead Line")} = ${ui("DEADLINE")}. ${ui("URGENT")} — маркер ${ui("!")}, не статус.`,

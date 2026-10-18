@@ -1547,6 +1547,9 @@ body.col-resizing * { cursor: col-resize !important; }
 .pack-brief:hover { background: #d6e8fb; }
 .pack-folder { background: #eceef4; }
 .pack-folder:hover { background: #e2e4ec; }
+.pack-work { background: #eceef4; }
+.pack-work:hover:not(:disabled) { background: #e2e4ec; }
+a.pack-work:hover { background: #e2e4ec; }
 .field { margin: 12px 0; }
 .field-focus input,
 .field-focus select {

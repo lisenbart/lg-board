@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import sys
 import tempfile
@@ -1261,6 +1262,33 @@ def test_urgent_marker() -> None:
     check("urgent sorts above same status", "Number(isUrgent(b)) - Number(isUrgent(a))" in js)
 
 
+def test_card_folder_buttons() -> None:
+    js = (ROOT / "public" / "assets" / "app.js").read_text(encoding="utf-8")
+    css = (ROOT / "public" / "assets" / "board.css").read_text(encoding="utf-8")
+    check("card Open folder is now Task folder", ">Task folder</a>" in js)
+    check("card no longer says Open folder", "Open folder" not in js)
+    check("card always paints Working folder", ">Working folder</a>" in js and ">Working folder</button>" in js)
+    check("idle Working folder is a disabled button", 'class="btn pack-work" disabled' in js)
+    check("Working folder reads /drive/u/N/links", r"u\/\d+" in js)
+    check("studio Drive pack is Task folder", "function taskFolder" in js and "function hasDriveFolder" in js)
+    check("Working folder has its own chip style", ".pack-work" in css)
+    sample = (
+        "Working folder:\n"
+        "https://drive.google.com/drive/u/1/folders/1y5WRZSCqcN9rHRHSkO4WS-oOmil-Pozr"
+    )
+    found = re.search(
+        r"(?:working folder|pls work here|please work here|work here|pls work)[:\s]*\n*"
+        r"(https://drive\.google\.com/(?:drive/(?:u/\d+/)?folders/|open\?id=)[a-zA-Z0-9_-]+)",
+        sample,
+        re.I,
+    )
+    check(
+        "Working folder line with /drive/u/1/ is a Drive folder",
+        bool(found and "/folders/1y5WRZSCqcN9rHRHSkO4WS-oOmil-Pozr" in found.group(1)),
+        str(found.group(1) if found else None),
+    )
+
+
 def test_lp_can_close_without_send() -> None:
     src = (ROOT / "server.py").read_text(encoding="utf-8")
     js = (ROOT / "public" / "assets" / "app.js").read_text(encoding="utf-8")
@@ -2057,6 +2085,7 @@ def main() -> int:
         test_playable_card_pipeline,
         test_card_presence,
         test_urgent_marker,
+        test_card_folder_buttons,
         test_lp_can_close_without_send,
         test_finance_reads_board_not_xlsx,
     ):
