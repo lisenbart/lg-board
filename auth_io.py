@@ -1,9 +1,11 @@
 """Studio PIN login. SuperPlay uses /superplay. Pins live in data/secrets/pins.json."""
 from __future__ import annotations
 
+import ipaddress
 import json
 import re
 import secrets
+import socket
 import threading
 from datetime import datetime, timezone
 from http.cookies import SimpleCookie
@@ -18,7 +20,109 @@ PINS_PATH = SECRETS / "pins.json"
 SESSIONS_PATH = SECRETS / "sessions.json"
 VISITS_PATH = SECRETS / "superplay_visits.json"
 MAX_VISITS = 400
+MAX_PLACE_ENRICH = 12
 _VISITS_LOCK = threading.Lock()
+_IP_PLACE_CACHE: dict[str, dict] = {}
+_HOST_SKIP = {
+    "dynamic",
+    "static",
+    "dhcp",
+    "pool",
+    "cust",
+    "customer",
+    "rev",
+    "ptr",
+    "ip",
+    "nat",
+    "broadband",
+    "mobile",
+    "host",
+    "user",
+    "clients",
+    "client",
+    "dyn",
+    "cable",
+    "dsl",
+    "ftth",
+    "ppp",
+    "bb",
+    "net",
+    "wan",
+}
+# Longest suffix first. Studio-relevant ISPs (PL / UA / IL) plus a few VPNs.
+HOST_PLACES = (
+    ("play.pl", "Poland", "Play"),
+    ("plus.pl", "Poland", "Plus"),
+    ("orange.pl", "Poland", "Orange"),
+    ("t-mobile.pl", "Poland", "T-Mobile"),
+    ("tmobile.pl", "Poland", "T-Mobile"),
+    ("netia.pl", "Poland", "Netia"),
+    ("vectra.pl", "Poland", "Vectra"),
+    ("inea.pl", "Poland", "Inea"),
+    ("upc.pl", "Poland", "UPC"),
+    ("kyivstar.net", "Ukraine", "Kyivstar"),
+    ("kyivstar.ua", "Ukraine", "Kyivstar"),
+    ("triolan.net", "Ukraine", "Triolan"),
+    ("volia.net", "Ukraine", "Volia"),
+    ("ukrtel.net", "Ukraine", "Ukrtelecom"),
+    ("ukrtelecom.ua", "Ukraine", "Ukrtelecom"),
+    ("lanet.ua", "Ukraine", "Lanet"),
+    ("vegatele.com", "Ukraine", "Vega"),
+    ("lifecell.ua", "Ukraine", "lifecell"),
+    ("vodafone.ua", "Ukraine", "Vodafone"),
+    ("datagroup.ua", "Ukraine", "Datagroup"),
+    ("bezeqint.net", "Israel", "Bezeq"),
+    ("netvision.net.il", "Israel", "Netvision"),
+    ("partner.net.il", "Israel", "Partner"),
+    ("pelephone.net.il", "Israel", "Pelephone"),
+    ("cellcom.co.il", "Israel", "Cellcom"),
+    ("hot.net.il", "Israel", "HOT"),
+    ("013.net.il", "Israel", "013"),
+    ("012.net.il", "Israel", "012"),
+    ("nordvpn.com", "", "VPN"),
+    ("expressvpn.com", "", "VPN"),
+    ("mullvad.net", "", "VPN"),
+    ("protonvpn.com", "", "VPN"),
+)
+TLD_COUNTRY = {
+    "pl": "Poland",
+    "ua": "Ukraine",
+    "il": "Israel",
+    "de": "Germany",
+    "cz": "Czechia",
+    "sk": "Slovakia",
+    "at": "Austria",
+    "hu": "Hungary",
+    "ro": "Romania",
+    "md": "Moldova",
+    "lt": "Lithuania",
+    "lv": "Latvia",
+    "ee": "Estonia",
+    "nl": "Netherlands",
+    "be": "Belgium",
+    "fr": "France",
+    "es": "Spain",
+    "it": "Italy",
+    "gb": "UK",
+    "uk": "UK",
+    "ie": "Ireland",
+    "us": "US",
+    "cy": "Cyprus",
+    "tr": "Turkey",
+    "ge": "Georgia",
+    "ae": "UAE",
+    "ch": "Switzerland",
+    "se": "Sweden",
+    "no": "Norway",
+    "fi": "Finland",
+    "dk": "Denmark",
+    "pt": "Portugal",
+    "gr": "Greece",
+    "bg": "Bulgaria",
+    "rs": "Serbia",
+    "hr": "Croatia",
+    "si": "Slovenia",
+}
 
 COOKIE = "lg"
 MAX_SESSIONS = 200
@@ -592,12 +696,106 @@ def token_from_header(cookie_header_value: str) -> str:
     return (morsel.value if morsel else "") or ""
 
 
+def _reverse_host(ip: str, timeout: float = 0.8) -> str:
+    found = [""]
+
+    def run() -> None:
+        try:
+            found[0] = str(socket.gethostbyaddr(ip)[0] or "").strip().rstrip(".").lower()
+        except (OSError, socket.error, ValueError):
+            found[0] = ""
+
+    thread = threading.Thread(target=run, daemon=True)
+    thread.start()
+    thread.join(timeout)
+    return found[0]
+
+
+def place_from_host(host: str) -> dict:
+    host = str(host or "").strip().lower().rstrip(".")
+    if not host:
+        return {"country": "", "isp": ""}
+    try:
+        ipaddress.ip_address(host)
+        return {"country": "", "isp": ""}
+    except ValueError:
+        pass
+    for suffix, country, isp in HOST_PLACES:
+        if host == suffix or host.endswith("." + suffix):
+            return {"country": country, "isp": isp}
+    labels = [part for part in host.split(".") if part]
+    if len(labels) >= 2 and labels[-2:] == ["co", "il"]:
+        brand = labels[-3] if len(labels) >= 3 and labels[-3] not in _HOST_SKIP else ""
+        return {
+            "country": "Israel",
+            "isp": brand.replace("-", " ").title() if brand else "",
+        }
+    tld = labels[-1] if labels else ""
+    country = TLD_COUNTRY.get(tld, "")
+    brand = ""
+    for part in reversed(labels[:-1]):
+        if part in _HOST_SKIP or part.replace("-", "").isdigit():
+            continue
+        brand = part
+        break
+    return {
+        "country": country,
+        "isp": brand.replace("-", " ").title() if brand else "",
+    }
+
+
+def lookup_ip_place(ip: str) -> dict:
+    ip = str(ip or "").strip()
+    cached = _IP_PLACE_CACHE.get(ip)
+    if cached is not None:
+        return dict(cached)
+    place = {"host": "", "country": "", "isp": ""}
+    if not ip:
+        _IP_PLACE_CACHE[ip] = place
+        return dict(place)
+    try:
+        addr = ipaddress.ip_address(ip.split("%", 1)[0])
+    except ValueError:
+        _IP_PLACE_CACHE[ip] = place
+        return dict(place)
+    if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved or addr.is_multicast:
+        place = {"host": "", "country": "", "isp": "local"}
+        _IP_PLACE_CACHE[ip] = place
+        return dict(place)
+    host = _reverse_host(ip)
+    parsed = place_from_host(host)
+    place = {
+        "host": host[:120],
+        "country": str(parsed.get("country") or "")[:40],
+        "isp": str(parsed.get("isp") or "")[:60],
+    }
+    _IP_PLACE_CACHE[ip] = place
+    return dict(place)
+
+
+def _public_visit(row: dict) -> dict:
+    return {
+        "at": str(row.get("at") or ""),
+        "login": str(row.get("login") or "SuperPlay"),
+        "ip": str(row.get("ip") or ""),
+        "ua": str(row.get("ua") or ""),
+        "host": str(row.get("host") or "")[:120],
+        "country": str(row.get("country") or "")[:40],
+        "isp": str(row.get("isp") or "")[:60],
+    }
+
+
 def record_client_visit(*, login: str = "", ip: str = "", ua: str = "") -> None:
+    ip = str(ip or "").strip()[:80]
+    place = lookup_ip_place(ip)
     row = {
         "at": utc_now(),
         "login": " ".join(str(login or "").split())[:80] or "SuperPlay",
-        "ip": str(ip or "").strip()[:80],
+        "ip": ip,
         "ua": str(ua or "").strip()[:180],
+        "host": str(place.get("host") or "")[:120],
+        "country": str(place.get("country") or "")[:40],
+        "isp": str(place.get("isp") or "")[:60],
     }
     try:
         with _VISITS_LOCK:
@@ -616,17 +814,30 @@ def client_visits() -> list:
     if not isinstance(rows, list):
         return []
     out = []
+    dirty = False
+    enriched = 0
     for row in rows:
         if not isinstance(row, dict):
             continue
-        out.append(
-            {
-                "at": str(row.get("at") or ""),
-                "login": str(row.get("login") or "SuperPlay"),
-                "ip": str(row.get("ip") or ""),
-                "ua": str(row.get("ua") or ""),
-            }
-        )
+        item = _public_visit(row)
+        needs_place = bool(item["ip"]) and not item["country"] and not item["isp"]
+        if needs_place and enriched < MAX_PLACE_ENRICH:
+            place = lookup_ip_place(item["ip"])
+            item["host"] = str(place.get("host") or item["host"] or "")[:120]
+            item["country"] = str(place.get("country") or "")[:40]
+            item["isp"] = str(place.get("isp") or "")[:60]
+            row["host"] = item["host"]
+            row["country"] = item["country"]
+            row["isp"] = item["isp"]
+            dirty = True
+            enriched += 1
+        out.append(item)
+    if dirty:
+        try:
+            with _VISITS_LOCK:
+                _save_json(VISITS_PATH, rows[:MAX_VISITS])
+        except OSError:
+            pass
     return out
 
 

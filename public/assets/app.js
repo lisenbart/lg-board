@@ -2579,7 +2579,7 @@ function kyivVisitStamp(iso) {
     hour12: false,
   });
   const parts = Object.fromEntries(fmt.formatToParts(at).map((p) => [p.type, p.value]));
-  return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute} (Kyiv)`;
+  return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}`;
 }
 function uaLabel(ua) {
   const s = String(ua || "");
@@ -2589,12 +2589,22 @@ function uaLabel(ua) {
   if (/Safari\//i.test(s) && !/Chrome/i.test(s)) return "Safari";
   return s.slice(0, 28) || "—";
 }
+function visitPlace(row) {
+  const country = String(row?.country || "").trim();
+  const isp = String(row?.isp || "").trim();
+  const host = String(row?.host || "").trim();
+  if (country && isp && country.toLowerCase() !== isp.toLowerCase()) return `${country} · ${isp}`;
+  if (country || isp) return country || isp;
+  if (host) return host;
+  return "—";
+}
 function superplayVisitsHtml() {
   const rows = Array.isArray(state.db?.superplayVisits) ? state.db.superplayVisits : [];
+  const blurb = "Clock is Kyiv time. Where is the IP country / provider — not the city on the clock. Shared PIN — Login is whatever they typed.";
   if (!rows.length) {
     return `<section class="sp-visits">
       <h3>Sign-ins</h3>
-      <p>Each SuperPlay PIN sign-in. Shared PIN — the name is whatever they typed in Login.</p>
+      <p>${blurb}</p>
       <p class="sp-visits-empty">No SuperPlay sign-ins yet.</p>
     </section>`;
   }
@@ -2603,17 +2613,18 @@ function superplayVisitsHtml() {
       (row) => `<tr>
         <td>${escapeHtml(kyivVisitStamp(row.at))}</td>
         <td>${escapeHtml(row.login || "SuperPlay")}</td>
-        <td>${escapeHtml(row.ip || "—")}</td>
+        <td class="sp-where" title="${escapeHtml(row.host || row.ip || "")}">${escapeHtml(visitPlace(row))}</td>
+        <td class="sp-ip">${escapeHtml(row.ip || "—")}</td>
         <td title="${escapeHtml(row.ua || "")}">${escapeHtml(uaLabel(row.ua))}</td>
       </tr>`
     )
     .join("");
   return `<section class="sp-visits">
       <h3>Sign-ins · ${rows.length}</h3>
-      <p>Each SuperPlay PIN sign-in. Shared PIN — the name is whatever they typed in Login.</p>
+      <p>${blurb}</p>
       <div class="sp-visits-scroll">
         <table class="sp-visits-table">
-          <thead><tr><th>When</th><th>Login</th><th>IP</th><th>Browser</th></tr></thead>
+          <thead><tr><th>When</th><th>Login</th><th>Where</th><th>IP</th><th>Browser</th></tr></thead>
           <tbody>${body}</tbody>
         </table>
       </div>

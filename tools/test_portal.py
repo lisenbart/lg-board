@@ -1350,6 +1350,37 @@ def test_superplay_visits_and_status() -> None:
             str(rows[:1]),
         )
         check("sign-in log has a timestamp", bool((rows or [{}])[0].get("at")))
+        check(
+            "private IP is marked local, not a city",
+            (rows or [{}])[0].get("isp") == "local" and not (rows or [{}])[0].get("country"),
+            str(rows[:1]),
+        )
+        play = auth_io.place_from_host("213-134-163-199.dynamic.play.pl")
+        check(
+            "Play.pl reverse DNS is Poland / Play",
+            play.get("country") == "Poland" and play.get("isp") == "Play",
+            str(play),
+        )
+        kyivstar = auth_io.place_from_host("host.kyivstar.net")
+        check(
+            "Kyivstar reverse DNS is Ukraine",
+            kyivstar.get("country") == "Ukraine" and kyivstar.get("isp") == "Kyivstar",
+            str(kyivstar),
+        )
+        bezeq = auth_io.place_from_host("bzq-1.static.bezeqint.net")
+        check(
+            "Bezeq reverse DNS is Israel",
+            bezeq.get("country") == "Israel" and bezeq.get("isp") == "Bezeq",
+            str(bezeq),
+        )
+        old = [{"at": "2026-10-18T12:29:00Z", "login": "superplay", "ip": "10.0.0.8", "ua": "Chrome"}]
+        tmp.write_text(json.dumps(old), encoding="utf-8")
+        filled = auth_io.client_visits()
+        check(
+            "old sign-in rows get a place on read",
+            bool(filled) and filled[0].get("isp") == "local",
+            str(filled[:1]),
+        )
     finally:
         auth_io.VISITS_PATH = prev
     js = (ROOT / "public" / "assets" / "app.js").read_text(encoding="utf-8")
@@ -1358,6 +1389,13 @@ def test_superplay_visits_and_status() -> None:
     check(
         "DL SuperPlay tab shows sign-ins",
         "function superplayVisitsHtml" in js and "isFinance() ? superplayVisitsHtml()" in js,
+    )
+    check(
+        "sign-in Where is IP country, not Kyiv on the clock",
+        "function visitPlace" in js
+        and ">Where</th>" in js
+        and "Clock is Kyiv time" in js
+        and "(Kyiv)" not in js.split("function kyivVisitStamp")[1].split("function uaLabel")[0],
     )
     check(
         "SuperPlay Login is a name, PIN is the key",
@@ -2000,6 +2038,11 @@ def test_http(base: str) -> str | None:
         check(
             "DL sees SuperPlay sign-in Login",
             any(v.get("login") == "Olena-test" for v in visits),
+            str(visits[:3]),
+        )
+        check(
+            "DL sign-in row has IP place",
+            any(v.get("login") == "Olena-test" and (v.get("isp") or v.get("country")) for v in visits),
             str(visits[:3]),
         )
 
