@@ -1239,11 +1239,9 @@ function renderWho() {
   const sel = $("who");
   const out = $("signOut");
   const hint = $("roleHint");
-  const logo = $("whoLogo");
   const ident = mail?.closest(".who-id");
   const badge = jobMeta(p);
   const client = isClient();
-  if (logo) logo.hidden = !client;
   if (ident) ident.hidden = client;
   mail.hidden = client;
   mail.textContent = client ? "" : whoLabel(p);
@@ -1287,6 +1285,7 @@ function renderChrome() {
   }
   document.title = isHoursView() ? "SuperPlay — Lisenbart Board" : "Lisenbart Board";
   const title = document.querySelector(".board-title");
+  const boardLogo = $("boardLogo");
   const clientHours = isClient() || isHoursPage();
   if (title) {
     title.hidden = clientHours;
@@ -1296,6 +1295,7 @@ function renderChrome() {
         ? "SuperPlay"
         : DIR_LABEL[state.direction] || DIR_LABEL.mgx;
   }
+  if (boardLogo) boardLogo.hidden = !clientHours;
   const pill = document.querySelector(".top-row > .pill");
   if (pill) {
     const play = state.direction === "playables";

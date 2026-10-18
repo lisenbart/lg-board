@@ -963,15 +963,17 @@ def test_playables_desk() -> None:
         )
         check(
             "client identity is SuperPlay logo",
-            'id="whoLogo"' in html
+            'id="boardLogo"' in html
             and 'src="assets/superplay.svg"' in html
             and (ROOT / "public" / "assets" / "superplay.svg").is_file()
-            and 'logo.hidden = !client' in js
-            and "background: #000" not in css.split(".who-logo")[1].split("}")[0],
+            and "boardLogo.hidden = !clientHours" in js
+            and "background: #000" not in css.split(".board-logo")[1].split("}")[0]
+            and 'id="whoLogo"' not in html,
         )
         check(
-            "client hours hide the SuperPlay word title",
+            "client hours put the logo where the SuperPlay word was",
             "title.hidden = clientHours" in js
+            and 'id="boardLogo"' in html.split('class="board-title"')[1].split('class="pill"')[0]
             and ".board-title[hidden]" in css
             and ".pill[hidden]" in css,
         )

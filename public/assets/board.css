@@ -135,7 +135,18 @@ a { color: var(--blue); }
 .month-now small { display: block; color: var(--muted); font-size: 10px; font-weight: 400; }
 .month-now.this-month strong { color: var(--blue); font-weight: 500; }
 .board-title { font-size: var(--fs-title); font-weight: 500; margin: 0; letter-spacing: -0.02em; }
+.board-logo {
+  display: none;
+  height: 32px;
+  width: 61px;
+  flex: 0 0 61px;
+  min-width: 61px;
+  background: transparent;
+  object-fit: contain;
+}
+.board-logo:not([hidden]) { display: block; }
 .board-title[hidden],
+.board-logo[hidden],
 .pill[hidden] { display: none !important; }
 .side-foot:empty, .kpis:empty { display: none; }
 .month-now small:empty { display: none; }
@@ -289,17 +300,6 @@ a { color: var(--blue); }
   min-width: 0;
 }
 .who-tools { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-shrink: 0; }
-.who-logo {
-  display: none;
-  height: 32px;
-  width: 61px;
-  flex: 0 0 61px;
-  min-width: 61px;
-  background: transparent;
-  object-fit: contain;
-}
-.who-logo[hidden] { display: none !important; }
-.who-logo:not([hidden]) { display: block; }
 #signOut { height: 32px; padding: 0 10px; flex-shrink: 0; }
 html.hours-host .top-row {
   flex-wrap: nowrap;
