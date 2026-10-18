@@ -1369,6 +1369,16 @@ def test_lp_can_close_without_send() -> None:
     src = (ROOT / "server.py").read_text(encoding="utf-8")
     js = (ROOT / "public" / "assets" / "app.js").read_text(encoding="utf-8")
     check("LP role may set closed", "closed" in server.STATUS_BY_ROLE["manager"] and "closed" in server.STATUS_BY_ROLE["finance"])
+    check(
+        "LP/DL may set any MGX work status",
+        {"new", "wip", "revision", "tlcheck", "done", "closed"} <= set(server.STATUS_BY_ROLE["manager"])
+        and {"new", "wip", "revision", "tlcheck", "done", "closed"} <= set(server.STATUS_BY_ROLE["finance"]),
+    )
+    check(
+        "MGX chips for LP/DL are the work pipeline",
+        "const MGX_OPS_STATUSES" in js and "return MGX_OPS_STATUSES.slice()" in js.split("function statusActions")[1].split("function statusButtonDisabled")[0],
+    )
+    check("LP/DL skip Done-after-TL-Check", "and role not in OPS_ROLES" in src.split("Done is after TL Check")[0][-250:])
     check("server no longer requires Send before Closed", "Closed is after Send" not in src)
     check("card offers Closed without approve-only gate", "Closed is after Send" not in js)
     check("Mark Closed is not locked to Appr.", 't.studioStatus === "approve" ? `<button type="button" class="btn" id="closeOne">' not in js)
@@ -1838,6 +1848,54 @@ def test_http(base: str) -> str | None:
                 "id": urgent_id,
                 "role": "manager",
                 "actorId": "manager",
+                "studioStatus": "wip",
+            },
+            cookie=lp_ck,
+        )
+        moved = (payload or {}).get("task") or {}
+        check(
+            "LP can set MGX WIP",
+            code == 200 and moved.get("studioStatus") == "wip",
+            str(payload.get("error") or moved.get("studioStatus")),
+        )
+        code, payload, _ = _http(
+            f"{base}/api/tasks/update",
+            {
+                "id": urgent_id,
+                "role": "manager",
+                "actorId": "manager",
+                "studioStatus": "done",
+            },
+            cookie=lp_ck,
+        )
+        check(
+            "LP MGX Done still needs a result link",
+            code == 400 and "result" in str(payload.get("error") or "").lower(),
+            str(payload),
+        )
+        code, payload, _ = _http(
+            f"{base}/api/tasks/update",
+            {
+                "id": urgent_id,
+                "role": "manager",
+                "actorId": "manager",
+                "studioStatus": "done",
+                "resultUrl": "https://board.example/mgx-done",
+            },
+            cookie=lp_ck,
+        )
+        ready = (payload or {}).get("task") or {}
+        check(
+            "LP can set MGX Done without TL Check",
+            code == 200 and ready.get("studioStatus") == "done",
+            str(payload.get("error") or ready.get("studioStatus")),
+        )
+        code, payload, _ = _http(
+            f"{base}/api/tasks/update",
+            {
+                "id": urgent_id,
+                "role": "manager",
+                "actorId": "manager",
                 "urgent": True,
             },
             cookie=lp_ck,
@@ -1845,8 +1903,8 @@ def test_http(base: str) -> str | None:
         flagged = (payload or {}).get("task") or {}
         check(
             "LP can mark a task URGENT",
-            code == 200 and flagged.get("urgent") is True and flagged.get("studioStatus") == created.get("studioStatus"),
-            str(payload.get("error") or flagged),
+            code == 200 and flagged.get("urgent") is True,
+            str(payload.get("error") or {k: flagged.get(k) for k in ("urgent", "studioStatus")}),
         )
         dl_ck = cookie.split(";", 1)[0] if cookie else ""
         if dl_ck:

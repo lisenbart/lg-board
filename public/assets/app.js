@@ -47,11 +47,12 @@ const NAME_WIDTH_KEY = "lg-name-width";
 const NAME_WIDTH_DEFAULT = 412;
 const NAME_WIDTH_MIN = 240;
 
+const MGX_OPS_STATUSES = ["new", "wip", "revision", "tlcheck", "done", "closed"];
 const STATUS_BY_ROLE = {
   designer: ["wip", "tlcheck"],
   teamlead: ["wip", "tlcheck", "done"],
-  manager: ["revision", "closed"],
-  finance: ["revision", "closed"],
+  manager: MGX_OPS_STATUSES.slice(),
+  finance: MGX_OPS_STATUSES.slice(),
   art_director: ["new", "wip", "check", "artready"],
   programmer: ["wip", "done"],
   client: [],
@@ -2116,18 +2117,18 @@ function cardJob(t) {
     return { tone: "do", title: "Your job", body: "Result is in. Send to client, or Mark Closed if SuperPlay already accepted." };
   }
   if (t.studioStatus === "tlcheck") {
-    return { tone: "wait", title: "Waiting for TL", body: `${name || "Designer"} submitted for TL Check. Send only after TL sets Done.` };
+    return { tone: "wait", title: "Waiting for TL", body: `${name || "Designer"} submitted for TL Check. If they are away, set Done yourself. Send only after Done.` };
   }
   if (!t.assigneeId) {
-    return { tone: "wait", title: "Waiting for TL", body: "Set hours if needed. Team Lead assigns. Status stays Ready until MD sets WIP. You send only after Done." };
+    return { tone: "wait", title: "Waiting for TL", body: "Set hours if needed. Team Lead assigns. If MD or TL are away, set the status yourself. You send only after Done." };
   }
   if (t.studioStatus === "revision") {
-    return { tone: "wait", title: "In Need Fixing", body: `${name || "Designer"} is fixing. Send only after they mark Done again.` };
+    return { tone: "wait", title: "In Need Fixing", body: `${name || "Designer"} is fixing. If they are away, set the status yourself. Send only after Done.` };
   }
   return {
     tone: "wait",
     title: "In progress",
-    body: `${name || "Designer"} is on this. Send only when status is Done and the result link is pasted.`,
+    body: `${name || "Designer"} is on this. If they are away, set the status yourself. Send only when status is Done and the result link is pasted.`,
   };
 }
 function playableCardJob(t, { role, mine, hasResult, name }) {
@@ -3015,7 +3016,7 @@ function renderGuide() {
           `Години: ${ui("Shifts")} у рядку або в картці. 1 shift = 9 годин. Виконавця ставить TL. ${ui("Dead Line")} — дата з Excel. ${ui("URGENT")} — червоний ${ui("!")} на імені, вмикаєш з картки, це не статус.`,
           `Рядок фарбується за статусом. Чіп: ${ui("Ready")} / ${ui("WIP")} / ${ui("Fix")} / ${ui("Done")} / ${ui("Appr.")} / ${ui("Closed")}. Не ${ui("Send")}.`,
           `${ui("Excel")} — години як у файлі. Чіп зліва той самий, що в пайплайні, не лише WIP/Closed. ${ui("Dead Line")} = ${ui("DEADLINE")}. ${ui("URGENT")} — маркер ${ui("!")}, не статус.`,
-          `${ui("Send to client")} лише з ${ui("Done")} + лінк файлу. Копіює текст у External Weekly. ${ui("Appr.")} сам не ставиться.`,
+          `Якщо MD або TL немає — постав ${ui("WIP")} / ${ui("TL Check")} / ${ui("Done")} сам. ${ui("Send to client")} лише з ${ui("Done")} + лінк файлу, кнопка внизу. Копіює текст у External Weekly. ${ui("Appr.")} сам не ставиться.`,
           `${ui("Mark Closed")} коли клієнт прийняв — можна без ${ui("Send")}. Темно-зелений штамп, білий напис — не той самий колір, що ${ui("Done")}. ${ui("URGENT")} знімається сам. Якщо відбили — ${ui("Need Fixing")}.`,
           `${ui("Hours split")} на картці: клієнтські години не ростуть. 0.5h тому, хто відрендерив замість колеги. Who лишається власником ${ui("Done")}.`,
         ])}
@@ -3427,10 +3428,7 @@ function statusActions(task) {
     return out;
   }
   if (role === "manager" || role === "finance") {
-    const out = [];
-    if (["wip", "tlcheck", "done", "approve"].includes(cur)) out.push("revision");
-    if (cur !== "closed") out.push("closed");
-    return out;
+    return MGX_OPS_STATUSES.slice();
   }
   return [];
 }
@@ -3445,7 +3443,8 @@ function statusButtonDisabled(task, key, opts) {
     return !canSetStatus(key, task);
   }
   if (key === "tlcheck" && !hasResultLink(task, opts.typedResult)) return true;
-  if (key === "done" && task.studioStatus !== "tlcheck") return true;
+  if (key === "done" && !hasResultLink(task, opts.typedResult)) return true;
+  if (key === "done" && task.studioStatus !== "tlcheck" && !canOps()) return true;
   return !canSetStatus(key, task);
 }
 
@@ -5399,7 +5398,7 @@ function openTask(id) {
         toast("Paste the result link before TL Check");
         return;
       }
-      if (!isPlayables(t) && key === "done" && t.studioStatus !== "tlcheck" && $("stStatus")?.value !== "tlcheck") {
+      if (!isPlayables(t) && key === "done" && t.studioStatus !== "tlcheck" && $("stStatus")?.value !== "tlcheck" && !canOps()) {
         toast("Done is after TL Check");
         return;
       }
@@ -5467,7 +5466,7 @@ function openTask(id) {
       toast("Paste the result link before Done");
       return;
     }
-    if (!isPlayables(t) && studioStatus === "done" && t.studioStatus !== "tlcheck" && t.studioStatus !== "done") {
+    if (!isPlayables(t) && studioStatus === "done" && t.studioStatus !== "tlcheck" && t.studioStatus !== "done" && !canOps()) {
       toast("Done is after TL Check");
       return;
     }

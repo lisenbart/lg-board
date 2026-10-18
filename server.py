@@ -30,7 +30,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-18x"
+BUILD = "2026-10-18y"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -891,11 +891,12 @@ def apply_person_job(db: dict, person: dict, job: str, *, check_last: bool = Tru
     return None
 
 OPS_ROLES = {"manager", "finance"}
+MGX_OPS_STATUSES = {"new", "wip", "revision", "tlcheck", "done", "closed"}
 STATUS_BY_ROLE = {
     "designer": {"wip", "tlcheck"},
     "teamlead": {"wip", "tlcheck", "done"},
-    "manager": {"revision", "closed"},
-    "finance": {"revision", "closed"},
+    "manager": set(MGX_OPS_STATUSES),
+    "finance": set(MGX_OPS_STATUSES),
     "art_director": set(),
     "programmer": set(),
     "client": set(),
@@ -2463,6 +2464,7 @@ class Handler(SimpleHTTPRequestHandler):
                         nxt == "done"
                         and nxt != task.get("studioStatus")
                         and task.get("studioStatus") != "tlcheck"
+                        and role not in OPS_ROLES
                     ):
                         self._json(403, {"error": "Done is after TL Check"})
                         return
