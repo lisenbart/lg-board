@@ -238,6 +238,52 @@ def test_pin_opens() -> None:
     check("team PIN cannot open DL", "cannot open" in str(team_dl.get("error") or ""), str(team_dl))
 
 
+def test_person_pins() -> None:
+    with tempfile.TemporaryDirectory() as raw:
+        orig = auth_io.PINS_PATH
+        auth_io.PINS_PATH = Path(raw) / "pins.json"
+        try:
+            people = [
+                {"id": "dl", "name": "D", "role": "finance"},
+                {"id": "ad", "name": "Anna", "role": "art_director"},
+                {"id": "ad2", "name": "Yulia", "role": "art_director"},
+            ]
+            check("role PIN fills the Team row", auth_io.effective_pin(people[1]) == "4429")
+            err = auth_io.set_person_pin(people, "ad", "8811")
+            check("personal PIN saves", err == "", err)
+            check("Anna PIN is personal", auth_io.effective_pin(people[1]) == "8811")
+            check("Yulia still has the team PIN", auth_io.effective_pin(people[2]) == "4429")
+            check(
+                "letters are not a PIN",
+                auth_io.set_person_pin(people, "ad", "12ab") == "PIN must be 4–8 digits",
+            )
+            sit = auth_io.resolve_studio_login(people, "8811", "art_director")
+            check("unique PIN sits that AD", (sit.get("person") or {}).get("id") == "ad", str(sit))
+            blocked = auth_io.resolve_studio_login(people, "8811", "finance")
+            check("AD PIN cannot open DL", "cannot open" in str(blocked.get("error") or ""), str(blocked))
+            team = auth_io.resolve_studio_login(people, "4429", "art_director")
+            check(
+                "shared PIN still asks which AD",
+                team.get("needSeat") is True and [s.get("id") for s in team.get("seats") or []] == ["ad", "ad2"],
+                str(team),
+            )
+            auth_io.set_person_pin(people, "dl", "9999")
+            check("solo desk PIN updates the door", auth_io.pin_ok_for_role("finance", "9999"))
+            db = {"meta": {}, "people": people, "tasks": []}
+            fin = auth_io.view_state(db, {"role": "finance", "email": "dmytro@lisenbart.games"})
+            pins = {p.get("id"): p.get("pin") for p in fin.get("people") or []}
+            check("finance Team sees PINs", pins.get("ad") == "8811" and pins.get("ad2") == "4429", str(pins))
+            lp = auth_io.view_state(db, {"role": "art_director", "email": "lisenbart.games@gmail.com"})
+            check("PIN is not on performer state", "pin" not in ((lp.get("people") or [{}])[0]), str(lp.get("people")))
+        finally:
+            auth_io.PINS_PATH = orig
+    js = (ROOT / "public" / "assets" / "app.js").read_text(encoding="utf-8")
+    css = (ROOT / "public" / "assets" / "board.css").read_text(encoding="utf-8")
+    check("Team row has a PIN box", 'class="team-pin"' in js and 'placeholder="PIN"' in js)
+    check("PIN saves with the name", "payload.pin" in js and "PIN must be 4–8 digits" in js)
+    check("PIN box sits next to Name", "7.5rem" in css and ".team-pin" in css)
+
+
 def test_parse_past_total() -> None:
     with tempfile.TemporaryDirectory() as raw:
         path = Path(raw) / "sheet.xlsx"
@@ -1462,6 +1508,34 @@ def test_http(base: str) -> str | None:
                 cookie=ck,
             )
 
+        try:
+            code, payload, _ = _http(
+                f"{base}/api/people/update",
+                {"role": "finance", "people": [{"id": "artdir1", "pin": "8811"}]},
+                cookie=ck,
+            )
+            saved = next(
+                (p for p in ((payload.get("state") or {}).get("people") or []) if p.get("id") == "artdir1"),
+                None,
+            )
+            check(
+                "finance can set a person PIN",
+                code == 200 and (saved or {}).get("pin") == "8811",
+                str(saved or payload),
+            )
+            code, login, _ = _http(
+                f"{base}/api/login",
+                {"door": "studio", "role": "art_director", "pin": "8811"},
+            )
+            sess = login.get("session") or {}
+            check(
+                "personal PIN logs that AD in",
+                code == 200 and sess.get("role") == "art_director" and sess.get("personId") == "artdir1",
+                str(sess or login),
+            )
+        finally:
+            auth_io.drop_person_pin("artdir1")
+
         t0 = time.monotonic()
         code, payload, _ = _http(
             f"{base}/api/excel/save",
@@ -1636,6 +1710,7 @@ def main() -> int:
     for fn in (
         test_client_hours_xlsx,
         test_pin_opens,
+        test_person_pins,
         test_parse_past_total,
         test_apply_full_sheet,
         test_write_month_roundtrip,

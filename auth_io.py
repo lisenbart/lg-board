@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 import secrets
 from datetime import datetime, timezone
 from http.cookies import SimpleCookie
@@ -102,6 +103,7 @@ ROLE_SEAT_ORDER = {
     "programmer": 5,
 }
 ROLE_SHORT = {row["role"]: row["label"] for row in STUDIO_ROLES}
+PIN_RE = re.compile(r"^\d{4,8}$")
 
 LOCK_ROLE = {
     "dmytro@lisenbart.games": "finance",
@@ -142,9 +144,15 @@ def _save_json(path: Path, payload) -> None:
 
 
 def ensure_pins() -> dict:
-    pins = _load_json(PINS_PATH, {})
-    if not isinstance(pins, dict):
-        pins = {}
+    raw = _load_json(PINS_PATH, {})
+    if not isinstance(raw, dict):
+        raw = {}
+    people = raw.get("people") if isinstance(raw.get("people"), dict) else {}
+    pins = {
+        str(k).strip().lower(): str(v).strip()
+        for k, v in raw.items()
+        if k and k != "people" and not isinstance(v, (dict, list))
+    }
     changed = False
     if str(pins.get("teamlead") or "").strip() == "5514":
         pins["teamlead"] = "2026"
@@ -153,9 +161,115 @@ def ensure_pins() -> dict:
         if not str(pins.get(key) or "").strip():
             pins[key] = pin
             changed = True
+    people_out = {
+        str(k).strip(): str(v).strip()
+        for k, v in people.items()
+        if str(k).strip() and str(v).strip()
+    }
     if changed or not pins:
-        _save_json(PINS_PATH, pins)
-    return {str(k).strip().lower(): str(v).strip() for k, v in pins.items() if k}
+        payload = dict(pins)
+        if people_out:
+            payload["people"] = people_out
+        _save_json(PINS_PATH, payload)
+    pins["people"] = people_out
+    return pins
+
+
+def _save_pins(pins: dict) -> None:
+    payload = {k: v for k, v in pins.items() if k != "people"}
+    people = pins.get("people") if isinstance(pins.get("people"), dict) else {}
+    people_out = {
+        str(k).strip(): str(v).strip()
+        for k, v in people.items()
+        if str(k).strip() and str(v).strip()
+    }
+    if people_out:
+        payload["people"] = people_out
+    _save_json(PINS_PATH, payload)
+
+
+def parse_pin(raw) -> tuple[str | None, str]:
+    pin = str(raw or "").strip()
+    if not pin:
+        return None, ""
+    if not PIN_RE.fullmatch(pin):
+        return None, "PIN must be 4–8 digits"
+    return pin, ""
+
+
+def effective_pin(person: dict | None) -> str:
+    if not person:
+        return ""
+    pins = ensure_pins()
+    pid = str(person.get("id") or "")
+    personal = str((pins.get("people") or {}).get(pid) or "").strip()
+    if personal:
+        return personal
+    key = ROLE_PIN_KEYS.get(str(person.get("role") or "").strip().lower(), "")
+    return str(pins.get(key) or "").strip()
+
+
+def set_person_pin(people: list[dict], person_id: str, pin: str) -> str:
+    pin, err = parse_pin(pin)
+    if err:
+        return err
+    if not pin:
+        return ""
+    person = person_by_id(people, person_id)
+    if not person:
+        return "not found"
+    pins = ensure_pins()
+    people_map = dict(pins.get("people") or {})
+    people_map[str(person_id)] = pin
+    pins["people"] = people_map
+    role = str(person.get("role") or "")
+    key = ROLE_PIN_KEYS.get(role, "")
+    same = [p for p in people or [] if p.get("role") == role]
+    if key and len(same) <= 1:
+        pins[key] = pin
+        if role == "client":
+            pins[CLIENT_EMAIL] = pin
+    _save_pins(pins)
+    return ""
+
+
+def drop_person_pin(person_id: str) -> None:
+    pins = ensure_pins()
+    people_map = dict(pins.get("people") or {})
+    if str(person_id) not in people_map:
+        return
+    people_map.pop(str(person_id), None)
+    pins["people"] = people_map
+    _save_pins(pins)
+
+
+def attach_pins(db: dict) -> dict:
+    out = dict(db or {})
+    out["people"] = [dict(p, pin=effective_pin(p)) for p in (db or {}).get("people") or []]
+    return out
+
+
+def pin_unlocks(pin: str) -> bool:
+    if pin_owner_roles(pin):
+        return True
+    got = str(pin or "").strip()
+    for want in (ensure_pins().get("people") or {}).values():
+        if _pin_eq(str(want or "").strip(), got):
+            return True
+    return False
+
+
+def people_for_pin(people: list[dict], pin: str) -> list[dict]:
+    got = str(pin or "").strip()
+    if not got:
+        return []
+    personal = ensure_pins().get("people") or {}
+    hits = []
+    for person in people or []:
+        want = str(personal.get(str(person.get("id") or "")) or "").strip()
+        if want and _pin_eq(want, got):
+            hits.append(person)
+    return hits
 
 
 def _pin_eq(want: str, got: str) -> bool:
@@ -178,23 +292,28 @@ def pin_ok_for_role(role: str, pin: str) -> bool:
     return _pin_eq(want, str(pin or "").strip())
 
 
-def pin_owner_roles(pin: str) -> tuple[str, ...]:
+def pin_owner_roles(pin: str, people: list[dict] | None = None) -> tuple[str, ...]:
     """Roles this PIN may sit as. Same team PIN unlocks MD / AD / DEV."""
     unlocked: list[str] = []
     seen: set[str] = set()
-    for owner in ("manager", "teamlead", "finance", "designer", "art_director", "programmer"):
-        if not pin_ok_for_role(owner, pin):
-            continue
+
+    def add_owner(owner: str) -> None:
         for role in PIN_OPENS.get(owner, (owner,)):
             if role not in seen:
                 seen.add(role)
                 unlocked.append(role)
+
+    for owner in ("manager", "teamlead", "finance", "designer", "art_director", "programmer"):
+        if pin_ok_for_role(owner, pin):
+            add_owner(owner)
+    for person in people_for_pin(people or [], pin):
+        add_owner(str(person.get("role") or ""))
     return tuple(unlocked)
 
 
 def resolve_studio_login(people: list[dict], pin: str, door_role: str = "", seat_id: str | None = None) -> dict:
     """Sit the door you clicked, if this PIN ranks high enough to open it."""
-    unlocked = pin_owner_roles(pin)
+    unlocked = pin_owner_roles(pin, people)
     if not unlocked:
         return {"error": "wrong login or PIN"}
     door = str(door_role or "").strip()
@@ -204,7 +323,10 @@ def resolve_studio_login(people: list[dict], pin: str, door_role: str = "", seat
         roles = (door,)
     else:
         roles = unlocked
-    matches = people_for_roles(people, roles)
+    personal = people_for_pin(people, pin)
+    if door:
+        personal = [p for p in personal if p.get("role") == door]
+    matches = personal or people_for_roles(people, roles)
     if not matches:
         return {"error": "no seat for this login"}
     if seat_id:
@@ -212,6 +334,10 @@ def resolve_studio_login(people: list[dict], pin: str, door_role: str = "", seat
         role = str((person or {}).get("role") or "")
         if not person or role not in unlocked or (door and role != door):
             return {"error": "wrong login or PIN"}
+        if personal:
+            allowed = {str(p.get("id") or "") for p in personal}
+            if str(person.get("id") or "") not in allowed:
+                return {"error": "wrong login or PIN"}
         return {"person": person}
     if len(matches) == 1:
         return {"person": matches[0]}
@@ -449,7 +575,7 @@ def client_state(db: dict) -> dict:
     }
 
 
-PAY_PEOPLE_KEYS = ("rates", "rateUsd", "iban", "bankCard", "taxId", "legalName", "bank")
+PAY_PEOPLE_KEYS = ("rates", "rateUsd", "iban", "bankCard", "taxId", "legalName", "bank", "pin")
 
 
 def view_state(db: dict, sess: dict | None) -> dict:
@@ -458,7 +584,7 @@ def view_state(db: dict, sess: dict | None) -> dict:
     if sess.get("role") == "client" or sess.get("email") == CLIENT_EMAIL:
         return client_state(db)
     if sess.get("role") == "finance":
-        return db
+        return attach_pins(db)
     people = []
     for person in db.get("people") or []:
         row = {key: val for key, val in person.items() if key not in PAY_PEOPLE_KEYS}

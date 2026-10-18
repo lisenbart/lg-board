@@ -30,7 +30,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-18k"
+BUILD = "2026-10-18l"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -1549,7 +1549,7 @@ class Handler(SimpleHTTPRequestHandler):
                 if role and role not in auth_io.STUDIO_ROLE_IDS:
                     self._json(403, {"error": "wrong login or PIN"})
                     return
-                if not auth_io.pin_owner_roles(pin):
+                if not auth_io.pin_unlocks(pin):
                     self._json(403, {"error": "wrong login or PIN"})
                     return
             else:
@@ -2693,6 +2693,8 @@ class Handler(SimpleHTTPRequestHandler):
                         item["rateUsd"] = data.get("rateUsd")
                     if "job" in data:
                         item["job"] = data.get("job")
+                    if "pin" in data:
+                        item["pin"] = data.get("pin")
                     items = [item]
                 planned = {p["id"]: p.get("role") for p in db["people"]}
                 job_changes = False
@@ -2757,12 +2759,17 @@ class Handler(SimpleHTTPRequestHandler):
                         person["bankCard"] = finance_io.normalize_bank_card(item.get("bankCard"))
                     if "iban" in item and item.get("iban") is not None:
                         person["iban"] = finance_io.normalize_iban(item.get("iban"))
+                    if "pin" in item and item.get("pin") is not None:
+                        err = auth_io.set_person_pin(db.get("people") or [], person["id"], item.get("pin"))
+                        if err:
+                            self._json(400, {"error": err})
+                            return
                     updated.append(person)
                 if not updated and data.get("id"):
                     self._json(404, {"error": "not found"})
                     return
                 save_db(db)
-                self._json(200, {"people": updated, "state": db})
+                self._json(200, {"people": updated, "state": auth_io.attach_pins(db)})
                 _spawn(_sync_files_bg, db.get("meta", {}).get("month"), True)
                 return
             if path == "/api/people/add":
@@ -2820,7 +2827,7 @@ class Handler(SimpleHTTPRequestHandler):
                     person["rates"] = {direction_io.PLAYABLES: 15}
                 db["people"].append(person)
                 save_db(db)
-                self._json(200, {"person": person, "state": db})
+                self._json(200, {"person": person, "state": auth_io.attach_pins(db)})
                 if job in {"designer", "teamlead", "manager", "art_director", "programmer"}:
                     _spawn(_sync_files_bg, db.get("meta", {}).get("month"), True)
                 return
@@ -2897,8 +2904,9 @@ class Handler(SimpleHTTPRequestHandler):
                     if dest:
                         notice_io.on_task_change(db, task, before, actor_id)
                 db["people"] = [p for p in db["people"] if p["id"] != pid]
+                auth_io.drop_person_pin(pid)
                 save_db(db)
-                self._json(200, {"deleted": pid, "reassigned": len(held), "state": db})
+                self._json(200, {"deleted": pid, "reassigned": len(held), "state": auth_io.attach_pins(db)})
                 _spawn(_sync_files_bg, db.get("meta", {}).get("month"), True)
                 return
             if path == "/api/notices/read":

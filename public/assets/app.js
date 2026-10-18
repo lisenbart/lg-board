@@ -117,6 +117,7 @@ const state = {
   hoursDir: null,
   month: "2026-10",
   teamDrafts: {},
+  teamPins: {},
   session: null,
   finTab: "client",
   nbu: null,
@@ -4054,8 +4055,11 @@ async function saveEmployeeRates(opts = {}) {
 
 function captureTeamDrafts() {
   $("board")?.querySelectorAll(".team-row").forEach((row) => {
+    const id = row.dataset.id;
     const input = row.querySelector(".team-name");
-    if (input) state.teamDrafts[row.dataset.id] = input.value;
+    if (input) state.teamDrafts[id] = input.value;
+    const pin = row.querySelector(".team-pin");
+    if (pin) state.teamPins[id] = pin.value;
   });
 }
 
@@ -4076,12 +4080,27 @@ function crewJobSelect(p) {
   </span>`;
 }
 
+function teamPinValue(p) {
+  const draft = state.teamPins[p.id];
+  return draft !== undefined ? draft : p.pin || "";
+}
+
+function parseTeamPin(raw) {
+  const pin = String(raw || "").trim();
+  if (!pin) return { pin: "", error: "" };
+  if (!/^\d{4,8}$/.test(pin)) return { pin: "", error: "PIN must be 4–8 digits" };
+  return { pin, error: "" };
+}
+
 function teamRowPayload(row) {
   const id = row?.dataset.id;
   const name = String(row?.querySelector(".team-name")?.value || "").trim();
   const job = row?.querySelector(".team-job")?.value || "";
+  const parsed = parseTeamPin(row?.querySelector(".team-pin")?.value);
   const payload = { id, name };
   if (job) payload.job = job;
+  if (parsed.error) payload.pinError = parsed.error;
+  else if (parsed.pin) payload.pin = parsed.pin;
   return payload;
 }
 
@@ -4090,10 +4109,15 @@ async function flushTeamNames() {
   const people = [...($("board")?.querySelectorAll(".team-row") || [])]
     .map((row) => teamRowPayload(row))
     .filter((p) => p.id && p.name);
+  const bad = people.find((p) => p.pinError);
+  if (bad) return { error: bad.pinError };
   if (!people.length) return { state: state.db };
   const out = await api("/api/people/update", { people, role: me().role });
   if (out.error || !out.state) return out;
-  for (const p of people) delete state.teamDrafts[p.id];
+  for (const p of people) {
+    delete state.teamDrafts[p.id];
+    delete state.teamPins[p.id];
+  }
   applyState(out.state);
   return out;
 }
@@ -4110,7 +4134,8 @@ function renderTeam() {
       <div class="team-row" data-id="${p.id}">
         <span class="person">${avatarHtml(p)}${escapeHtml(displayName(p))}</span>
         ${crewJobSelect(p)}
-        <input class="team-name" value="${escapeHtml(displayName(p))}" placeholder="Real name" />
+        <input class="team-name" value="${escapeHtml(displayName(p))}" placeholder="Name" autocomplete="off" />
+        <input class="team-pin" value="${escapeHtml(teamPinValue(p))}" placeholder="PIN" inputmode="numeric" maxlength="8" autocomplete="off" aria-label="PIN" />
         <button class="btn primary team-save" type="button">Save</button>
         <button class="btn ghost team-del" type="button">Delete</button>
       </div>`
@@ -4119,7 +4144,7 @@ function renderTeam() {
   $("board").innerHTML = `
     <section class="group" style="padding:18px">
       <h2 style="margin:0 0 12px">Team names</h2>
-      <p class="team-hint">Motion design and Team Lead can switch. Pay stays $15/h on their hours. Keep at least one Team Lead.</p>
+      <p class="team-hint">Name and PIN save together. PIN is 4–8 digits. A unique PIN sits that person without asking who. Shared PIN still asks. Keep at least one Team Lead.</p>
       ${rows}
       <div class="team-add">
         <select id="addJob">${TEAM_JOBS.map((j) => `<option value="${j.id}">${j.label}</option>`).join("")}</select>
@@ -4132,6 +4157,11 @@ function renderTeam() {
       state.teamDrafts[input.closest(".team-row").dataset.id] = input.value;
     });
   });
+  $("board").querySelectorAll(".team-pin").forEach((input) => {
+    input.addEventListener("input", () => {
+      state.teamPins[input.closest(".team-row").dataset.id] = input.value;
+    });
+  });
   $("board").querySelectorAll(".team-save").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const row = btn.closest(".team-row");
@@ -4140,14 +4170,19 @@ function renderTeam() {
         toast("Name cannot be empty");
         return;
       }
+      if (payload.pinError) {
+        toast(payload.pinError);
+        return;
+      }
       const out = await api("/api/people/update", { ...payload, role: me().role });
       if (out.error || !out.state) {
         toast(out.error || "Could not save");
         return;
       }
       delete state.teamDrafts[row.dataset.id];
+      delete state.teamPins[row.dataset.id];
       applyState(out.state);
-      toast("Name saved");
+      toast("Saved");
     });
   });
   $("board").querySelectorAll(".team-del").forEach((btn) => {
@@ -4156,7 +4191,7 @@ function renderTeam() {
   $("saveAllNames").onclick = async () => {
     const out = await flushTeamNames();
     if (out.error) toast(out.error);
-    else toast("All names saved");
+    else toast("All names and PINs saved");
   };
   $("addPerson").onclick = async () => {
     const job = $("addJob").value;
@@ -4250,6 +4285,7 @@ async function confirmDeletePerson() {
     return;
   }
   delete state.teamDrafts[id];
+  delete state.teamPins[id];
   if (state.designerFilter === id) state.designerFilter = null;
   $("delModal").classList.remove("show");
   applyState(out.state);

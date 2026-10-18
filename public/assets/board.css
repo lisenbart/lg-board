@@ -1525,7 +1525,7 @@ body.col-resizing * { cursor: col-resize !important; }
 .drive-paste label { margin-top: 8px; }
 .team-row {
   display: grid;
-  grid-template-columns: minmax(140px, 180px) minmax(150px, 200px) minmax(160px, 1fr) auto auto;
+  grid-template-columns: minmax(140px, 180px) minmax(150px, 200px) minmax(120px, 1fr) 7.5rem auto auto;
   gap: 10px;
   align-items: center;
   padding: 8px 0;
@@ -1561,7 +1561,13 @@ body.col-resizing * { cursor: col-resize !important; }
   white-space: nowrap;
 }
 .del-projects li:last-child { border-bottom: 0; }
-.team-name { border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; }
+.team-name,
+.team-pin { border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; }
+.team-pin {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.12em;
+  text-align: center;
+}
 .role-tag {
   font-size: 12px;
   font-weight: 400;
