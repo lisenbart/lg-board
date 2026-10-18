@@ -752,13 +752,19 @@ def test_playables_desk() -> None:
         update_sh = (ROOT / "deploy" / "update.sh").read_text(encoding="utf-8")
         check(
             "board-update keeps live db and Playables Excel",
-            "data/db.json" in update_sh and "data/SP_PLBL_check.xlsx" in update_sh,
+            "data/db.json" in update_sh
+            and "data/SP_PLBL_check.xlsx" in update_sh
+            and "SUPERPLAY_Playable_Calculator.xlsx" in update_sh,
         )
         drive_py = (ROOT / "drive_sync.py").read_text(encoding="utf-8")
+        push_body = drive_py.split("def push_workbooks")[1].split("def _kind")[0]
         check(
             "Drive push writes Playables check like MGX",
-            "SP_PLBL_check.xlsx" in drive_py.split("def push_workbooks")[1].split("def _kind")[0]
-            and "playableExcel" in drive_py.split("def push_workbooks")[1].split("def _kind")[0],
+            "SP_PLBL_check.xlsx" in push_body and "playableExcel" in push_body,
+        )
+        check(
+            "Drive push writes Playables calculator like MGX",
+            "SUPERPLAY_Playable_Calculator.xlsx" in push_body and "playableCalculator" in push_body,
         )
         check("Playables rename rewrites the Excel row", "playables_io.rewrite_existing_name" in py)
         check("LP/DL skip Art-ready DEV assign gate", "playable_may_assign_dev(trial, role)" in py)
@@ -863,6 +869,48 @@ def test_playables_desk() -> None:
             lp and float(lp.get("payUsdMgx") or 0) > 0 and float(lp.get("payUsdPlay") or 0) > 0,
             str({k: (lp or {}).get(k) for k in ("payUsdMgx", "payUsdPlay", "hoursMgx", "hoursPlay")}),
         )
+        with tempfile.TemporaryDirectory() as raw:
+            calc_path = Path(raw) / "play-calc.xlsx"
+            play = dict(db["tasks"][1])
+            playables_io.attach_studio_buffer(play)
+            calc_db = {"meta": dict(db.get("meta") or {}), "people": list(db["people"]), "tasks": [play]}
+            finance_io.write_playable_month(calc_db, "2026-10", path=calc_path)
+            wb = load_workbook(calc_path)
+            ws = wb[finance_io.sheet_name_for("2026-10")]
+            heads = [str(ws.cell(2, c).value or "") for c in range(1, 16)]
+            row_n = next(
+                r
+                for r in range(5, (ws.max_row or 5) + 1)
+                if "MergeSolitaire" in str(ws.cell(r, 2).value or "")
+            )
+            hours = ws.cell(row_n, 4).value
+            lp_col = next((c for c, n in enumerate(heads, 1) if n == "Анастасія"), 6)
+            anna_col = next((c for c, n in enumerate(heads, 1) if n == "Анна"), 0)
+            client_col = next((c for c, n in enumerate(heads, 1) if str(ws.cell(5, c).value or "") == "CLIENT IN"), 0)
+            lp_formula = str(ws.cell(row_n, lp_col).value or "")
+            anna_formula = str(ws.cell(row_n, anna_col).value or "") if anna_col else ""
+            client_formula = str(ws.cell(row_n, client_col).value or "") if client_col else ""
+            wb.close()
+            check(
+                "Playables calculator billed hours include buffer",
+                abs(float(hours or 0) - 30) < 0.05,
+                str(hours),
+            )
+            check(
+                "Playables calculator LP pay is crew not buffer",
+                lp_formula.replace(" ", "") in {"=29*7", "=29.0*7"},
+                lp_formula,
+            )
+            check(
+                "Playables calculator CLIENT IN is $40",
+                "*40" in client_formula.replace(" ", ""),
+                client_formula,
+            )
+            check(
+                "Playables calculator AD is hours × rate",
+                "*15" in anna_formula.replace(" ", "") and "10" in anna_formula,
+                anna_formula,
+            )
 
 
 def test_playable_card_pipeline() -> None:

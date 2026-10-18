@@ -18,12 +18,13 @@ from urllib.error import URLError
 import direction_io
 import excel_io
 import playables_io
-from openpyxl import load_workbook
+from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
 ROOT = Path(__file__).resolve().parent
 CALC_PATH = ROOT / "data" / "finance" / "SUPERPLAY_MGX_Calculator.xlsx"
+PLAY_CALC_PATH = ROOT / "data" / "finance" / "SUPERPLAY_Playable_Calculator.xlsx"
 TEMPLATE_DIR = ROOT / "data" / "finance" / "templates"
 INVOICES_DIR = ROOT / "data" / "invoices"
 W_T = re.compile(r"(<w:t(?:\s[^>]*)?>)(.*?)(</w:t>)", re.DOTALL)
@@ -826,6 +827,203 @@ def _style_row(ws, row: int, cols: int) -> None:
         cell.font = CALIBRI
         cell.border = THIN
         cell.alignment = CENTER if c != 2 else Alignment(vertical="center")
+
+
+def playable_calc_crew(db: dict) -> list[dict]:
+    """LP, then Playables AD / DEV / MOTION."""
+    people = db.get("people") or []
+    mgr = [p for p in people if p.get("role") == "manager"]
+    crew = [
+        p
+        for p in people
+        if p.get("role") in {"art_director", "programmer", "designer"}
+        and direction_io.person_on(p, direction_io.PLAYABLES)
+    ]
+    return _by_pay_order(mgr) + _by_pay_order(crew)
+
+
+def write_playable_month(db: dict, ym: str, nbu_rate: float | None = None, path: Path | None = None) -> Path | None:
+    """Write this month into SUPERPLAY_Playable_Calculator.xlsx. Other months stay."""
+    path = Path(path or PLAY_CALC_PATH)
+    live = path.resolve() == PLAY_CALC_PATH.resolve()
+    if not path.exists() and live:
+        try:
+            import drive_sync
+
+            drive_sync.download_playable_calculator()
+        except Exception as e:
+            print(f"[finance] playable calculator download: {e}", flush=True)
+    if not path.exists():
+        if live:
+            print("[finance] playable calculator missing, skip write", flush=True)
+            return None
+        wb = Workbook()
+        try:
+            return _write_playable_month_body(db, ym, path, wb, nbu_rate)
+        finally:
+            try:
+                wb.close()
+            except Exception:
+                pass
+    wb = load_workbook(path)
+    try:
+        return _write_playable_month_body(db, ym, path, wb, nbu_rate)
+    finally:
+        try:
+            wb.close()
+        except Exception:
+            pass
+
+
+def _write_playable_month_body(db, ym, path, wb, nbu_rate) -> Path:
+    meta = db.get("meta") or {}
+    client_rate = float(meta.get("playableClientRateUsd") or PLAYABLE_CLIENT_RATE)
+    tax = float(meta.get("taxPct") if meta.get("taxPct") is not None else TAX_PCT)
+    fx = float(nbu_rate or (meta.get("nbuRate") or FALLBACK_NBU))
+    crew = playable_calc_crew(db)
+    tasks = [
+        t
+        for t in db.get("tasks") or []
+        if (t.get("month") or ym) == ym and direction_io.is_playables(t)
+    ]
+    by_line = {k: [] for k in ("DX", "DD", "DS")}
+    for t in tasks:
+        line = t.get("line") if t.get("line") in by_line else "DD"
+        by_line[line].append(t)
+    for key in by_line:
+        by_line[key].sort(key=lambda t: str(t.get("name") or ""))
+    active_lines = [k for k in ("DX", "DD", "DS") if by_line[k] or k != "DS"]
+
+    name = sheet_name_for(ym)
+    if name in wb.sheetnames:
+        del wb[name]
+    ws = wb.create_sheet(name, 0)
+    leftover = [n for n in wb.sheetnames if n not in {name, "Employeers"} and str(n).strip().lower() in {"sheet", "sheet1"}]
+    for n in leftover:
+        del wb[n]
+    n_empl = max(len(crew), 1)
+    empl_start = 6
+    total_empl_col = empl_start + n_empl
+    client_col = total_empl_col + 1
+    y, m = [int(x) for x in ym.split("-")]
+    ws.cell(2, 2, datetime(y, m, 1).strftime("%Y %B").upper())
+    ws.cell(2, 2).font = CALIBRI_BOLD
+    for i, person in enumerate(crew):
+        cell = ws.cell(2, empl_start + i, person.get("name") or f"EMPL {i + 1}")
+        cell.font = CALIBRI_BOLD
+        cell.alignment = CENTER
+
+    def write_header(row: int, line: str) -> None:
+        labels = [line, "Playable", "SHIFTS", "HOURS", "D.LINE"]
+        labels += [f"EMPL {i + 1}" for i in range(n_empl)]
+        labels += ["Total EMPL", "CLIENT IN"]
+        for c, label in enumerate(labels, 1):
+            cell = ws.cell(row, c, label)
+            cell.fill = HEADER_FILL
+            cell.font = CALIBRI_BOLD
+            cell.border = THIN
+            cell.alignment = CENTER
+        ws.cell(row, 1).fill = LINE_FILL.get(line, HEADER_FILL)
+
+    def write_task(row: int, task: dict) -> None:
+        billed = playables_io.billed_hours(task)
+        producer = playables_io.producer_hours(task)
+        ws.cell(row, 2, task.get("name") or "")
+        ws.cell(row, 3, None)
+        ws.cell(row, 4, billed if billed else None)
+        for i, person in enumerate(crew):
+            cell = ws.cell(row, empl_start + i)
+            rate = person_rate(person, meta=meta, direction=direction_io.PLAYABLES)
+            if person.get("role") == "manager":
+                cell.value = f"={producer:g}*{rate:g}"
+                on_row = True
+            else:
+                share = excel_io.hours_for_person(task, person["id"])
+                on_row = share > 0
+                if share > 0:
+                    cell.value = f"={share:g}*{rate:g}"
+            if on_row:
+                raw = (person.get("color") or "92D050").replace("#", "")
+                cell.fill = PatternFill("solid", fgColor=raw[:6] or "92D050")
+        last_empl = get_column_letter(empl_start + n_empl - 1)
+        first_empl = get_column_letter(empl_start)
+        ws.cell(row, total_empl_col, f"=SUM({first_empl}{row}:{last_empl}{row})")
+        ws.cell(row, client_col, f"=D{row}*{client_rate:g}")
+        _style_row(ws, row, client_col)
+
+    r = 5
+    first_data = None
+    for line in active_lines:
+        write_header(r, line)
+        r += 1
+        if not by_line[line]:
+            r += 1
+            continue
+        for task in by_line[line]:
+            if first_data is None:
+                first_data = r
+            write_task(r, task)
+            r += 1
+        r += 1
+    if first_data is None:
+        first_data = 6
+    last_data = max(r - 2, first_data)
+    total_row = r
+    ws.cell(total_row, 1, "total")
+    ws.cell(total_row, 3, f"=SUM(C{first_data}:C{last_data})")
+    ws.cell(total_row, 4, f"=SUM(D{first_data}:D{last_data})")
+    for i in range(n_empl):
+        col = get_column_letter(empl_start + i)
+        ws.cell(total_row, empl_start + i, f"=SUM({col}{first_data}:{col}{last_data})")
+    first_empl = get_column_letter(empl_start)
+    last_empl = get_column_letter(empl_start + n_empl - 1)
+    ws.cell(total_row, total_empl_col, f"=SUM({first_empl}{total_row}:{last_empl}{total_row})")
+    ws.cell(
+        total_row,
+        client_col,
+        f"=SUM({get_column_letter(client_col)}{first_data}:{get_column_letter(client_col)}{last_data})",
+    )
+    _style_row(ws, total_row, client_col)
+    for c in range(1, client_col + 1):
+        ws.cell(total_row, c).fill = HEADER_FILL
+        ws.cell(total_row, c).font = CALIBRI_BOLD
+
+    uah_row = total_row + 1
+    ws.cell(total_row, client_col + 2, "UAH").font = CALIBRI_BOLD
+    ws.cell(total_row, client_col + 3, "USD").font = CALIBRI_BOLD
+    for i in range(n_empl + 2):
+        src = get_column_letter(empl_start + i)
+        ws.cell(uah_row, empl_start + i, f"={src}{total_row}*{fx:g}")
+
+    label_col = client_col + 1
+    usd_col = client_col + 3
+    uah_col = client_col + 2
+    tax_row = uah_row + 1
+    tax_col = usd_col + 1
+    tax_cell = ws.cell(tax_row, tax_col, tax)
+    tax_cell.number_format = "0.00%"
+    tax_cell.font = CALIBRI_BOLD
+    tax_cell.alignment = CENTER
+    ws.cell(uah_row, tax_col, "TAX").font = CALIBRI_BOLD
+    tax_ref = f"{get_column_letter(tax_col)}{tax_row}"
+    rows = [
+        (uah_row, "CLIENT IN", f"={get_column_letter(client_col)}{total_row}"),
+        (tax_row, "STUDIO (TAX)", f"={get_column_letter(usd_col)}{uah_row}-{get_column_letter(usd_col)}{uah_row}*{tax_ref}"),
+        (uah_row + 2, "EMPL", f"={get_column_letter(total_empl_col)}{total_row}"),
+        (uah_row + 3, "STUDIO", f"={get_column_letter(usd_col)}{tax_row}-{get_column_letter(usd_col)}{uah_row + 2}"),
+    ]
+    for row, label, formula in rows:
+        ws.cell(row, label_col, label).font = CALIBRI_BOLD
+        ws.cell(row, usd_col, formula)
+        ws.cell(row, uah_col, f"={get_column_letter(usd_col)}{row}*{fx:g}")
+
+    ws.column_dimensions["A"].width = 11
+    ws.column_dimensions["B"].width = 72
+    for col in range(3, tax_col + 1):
+        ws.column_dimensions[get_column_letter(col)].width = 14
+    _write_employeers_sheet(wb, db)
+    _atomic_save(wb, path)
+    return path
 
 
 def write_month(db: dict, ym: str, nbu_rate: float | None = None, path: Path | None = None) -> Path:

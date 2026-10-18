@@ -12,6 +12,7 @@ LIVE_FILES=(
   data/SP_PLBL_check.xlsx
   data/mirror/SP_MGX_check.xlsx
   data/finance/SUPERPLAY_MGX_Calculator.xlsx
+  data/finance/SUPERPLAY_Playable_Calculator.xlsx
   data/drive_packs.json
   data/drive_index.json
   data/drive_cache.json

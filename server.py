@@ -30,7 +30,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-18h"
+BUILD = "2026-10-18i"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -262,6 +262,7 @@ def combat_status() -> dict:
         "pdf": pdf,
         "excel": excel_io.XLSX_PATH.exists(),
         "calculator": finance_io.CALC_PATH.exists(),
+        "playableCalculator": finance_io.PLAY_CALC_PATH.exists(),
         "backup": latest_backup(),
         "excelWatch": dict(_EXCEL_WATCH),
     }
@@ -302,6 +303,11 @@ def sync_excel(db: dict, month: str | None = None, calculator: bool = False) -> 
             finance_io.write_month(db, ym, nbu_rate=fx)
         except Exception as e:
             print(f"[finance] write_month: {e}", flush=True)
+        try:
+            fx = (db.get("meta") or {}).get("nbuRate")
+            finance_io.write_playable_month(db, ym, nbu_rate=fx)
+        except Exception as e:
+            print(f"[finance] playable calculator: {e}", flush=True)
     try:
         if excel_io.XLSX_PATH.exists():
             mirror_io.ORIGIN_XLSX.parent.mkdir(parents=True, exist_ok=True)

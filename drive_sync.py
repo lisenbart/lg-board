@@ -531,6 +531,12 @@ def push_workbooks(*, excel: bool = True, calculator: bool = False) -> dict:
             str(cfg.get("calculator") or ""),
             finance_io.CALC_PATH,
         )
+        _push_xlsx(
+            uploaded,
+            "SUPERPLAY_Playable_Calculator.xlsx",
+            str(cfg.get("playableCalculator") or ""),
+            finance_io.PLAY_CALC_PATH,
+        )
     return {"ok": True, "uploaded": uploaded, "count": len(uploaded)}
 
 
@@ -904,6 +910,23 @@ def download_excel() -> dict:
     return {"ok": True, "downloaded": ["SP_MGX_check.xlsx"], "bytes": len(blob)}
 
 
+def download_playable_calculator() -> dict:
+    """Live Playables calculator from Drive."""
+    if not connected():
+        raise DriveSyncError("Drive is not connected on this server")
+    token = access_token()
+    if not token:
+        raise DriveSyncError("Drive token missing")
+    calc_id = str(roots().get("playableCalculator") or "")
+    if not calc_id:
+        return {"ok": True, "downloaded": []}
+    blob = download_file(token, calc_id)
+    if not blob:
+        raise DriveSyncError("Drive Playables calculator download was empty")
+    _write_bytes(finance_io.PLAY_CALC_PATH, blob)
+    return {"ok": True, "downloaded": ["SUPERPLAY_Playable_Calculator.xlsx"], "bytes": len(blob)}
+
+
 def download_playable_excel() -> dict:
     """Live SP_PLBL_check.xlsx from Drive."""
     import playables_io
@@ -958,6 +981,11 @@ def download_workbooks() -> dict:
         blob = download_file(token, calc_id)
         _write_bytes(finance_io.CALC_PATH, blob)
         downloaded.append("SUPERPLAY_MGX_Calculator.xlsx")
+    try:
+        play_calc = download_playable_calculator()
+        downloaded.extend(play_calc.get("downloaded") or [])
+    except DriveSyncError as e:
+        print(f"restore-workbooks playable calculator: {e}", flush=True)
     return {"ok": True, "downloaded": downloaded}
 
 
@@ -980,6 +1008,11 @@ def pull(db: dict | None = None, hydrate: bool = True) -> dict:
         blob = download_file(token, calc_id)
         _write_bytes(finance_io.CALC_PATH, blob)
         downloaded.append("SUPERPLAY_MGX_Calculator.xlsx")
+    play_calc_id = str(cfg.get("playableCalculator") or "")
+    if play_calc_id:
+        blob = download_file(token, play_calc_id)
+        _write_bytes(finance_io.PLAY_CALC_PATH, blob)
+        downloaded.append("SUPERPLAY_Playable_Calculator.xlsx")
 
     index_rows = walk_docs(token)
     for line, row in _latest_templates(index_rows).items():
