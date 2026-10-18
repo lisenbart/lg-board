@@ -38,13 +38,25 @@ PLAY_STATUS = {
     "closed": "Closed",
 }
 
+PLAY_OPS_STATUSES = (
+    "new",
+    "wip",
+    "check",
+    "clientart",
+    "revision",
+    "finalart",
+    "artready",
+    "done",
+    "closed",
+)
+
 PLAY_STATUS_BY_ROLE = {
     "art_director": {"wip", "check", "artready"},
     "programmer": {"wip", "done"},
     "designer": set(),
     "teamlead": set(),
-    "manager": {"new", "revision", "finalart", "closed"},
-    "finance": {"new", "revision", "finalart", "closed"},
+    "manager": set(PLAY_OPS_STATUSES),
+    "finance": set(PLAY_OPS_STATUSES),
     "client": set(),
 }
 
@@ -205,17 +217,13 @@ def playable_may_assign_dev(task: dict | None, role: str | None = None) -> bool:
 
 
 def playable_next_statuses(role: str, task: dict | None) -> list[str]:
-    """Forward and bounce only. Send / Closed stay LP footer actions, not chips."""
+    """AD/DEV get the next step. LP/DL can set any work status. Send stays a footer action."""
     task = task or {}
     st = playable_norm_status(task.get("studioStatus"))
     has_ad = playable_has_ad(task)
     html = playable_in_html(task)
     if role in {"manager", "finance"}:
-        if st == "clientart":
-            return ["revision", "finalart"]
-        if st == "approve":
-            return ["revision"]
-        return []
+        return list(PLAY_OPS_STATUSES)
     if role == "art_director":
         if html:
             return []
@@ -253,6 +261,10 @@ def playable_can_set(role: str, task: dict | None, nxt: str, *, actor_id: str = 
         if role in {"manager", "finance"}:
             return True, ""
         return False, "Only LP can mark Closed"
+    if role in {"manager", "finance"}:
+        if nxt in PLAY_OPS_STATUSES:
+            return True, ""
+        return False, f"{role} cannot set {nxt}"
     if role == "art_director" and actor_id and str(task.get("assigneeId") or "") != str(actor_id):
         return False, "Only the AD on the card sets art status"
     if role == "programmer" and actor_id and str(task.get("programmerId") or "") != str(actor_id):

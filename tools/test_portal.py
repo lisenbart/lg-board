@@ -1119,11 +1119,22 @@ def test_playable_card_pipeline() -> None:
     check("AD waits on Check for LP", direction_io.playable_next_statuses("art_director", ad) == [])
     check("LP does not chip-set Send", not direction_io.playable_can_set("manager", ad, "approve")[0])
     check("LP can Mark Closed from Check", direction_io.playable_can_set("manager", ad, "closed")[0])
+    lp_from_ready = {"studioStatus": "new", "assigneeId": "artdir1", "department": "Playables"}
+    for key in ("wip", "check", "revision", "finalart", "artready", "done", "closed"):
+        ok, err = direction_io.playable_can_set("manager", lp_from_ready, key)
+        check(f"LP can set Playables {key}", ok, err)
+        ok_dl, err_dl = direction_io.playable_can_set("finance", lp_from_ready, key)
+        check(f"DL can set Playables {key}", ok_dl, err_dl)
+    check(
+        "LP Playables chips include the work pipeline",
+        set(direction_io.playable_next_statuses("manager", lp_from_ready))
+        >= {"new", "wip", "check", "revision", "finalart", "artready", "done", "closed"},
+    )
 
     bounced = {"studioStatus": "clientart", "assigneeId": "artdir1"}
     check(
         "LP Sent bounce or approve board",
-        direction_io.playable_next_statuses("manager", bounced) == ["revision", "finalart"],
+        set(direction_io.playable_next_statuses("manager", bounced)) >= {"revision", "finalart"},
     )
     bounced["studioStatus"] = "revision"
     check("AD Need Fixing offers WIP", direction_io.playable_next_statuses("art_director", bounced) == ["wip"])
@@ -1155,7 +1166,7 @@ def test_playable_card_pipeline() -> None:
         "programmerId": "programmer1",
         "playableHtml": True,
     }
-    check("LP HTML bounce is Need Fixing", direction_io.playable_next_statuses("manager", html_bounce) == ["revision"])
+    check("LP HTML bounce is Need Fixing", "revision" in direction_io.playable_next_statuses("manager", html_bounce))
     html_bounce["studioStatus"] = "revision"
     check("DEV HTML Fix offers WIP", direction_io.playable_next_statuses("programmer", html_bounce) == ["wip"])
     check("AD does not take HTML Fix", direction_io.playable_next_statuses("art_director", html_bounce) == [])
@@ -1178,6 +1189,11 @@ def test_playable_card_pipeline() -> None:
     check("LP seats DEV from Ready in copy", "You can already put DEV on the card" in js)
     check("Playables guide names the pipeline", "Ready → WIP → Check → Sent → Final art → Art ready → WIP → Done → Send → Closed" in js)
     check("AD owns Playables status copy", "AD owns status — you do not change it" in js)
+    check(
+        "LP/DL can set any Playables work status",
+        'return PLAY_OPS_STATUSES.slice()' in js.split("function playableNextStatuses")[1].split("function playableStatusActions")[0]
+        and "If they are away, set the status yourself" in js,
+    )
     check("DEV HTML paste is owner-only", "isProgrammer() && String(t.programmerId || \"\") === String(me().id) && playableInHtml(t)" in js)
     check("AD can paste a storyboard link", "isArtDirector() && playableAdId(t) === me().id && !playableInHtml(t)" in js)
     check("empty Status plaque is hidden", "const statusKeys = statusActions(t)" in js and "statusKeys.length" in js)
@@ -1478,6 +1494,66 @@ def test_http(base: str) -> str | None:
             and abs(float(saved.get("programmerHours") or 0) - 25) < 0.05
             and abs(float(saved.get("producerHours") or 0) - 35) < 0.05,
             str(payload.get("error") or {k: saved.get(k) for k in ("assigneeId", "assigneeHours", "programmerId", "programmerHours", "producerHours")}),
+        )
+        code, payload, _ = _http(
+            f"{base}/api/tasks/update",
+            {
+                "id": play_id,
+                "role": "manager",
+                "actorId": "manager",
+                "studioStatus": "wip",
+                "assigneeId": "artdir1",
+                "assigneeHours": 10,
+                "programmerId": "programmer1",
+                "programmerHours": 25,
+            },
+            cookie=lp_ck,
+        )
+        moved = (payload or {}).get("task") or {}
+        check(
+            "LP can set Playables WIP without AD",
+            code == 200 and moved.get("studioStatus") == "wip",
+            str(payload.get("error") or moved.get("studioStatus")),
+        )
+        code, payload, _ = _http(
+            f"{base}/api/tasks/update",
+            {
+                "id": play_id,
+                "role": "manager",
+                "actorId": "manager",
+                "studioStatus": "artready",
+                "assigneeId": "artdir1",
+                "assigneeHours": 10,
+                "programmerId": "programmer1",
+                "programmerHours": 25,
+            },
+            cookie=lp_ck,
+        )
+        ready = (payload or {}).get("task") or {}
+        check(
+            "LP can set Playables Art ready without AD",
+            code == 200 and ready.get("studioStatus") == "artready" and ready.get("playableHtml") is True,
+            str(payload.get("error") or {k: ready.get(k) for k in ("studioStatus", "playableHtml")}),
+        )
+        code, payload, _ = _http(
+            f"{base}/api/tasks/update",
+            {
+                "id": play_id,
+                "role": "manager",
+                "actorId": "manager",
+                "studioStatus": "new",
+                "assigneeId": "artdir1",
+                "assigneeHours": 10,
+                "programmerId": "programmer1",
+                "programmerHours": 25,
+            },
+            cookie=lp_ck,
+        )
+        reset = (payload or {}).get("task") or {}
+        check(
+            "LP Playables status reset after cover",
+            code == 200 and reset.get("studioStatus") == "new",
+            str(payload.get("error") or reset.get("studioStatus")),
         )
         code, payload, _ = _http(f"{base}/api/me", cookie=lp_ck)
         reopened = next(

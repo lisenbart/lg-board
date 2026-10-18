@@ -56,13 +56,14 @@ const STATUS_BY_ROLE = {
   programmer: ["wip", "done"],
   client: [],
 };
+const PLAY_OPS_STATUSES = ["new", "wip", "check", "clientart", "revision", "finalart", "artready", "done", "closed"];
 const PLAY_STATUS_BY_ROLE = {
   art_director: ["wip", "check", "artready"],
   programmer: ["wip", "done"],
   designer: [],
   teamlead: [],
-  manager: ["new", "revision", "finalart", "closed"],
-  finance: ["new", "revision", "finalart", "closed"],
+  manager: PLAY_OPS_STATUSES.slice(),
+  finance: PLAY_OPS_STATUSES.slice(),
   client: [],
 };
 const LINES = ["DD", "DX", "DS"];
@@ -2157,12 +2158,12 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
   if (st === "clientart") return { tone: "wait", title: "Sent", body: "Waiting on the client. Need Fixing if they bounce it. Final art when they approve the board." };
   if (st === "artready") {
     return t.programmerId
-      ? { tone: "wait", title: "Art ready", body: `${progName || "Programmer"} can set WIP and start HTML.` }
+      ? { tone: "wait", title: "Art ready", body: `${progName || "Programmer"} can set WIP and start HTML. If they are away, set the status yourself.` }
       : { tone: "do", title: "Assign DEV", body: "Art is ready. Put a programmer on the card if they are not there yet. They can sit on the card from Ready." };
   }
-  if (html && t.programmerId) return { tone: "wait", title: "In WIP", body: `${progName || "Programmer"} is on HTML. Send after Done.` };
-  if (st === "finalart") return { tone: "wait", title: "Final art", body: `${name || "Art Director"} is finishing art. Then Art ready. DEV can already sit on the card.` };
-  if (st === "revision") return { tone: "wait", title: "Need Fixing", body: html ? `${progName || "Programmer"} is fixing HTML.` : `${name || "Art Director"} is fixing the storyboard.` };
+  if (html && t.programmerId) return { tone: "wait", title: "In WIP", body: `${progName || "Programmer"} is on HTML. Send after Done. If they are away, set the status yourself.` };
+  if (st === "finalart") return { tone: "wait", title: "Final art", body: `${name || "Art Director"} is finishing art. Then Art ready. If they are away, set Art ready yourself.` };
+  if (st === "revision") return { tone: "wait", title: "Need Fixing", body: html ? `${progName || "Programmer"} is fixing HTML. If they are away, set the status yourself.` : `${name || "Art Director"} is fixing the storyboard. If they are away, set the status yourself.` };
   const ad = playableAdId(t);
   if (!ad && !t.programmerId) {
     return { tone: "do", title: "Assign people", body: "Put AD and DEV on the card now. Hours sit next to the person. One DEV is enough if this is code-only." };
@@ -2174,15 +2175,15 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
       body: `${progName || "Programmer"} is on this. One DEV is enough — put AD on only if art starts.`,
     };
   }
-  if (st === "wip") return { tone: "wait", title: "WIP", body: `${name || "Art Director"} is on the storyboard. You send after Check.` };
+  if (st === "wip") return { tone: "wait", title: "WIP", body: `${name || "Art Director"} is on the storyboard. You send after Check. If they are away, set Check yourself.` };
   if (st === "new") {
     return {
       tone: "wait",
       title: "Waiting for AD",
-      body: `${name || "Art Director"} sets WIP, then Check. You can already put DEV on the card — they start HTML after Art ready.`,
+      body: `${name || "Art Director"} sets WIP, then Check. If they are away, set the status yourself. You can already put DEV on the card — they start HTML after Art ready.`,
     };
   }
-  return { tone: "wait", title: "In progress", body: `${name || "Art Director"} is on this. Send the storyboard, then HTML.` };
+  return { tone: "wait", title: "In progress", body: `${name || "Art Director"} is on this. If they are away, set the status yourself. Send the storyboard, then HTML.` };
 }
 function showResultField(t) {
   if (String(t.resultUrl || "").trim() || String(t.storyboardUrl || "").trim()) return true;
@@ -3272,9 +3273,7 @@ function playableNextStatuses(role, t) {
   const hasAd = Boolean(playableAdId(t));
   const html = playableInHtml(t);
   if (role === "manager" || role === "finance") {
-    if (st === "clientart") return ["revision", "finalart"];
-    if (st === "approve") return ["revision"];
-    return [];
+    return PLAY_OPS_STATUSES.slice();
   }
   if (role === "art_director") {
     if (html) return [];
