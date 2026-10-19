@@ -313,6 +313,7 @@ def test_person_pins() -> None:
     check("PIN box sits next to Name", "7.5rem" in css and ".team-pin" in css)
     check("Team Save waits for edits", "refreshTeamSaves" in js and "teamRowDirty" in js)
     check("card Save waits for edits", "refreshCardSave" in js and "cardFingerprint" in js)
+    check("card Save turns ready when dirty", 'classList.toggle("is-ready"' in js)
     check("idle commit buttons start off", "bindLoginGo" in js and "refreshCreateGo" in js)
 
 
@@ -1439,6 +1440,24 @@ def test_lp_can_close_without_send() -> None:
     check(
         "status chip writes without waiting for Save",
         "commitCard({ fromChip: true, status: key })" in js and "close: !fromChip" in js,
+    )
+    check(
+        "dirty Save is a green ready chip",
+        'id="saveTask"' in js
+        and "card-save" in js
+        and "is-ready" in js
+        and "#saveTask.card-save.is-ready" in (ROOT / "public" / "assets" / "board.css").read_text(encoding="utf-8"),
+    )
+    check(
+        "close asks Save not discard",
+        'id="cardSaveModal"' in (ROOT / "public" / "index.html").read_text(encoding="utf-8")
+        and "Don’t save" in (ROOT / "public" / "index.html").read_text(encoding="utf-8")
+        and "Discard unsaved changes?" not in js,
+    )
+    check(
+        "Who works this writes at once",
+        'commitCard({ fromChip: true })' in js
+        and "writeAssign" in js,
     )
     check("LP/DL skip Done-after-TL-Check", "and role not in OPS_ROLES" in src.split("Done is after TL Check")[0][-250:])
     check("server no longer requires Send before Closed", "Closed is after Send" not in src)

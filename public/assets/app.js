@@ -126,6 +126,7 @@ const state = {
   teamDrafts: {},
   teamPins: {},
   cardDirty: null,
+  commitCard: null,
   session: null,
   finTab: "client",
   nbu: null,
@@ -3033,7 +3034,7 @@ function renderGuide() {
         <p class="guide-lead">П’ять кроків підряд. Кожен крок змінює чіп справа.</p>
         <ol class="guide-pipe">
           ${pipeStep("1", "LP", "Line Producer", "Таск заходить", `${ui("Create task")} або ${ui("Shift email")}. Статус одразу ${ui("Ready to Start")}.`, "ready", "Ready")}
-          ${pipeStep("2", "TL", "Team Lead", "Ставить виконавця", `${ui("Who works this")} → ${ui("Save")}. Статус лишається Ready.`, "ready", "Ready")}
+          ${pipeStep("2", "TL", "Team Lead", "Ставить виконавця", `${ui("Who works this")} пише одразу. Статус лишається Ready.`, "ready", "Ready")}
           ${pipeStep("3", "MD", "Motion design", "Починає і здає", `${ui("WIP")} пише одразу. Потім лінк і ${ui("TL Check")} — теж одразу, без ${ui("Save")}. Не ${ui("Done")}. Після здачі WIP зникає.`, "tlcheck", "TL chk")}
           ${pipeStep("4", "TL", "Team Lead", "Перевіряє", `Після ${ui("TL Check")} TL ставить ${ui("Done")}.`, "done", "Done")}
           ${pipeStep("5", "LP", "Line Producer", "Відправляє клієнту", `${ui("Send to client")} лише з ${ui("Done")} + лінк. Це ${ui("Appr.")}.`, "appr", "Appr.")}
@@ -3053,7 +3054,7 @@ function renderGuide() {
         ])}
         ${card("teamlead", "TL", "Team Lead", "Настя. Усі проєкти + свої як виконавця.", [
           `Дзвіночок ${ui("New")} — нові без людини. Картка каже ${ui("Assign a designer")} — це твоя робота, не URL і не Done.`,
-          `Прочитай бриф, ${ui("Open brief")} якщо треба Doc. ${ui("Who works this")} → ${ui("Save")}. Людина одразу бачить таск у себе.`,
+          `Прочитай бриф, ${ui("Open brief")} якщо треба Doc. ${ui("Who works this")} пише одразу. Людина одразу бачить таск у себе.`,
           `Свої таски — як MD: ${ui("Paste result link here")}, потім ${ui("Done")}.`,
           `${ui("Hours split")} — якщо хтось відрендерив чужий файл, постав 0.5h (або скільки чесно). Клієнту години ті самі.`,
           `${ui("Excel")} — години як у ${ui("SP_MGX_check")}. Чіп зліва той самий, що в пайплайні: ${ui("WIP")} / ${ui("Fix")} / ${ui("Done")} / ${ui("Appr.")} / ${ui("Closed")}. ${ui("Send to client")} і ${ui("Closed")} у TL немає — це LP.`,
@@ -5177,7 +5178,7 @@ function openTask(id) {
       <div class="drawer-actions-end">
         <span class="save-wait" id="saveWait" hidden></span>
         <button type="button" class="btn ghost" id="closeCard">Close</button>
-        ${canEdit || canOps() ? `<button type="button" class="btn primary" id="saveTask" disabled>Save</button>` : ""}
+        ${canEdit || canOps() ? `<button type="button" class="btn primary card-save" id="saveTask" disabled>Save</button>` : ""}
       </div>
     </div>
   `;
@@ -5200,7 +5201,10 @@ function openTask(id) {
     setIdleEnabled($("addNote"), ready);
   }
   function refreshCardSave() {
-    setIdleEnabled($("saveTask"), cardFingerprint() !== cardBaseline);
+    const on = cardFingerprint() !== cardBaseline;
+    const btn = $("saveTask");
+    setIdleEnabled(btn, on);
+    btn?.classList.toggle("is-ready", on);
   }
   function refreshCardActions() {
     refreshAddNote();
@@ -5678,6 +5682,10 @@ function openTask(id) {
   });
   if (isPlayables(t)) bindPlayableCrew(t);
   else bindHelpSplit(t);
+  const writeAssign = () => commitCard({ fromChip: true });
+  $("stPerson")?.addEventListener("change", writeAssign);
+  $("stProgrammer")?.addEventListener("change", writeAssign);
+  state.commitCard = commitCard;
   $("ensureDrive")?.addEventListener("click", () => retryDrivePack(t));
   fillDrivePackIfMissing(t);
   $("copyOne")?.addEventListener("click", async () => {
@@ -5707,21 +5715,32 @@ function openTask(id) {
   startCardPresence(id);
 }
 
+function hideCardSaveModal() {
+  $("cardSaveModal")?.classList.remove("show");
+}
+
 function closeDrawer(opts = {}) {
   closeShot();
+  if (!opts.force && $("cardSaveModal")?.classList.contains("show")) {
+    hideCardSaveModal();
+    return false;
+  }
   if (
     !opts.force &&
     $("drawerBg")?.classList.contains("show") &&
     typeof state.cardDirty === "function" &&
-    state.cardDirty() &&
-    !confirm("Discard unsaved changes?")
+    state.cardDirty()
   ) {
+    $("cardSaveModal")?.classList.add("show");
+    $("cardSaveKeep")?.focus();
     return false;
   }
+  hideCardSaveModal();
   $("drawerBg").classList.remove("show");
   stopCardPresence();
   state.openId = null;
   state.cardDirty = null;
+  state.commitCard = null;
   state.cardOpenedStamp = "";
   state.cardStale = false;
   return true;
@@ -6295,8 +6314,28 @@ $("emailApply").onclick = async () => {
 $("drawerBg").addEventListener("click", (e) => {
   if (e.target === $("drawerBg")) closeDrawer();
 });
+$("cardSaveModal")?.addEventListener("click", (e) => {
+  if (e.target === $("cardSaveModal")) hideCardSaveModal();
+});
+$("cardSaveDiscard")?.addEventListener("click", () => {
+  hideCardSaveModal();
+  closeDrawer({ force: true });
+});
+$("cardSaveKeep")?.addEventListener("click", async () => {
+  hideCardSaveModal();
+  const fn = state.commitCard;
+  if (typeof fn === "function") {
+    await fn({ close: true });
+    return;
+  }
+  closeDrawer({ force: true });
+});
 document.addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
+  if ($("cardSaveModal")?.classList.contains("show")) {
+    hideCardSaveModal();
+    return;
+  }
   if ($("taskDelModal")?.classList.contains("show")) {
     closeTaskDelete();
     return;

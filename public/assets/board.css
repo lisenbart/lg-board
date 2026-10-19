@@ -1100,6 +1100,19 @@ body.col-resizing * { cursor: col-resize !important; }
 .drawer-actions-end {
   display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-left: auto;
 }
+#saveTask.card-save {
+  min-width: 96px;
+  min-height: 36px;
+  padding: 8px 18px;
+  font-size: 14px;
+  font-weight: 600;
+}
+#saveTask.card-save.is-ready {
+  background: var(--green);
+  color: #123;
+  box-shadow: 0 0 0 3px rgba(0, 200, 117, 0.28);
+}
+#saveTask.card-save.is-ready:hover { filter: brightness(0.97); }
 .save-cluster .btn.primary { margin-left: 0; }
 .brief {
   background: #f7f8fc; border-radius: 8px; padding: 12px; white-space: pre-wrap;
