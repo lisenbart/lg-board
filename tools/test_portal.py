@@ -1424,6 +1424,14 @@ def test_lp_can_close_without_send() -> None:
         "MGX chips for LP/DL are the work pipeline",
         "const MGX_OPS_STATUSES" in js and "return MGX_OPS_STATUSES.slice()" in js.split("function statusActions")[1].split("function statusButtonDisabled")[0],
     )
+    check(
+        "MD on TL Check does not get WIP",
+        'if (cur === "tlcheck") return ["tlcheck"]' in js.split("function statusActions")[1].split("function statusButtonDisabled")[0],
+    )
+    check(
+        "status chip writes without waiting for Save",
+        "commitCard({ fromChip: true, status: key })" in js and "close: !fromChip" in js,
+    )
     check("LP/DL skip Done-after-TL-Check", "and role not in OPS_ROLES" in src.split("Done is after TL Check")[0][-250:])
     check("server no longer requires Send before Closed", "Closed is after Send" not in src)
     check("card offers Closed without approve-only gate", "Closed is after Send" not in js)

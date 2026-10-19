@@ -3020,7 +3020,7 @@ function renderGuide() {
         <ol class="guide-pipe">
           ${pipeStep("1", "LP", "Line Producer", "Таск заходить", `${ui("Create task")} або ${ui("Shift email")}. Статус одразу ${ui("Ready to Start")}.`, "ready", "Ready")}
           ${pipeStep("2", "TL", "Team Lead", "Ставить виконавця", `${ui("Who works this")} → ${ui("Save")}. Статус лишається Ready.`, "ready", "Ready")}
-          ${pipeStep("3", "MD", "Motion design", "Починає і здає", `${ui("WIP")}, коли почав. Потім лінк результату і ${ui("TL Check")}. Не ${ui("Done")}.`, "tlcheck", "TL chk")}
+          ${pipeStep("3", "MD", "Motion design", "Починає і здає", `${ui("WIP")} пише одразу. Потім лінк і ${ui("TL Check")} — теж одразу, без ${ui("Save")}. Не ${ui("Done")}. Після здачі WIP зникає.`, "tlcheck", "TL chk")}
           ${pipeStep("4", "TL", "Team Lead", "Перевіряє", `Після ${ui("TL Check")} TL ставить ${ui("Done")}.`, "done", "Done")}
           ${pipeStep("5", "LP", "Line Producer", "Відправляє клієнту", `${ui("Send to client")} лише з ${ui("Done")} + лінк. Це ${ui("Appr.")}.`, "appr", "Appr.")}
           ${pipeStep("6", "LP", "Line Producer", "Клієнт прийняв", `${ui("Closed")} з ${ui("Done")} або після ${ui("Send")}. Якщо відбили — ${ui("Need Fixing")}, MD знову ${ui("TL Check")}.`, "closed", "Closed")}
@@ -3430,18 +3430,18 @@ function statusActions(task) {
   const mine = String(task?.assigneeId || "") === String(me().id);
   if (role === "designer") {
     if (!mine || ["done", "approve", "closed"].includes(cur)) return [];
-    const out = [];
-    if (cur !== "wip") out.push("wip");
-    if (cur !== "tlcheck") out.push("tlcheck");
-    return out;
+    if (cur === "tlcheck") return ["tlcheck"];
+    return ["wip", "tlcheck"];
   }
   if (role === "teamlead") {
     const out = [];
-    if (mine && !["done", "approve", "closed"].includes(cur)) {
-      if (cur !== "wip") out.push("wip");
-      if (cur !== "tlcheck") out.push("tlcheck");
+    if (mine && !["done", "approve", "closed", "tlcheck"].includes(cur)) {
+      out.push("wip", "tlcheck");
     }
-    if (cur === "tlcheck") out.push("done");
+    if (cur === "tlcheck") {
+      out.push("tlcheck");
+      out.push("done");
+    }
     return out;
   }
   if (role === "manager" || role === "finance") {
@@ -5371,8 +5371,10 @@ function openTask(id) {
         } else {
           hint.textContent = "";
         }
+      } else if (performer && t.studioStatus === "tlcheck") {
+        hint.textContent = "Waiting for TL. Need Fixing comes from TL or LP — not WIP.";
       } else if (performer && !hasResult && !["tlcheck", "done", "approve", "closed"].includes(t.studioStatus)) {
-        hint.textContent = "Paste the result link, then TL Check.";
+        hint.textContent = "Paste the result link, then TL Check. The chip writes at once.";
       } else if (isTeamLead() && t.studioStatus === "tlcheck") {
         hint.textContent = "Check the result, then Done. LP sends after that.";
       } else if (canOps() && t.studioStatus === "done") {
@@ -5423,8 +5425,7 @@ function openTask(id) {
         toast("This role cannot set " + (STATUS[key]?.label || key));
         return;
       }
-      paintStatusButtons(key);
-      refreshCardActions();
+      commitCard({ fromChip: true, status: key });
     });
   });
   syncDoneOption();
@@ -5440,9 +5441,11 @@ function openTask(id) {
     hint.textContent = `${hoursFromShifts(shifts)} h`;
   });
   $("closeCard")?.addEventListener("click", closeDrawer);
-  $("saveTask")?.addEventListener("click", async () => {
+  async function commitCard(opts = {}) {
+    const fromChip = Boolean(opts.fromChip);
     const saveBtn = $("saveTask");
-    if (saveBtn?.disabled || saveBtn?.classList.contains("is-busy")) return;
+    if (!fromChip && (saveBtn?.disabled || saveBtn?.classList.contains("is-busy"))) return;
+    if (fromChip && saveBtn?.classList.contains("is-busy")) return;
     if (
       state.cardStale &&
       !confirm("This card changed while it was open. Save anyway and overwrite the other write?")
@@ -5454,7 +5457,7 @@ function openTask(id) {
       if (!ok) return;
     }
     const resultUrl = ($("stResult")?.value || t.resultUrl || "").trim();
-    const studioStatus = $("stStatus")?.value || t.studioStatus;
+    const studioStatus = opts.status || $("stStatus")?.value || t.studioStatus;
     if (studioStatus !== t.studioStatus && !canSetStatus(studioStatus, t)) {
       toast("This role cannot set " + (STATUS[studioStatus]?.label || studioStatus));
       return;
@@ -5618,7 +5621,7 @@ function openTask(id) {
           : resultUrl && resultUrl !== t.resultUrl
             ? `${me().name} pasted the result`
             : `${me().name} updated status`;
-    const actions = $("drawer")?.querySelectorAll(".drawer-actions button") || [];
+    const actions = $("drawer")?.querySelectorAll(".drawer-actions button, .status-btn") || [];
     const hint = $("saveWait");
     if (hint) {
       hint.hidden = false;
@@ -5628,14 +5631,15 @@ function openTask(id) {
       setBusy(btn, true, btn.id === "saveTask" ? "Saving…" : undefined)
     );
     try {
-      await updateTask(t.id, { ...patch, note }, { close: true });
+      await updateTask(t.id, { ...patch, note }, { close: !fromChip });
     } catch (err) {
       toast(err?.message || "Could not save");
     } finally {
       if (hint) hint.hidden = true;
       actions.forEach((btn) => setBusy(btn, false));
     }
-  });
+  }
+  $("saveTask")?.addEventListener("click", () => commitCard());
   $("exportOne")?.addEventListener("click", async () => {
     const btn = $("exportOne");
     setBusy(btn, true, "Copying…");
@@ -5713,7 +5717,7 @@ async function updateTask(id, patch, opts = {}) {
   const out = await api("/api/tasks/update", { id, actorId: me().id, ...patch });
   if (out.error || !out.state) {
     toast(out.error || "Could not save");
-    return;
+    return false;
   }
   applyState(out.state);
   if (opts.quiet) {
@@ -5727,9 +5731,10 @@ async function updateTask(id, patch, opts = {}) {
   }
   if (opts.close) {
     closeDrawer({ force: true });
-    return;
+    return true;
   }
   if (state.openId && $("drawerBg").classList.contains("show")) openTask(id);
+  return true;
 }
 function driveToast(drive) {
   if (!drive) return "";
