@@ -1101,13 +1101,22 @@ body.col-resizing * { cursor: col-resize !important; }
   display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-left: auto;
 }
 #saveTask.card-save {
-  min-width: 96px;
-  min-height: 36px;
-  padding: 8px 18px;
-  font-size: 14px;
-  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
   justify-content: center;
   text-align: center;
+  min-width: 96px;
+  height: 36px;
+  padding: 0 18px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+  appearance: none;
+  -webkit-appearance: none;
+}
+#saveTask.card-save::-moz-focus-inner {
+  border: 0;
+  padding: 0;
 }
 #saveTask.card-save.is-ready {
   background: var(--green);

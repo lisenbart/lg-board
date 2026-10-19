@@ -1447,7 +1447,9 @@ def test_lp_can_close_without_send() -> None:
         and "card-save" in js
         and "is-ready" in js
         and "#saveTask.card-save.is-ready" in (ROOT / "public" / "assets" / "board.css").read_text(encoding="utf-8")
-        and "justify-content: center" in (ROOT / "public" / "assets" / "board.css").read_text(encoding="utf-8").split("#saveTask.card-save")[1].split("}")[0],
+        and "justify-content: center" in (ROOT / "public" / "assets" / "board.css").read_text(encoding="utf-8").split("#saveTask.card-save")[1].split("}")[0]
+        and "appearance: none" in (ROOT / "public" / "assets" / "board.css").read_text(encoding="utf-8").split("#saveTask.card-save")[1].split("}")[0]
+        and "line-height: 1" in (ROOT / "public" / "assets" / "board.css").read_text(encoding="utf-8").split("#saveTask.card-save")[1].split("}")[0],
     )
     check(
         "close asks Save not discard",
