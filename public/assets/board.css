@@ -1106,6 +1106,8 @@ body.col-resizing * { cursor: col-resize !important; }
   padding: 8px 18px;
   font-size: 14px;
   font-weight: 600;
+  justify-content: center;
+  text-align: center;
 }
 #saveTask.card-save.is-ready {
   background: var(--green);
