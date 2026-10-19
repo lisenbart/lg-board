@@ -1179,14 +1179,28 @@ function monthTasks(opts) {
 function searchQuery() {
   return String(state.search || "").trim().toLowerCase();
 }
+function searchHtml() {
+  const on = Boolean(String(state.search || "").trim());
+  return `<label class="search-wrap">
+    <input class="search" placeholder="Search project" />
+    <button type="button" class="search-clear" ${on ? "" : "hidden"} aria-label="Clear search">×</button>
+  </label>`;
+}
 function bindSearch() {
   const box = $("toolbar")?.querySelector(".search");
+  const clear = $("toolbar")?.querySelector(".search-clear");
   if (!box) return;
   box.value = state.search || "";
   box.addEventListener("input", () => {
     state.search = box.value;
     state.searchFocus = true;
     state.searchCaret = box.selectionStart;
+    render();
+  });
+  clear?.addEventListener("click", () => {
+    state.search = "";
+    state.searchFocus = false;
+    state.searchCaret = 0;
     render();
   });
   if (state.searchFocus) {
@@ -1375,7 +1389,7 @@ function renderToolbar() {
     return;
   }
   if (state.view === "report") {
-    $("toolbar").innerHTML = `<input class="search" placeholder="Search project" />`;
+    $("toolbar").innerHTML = searchHtml();
     bindSearch();
     return;
   }
@@ -1384,7 +1398,7 @@ function renderToolbar() {
     $("toolbar").innerHTML = `
       ${isFinance() ? `<button type="button" class="btn" id="btnDrivePull">Read Drive</button>` : ""}
       ${drive ? `<a class="btn" href="${escapeHtml(drive)}" target="_blank" rel="noreferrer">Open on Drive</a>` : ""}
-      <input class="search" placeholder="Search project" />
+      ${searchHtml()}
     `;
     bindSearch();
     bindDriveButtons();
@@ -1401,7 +1415,7 @@ function renderToolbar() {
   if (isExecView()) {
     $("toolbar").innerHTML = `
       ${drive ? `<a class="btn" href="${escapeHtml(drive)}" target="_blank" rel="noreferrer">Open Drive</a>` : ""}
-      <input class="search" placeholder="Search project" />
+      ${searchHtml()}
     `;
   } else {
     $("toolbar").innerHTML = `
@@ -1410,7 +1424,7 @@ function renderToolbar() {
       <button class="btn orange" id="btnEmail">${state.direction === "playables" ? "Hours list" : "Shift email"}</button>
       ${drive ? `<a class="btn" href="${escapeHtml(drive)}" target="_blank" rel="noreferrer">Open Drive</a>` : ""}
       <button class="btn green" id="btnExport" ${n ? "" : "disabled"}>Send to client (${n})</button>
-      <input class="search" placeholder="Search project" />
+      ${searchHtml()}
       <button class="btn ghost" id="btnClientLink">Copy SuperPlay link</button>
     `;
   }

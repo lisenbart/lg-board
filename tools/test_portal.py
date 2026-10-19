@@ -962,6 +962,14 @@ def test_playables_desk() -> None:
             'class="who-tools"' in html and 'class="who-id"' in html and 'id="roleHint"' in html,
         )
         check(
+            "search has a clear control",
+            "function searchHtml" in js
+            and "search-clear" in js
+            and "Clear search" in js
+            and ".search-wrap" in css
+            and '<input class="search" placeholder="Search project" />' not in js.split("function searchHtml")[0],
+        )
+        check(
             "client identity is SuperPlay logo",
             'id="boardLogo"' in html
             and 'src="assets/superplay.svg"' in html
