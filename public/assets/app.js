@@ -1054,11 +1054,12 @@ function crew() {
   );
 }
 
-function toast(msg) {
+function toast(msg, ms) {
   const el = $("toast");
   el.textContent = msg;
   el.classList.add("show");
-  setTimeout(() => el.classList.remove("show"), 3200);
+  clearTimeout(el._hide);
+  el._hide = setTimeout(() => el.classList.remove("show"), ms || 3200);
 }
 
 function setBusy(el, on, label) {
@@ -1119,9 +1120,9 @@ function refreshEmailGo() {
   setIdleEnabled($("emailApply"), Boolean(String($("emailText")?.value || "").trim()));
 }
 
-async function api(path, payload) {
+async function api(path, payload, opts = {}) {
   const ctrl = new AbortController();
-  const ms = payload ? 12000 : 8000;
+  const ms = opts.timeout || (payload ? 12000 : 8000);
   const timer = setTimeout(() => ctrl.abort(), ms);
   try {
     const res = await fetch(path, {
@@ -1802,6 +1803,79 @@ function mimeFromName(name) {
 }
 function safeShotName(name) {
   return String(name || "screenshot.png").replace(/[/\\?%*:|"<>]/g, "-") || "screenshot.png";
+}
+const MAX_SHOT_EDGE = 1920;
+const MAX_SHOT_FILE = 6 * 1024 * 1024;
+const MAX_NOTE_BYTES = 18_000_000;
+function loadShotImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("bad image"));
+    img.src = src;
+  });
+}
+function canvasShot(img) {
+  let w = img.naturalWidth || img.width;
+  let h = img.naturalHeight || img.height;
+  if (!w || !h) return null;
+  if (w > MAX_SHOT_EDGE || h > MAX_SHOT_EDGE) {
+    const scale = MAX_SHOT_EDGE / Math.max(w, h);
+    w = Math.max(1, Math.round(w * scale));
+    h = Math.max(1, Math.round(h * scale));
+  }
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, w, h);
+  ctx.drawImage(img, 0, 0, w, h);
+  let data = canvas.toDataURL("image/jpeg", 0.82);
+  if (data.length > 1_400_000) data = canvas.toDataURL("image/jpeg", 0.7);
+  return { mime: "image/jpeg", data };
+}
+function readShotFile(file) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve({ mime: file.type || "image/png", data: String(reader.result || "") });
+    reader.onerror = () => resolve(null);
+    reader.readAsDataURL(file);
+  });
+}
+async function fileToShot(file) {
+  if (!file || !String(file.type || "").startsWith("image/")) return null;
+  if (file.size > MAX_SHOT_FILE) {
+    toast("Screenshot is over 6 MB");
+    return null;
+  }
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await loadShotImage(url);
+    const small =
+      file.size <= 350000 &&
+      (img.naturalWidth || 0) <= MAX_SHOT_EDGE &&
+      (img.naturalHeight || 0) <= MAX_SHOT_EDGE;
+    if (small) return await readShotFile(file);
+    return canvasShot(img) || (await readShotFile(file));
+  } catch {
+    return readShotFile(file);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+function noteError(err) {
+  const text = String(err || "");
+  if (/payload too large|too large together/i.test(text)) {
+    return "Screenshots are too large together. Remove a few and Save again.";
+  }
+  if (/timed out/i.test(text)) {
+    return "Screenshots took too long to send. Try fewer, then Save again.";
+  }
+  if (/could not read those screenshots/i.test(text)) {
+    return "Could not read those screenshots. Try PNG/JPG under 6 MB each.";
+  }
+  return text || "Could not add note";
 }
 function dataToBlob(src) {
   const comma = src.indexOf(",");
@@ -5211,23 +5285,6 @@ function openTask(id) {
     refreshCardSave();
   }
   state.cardDirty = () => Boolean($("saveTask") || $("addNote")) && cardFingerprint() !== cardBaseline;
-  function fileToShot(file) {
-    return new Promise((resolve) => {
-      if (!file || !String(file.type || "").startsWith("image/")) {
-        resolve(null);
-        return;
-      }
-      if (file.size > 6 * 1024 * 1024) {
-        toast("Screenshot is over 6 MB");
-        resolve(null);
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = () => resolve({ mime: file.type || "image/png", data: String(reader.result || "") });
-      reader.onerror = () => resolve(null);
-      reader.readAsDataURL(file);
-    });
-  }
   function renderPendingShots() {
     const box = $("stCommentShots");
     if (!box) return;
@@ -5263,19 +5320,28 @@ function openTask(id) {
       toast("Paste client text or a screenshot");
       return false;
     }
-    const out = await api("/api/tasks/comment", {
-      id: t.id,
-      body,
-      attachments: pendingShots.map((s) => ({ mime: s.mime, data: s.data })),
-      actorId: me().id,
-      role: me().role,
-    });
+    const rawBytes = pendingShots.reduce((n, s) => n + String(s.data || "").length, 0);
+    if (rawBytes > MAX_NOTE_BYTES) {
+      toast(noteError("payload too large"), 5000);
+      return false;
+    }
+    const out = await api(
+      "/api/tasks/comment",
+      {
+        id: t.id,
+        body,
+        attachments: pendingShots.map((s) => ({ mime: s.mime, data: s.data })),
+        actorId: me().id,
+        role: me().role,
+      },
+      { timeout: 90000 },
+    );
     if (out.error || !out.state) {
-      toast(out.error || "Could not add note");
+      toast(noteError(out.error), 5000);
       return false;
     }
     pendingShots.length = 0;
-    applyState(out.state);
+    applyState(out.state, { render: reopen !== false });
     toast("Note added");
     if (reopen) openTask(t.id);
     else {
@@ -5470,7 +5536,23 @@ function openTask(id) {
     ) {
       return;
     }
+    const actionBtns = () => $("drawer")?.querySelectorAll(".drawer-actions button, .status-btn") || [];
+    const hint = $("saveWait");
+    const startBusy = (label) => {
+      if (hint) {
+        hint.hidden = false;
+        hint.textContent = label || "Saving…";
+      }
+      actionBtns().forEach((btn) => setBusy(btn, true, btn.id === "saveTask" ? "Saving…" : undefined));
+    };
+    const stopBusy = () => {
+      if (hint) hint.hidden = true;
+      actionBtns().forEach((btn) => setBusy(btn, false));
+    };
+    try {
     if (canWriteNotes() && (String($("stComment")?.value || "").trim() || pendingShots.length)) {
+      const n = pendingShots.length;
+      startBusy(n ? `Saving ${n} screenshot${n === 1 ? "" : "s"}…` : "Saving…");
       const ok = await postClientNote({ reopen: false });
       if (!ok) return;
     }
@@ -5639,22 +5721,12 @@ function openTask(id) {
           : resultUrl && resultUrl !== t.resultUrl
             ? `${me().name} pasted the result`
             : `${me().name} updated status`;
-    const actions = $("drawer")?.querySelectorAll(".drawer-actions button, .status-btn") || [];
-    const hint = $("saveWait");
-    if (hint) {
-      hint.hidden = false;
-      hint.textContent = "Saving…";
-    }
-    actions.forEach((btn) =>
-      setBusy(btn, true, btn.id === "saveTask" ? "Saving…" : undefined)
-    );
-    try {
+    startBusy("Saving…");
       await updateTask(t.id, { ...patch, note }, { close: !fromChip });
     } catch (err) {
-      toast(err?.message || "Could not save");
+      toast(err?.message || "Could not save", 5000);
     } finally {
-      if (hint) hint.hidden = true;
-      actions.forEach((btn) => setBusy(btn, false));
+      stopBusy();
     }
   }
   $("saveTask")?.addEventListener("click", () => commitCard());

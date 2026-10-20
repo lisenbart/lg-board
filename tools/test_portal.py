@@ -1462,6 +1462,15 @@ def test_lp_can_close_without_send() -> None:
         'commitCard({ fromChip: true })' in js
         and "writeAssign" in js,
     )
+    check(
+        "Save compresses screenshots and waits for the note",
+        "function canvasShot" in js
+        and "MAX_NOTE_BYTES" in js
+        and "timeout: 90000" in js
+        and "noteError" in js
+        and "Saving ${n} screenshot" in js
+        and "applyState(out.state, { render: reopen !== false })" in js,
+    )
     check("LP/DL skip Done-after-TL-Check", "and role not in OPS_ROLES" in src.split("Done is after TL Check")[0][-250:])
     check("server no longer requires Send before Closed", "Closed is after Send" not in src)
     check("card offers Closed without approve-only gate", "Closed is after Send" not in js)
@@ -1501,6 +1510,46 @@ def test_finance_reads_board_not_xlsx() -> None:
         check("snapshot hours match the board", snap.get("hours") == 9, str(snap.get("hours")))
     finally:
         excel_io.parse_workbook = orig
+
+
+def test_comment_shots() -> None:
+    orig = server.COMMENT_FILES
+    tmp = Path(tempfile.mkdtemp())
+    server.COMMENT_FILES = tmp
+    try:
+        db = {"meta": {"commentSeq": 0}, "people": [{"id": "manager", "name": "A"}]}
+        task = {"id": "t-test-shot", "name": "DD-X-1", "comments": []}
+        bad = server.make_comment(
+            db,
+            actor_id="manager",
+            body="hi",
+            extra=[{"mime": "image/png", "data": "!!!!"}],
+            task=task,
+        )
+        check("unreadable screenshots fail the note", bad == "could not read those screenshots", str(bad))
+        tiny = (
+            "data:image/png;base64,"
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+        )
+        ok = server.make_comment(
+            db,
+            actor_id="manager",
+            body="logo left",
+            extra=[{"mime": "image/png", "data": tiny}],
+            task=task,
+        )
+        check(
+            "tiny screenshot stores a file",
+            isinstance(ok, dict) and any((a.get("kind") == "image") for a in ok.get("attachments") or []),
+            str(ok),
+        )
+    finally:
+        server.COMMENT_FILES = orig
+        shutil.rmtree(tmp, ignore_errors=True)
+    check(
+        "payload cap names screenshots",
+        "screenshots are too large together" in (ROOT / "server.py").read_text(encoding="utf-8"),
+    )
 
 
 def test_sync_files_releases_lock() -> None:
@@ -1744,6 +1793,29 @@ def test_http(base: str) -> str | None:
             "LP creates Playables task",
             code == 200 and play_id.startswith("t-") and created.get("studioStatus") == "new",
             str(payload.get("error") or created),
+        )
+        tiny = (
+            "data:image/png;base64,"
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+        )
+        code, payload, _ = _http(
+            f"{base}/api/tasks/comment",
+            {
+                "id": play_id,
+                "body": "logo left",
+                "attachments": [{"mime": "image/png", "data": tiny}],
+                "actorId": "manager",
+                "role": "manager",
+            },
+            cookie=lp_ck,
+        )
+        comment = (payload or {}).get("comment") or {}
+        check(
+            "LP screenshot note lands on the card",
+            code == 200
+            and comment.get("body") == "logo left"
+            and any((a.get("kind") == "image") for a in comment.get("attachments") or []),
+            str(payload.get("error") or comment) if isinstance(payload, dict) else str(payload),
         )
         code, payload, _ = _http(
             f"{base}/api/tasks/update",
@@ -2402,6 +2474,7 @@ def main() -> int:
         test_card_folder_buttons,
         test_superplay_visits_and_status,
         test_lp_can_close_without_send,
+        test_comment_shots,
         test_finance_reads_board_not_xlsx,
     ):
         try:

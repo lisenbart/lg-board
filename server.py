@@ -30,7 +30,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-19e"
+BUILD = "2026-10-20a"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -1126,6 +1126,8 @@ def make_comment(
         total=total,
     )
     attachments.extend(stored)
+    if new_files and not stored:
+        return "could not read those screenshots"
     if not text and not attachments:
         return "paste client text or a screenshot"
     src = source if source in {"manual", "monday"} else "manual"
@@ -1293,7 +1295,7 @@ class Handler(SimpleHTTPRequestHandler):
         if length <= 0:
             return {}
         if length > 25_000_000:
-            raise ValueError("payload too large")
+            raise ValueError("screenshots are too large together (max 25 MB)")
         raw = self.rfile.read(length)
         try:
             text = raw.decode("utf-8")
