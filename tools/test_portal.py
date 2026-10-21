@@ -1471,6 +1471,13 @@ def test_lp_can_close_without_send() -> None:
         and "Saving ${n} screenshot" in js
         and "applyState(out.state, { render: reopen !== false })" in js,
     )
+    check(
+        "card shows who set the status and when",
+        "function statusLogHtml" in js
+        and "status-log" in js
+        and "whenOf" in (ROOT / "public" / "assets" / "notices.js").read_text(encoding="utf-8")
+        and "task.wip" in (ROOT / "public" / "assets" / "notices.js").read_text(encoding="utf-8"),
+    )
     check("LP/DL skip Done-after-TL-Check", "and role not in OPS_ROLES" in src.split("Done is after TL Check")[0][-250:])
     check("server no longer requires Send before Closed", "Closed is after Send" not in src)
     check("card offers Closed without approve-only gate", "Closed is after Send" not in js)
@@ -1510,6 +1517,55 @@ def test_finance_reads_board_not_xlsx() -> None:
         check("snapshot hours match the board", snap.get("hours") == 9, str(snap.get("hours")))
     finally:
         excel_io.parse_workbook = orig
+
+
+def test_status_receipt() -> None:
+    import notice_io
+
+    db = {
+        "meta": {},
+        "people": [
+            {"id": "designer3", "name": "Сергій", "role": "designer"},
+            {"id": "teamlead", "name": "Настя", "role": "teamlead"},
+            {"id": "manager", "name": "Анастасія", "role": "manager"},
+        ],
+        "notices": [],
+        "noticeReads": {},
+        "tasks": [],
+    }
+    task = {"id": "t-1", "name": "DX-VEO-065-003", "assigneeId": "designer3", "studioStatus": "tlcheck"}
+    notice_io.on_task_change(db, task, {"studioStatus": "wip"}, "designer3")
+    row = (task.get("statusLog") or [None])[-1] or {}
+    check(
+        "TL Check stamps who and when",
+        row.get("to") == "tlcheck" and row.get("actorName") == "Сергій" and row.get("at"),
+        str(row),
+    )
+    check(
+        "TL Check pings TL",
+        any(n.get("kind") == "task.tlcheck" and "teamlead" in (n.get("audience") or []) for n in db.get("notices") or []),
+        str(db.get("notices")),
+    )
+    task["studioStatus"] = "wip"
+    notice_io.on_task_change(db, task, {"studioStatus": "tlcheck"}, "designer3")
+    back = (task.get("statusLog") or [None])[-1] or {}
+    check("WIP after TL Check is on the card log", back.get("to") == "wip" and len(task.get("statusLog") or []) == 2, str(task.get("statusLog")))
+    ping = next((n for n in db.get("notices") or [] if n.get("kind") == "task.wip"), None)
+    check(
+        "WIP after TL Check pings TL and LP, not the actor",
+        ping is not None
+        and "teamlead" in (ping.get("audience") or [])
+        and "manager" in (ping.get("audience") or [])
+        and "designer3" not in (ping.get("audience") or []),
+        str(ping),
+    )
+    task["studioStatus"] = "wip"
+    notice_io.on_task_change(db, task, {"studioStatus": "new"}, "designer3")
+    check(
+        "normal WIP from Ready does not ping Back to WIP",
+        sum(1 for n in db.get("notices") or [] if n.get("kind") == "task.wip") == 1,
+        str([n.get("kind") for n in db.get("notices") or []]),
+    )
 
 
 def test_comment_shots() -> None:
@@ -2474,6 +2530,7 @@ def main() -> int:
         test_card_folder_buttons,
         test_superplay_visits_and_status,
         test_lp_can_close_without_send,
+        test_status_receipt,
         test_comment_shots,
         test_finance_reads_board_not_xlsx,
     ):

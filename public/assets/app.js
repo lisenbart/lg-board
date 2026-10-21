@@ -1751,6 +1751,34 @@ function commentWhen(at) {
   if (Number.isNaN(d.getTime())) return "";
   return d.toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 }
+function boardWhen(at) {
+  const N = window.LGNotices;
+  if (N && typeof N.whenOf === "function") return N.whenOf(at);
+  const d = new Date(at);
+  if (!at || Number.isNaN(d.getTime())) return "";
+  return (
+    d.toLocaleString("en-GB", {
+      timeZone: "Europe/Kyiv",
+      day: "2-digit",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }) + " Kyiv"
+  );
+}
+function statusLogHtml(t) {
+  const rows = [...(t?.statusLog || [])].filter((row) => row && row.to).slice(-3).reverse();
+  if (!rows.length) return "";
+  return `<ol class="status-log">${rows
+    .map((row) => {
+      const who = String(row.actorName || "").trim() || "Board";
+      const label = row.label || statusText(row.to, t);
+      const when = boardWhen(row.at);
+      return `<li>${escapeHtml(label)} · ${escapeHtml(who)}${when ? ` · ${escapeHtml(when)}` : ""}</li>`;
+    })
+    .join("")}</ol>`;
+}
 function isLocalShotUrl(url) {
   const u = String(url || "");
   return u.includes("/api/comment-file") || u.startsWith("/comments/");
@@ -5200,12 +5228,15 @@ function openTask(id) {
         </div>${opsUrgent}`
       : opsUrgent;
   const statusKeys = statusActions(t);
+  const statusReceipt = statusLogHtml(t);
   const statusChrome = statusKeys.length
     ? `<div class="who-status">
         <label>Status</label>
         ${statusButtonsHtml(t, canEdit, lockedStatus)}
+        ${statusReceipt}
       </div>`
     : `<input type="hidden" id="stStatus" value="${escapeHtml(t.studioStatus || "new")}" />
+      ${statusReceipt}
       <p class="status-hint" id="stDoneHint" hidden></p>`;
   const whoBlock = whoAssign || statusKeys.length
     ? `<section class="who-block">

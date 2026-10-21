@@ -101,9 +101,33 @@ KINDS = {
         "skip_actor": True,
         "channels": ["portal"],
     },
+    "task.wip": {
+        "label": "Back to WIP",
+        "title": "{name}",
+        "detail": "Back to WIP",
+        "mark": "fix",
+        "audience": {"assignee": True, "roles": ["teamlead", "manager"]},
+        "skip_actor": True,
+        "channels": ["portal"],
+    },
 }
 
 KEEP = 400
+STATUS_LOG_KEEP = 12
+STATUS_LABELS = {
+    "new": "Ready to Start",
+    "wip": "WIP",
+    "revision": "Need Fixing",
+    "tlcheck": "TL Check",
+    "done": "Done",
+    "approve": "Senior Approval",
+    "closed": "Closed",
+    "check": "Check",
+    "clientart": "Client art",
+    "finalart": "Final art",
+    "artready": "Art ready",
+}
+WIP_REVERT_FROM = {"tlcheck", "done", "approve", "check", "artready", "clientart", "finalart"}
 
 
 def utc_now() -> str:
@@ -259,6 +283,25 @@ def on_landed(db: dict, task: dict, actor_id: str = "", at: str | None = None):
     return emit(db, "task.landed", actor_id=actor_id, task=task, at=at)
 
 
+def stamp_status(db: dict, task: dict, prev: str, nxt: str, actor_id: str = "", at: str | None = None) -> dict:
+    """Who set which status, and when. Last write is the receipt on the card."""
+    row = {
+        "at": at or utc_now(),
+        "actorId": actor_id or "",
+        "actorName": person_name(db, actor_id) or "Board",
+        "from": str(prev or ""),
+        "to": str(nxt or ""),
+        "label": STATUS_LABELS.get(str(nxt or ""), str(nxt or "")),
+    }
+    task["statusAt"] = row["at"]
+    task["statusBy"] = row["actorId"]
+    task["statusByName"] = row["actorName"]
+    log = [item for item in (task.get("statusLog") or []) if isinstance(item, dict)]
+    log.append(row)
+    task["statusLog"] = log[-STATUS_LOG_KEEP:]
+    return row
+
+
 def on_task_change(db: dict, task: dict, before: dict | None, actor_id: str = ""):
     before = before or {}
     old_assignee = before.get("assigneeId") or ""
@@ -285,6 +328,7 @@ def on_task_change(db: dict, task: dict, before: dict | None, actor_id: str = ""
             payload={"from": old_prog, "to": new_prog},
         )
     if new_status and new_status != old_status:
+        stamp_status(db, task, old_status, new_status, actor_id)
         if new_status == "revision":
             emit(db, "task.revision", actor_id=actor_id, task=task)
         elif new_status == "tlcheck":
@@ -302,6 +346,8 @@ def on_task_change(db: dict, task: dict, before: dict | None, actor_id: str = ""
         elif new_status == "closed":
             emit(db, "task.closed", actor_id=actor_id, task=task)
             ack(db, actor_id, task_id=task.get("id"), kinds=["task.sent", "task.ready"])
+        elif new_status == "wip" and old_status in WIP_REVERT_FROM:
+            emit(db, "task.wip", actor_id=actor_id, task=task)
 
 
 def bootstrap(db: dict) -> int:

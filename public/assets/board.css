@@ -1719,6 +1719,19 @@ a.pack-work:hover { background: #e2e4ec; }
 }
 .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; font-weight: 400; }
 .status-hint { margin: 6px 0 0; font-size: 12px; color: var(--muted); line-height: 1.4; }
+.status-log {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 8px 0 0;
+  border-top: 1px solid #eceef5;
+}
+.status-log li {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+  padding: 2px 0;
+}
+.status-log li:first-child { color: var(--ink); font-weight: 500; }
 .field input, .field select, .field textarea {
   width: 100%; border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px;
 }

@@ -91,6 +91,15 @@
       skipActor: true,
       channels: ["portal"],
     },
+    "task.wip": {
+      label: "Back to WIP",
+      title: "{name}",
+      detail: "Back to WIP",
+      mark: "fix",
+      audience: { assignee: true, roles: ["teamlead", "manager"] },
+      skipActor: true,
+      channels: ["portal"],
+    },
   };
   const KEEP = 400;
   const MARK_LABEL = { new: "New", mine: "On you", fix: "Fix", note: "Notes", check: "TL chk", send: "Send" };
@@ -240,6 +249,9 @@
         emit(db, "task.closed", { actorId, task });
         ack(db, actorId, { taskId: task.id, kinds: ["task.sent", "task.ready"] });
       }
+      if (newS === "wip" && ["tlcheck", "done", "approve", "check", "artready", "clientart", "finalart"].includes(oldS)) {
+        emit(db, "task.wip", { actorId, task });
+      }
     }
   }
 
@@ -259,14 +271,32 @@
     return n;
   }
 
+  function whenOf(at) {
+    const d = new Date(at);
+    if (!at || Number.isNaN(d.getTime())) return "";
+    return (
+      d.toLocaleString("en-GB", {
+        timeZone: "Europe/Kyiv",
+        day: "2-digit",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }) + " Kyiv"
+    );
+  }
   function titleOf(notice) {
     const spec = KINDS[notice.kind] || {};
     return fill(spec.title, notice.payload) || spec.label || notice.kind;
   }
   function detailOf(notice) {
     const spec = KINDS[notice.kind] || {};
-    const extra = notice.payload?.actorName ? `${notice.payload.actorName} · ` : "";
-    return extra + fill(spec.detail, notice.payload);
+    const bits = [];
+    if (notice.payload?.actorName) bits.push(notice.payload.actorName);
+    bits.push(fill(spec.detail, notice.payload));
+    const when = whenOf(notice.at);
+    if (when) bits.push(when);
+    return bits.filter(Boolean).join(" · ");
   }
   function labelOf(kind) {
     return (KINDS[kind] || {}).label || kind;
@@ -285,6 +315,7 @@
     bootstrap,
     titleOf,
     detailOf,
+    whenOf,
     labelOf,
     fill,
   };
