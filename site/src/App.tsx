@@ -93,7 +93,7 @@ const workingNotes = [
 const facts: { title: string; copy: ReactNode }[] = [
   {
     title: "Since 2006",
-    copy: "Twenty years of animation from Kyiv, for clients across Europe and North America.",
+    copy: "Animation from Kyiv, for clients across Europe and North America.",
   },
   {
     title: "Brands",
@@ -478,7 +478,7 @@ export default function App() {
               trailers, ads and playables.
             </p>
             <p className="about-cred">
-              20 years in animation. 1,000+ projects delivered.
+              Since 2006. 1,000+ projects delivered.
             </p>
           </div>
 
@@ -493,8 +493,8 @@ export default function App() {
 
           <div className="about-footer">
             <p className="founder">
-              Founded by Dmytro Lisenbart, former head of Ukranimafilm, Ukraine's
-              national animation studio.
+              Founded by Dmytro Lisenbart, the last director of Ukranimafilm, Ukraine's
+              oldest state animation studio.
             </p>
 
             <div className="about-actions">
