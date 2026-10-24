@@ -20,8 +20,8 @@ function sandboxIndexing(): Plugin {
     },
     async writeBundle(options) {
       const dir = options.dir ?? path.resolve("dist");
-      await writeFile(path.join(dir, "CNAME"), "lisenbart.games\n");
       if (sandbox) {
+        // github.io preview only — never claim the apex, never block Bing on lisenbart.games
         await writeFile(
           path.join(dir, "robots.txt"),
           [
@@ -38,9 +38,28 @@ function sandboxIndexing(): Plugin {
         );
         return;
       }
+      await writeFile(path.join(dir, "CNAME"), "lisenbart.games\n");
       await writeFile(
         path.join(dir, "robots.txt"),
-        "User-agent: *\nAllow: /\nSitemap: https://lisenbart.games/sitemap.xml\n",
+        [
+          "User-agent: Bingbot",
+          "Allow: /",
+          "",
+          "User-agent: bingbot",
+          "Allow: /",
+          "",
+          "User-agent: msnbot",
+          "Allow: /",
+          "",
+          "User-agent: Googlebot",
+          "Allow: /",
+          "",
+          "User-agent: *",
+          "Allow: /",
+          "",
+          "Sitemap: https://lisenbart.games/sitemap.xml",
+          "",
+        ].join("\n"),
       );
       const lastmod = new Date().toISOString().slice(0, 10);
       await writeFile(

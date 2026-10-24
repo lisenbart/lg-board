@@ -18,7 +18,7 @@ npm run dev
 
 Opens on [http://127.0.0.1:43221](http://127.0.0.1:43221).
 
-Sandbox (GitHub Pages, not production): [https://lisenbart.github.io/lisenbart-games/](https://lisenbart.github.io/lisenbart-games/). Repo: [github.com/lisenbart/lisenbart-games](https://github.com/lisenbart/lisenbart-games). Apex `lisenbart.games` stays off until you say to publish.
+Live apex is GitHub Pages: [https://lisenbart.games](https://lisenbart.games) from [github.com/lisenbart/lisenbart-games](https://github.com/lisenbart/lisenbart-games) (`npm run build`, not `build:sandbox`). Sandbox path [https://lisenbart.github.io/lisenbart-games/](https://lisenbart.github.io/lisenbart-games/) blocks Bing/Google on purpose — never point the apex CNAME at a sandbox build.
 
 ## Netlify (lisenbart.games only)
 
