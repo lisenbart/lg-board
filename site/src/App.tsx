@@ -340,7 +340,7 @@ export default function App() {
             <span className="play-button">
               <img
                 src={asset("lisenbart-mark.webp")}
-                alt=""
+                alt="Lisenbart Games"
                 width={128}
                 height={128}
               />
@@ -375,8 +375,7 @@ export default function App() {
                       <img
                         className="production-service-icon"
                         src={asset(service.icon)}
-                        alt=""
-                        aria-hidden="true"
+                        alt={service.title}
                         width={160}
                         height={160}
                         draggable={false}
@@ -596,7 +595,7 @@ export default function App() {
 
       <footer>
         <div className="footer-brand">
-          <img src={asset("lisenbart-full.png")} alt="" />
+          <img src={asset("lisenbart-full.png")} alt="Lisenbart Games Animation" />
         </div>
         <div className="footer-links">
           <span>© {new Date().getFullYear()} Lisenbart Games</span>
