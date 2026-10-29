@@ -157,6 +157,7 @@ const state = {
   excelMonth: null,
   finApi: null,
   finApiMonth: null,
+  slPack: new Set(),
   finApiLoading: null,
   drive: null,
   driveLoading: false,
@@ -1142,7 +1143,73 @@ function financeSnapshot() {
     playableClientRate: playRate,
     byClient,
     nbu: state.nbu || { rate: fx, source: state.db?.meta?.nbuRate ? "manual" : "fallback" },
+    ...slotomaniaPayFromTasks(tasks, payroll, fx),
   };
+}
+
+function slotomaniaPayFromTasks(tasks, payroll, fx) {
+  const rateOf = (row) => Number(row.ratePlay) || (row.person?.role === "manager" ? 7 : personPayRate(row.person));
+  const playables = (tasks || [])
+    .filter((t) => clientOf(t) === "slotomania")
+    .map((t) => {
+      const people = (payroll || [])
+        .map((row) => {
+          const hours = hoursForPerson(t, row.person.id);
+          if (hours <= 0) return null;
+          const rate = rateOf(row);
+          const payUsd = hours * rate;
+          return {
+            id: row.person.id,
+            name: row.person.name,
+            role: row.person.role,
+            hours,
+            rate,
+            payUsd,
+            payUah: payUsd * fx,
+            payOrder: row.person.payOrder || 99,
+            bankCard: row.person.bankCard || "",
+            iban: row.person.iban || "",
+            legalName: row.person.legalName || "",
+            jobTitle: row.person.jobTitle || "",
+          };
+        })
+        .filter(Boolean)
+        .sort((a, b) => (a.payOrder || 99) - (b.payOrder || 99) || String(a.name).localeCompare(String(b.name)));
+      const emplUsd = people.reduce((s, r) => s + (Number(r.payUsd) || 0), 0);
+      const status = crewPayStatus(t);
+      return {
+        id: t.id,
+        name: t.name || t.game || t.id,
+        game: t.game || "",
+        hours: hoursOf(t),
+        quoteHours: Number(t.quoteHours) || 0,
+        quoteAmount: Number(t.quoteAmount) || 0,
+        crewStatus: status,
+        crewPaid: Boolean(t.crewPaid),
+        crewPaidAt: t.crewPaidAt || "",
+        moneyStatus: moneyStatusOf(t),
+        moneyLabel: moneyLabelOf(t),
+        people,
+        emplUsd,
+        emplUah: emplUsd * fx,
+      };
+    });
+  const slPay = { dueUsd: 0, paidUsd: 0, waitingUsd: 0, dueCount: 0, paidCount: 0, waitingCount: 0, dueHours: 0, paidHours: 0, waitingHours: 0 };
+  for (const pack of playables) {
+    const key = pack.crewStatus;
+    if (!slPay[`${key}Usd`] && slPay[`${key}Usd`] !== 0) continue;
+    slPay[`${key}Usd`] += pack.emplUsd;
+    slPay[`${key}Count`] += 1;
+    slPay[`${key}Hours`] += pack.hours || 0;
+  }
+  return { slPlayables: playables, slPay };
+}
+
+function crewPayStatus(t) {
+  if (!isSlotomania(t)) return "";
+  if (t.crewPaid) return "paid";
+  if (t.hoursApproved === false) return "waiting";
+  return "due";
 }
 function canAssign() {
   return me().role === "teamlead" || me().role === "manager" || me().role === "finance";
@@ -4002,6 +4069,8 @@ function financeFromApi(snap) {
     byClient: snap.byClient || [],
     hoursSource: snap.hoursSource,
     nbu: snap.nbu,
+    slPlayables: snap.slPlayables,
+    slPay: snap.slPay,
   };
 }
 
@@ -4389,9 +4458,9 @@ function payCopy(row) {
 
 function payCopyFromRow(tr) {
   if (!tr) return null;
-  const card = normalizeCard(tr.querySelector(".fin-card-input")?.value);
+  const card = normalizeCard(tr.querySelector(".fin-card-input")?.value || tr.dataset.card);
   if (card) return { label: formatCard(card), value: card, kind: "card" };
-  const iban = normalizeIban(tr.querySelector(".fin-iban-input")?.value);
+  const iban = normalizeIban(tr.querySelector(".fin-iban-input")?.value || tr.dataset.iban);
   if (iban) return { label: iban, value: iban, kind: "iban" };
   return null;
 }
@@ -4465,14 +4534,11 @@ function employeeTable(title, rows, unRow, emplUsd, emplUah, dir) {
       </div>`;
 }
 function renderEmployees(fin) {
-  const cid = activeClientId();
-  const buckets =
-    cid === "slotomania"
-      ? [{ dir: "slotomania", title: "Playables" }]
-      : [
-          { dir: "mgx", title: "MGX" },
-          { dir: "playables", title: "Playables" },
-        ];
+  if (activeClientId() === "slotomania") return renderSlotomaniaEmployees(fin);
+  const buckets = [
+    { dir: "mgx", title: "MGX" },
+    { dir: "playables", title: "Playables" },
+  ];
   const unRow = fin.unassignedProjects
     ? `<tr class="fin-warn-row">
         <td>Unassigned</td>
@@ -4501,6 +4567,207 @@ function renderEmployees(fin) {
     </section>`;
 }
 
+function slPayView(fin) {
+  if (fin.slPlayables || fin.slPay) {
+    return { playables: fin.slPlayables || [], totals: fin.slPay || {} };
+  }
+  const local = slotomaniaPayFromTasks(studioMonthTasks(), fin.payroll, fin.fx);
+  return { playables: local.slPlayables, totals: local.slPay };
+}
+
+function slPackPeople(playables, ids) {
+  const want = new Set(ids || []);
+  const merged = new Map();
+  for (const pack of playables || []) {
+    if (!want.has(pack.id)) continue;
+    for (const row of pack.people || []) {
+      const cur = merged.get(row.id);
+      if (!cur) {
+        merged.set(row.id, { ...row, hours: Number(row.hours) || 0, payUsd: Number(row.payUsd) || 0 });
+        continue;
+      }
+      cur.hours += Number(row.hours) || 0;
+      cur.payUsd += Number(row.payUsd) || 0;
+    }
+  }
+  return [...merged.values()].sort(
+    (a, b) => (a.payOrder || 99) - (b.payOrder || 99) || String(a.name || "").localeCompare(String(b.name || ""))
+  );
+}
+
+function slPersonOf(row) {
+  return (
+    person(row.id) || {
+      id: row.id,
+      name: row.name,
+      role: row.role,
+      bankCard: row.bankCard,
+      iban: row.iban,
+      legalName: row.legalName,
+      jobTitle: row.jobTitle,
+      payOrder: row.payOrder,
+    }
+  );
+}
+
+function slCrewRow(row, opts = {}) {
+  const p = slPersonOf(row);
+  const hours = Number(row.hours) || 0;
+  const rate = Number(row.rate);
+  const fallback = Number.isFinite(rate) && rate >= 0 ? rate : employeeDirRate({ person: p, ratePlay: rate }, "slotomania");
+  const usdAmt = hours * fallback;
+  const card = normalizeCard(p.bankCard);
+  const iban = normalizeIban(p.iban);
+  const copy = payCopy({ person: p });
+  const rateCell = opts.rateInput
+    ? `<input class="fin-person-rate" data-id="${p.id}" data-dir="slotomania" type="number" min="0" step="0.5" value="${fallback}" />`
+    : `${fallback}`;
+  const who = `<div class="fin-who">
+            ${personCell(p.id)}
+            <div class="fin-legal">${escapeHtml(jobMeta(p).title)}${p.legalName ? ` · ${escapeHtml(p.legalName)}` : ""}</div>
+          </div>`;
+  const payCell = `<div class="fin-pay sl-copy-only">
+            <span class="fin-pan">${copy ? escapeHtml(copy.label) : "No card"}</span>
+            <button type="button" class="btn ghost fin-copy"${copy ? "" : " disabled"}>${copy ? `Copy ${copy.kind}` : "Copy"}</button>
+          </div>`;
+  return `<tr class="fin-pay-row" data-id="${p.id}" data-dir="slotomania" data-hours="${hours}" data-fallback="${fallback}" data-card="${escapeHtml(card)}" data-iban="${escapeHtml(iban)}">
+        <td>${who}</td>
+        <td class="num">${hoursLabel(hours)}</td>
+        <td class="num">${rateCell}</td>
+        <td class="num" data-usd>${usd(usdAmt)}</td>
+        <td class="num" data-uah><b>${uah(usdAmt * nbuRate())}</b></td>
+        <td>${payCell}</td>
+      </tr>`;
+}
+
+function slCrewTable(people, emplUsd, emplUah, rateInput) {
+  const body = (people || []).map((row) => slCrewRow(row, { rateInput })).join("");
+  return `
+        <div class="fin-scroll">
+          <table class="fin-table">
+            <thead><tr><th>Person</th><th class="num">Hours</th><th class="num">$/h</th><th class="num">Hours × $/h</th><th class="num">UAH</th><th>Card</th></tr></thead>
+            <tbody>${body || `<tr><td colspan="6" class="muted">No crew hours on this playable.</td></tr>`}</tbody>
+            <tfoot><tr><td>EMPL</td><td class="num" data-empl-hours></td><td></td><td class="num" data-empl-usd>${usd(emplUsd)}</td><td class="num" data-empl-uah>${uah(emplUah)}</td><td></td></tr></tfoot>
+          </table>
+        </div>`;
+}
+
+function renderSlotomaniaEmployees(fin) {
+  const view = slPayView(fin);
+  const playables = view.playables || [];
+  const dueIds = new Set(playables.filter((p) => p.crewStatus === "due").map((p) => p.id));
+  state.slPack = new Set([...(state.slPack || [])].filter((id) => dueIds.has(id)));
+  const picked = [...state.slPack];
+  const totals = view.totals || {};
+  const empty = `<p class="io-empty">No Slotomania playables this month.</p>`;
+  const kpis = `
+      <div class="fin-kpis sl-pay-kpis">
+        <div class="kpi"><b data-sl-due>${usd(totals.dueUsd || 0)}</b><span>Due · ${totals.dueCount || 0} playable${totals.dueCount === 1 ? "" : "s"}</span></div>
+        <div class="kpi"><b data-sl-paid>${usd(totals.paidUsd || 0)}</b><span>Paid · ${totals.paidCount || 0}</span></div>
+        <div class="kpi warn"><b data-sl-waiting>${usd(totals.waitingUsd || 0)}</b><span>Waiting · ${totals.waitingCount || 0} (hours not approved)</span></div>
+      </div>`;
+  const packPeople = slPackPeople(playables, picked);
+  const packEmpl = packPeople.reduce((s, r) => s + (Number(r.payUsd) || 0), 0);
+  const packNames = playables.filter((p) => picked.includes(p.id)).map((p) => p.name);
+  const packBar =
+    picked.length >= 2
+      ? `<div class="sl-pack" id="slPack">
+        <header class="sl-pack-h">
+          <div>
+            <strong>Pay this pack</strong>
+            <span>${escapeHtml(packNames.join(" · "))}</span>
+          </div>
+          <div class="sl-pack-actions">
+            <button type="button" class="btn ghost" id="slPackClear">Clear</button>
+            <button type="button" class="btn primary" id="slPackPaid">Mark pack paid</button>
+          </div>
+        </header>
+        ${slCrewTable(packPeople, packEmpl, packEmpl * fin.fx, false)}
+      </div>`
+      : "";
+  const blocks = playables.length
+    ? playables
+        .map((pack) => {
+          const status = pack.crewStatus || "due";
+          const checked = state.slPack.has(pack.id) ? " checked" : "";
+          const pick =
+            status === "due"
+              ? `<label class="sl-play-pick"><input type="checkbox" class="sl-pack-pick" data-id="${escapeHtml(pack.id)}"${checked} /> Pack</label>`
+              : `<span class="sl-play-pick sl-play-pick-off"></span>`;
+          const quoteBits = [];
+          if (pack.quoteHours) quoteBits.push(`quote ${hoursLabel(pack.quoteHours)}`);
+          if (pack.quoteAmount) quoteBits.push(usd(pack.quoteAmount));
+          if (pack.moneyLabel) quoteBits.push(pack.moneyLabel);
+          quoteBits.push(`board ${hoursLabel(pack.hours || 0)}`);
+          const action =
+            status === "paid"
+              ? `<button type="button" class="btn ghost sl-mark-paid" data-id="${escapeHtml(pack.id)}" data-paid="0">Undo paid</button>`
+              : status === "due"
+                ? `<button type="button" class="btn primary sl-mark-paid" data-id="${escapeHtml(pack.id)}" data-paid="1">Mark paid</button>`
+                : `<span class="sl-wait-note">Not in this payout until hours are approved</span>`;
+          return `<article class="sl-playable is-${status}" data-id="${escapeHtml(pack.id)}" data-status="${status}">
+        <header class="sl-play-h">
+          ${pick}
+          <div class="sl-play-title">
+            <h3>${escapeHtml(pack.name)}</h3>
+            <p class="fin-sl-note">${escapeHtml(quoteBits.join(" · "))}</p>
+          </div>
+          <span class="sl-pay-chip ${status}">${status === "paid" ? "Paid" : status === "waiting" ? "Waiting" : "Due"}</span>
+          <b class="sl-play-empl" data-play-empl>${usd(pack.emplUsd || 0)}</b>
+          ${action}
+        </header>
+        ${slCrewTable(pack.people, pack.emplUsd || 0, pack.emplUah || 0, true)}
+      </article>`;
+        })
+        .join("")
+    : empty;
+  const seen = new Set();
+  const bankPeople = [];
+  for (const pack of playables) {
+    for (const row of pack.people || []) {
+      if (seen.has(row.id)) continue;
+      seen.add(row.id);
+      bankPeople.push(row);
+    }
+  }
+  const bank =
+    bankPeople.length
+      ? `<div class="sl-bank">
+        <h3 class="fin-dir-title">Cards</h3>
+        <p class="fin-sl-note">One place to edit card / IBAN. Copy stays on the playable row.</p>
+        <div class="fin-scroll">
+          <table class="fin-table">
+            <thead><tr><th>Person</th><th>Card / IBAN</th></tr></thead>
+            <tbody>${bankPeople
+              .map((row) => {
+                const p = slPersonOf(row);
+                const card = normalizeCard(p.bankCard);
+                const iban = normalizeIban(p.iban);
+                return `<tr class="fin-pay-row sl-bank-row" data-id="${p.id}">
+            <td><div class="fin-who">${personCell(p.id)}</div></td>
+            <td><div class="fin-pay">
+              <input class="fin-pay-input fin-card-input" data-id="${p.id}" data-kind="card" value="${escapeHtml(card ? formatCard(card) : "")}" placeholder="Card" spellcheck="false" autocomplete="off" inputmode="numeric" />
+              <input class="fin-pay-input fin-iban-input" data-id="${p.id}" data-kind="iban" value="${escapeHtml(iban)}" placeholder="IBAN" spellcheck="false" autocomplete="off" />
+            </div></td>
+          </tr>`;
+              })
+              .join("")}</tbody>
+          </table>
+        </div>
+      </div>`
+      : "";
+  return `
+    <section class="group fin-card sl-playables">
+      <div class="fin-rates">
+        <label>NBU USD/UAH <input id="finNbu" type="number" min="0" step="0.01" value="${fin.fx}" /></label>
+      </div>
+      ${kpis}
+      ${packBar}
+      ${blocks}
+      ${bank}
+    </section>`;
+}
+
 function employeePayFx() {
   const n = parseRate($("finNbu")?.value);
   if (n === null || n === false || n <= 0) return nbuRate();
@@ -4517,7 +4784,16 @@ function refreshEmployeePay() {
       const hours = Number(tr.dataset.hours) || 0;
       const fallback = Number(tr.dataset.fallback);
       const parsed = parseRate(tr.querySelector(".fin-person-rate")?.value);
-      const rate = parsed === null || parsed === false ? (Number.isFinite(fallback) ? fallback : 15) : parsed;
+      const live = root.querySelector(`.sl-playable .fin-person-rate[data-id="${tr.dataset.id}"]`);
+      const liveParsed = parseRate(live?.value);
+      const rate =
+        parsed === null || parsed === false
+          ? liveParsed === null || liveParsed === false
+            ? Number.isFinite(fallback)
+              ? fallback
+              : 15
+            : liveParsed
+          : parsed;
       const usdAmt = hours * rate;
       empl += usdAmt;
       const usdEl = tr.querySelector("[data-usd]");
@@ -4530,6 +4806,22 @@ function refreshEmployeePay() {
     if (footUsd) footUsd.textContent = usd(empl);
     if (footUah) footUah.textContent = uah(empl * fx);
   });
+  const sums = { due: 0, paid: 0, waiting: 0 };
+  root.querySelectorAll(".sl-playable").forEach((block) => {
+    const status = block.dataset.status;
+    const table = block.querySelector("table.fin-table");
+    const text = table?.querySelector("[data-empl-usd]")?.textContent || "";
+    const n = Number(String(text).replace(/[^0-9.-]/g, ""));
+    const el = block.querySelector("[data-play-empl]");
+    if (el && table?.querySelector("[data-empl-usd]")) el.textContent = table.querySelector("[data-empl-usd]").textContent;
+    if (status && sums[status] != null) sums[status] += Number.isFinite(n) ? n : 0;
+  });
+  const dueEl = root.querySelector("[data-sl-due]");
+  const paidEl = root.querySelector("[data-sl-paid]");
+  const waitEl = root.querySelector("[data-sl-waiting]");
+  if (dueEl) dueEl.textContent = usd(sums.due);
+  if (paidEl) paidEl.textContent = usd(sums.paid);
+  if (waitEl) waitEl.textContent = usd(sums.waiting);
 }
 
 function bindEmployeePay() {
@@ -4554,6 +4846,47 @@ function bindEmployeePay() {
   });
   $("finNbu")?.addEventListener("input", refreshEmployeePay);
   $("finNbu")?.addEventListener("change", () => saveNbuRate({ silent: true }));
+  root.querySelectorAll(".sl-pack-pick").forEach((el) => {
+    el.addEventListener("change", () => {
+      const id = el.dataset.id;
+      if (!id) return;
+      if (el.checked) state.slPack.add(id);
+      else state.slPack.delete(id);
+      render();
+    });
+  });
+  root.querySelectorAll(".sl-mark-paid").forEach((el) => {
+    el.addEventListener("click", () => stampCrewPaid([el.dataset.id], el.dataset.paid !== "0"));
+  });
+  $("slPackPaid")?.addEventListener("click", () => stampCrewPaid([...(state.slPack || [])], true));
+  $("slPackClear")?.addEventListener("click", () => {
+    state.slPack = new Set();
+    render();
+  });
+}
+
+async function stampCrewPaid(ids, paid) {
+  const list = [...new Set((ids || []).map((id) => String(id || "").trim()).filter(Boolean))];
+  if (!list.length) return;
+  const out = await api("/api/finance/crew-paid", {
+    role: me().role,
+    month: state.month,
+    ids: list,
+    paid: Boolean(paid),
+  });
+  if (out.error || !out.state) {
+    toast(out.error || "Could not stamp crew pay");
+    return;
+  }
+  if (paid) list.forEach((id) => state.slPack.delete(id));
+  applyState(out.state, { render: false });
+  if (out.snapshot) {
+    state.finApi = out.snapshot;
+    state.finApiMonth = state.month;
+  }
+  render();
+  const n = list.length;
+  toast(paid ? (n === 1 ? "Marked paid" : `Pack paid · ${n} playables`) : "Back in Due");
 }
 
 function ensureNbu() {
@@ -4663,6 +4996,14 @@ async function saveEmployeeRates(opts = {}) {
     const iban = normalizeIban(row?.querySelector(".fin-iban-input")?.value);
     if (card || cur.bankCard == null) cur.bankCard = card;
     if (iban || cur.iban == null) cur.iban = iban;
+    byId.set(p.id, cur);
+  }
+  for (const row of $("board").querySelectorAll(".sl-bank-row")) {
+    const p = person(row.dataset.id);
+    if (!p) continue;
+    const cur = byId.get(p.id) || { id: p.id, rates: {} };
+    cur.bankCard = normalizeCard(row.querySelector(".fin-card-input")?.value);
+    cur.iban = normalizeIban(row.querySelector(".fin-iban-input")?.value);
     byId.set(p.id, cur);
   }
   const people = [...byId.values()];

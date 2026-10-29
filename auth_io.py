@@ -970,6 +970,8 @@ def view_state(db: dict, sess: dict | None) -> dict:
             row.pop("producerHours", None)
             row.pop("studioBuffer", None)
             row["hours"] = playables_io.crew_hours(task)
+        row.pop("crewPaid", None)
+        row.pop("crewPaidAt", None)
         tasks.append(row)
     out = dict(db)
     out["people"] = people

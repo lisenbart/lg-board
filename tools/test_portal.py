@@ -274,7 +274,11 @@ def test_studio_clients_registry() -> None:
     check("Finance UI groups clients", "function renderClientGroup" in js and "byClient" in js)
     check("Studio books each client", "function renderStudioGroup" in js)
     check("Finance is scoped to the open client", "function financeClient" in js and "function renderBoardsNav" in js)
-    check("Employeers follow the open client", 'dir: "slotomania"' in js and 'data-nav="finance"' in js)
+    check(
+        "Slotomania Employeers is per playable",
+        "function renderSlotomaniaEmployees" in js and "function slPackPeople" in js and 'data-nav="finance"' in js,
+    )
+    check("SuperPlay Employeers stay MGX then Playables", "function employeeTable" in js)
     with tempfile.TemporaryDirectory() as raw:
         path = Path(raw) / "SLOTOMANIA_Calculator.xlsx"
         out = finance_io.write_slotomania_month(db, "2026-10", nbu_rate=44.8, path=path)
@@ -322,6 +326,76 @@ def test_client_login_names() -> None:
             check("cross PIN Slotomania+3500 fails", "error" in auth_io.resolve_client_login("Slotomania", "3500"))
         finally:
             auth_io.PINS_PATH = orig
+
+
+def test_slotomania_crew_pay() -> None:
+    check(
+        "hours pending is waiting crew pay",
+        client_io.crew_pay_status({"clientId": "slotomania", "hoursApproved": False}) == "waiting",
+    )
+    check(
+        "approved playable is due until stamped",
+        client_io.crew_pay_status({"clientId": "slotomania", "hoursApproved": True}) == "due",
+    )
+    check(
+        "crew paid wins over quote pending",
+        client_io.crew_pay_status({"clientId": "slotomania", "hoursApproved": False, "crewPaid": True}) == "paid",
+    )
+    check("SuperPlay has no crew-pay stamp", client_io.crew_pay_status({"clientId": "superplay"}) == "")
+    people = [
+        {"id": "manager", "name": "Anastasiia", "role": "manager", "payOrder": 1},
+        {"id": "artdir1", "name": "Max", "role": "art_director", "payOrder": 2, "rateUsd": 15},
+        {"id": "artdir2", "name": "Yulia", "role": "art_director", "payOrder": 3, "rateUsd": 15},
+        {"id": "programmer1", "name": "Andrew", "role": "programmer", "payOrder": 4, "rateUsd": 15},
+        {"id": "designer3", "name": "Serhii", "role": "designer", "payOrder": 5, "rateUsd": 15},
+    ]
+    import copy as _copy
+
+    tasks = [_copy.deepcopy(t) for t in client_io.OCTOBER_TASKS]
+    db = {"meta": {"month": "2026-10", "taxPct": 0.06}, "people": people, "tasks": tasks}
+    nbu = {"rate": 44.8, "source": "test"}
+    snap = finance_io.snapshot(db, "2026-10", nbu)
+    packs = {p["id"]: p for p in snap.get("slPlayables") or []}
+    snakes = packs.get("t-sl-1") or {}
+    chars = packs.get("t-sl-4") or {}
+    check("October Slotomania is four playables", len(packs) == 4, str(list(packs)))
+    check("Snakes is Due", snakes.get("crewStatus") == "due", str(snakes.get("crewStatus")))
+    check("Characters is Waiting", chars.get("crewStatus") == "waiting", str(chars.get("crewStatus")))
+    check("Snakes EMPL is $704", abs(float(snakes.get("emplUsd") or 0) - 704) < 0.05, str(snakes.get("emplUsd")))
+    yulia = next((r for r in snakes.get("people") or [] if r.get("id") == "artdir2"), None)
+    andrew = next((r for r in snakes.get("people") or [] if r.get("id") == "programmer1"), None)
+    lp = next((r for r in snakes.get("people") or [] if r.get("role") == "manager"), None)
+    check("Snakes Yulia 12 h × $15", yulia and abs(float(yulia.get("hours") or 0) - 12) < 0.05 and abs(float(yulia.get("payUsd") or 0) - 180) < 0.05, str(yulia))
+    check("Snakes Andrew 20 h × $15", andrew and abs(float(andrew.get("hours") or 0) - 20) < 0.05 and abs(float(andrew.get("payUsd") or 0) - 300) < 0.05, str(andrew))
+    check("Snakes LP 32 h × $7", lp and abs(float(lp.get("hours") or 0) - 32) < 0.05 and abs(float(lp.get("payUsd") or 0) - 224) < 0.05, str(lp))
+    sl_pay = snap.get("slPay") or {}
+    check("all four unpaid: Due is Snakes+Battle+Coin", abs(float(sl_pay.get("dueUsd") or 0) - 2618) < 0.05, str(sl_pay))
+    check("Characters sits in Waiting", abs(float(sl_pay.get("waitingUsd") or 0) - 968) < 0.05 and sl_pay.get("waitingCount") == 1, str(sl_pay))
+    n = client_io.set_crew_paid(db, ["t-sl-1", "t-sl-2"], True, "2026-10-29T12:00:00Z")
+    check("stamped Snakes + Battle Ship", n == 2, str(n))
+    snap2 = finance_io.snapshot(db, "2026-10", nbu)
+    pay2 = snap2.get("slPay") or {}
+    packs2 = {p["id"]: p for p in snap2.get("slPlayables") or []}
+    check("two playables Paid", packs2.get("t-sl-1", {}).get("crewStatus") == "paid" and packs2.get("t-sl-2", {}).get("crewStatus") == "paid", str(pay2))
+    check("Coin stays Due", packs2.get("t-sl-3", {}).get("crewStatus") == "due", str(packs2.get("t-sl-3")))
+    check("Paid total is Snakes + Battle", abs(float(pay2.get("paidUsd") or 0) - 1672) < 0.05, str(pay2))
+    check("Due leftover is Coin", abs(float(pay2.get("dueUsd") or 0) - 946) < 0.05 and pay2.get("dueCount") == 1, str(pay2))
+    combined = finance_io.combine_playables(snap.get("slPlayables") or [], ["t-sl-1", "t-sl-2"])
+    andrew_pack = next((r for r in combined if r.get("id") == "programmer1"), None)
+    check(
+        "pack merges Andrew 20 + 24 h",
+        andrew_pack and abs(float(andrew_pack.get("hours") or 0) - 44) < 0.05 and abs(float(andrew_pack.get("payUsd") or 0) - 660) < 0.05,
+        str(andrew_pack),
+    )
+    lp_view = auth_io.view_state(db, {"role": "manager", "email": "anastasiia@lisenbart.games"})
+    lp_task = next((t for t in lp_view.get("tasks") or [] if t.get("id") == "t-sl-1"), None)
+    check("LP view hides crewPaid", lp_task is not None and "crewPaid" not in lp_task, str(lp_task))
+    client_view = auth_io.client_state(db, {"role": "client", "email": client_io.EMAILS[client_io.SLOTOMANIA], "clientId": "slotomania"})
+    client_task = next((t for t in client_view.get("tasks") or [] if t.get("id") == "t-sl-1"), None)
+    check("client desk hides crewPaid", client_task is not None and "crewPaid" not in client_task, str(client_task))
+    js = (ROOT / "public" / "assets" / "app.js").read_text(encoding="utf-8")
+    check("Mark paid lives on Slotomania Employeers", "stampCrewPaid" in js and "Pay this pack" in js)
+    check("SuperPlay Employeers is still person tables", "function renderEmployees" in js and "function employeeTable" in js)
 
 
 def test_pin_opens() -> None:
@@ -2520,8 +2594,80 @@ def test_http(base: str) -> str | None:
             code == 200 and payload.get("hours") is not None and dt < 0.3,
             f"status={code} {dt:.3f}s err={payload.get('error') if isinstance(payload, dict) else payload}",
         )
+        sl_play = payload.get("slPlayables") if isinstance(payload, dict) else None
+        sl_pay = payload.get("slPay") if isinstance(payload, dict) else None
+        check(
+            "finance snapshot has Slotomania playable packs",
+            isinstance(sl_play, list) and isinstance(sl_pay, dict) and "dueUsd" in sl_pay,
+            str({"n": len(sl_play) if isinstance(sl_play, list) else sl_play, "slPay": sl_pay}),
+        )
+        if isinstance(sl_play, list) and sl_play:
+            statuses = {p.get("crewStatus") for p in sl_play}
+            check(
+                "playable packs use Due/Paid/Waiting",
+                statuses <= {"due", "paid", "waiting"} and any(p.get("people") for p in sl_play),
+                str(statuses),
+            )
 
         ck = cookie.split(";", 1)[0]
+        if lp_cookie:
+            lp_ck = lp_cookie.split(";", 1)[0]
+            code, payload, _ = _http(
+                f"{base}/api/finance/crew-paid",
+                {"ids": ["t-sl-1"], "paid": True, "month": "2026-10"},
+                cookie=lp_ck,
+            )
+            check(
+                "LP cannot stamp crew pay",
+                code == 403 and "finance" in str((payload or {}).get("error") or payload),
+                str(payload),
+            )
+        stamp = datetime.utcnow().strftime("%H%M%S")
+        pay_name = f"SL-PAY-{stamp}"
+        code, payload, _ = _http(
+            f"{base}/api/tasks/create",
+            {
+                "name": pay_name,
+                "month": "2026-10",
+                "role": "finance",
+                "actorId": "finance",
+                "direction": "playables",
+                "clientId": "slotomania",
+            },
+            cookie=ck,
+        )
+        created = (payload or {}).get("task") or {}
+        pay_id = str(created.get("id") or "")
+        check(
+            "DL creates Slotomania pay-pack task",
+            code == 200 and pay_id.startswith("t-") and created.get("clientId") == "slotomania",
+            str(payload.get("error") or created),
+        )
+        if pay_id:
+            code, payload, _ = _http(
+                f"{base}/api/finance/crew-paid",
+                {"ids": [pay_id], "paid": True, "month": "2026-10"},
+                cookie=ck,
+            )
+            stamped = next((t for t in ((payload or {}).get("state") or {}).get("tasks") or [] if t.get("id") == pay_id), None)
+            pack = next((p for p in ((payload or {}).get("snapshot") or {}).get("slPlayables") or [] if p.get("id") == pay_id), None)
+            check(
+                "DL stamps a playable Paid",
+                code == 200 and (stamped or {}).get("crewPaid") is True and (pack or {}).get("crewStatus") == "paid",
+                str({"err": (payload or {}).get("error"), "task": stamped, "pack": pack}),
+            )
+            code, payload, _ = _http(
+                f"{base}/api/finance/crew-paid",
+                {"ids": [pay_id], "paid": False, "month": "2026-10"},
+                cookie=ck,
+            )
+            undone = next((t for t in ((payload or {}).get("state") or {}).get("tasks") or [] if t.get("id") == pay_id), None)
+            check(
+                "DL can undo crew pay",
+                code == 200 and not (undone or {}).get("crewPaid"),
+                str(undone),
+            )
+            _http(f"{base}/api/tasks/delete", {"id": pay_id, "role": "finance"}, cookie=ck)
         with server.LOCK:
             oleksa = next((p for p in (server.peek_db().get("people") or []) if p.get("id") == "designer5"), None)
             before_card = (oleksa or {}).get("bankCard") or ""
@@ -2773,6 +2919,7 @@ def main() -> int:
         test_client_hours_xlsx,
         test_studio_clients_registry,
         test_client_login_names,
+        test_slotomania_crew_pay,
         test_pin_opens,
         test_person_pins,
         test_parse_past_total,

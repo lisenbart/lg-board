@@ -31,7 +31,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-29i"
+BUILD = "2026-10-29j"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -1906,6 +1906,29 @@ class Handler(SimpleHTTPRequestHandler):
                 },
             )
             return
+        if path == "/api/finance/crew-paid":
+            if (data.get("role") or "") != "finance":
+                self._json(403, {"error": "only finance can stamp crew pay"})
+                return
+            ids = list(data.get("ids") or [])
+            extra = str(data.get("id") or "").strip()
+            if extra:
+                ids = [extra, *ids]
+            raw_paid = data.get("paid")
+            paid = True if raw_paid in (None, "") else raw_paid not in (False, 0, "0", "false", "no")
+            with LOCK:
+                db = peek_db()
+                n = client_io.set_crew_paid(db, ids, paid, utc_now())
+                if n:
+                    save_db(db)
+                month = data.get("month") or db.get("meta", {}).get("month") or "2026-10"
+                try:
+                    snap = finance_io.snapshot(db, month)
+                except FileNotFoundError as e:
+                    self._json(409, {"error": str(e)})
+                    return
+            self._json(200, {"ok": True, "updated": n, "paid": paid, "state": db, "snapshot": snap})
+            return
         if path == "/api/finance/save":
             if (data.get("role") or "") != "finance":
                 self._json(403, {"error": "only finance can write the calculator"})
@@ -2605,6 +2628,9 @@ class Handler(SimpleHTTPRequestHandler):
                     data.pop("poNumber", None)
                     data.pop("quoteStatus", None)
                     data.pop("hoursApproved", None)
+                if role != "finance":
+                    data.pop("crewPaid", None)
+                    data.pop("crewPaidAt", None)
                 if "poNumber" in data:
                     data["poNumber"] = str(data.get("poNumber") or "").strip()
                 brief_before = task.get("brief")

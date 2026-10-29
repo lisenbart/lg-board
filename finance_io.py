@@ -120,6 +120,101 @@ def fetch_nbu(force: bool = False) -> dict:
     return dict(data)
 
 
+def slotomania_playables(db: dict, month: str, meta: dict | None = None, nbu: dict | None = None) -> dict:
+    """One pack per Slotomania playable: who to pay, Due / Paid / Waiting."""
+    meta = meta or db.get("meta") or {}
+    shift_hours = float(meta.get("shiftHours") or 9)
+    nbu = _nbu_from(db, nbu)
+    fx = float(nbu.get("rate") or FALLBACK_NBU)
+    packs = []
+    totals = {
+        "dueUsd": 0.0,
+        "paidUsd": 0.0,
+        "waitingUsd": 0.0,
+        "dueCount": 0,
+        "paidCount": 0,
+        "waitingCount": 0,
+        "dueHours": 0.0,
+        "paidHours": 0.0,
+        "waitingHours": 0.0,
+    }
+    for task in client_io.tasks_for(db, client_io.SLOTOMANIA, month):
+        status = client_io.crew_pay_status(task)
+        people = []
+        empl = 0.0
+        for person in pay_people(db):
+            pid = str(person.get("id") or "")
+            ph = excel_io.hours_for_person(task, pid, shift_hours)
+            if ph <= 0:
+                continue
+            rate = person_rate(person, meta=meta, direction=direction_io.PLAYABLES)
+            pay = round(ph * rate, 2)
+            empl += pay
+            people.append(
+                {
+                    "id": pid,
+                    "name": person.get("name") or pid,
+                    "role": person.get("role") or "",
+                    "hours": round(ph, 1),
+                    "rate": rate,
+                    "payUsd": pay,
+                    "payUah": round(pay * fx, 2),
+                    "payOrder": person.get("payOrder") or 99,
+                    "bankCard": person.get("bankCard") or "",
+                    "iban": person.get("iban") or "",
+                    "legalName": person.get("legalName") or "",
+                    "jobTitle": person.get("jobTitle") or "",
+                }
+            )
+        people.sort(key=lambda r: (r.get("payOrder") or 99, r["name"]))
+        empl = round(empl, 2)
+        hours = round(hours_of(task, shift_hours), 1)
+        packs.append(
+            {
+                "id": task.get("id"),
+                "name": task.get("name") or task.get("game") or task.get("id"),
+                "game": task.get("game") or "",
+                "hours": hours,
+                "quoteHours": client_io.quote_hours(task),
+                "quoteAmount": client_io.quote_amount(task),
+                "crewStatus": status,
+                "crewPaid": client_io.crew_paid(task),
+                "crewPaidAt": str(task.get("crewPaidAt") or ""),
+                "moneyStatus": client_io.money_status(task),
+                "moneyLabel": client_io.money_label(task),
+                "people": people,
+                "emplUsd": empl,
+                "emplUah": round(empl * fx, 2),
+            }
+        )
+        if status in {"due", "paid", "waiting"}:
+            totals[f"{status}Usd"] = round(totals[f"{status}Usd"] + empl, 2)
+            totals[f"{status}Count"] += 1
+            totals[f"{status}Hours"] = round(totals[f"{status}Hours"] + hours, 1)
+    return {"playables": packs, **totals}
+
+
+def combine_playables(packs: list, ids) -> list[dict]:
+    """Merge crew rows for a pay pack (Andrew once for Snakes + Battle Ship)."""
+    want = {str(i).strip() for i in (ids or []) if str(i or "").strip()}
+    merged: dict[str, dict] = {}
+    for pack in packs or []:
+        if str(pack.get("id") or "") not in want:
+            continue
+        for row in pack.get("people") or []:
+            pid = str(row.get("id") or "")
+            if not pid:
+                continue
+            cur = merged.get(pid)
+            if not cur:
+                merged[pid] = dict(row)
+                continue
+            cur["hours"] = round(float(cur.get("hours") or 0) + float(row.get("hours") or 0), 1)
+            cur["payUsd"] = round(float(cur.get("payUsd") or 0) + float(row.get("payUsd") or 0), 2)
+            cur["payUah"] = round(float(cur.get("payUah") or 0) + float(row.get("payUah") or 0), 2)
+    return sorted(merged.values(), key=lambda r: (r.get("payOrder") or 99, r.get("name") or ""))
+
+
 def hours_of(task: dict, shift_hours: float = 9) -> float:
     try:
         h = float(task.get("hours") or 0)
@@ -438,6 +533,7 @@ def snapshot(db: dict, month: str, nbu: dict | None = None) -> dict:
     studio = round(after_tax - empl, 2)
     sp_empl = round(sum((r.get("payUsdMgx") or 0) + (r.get("payUsdPlay") or 0) for r in payroll), 2)
     sl_empl = round(sum(r.get("payUsdSl") or 0 for r in payroll), 2)
+    sl_pay = slotomania_playables(db, month, meta=meta, nbu=nbu)
     sp_after = round(sp_in - sp_in * tax, 2)
     sl_after = round(sl_bill - sl_bill * tax, 2)
     sp_studio = round(sp_after - sp_empl, 2)
@@ -504,6 +600,8 @@ def snapshot(db: dict, month: str, nbu: dict | None = None) -> dict:
         "afterTaxUah": round(after_tax * fx, 2),
         "emplUah": round(empl * fx, 2),
         "studioUah": round(studio * fx, 2),
+        "slPlayables": sl_pay.get("playables") or [],
+        "slPay": {key: val for key, val in sl_pay.items() if key != "playables"},
     }
 
 

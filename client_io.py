@@ -4,6 +4,7 @@ from __future__ import annotations
 import copy
 import re
 import unicodedata
+from datetime import datetime, timezone
 
 SUPERPLAY = "superplay"
 SLOTOMANIA = "slotomania"
@@ -429,6 +430,65 @@ def money_label(task: dict | None) -> str:
     if key == "has_po":
         return po_number(task) or MONEY_LABEL[key]
     return MONEY_LABEL.get(key, "")
+
+
+def crew_paid(task: dict | None) -> bool:
+    return bool((task or {}).get("crewPaid"))
+
+
+def crew_pay_status(task: dict | None) -> str:
+    """Crew payout for one Slotomania playable. Not Playtika quote/PO."""
+    if not is_slotomania(task):
+        return ""
+    if crew_paid(task):
+        return "paid"
+    if not hours_approved(task):
+        return "waiting"
+    return "due"
+
+
+CREW_PAY_LABEL = {
+    "waiting": "Waiting",
+    "due": "Due",
+    "paid": "Paid",
+}
+
+
+def crew_pay_label(task: dict | None) -> str:
+    return CREW_PAY_LABEL.get(crew_pay_status(task), "")
+
+
+def _utc_stamp() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def set_crew_paid(db: dict, ids, paid: bool, at: str = "") -> int:
+    """Stamp or undo crew pay on Slotomania cards. Returns how many cards changed."""
+    want = {str(i).strip() for i in (ids or []) if str(i or "").strip()}
+    if not want:
+        return 0
+    stamp = str(at or "").strip() or _utc_stamp()
+    n = 0
+    for task in db.get("tasks") or []:
+        if str(task.get("id") or "") not in want:
+            continue
+        if not is_slotomania(task):
+            continue
+        if paid:
+            if task.get("crewPaid") and task.get("crewPaidAt"):
+                continue
+            task["crewPaid"] = True
+            task["crewPaidAt"] = stamp
+            task.setdefault("activity", []).append({"at": stamp, "text": "Crew paid"})
+            n += 1
+            continue
+        if not task.get("crewPaid") and not task.get("crewPaidAt"):
+            continue
+        task["crewPaid"] = False
+        task.pop("crewPaidAt", None)
+        task.setdefault("activity", []).append({"at": stamp, "text": "Crew paid undone"})
+        n += 1
+    return n
 
 
 def ensure_people(db: dict) -> bool:
