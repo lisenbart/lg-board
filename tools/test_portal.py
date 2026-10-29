@@ -1143,7 +1143,8 @@ def test_playables_desk() -> None:
             and "Create task writes" not in js
             and "desk ${" not in js
             and "on one tab" not in js
-            and "invoices are based on" not in js,
+            and "invoices are based on" not in js
+            and "Drive · files" not in js,
         )
         html = (ROOT / "public" / "index.html").read_text(encoding="utf-8")
         check(

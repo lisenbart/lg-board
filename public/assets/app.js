@@ -1580,15 +1580,6 @@ function renderChrome() {
   }
   renderBoardsNav();
   renderMonth();
-  const meta = state.db?.meta || {};
-  const brand = $("brandMode");
-  if (brand) {
-    if (meta.drivePulledAt || meta.driveMode === "read") {
-      brand.textContent = "Drive · files";
-    } else {
-      brand.textContent = "";
-    }
-  }
   $("sideFoot").innerHTML = "";
   ensureDriveStatus();
 

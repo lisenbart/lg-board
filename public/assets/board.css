@@ -63,8 +63,6 @@ a { color: var(--blue); }
   border-radius: 8px;
   padding: 5px 4px 4px;
 }
-.brand small { display: block; color: #9aa0c3; font-size: 10px; letter-spacing: 0.06em; font-weight: 400; padding: 0 2px; }
-.brand small:empty { display: none; }
 .nav-label {
   color: #8b91b3;
   font-size: 10px;
