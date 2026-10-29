@@ -19,6 +19,8 @@ SLOTOMANIA
 
 LP / TL / AD / DEV / MD see the same groups without Hours or Finance. A third client is another group, not a row inside SuperPlay.
 
+On a phone the same PIN opens a **queue**: status chip, name, who, hours. Menu (left) switches SuperPlay / Slotomania. DL also gets Hours and Finance on the bottom bar. Excel, Create task, invoices, and hour splits stay on the computer — this is the pocket scan, not a second app.
+
 The **Excel** tab is hours only — billed total and hours per person. No quote, no PO, no $. SuperPlay hours files are `SP_MGX_check` / `SP_PLBL_check`. Slotomania’s money file (`SLOTOMANIA_Calculator`) lives on that client’s Finance, not on the Excel tab. SuperPlay invoices stay SuperPlay-only. Slotomania invoice waits for a PO on the card.
 
 To add a client: one record in `client_io.SPECS` (label, directions, lines, rate, money model `month_end` or `quote_po`), the same client in `CLIENTS` in `public/assets/app.js`, login aliases, default PIN, a `client` person, Drive folder ids in `data/drive_roots.json`. Do not fork SuperPlay.

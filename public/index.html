@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-build="2026-10-29j">
+<html lang="en" data-build="2026-10-29k">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@300;400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/board.css?v=167" />
+  <link rel="stylesheet" href="assets/board.css?v=168" />
   <script>
     (function () {
       const host = location.hostname;
@@ -57,6 +57,7 @@
     <section class="main">
       <header class="topbar">
         <div class="top-row">
+          <button type="button" class="phone-menu-btn" id="phoneMenu" hidden aria-label="Boards" aria-expanded="false">Menu</button>
           <h1 class="board-title">SUPERPLAY MGX</h1>
           <img class="board-logo" id="boardLogo" src="assets/superplay.svg" width="61" height="32" alt="SuperPlay" hidden />
           <span class="pill dep-MGX">MGX</span>
@@ -123,6 +124,8 @@
       <div class="board" id="board"></div>
     </section>
   </div>
+  <div class="nav-scrim" id="navScrim" hidden></div>
+  <nav class="phone-bar" id="phoneBar" hidden aria-label="Phone"></nav>
 
   <div class="drawer-bg" id="drawerBg">
     <aside class="drawer" id="drawer"></aside>
@@ -210,6 +213,6 @@
 
   <div class="toast" id="toast"></div>
   <script src="assets/notices.js?v=5"></script>
-  <script src="assets/app.js?v=221"></script>
+  <script src="assets/app.js?v=222"></script>
 </body>
 </html>

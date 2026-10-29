@@ -398,6 +398,21 @@ def test_slotomania_crew_pay() -> None:
     check("SuperPlay Employeers is still person tables", "function renderEmployees" in js and "function employeeTable" in js)
 
 
+def test_phone_queue_mvp() -> None:
+    html = (ROOT / "public" / "index.html").read_text(encoding="utf-8")
+    css = (ROOT / "public" / "assets" / "board.css").read_text(encoding="utf-8")
+    js = (ROOT / "public" / "assets" / "app.js").read_text(encoding="utf-8")
+    check("phone bar is in the page", 'id="phoneBar"' in html and 'id="phoneMenu"' in html and 'id="navScrim"' in html)
+    check("desktop grid stays 220px", "grid-template-columns: 220px 1fr" in css)
+    check("phone queue is a card list", "function renderPhoneQueue" in js and "function isPhone" in js and "phone-card" in js)
+    check(
+        "phone keeps Boards as a slide menu",
+        "html:not(.hours-host) .sidebar" in css and "html.hours-host .sidebar { display: none; }" in css,
+    )
+    check("Excel is not the phone home", "pinchPhoneView" in js and '"excel", "guide", "ready"' in js)
+    check("DL phone bar has Finance", 'label: "Finance"' in js and 'label: "Queue"' in js)
+
+
 def test_pin_opens() -> None:
     check(
         "DL PIN opens every studio seat",
@@ -2920,6 +2935,7 @@ def main() -> int:
         test_studio_clients_registry,
         test_client_login_names,
         test_slotomania_crew_pay,
+        test_phone_queue_mvp,
         test_pin_opens,
         test_person_pins,
         test_parse_past_total,

@@ -180,6 +180,22 @@ function isHoursPage() {
     /^\/(superplay|slotomania|hours)\/?$/.test(location.pathname)
   );
 }
+function isPhone() {
+  return window.matchMedia("(max-width: 980px)").matches && !isHoursPage() && !isClient();
+}
+function navOpen() {
+  return document.documentElement.classList.contains("nav-open");
+}
+function setNavOpen(on) {
+  document.documentElement.classList.toggle("nav-open", Boolean(on));
+  const scrim = $("navScrim");
+  if (scrim) {
+    scrim.hidden = !on;
+    scrim.classList.toggle("show", Boolean(on));
+  }
+  const btn = $("phoneMenu");
+  if (btn) btn.setAttribute("aria-expanded", on ? "true" : "false");
+}
 function clientOf(t) {
   const raw = String(t?.clientId || "").toLowerCase();
   return raw === "slotomania" ? "slotomania" : "superplay";
@@ -1606,6 +1622,7 @@ function openClientNav(btn) {
   const dir = btn.dataset.dir;
   if (nav === "board") {
     if (state.view === "close" || state.view === "team" || state.view === "report") state.view = "board";
+    setNavOpen(false);
     setBoardClient(cid);
     setDirection(dir);
     return;
@@ -1616,7 +1633,132 @@ function openClientNav(btn) {
   if (nav === "finance") state.view = "close";
   else if (nav === "hours") state.view = "report";
   else return;
+  setNavOpen(false);
   render();
+}
+
+function pinchPhoneView() {
+  if (!isPhone()) return;
+  if (["excel", "guide", "ready"].includes(state.view)) state.view = "board";
+}
+
+function phoneWhoLine(t) {
+  if (isPlayables(t)) {
+    const names = [];
+    const ad = playableAdId(t);
+    if (ad) names.push(person(ad)?.name || "AD");
+    if (t.programmerId) names.push(person(t.programmerId)?.name || "DEV");
+    if (t.motionId && t.motionId !== ad && t.motionId !== t.programmerId) names.push(person(t.motionId)?.name || "MD");
+    return names.join(" · ") || "unassigned";
+  }
+  return person(t.assigneeId)?.name || "unassigned";
+}
+
+function phoneHoursLine(t) {
+  if (isPerformer()) {
+    const h = hoursForPerson(t, me().id);
+    return h ? `${h.toFixed(1)} h yours` : "";
+  }
+  if (isPlayables(t)) {
+    const crew = playableCrewTotal(t);
+    return crew ? `${crew} h` : "";
+  }
+  const h = hoursOf(t);
+  return h ? `${h} h` : "";
+}
+
+function phoneCardHtml(t) {
+  const spec = statusMark(t);
+  const due = deadlineMark(t);
+  const hours = phoneHoursLine(t);
+  const who = phoneWhoLine(t);
+  const flag = urgentMark(t);
+  return `<button type="button" class="phone-card tone-${escapeHtml(isPlayables(t) ? playableStatusKey(t) : t.studioStatus || "new")}${isUrgent(t) ? " is-urgent" : ""}" data-id="${escapeHtml(t.id)}">
+    <span class="notice-chip notice-${spec.cls}">${spec.label}</span>
+    <span class="phone-card-name">${flag}${escapeHtml(t.name)}</span>
+    <span class="phone-card-hrs">${escapeHtml(hours)}</span>
+    <span class="phone-card-meta">
+      <span>${escapeHtml(who)}</span>
+      ${due.label ? `<span>${escapeHtml(due.label)}</span>` : ""}
+      ${t.line ? `<span>${escapeHtml(t.line)}</span>` : ""}
+    </span>
+  </button>`;
+}
+
+function renderPhoneQueue() {
+  let tasks = visibleTasks();
+  if (state.view === "ready") tasks = tasks.filter((t) => t.studioStatus === "done");
+  tasks = sortedTasks(tasks);
+  const dirs =
+    activeClientId() === "slotomania"
+      ? ""
+      : `<div class="phone-dirs">
+        <button type="button" data-dir="mgx" class="${state.direction === "mgx" ? "active" : ""}">MGX</button>
+        <button type="button" data-dir="playables" class="${state.direction === "playables" ? "active" : ""}">Playables</button>
+      </div>`;
+  const empty = `<p class="io-empty" style="padding:16px">${
+    isPerformer()
+      ? `Nothing assigned in ${monthLabel(state.month)}`
+      : `No projects in ${monthLabel(state.month)}`
+  }</p>`;
+  $("board").innerHTML = `${dirs}<div class="phone-queue">${
+    tasks.length ? tasks.map(phoneCardHtml).join("") : empty
+  }</div>`;
+  $("board").querySelectorAll(".phone-card").forEach((el) => {
+    el.addEventListener("click", () => openTask(el.dataset.id));
+  });
+  $("board").querySelectorAll(".phone-dirs button").forEach((el) => {
+    el.addEventListener("click", () => setDirection(el.dataset.dir));
+  });
+}
+
+function renderPhoneBar() {
+  const bar = $("phoneBar");
+  const menu = $("phoneMenu");
+  if (menu) menu.hidden = !isPhone();
+  if (!bar) return;
+  if (!isPhone()) {
+    bar.hidden = true;
+    bar.innerHTML = "";
+    setNavOpen(false);
+    return;
+  }
+  bar.hidden = false;
+  const items = [{ view: "board", label: "Queue" }];
+  if (isFinance()) {
+    items.push({ view: "report", label: "Hours" });
+    items.push({ view: "close", label: "Finance" });
+  }
+  bar.innerHTML = items
+    .map((item) => {
+      const on =
+        item.view === "board"
+          ? state.view !== "close" && state.view !== "report" && state.view !== "team"
+          : state.view === item.view;
+      return `<button type="button" class="phone-bar-btn${on ? " active" : ""}" data-phone-view="${item.view}">${item.label}</button>`;
+    })
+    .join("");
+  bar.querySelectorAll("[data-phone-view]").forEach((el) => {
+    el.addEventListener("click", () => {
+      const view = el.dataset.phoneView;
+      setNavOpen(false);
+      if (view === "board") {
+        state.view = "board";
+        render();
+        return;
+      }
+      if (view === "close") {
+        state.view = "close";
+        render();
+        return;
+      }
+      if (view === "report") {
+        state.hoursClient = activeClientId();
+        state.view = "report";
+        render();
+      }
+    });
+  });
 }
 
 function renderChrome() {
@@ -1687,6 +1829,11 @@ function renderChrome() {
 function renderToolbar() {
   if (state.view === "team" || state.view === "close" || state.view === "guide") {
     $("toolbar").innerHTML = "";
+    return;
+  }
+  if (isPhone() && state.view !== "report") {
+    $("toolbar").innerHTML = searchHtml();
+    bindSearch();
     return;
   }
   if (state.view === "report") {
@@ -2740,6 +2887,7 @@ function renderLoad() {
   const box = $("load");
   if (!box) return;
   if (
+    isPhone() ||
     isClient() ||
     isDesigner() ||
     isArtDirector() ||
@@ -3538,6 +3686,10 @@ function renderBoard() {
     renderClientReport();
     return;
   }
+  if (isPhone()) {
+    renderPhoneQueue();
+    return;
+  }
   const exec = isExecView();
   let tasks = visibleTasks();
   if (state.view === "ready") tasks = tasks.filter((t) => t.studioStatus === "done");
@@ -4132,6 +4284,7 @@ function drivePack() {
 }
 
 function driveStrip() {
+  if (isPhone()) return "";
   const d = drivePack();
   const sl = activeClientId() === "slotomania";
   const links = (sl
@@ -6941,8 +7094,10 @@ function render() {
   if (!state.db) return;
   syncDirection();
   if (isClient() && state.view !== "report") state.view = "report";
+  pinchPhoneView();
   renderWho();
   renderChrome();
+  renderPhoneBar();
   renderInbox();
   renderToolbar();
   renderKpis();
@@ -7037,8 +7192,15 @@ $("boardsNav")?.addEventListener("click", (e) => {
 });
 $("navTeam")?.addEventListener("click", () => {
   if (!isFinance()) return;
+  setNavOpen(false);
   state.view = "team";
   render();
+});
+$("phoneMenu")?.addEventListener("click", () => setNavOpen(!navOpen()));
+$("navScrim")?.addEventListener("click", () => setNavOpen(false));
+window.matchMedia("(max-width: 980px)").addEventListener("change", () => {
+  if (!window.matchMedia("(max-width: 980px)").matches) setNavOpen(false);
+  if (state.db) render();
 });
 $("delCancel").onclick = () => $("delModal").classList.remove("show");
 $("delConfirm").onclick = () => confirmDeletePerson();

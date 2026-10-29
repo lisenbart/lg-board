@@ -2341,10 +2341,121 @@ a.pack-work:hover { background: #e2e4ec; }
 .guide-notes li { margin-bottom: 6px; }
 .guide-notes li:last-child { margin-bottom: 0; }
 
+.phone-menu-btn {
+  display: none;
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.nav-scrim {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(23, 23, 36, 0.4);
+  z-index: 25;
+}
+.nav-scrim.show { display: block; }
+.phone-bar {
+  display: none;
+}
+.phone-bar-btn {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  padding: 8px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.phone-bar-btn.active { color: var(--blue); }
+.phone-queue { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px 18px; }
+.phone-dirs {
+  display: flex;
+  gap: 6px;
+  padding: 8px 12px 0;
+}
+.phone-dirs button {
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.phone-dirs button.active { border-color: var(--blue); color: var(--blue); background: #eef5ff; }
+.phone-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 4px 10px;
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  padding: 10px 12px;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+.phone-card.is-urgent { box-shadow: inset 3px 0 0 var(--red); }
+.phone-card .notice-chip { grid-column: 1; align-self: start; }
+.phone-card-name {
+  grid-column: 2;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+  min-width: 0;
+}
+.phone-card-meta {
+  grid-column: 2 / -1;
+  color: var(--muted);
+  font-size: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+.phone-card-hrs { grid-column: 3; grid-row: 1; font-variant-numeric: tabular-nums; font-size: 12px; color: var(--muted); white-space: nowrap; }
 @media (max-width: 980px) {
   .app { grid-template-columns: 1fr; }
-  .sidebar { display: none; }
+  html.hours-host .sidebar { display: none; }
+  html:not(.hours-host) .sidebar {
+    display: flex;
+    position: fixed;
+    z-index: 30;
+    inset: 0 auto 0 0;
+    width: min(280px, 86vw);
+    transform: translateX(-110%);
+    transition: transform 0.18s ease;
+  }
+  html:not(.hours-host).nav-open .sidebar {
+    transform: none;
+    box-shadow: 8px 0 24px rgba(20, 22, 40, 0.28);
+  }
+  html:not(.hours-host) .phone-menu-btn { display: inline-flex; }
+  html:not(.hours-host) .phone-bar {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 15;
+    background: #fff;
+    border-top: 1px solid var(--line);
+    padding: 4px 8px calc(6px + env(safe-area-inset-bottom));
+    gap: 4px;
+  }
+  html:not(.hours-host) .app { padding-bottom: 58px; }
+  html:not(.hours-host) .who-id { display: none; }
+  html:not(.hours-host) .board-logo { display: none !important; }
+  html:not(.hours-host) .views { display: none; }
   .top-end { width: 100%; justify-content: flex-end; }
+  html:not(.hours-host) .top-end { margin-left: auto; width: auto; }
   html.hours-host .top-end { width: auto; }
   .team-row { grid-template-columns: 1fr; }
   .group.sheet { --meta-width: 626px; }
