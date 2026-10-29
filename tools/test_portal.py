@@ -459,7 +459,10 @@ def test_phone_queue_mvp() -> None:
         "function pingNewNotice" in js
         and 'id="phoneSound"' in js
         and "phone-bar-count" in js
-        and "navigator.vibrate" in js,
+        and "navigator.vibrate" in js
+        and "function playNoticeSound" in js
+        and "function unlockNoticeSound" in js
+        and "touchstart" in js.split("function playNoticeSound")[-1].split("function applyRemoteState")[0],
     )
     check(
         "phone pings ask for Home Screen then Allow",
@@ -1683,8 +1686,9 @@ def test_urgent_marker() -> None:
     check("pipeline header is Dead Line", '<div class="cell">Dead Line</div>' in js)
     check("Due is no longer the pipeline header", '<div class="cell">Due</div>' not in js)
     check("urgent is not a studio status", '"urgent"' not in src.split("STATUS_BY_ROLE")[0] and "urgent" not in server.STATUS_BY_ROLE.get("manager", []))
-    check("LP/DL may mark urgent", "only manager or finance can mark urgent" in src)
-    check("card has URGENT toggle", 'id="stUrgent"' in js and "function urgentMark" in js)
+    check("LP/DL/TL may mark urgent", "only LP, DL or TL can mark urgent" in src)
+    check("card has URGENT toggle", 'id="stUrgent"' in js and "function urgentMark" in js and "function canMarkUrgent" in js)
+    check("URGENT toggle writes at once", 'commitCard({ fromChip: true })' in js.split('$("stUrgentBtn")')[-1].split("function hideCardSaveModal")[0])
     check("urgent mark is a ! badge", 'class="urgent-mark"' in js and ".urgent-mark" in css)
     check("urgent sorts above same status", "Number(isUrgent(b)) - Number(isUrgent(a))" in js)
     closed_bit = src.split('elif nxt == "new":')[-1].split("note = data.get")[0]
@@ -1832,6 +1836,12 @@ def test_lp_can_close_without_send() -> None:
         'if (cur === "tlcheck") return ["tlcheck"]' in js.split("function statusActions")[1].split("function statusButtonDisabled")[0],
     )
     check(
+        "TL may set Need Fixing",
+        "revision" in server.STATUS_BY_ROLE["teamlead"]
+        and 'out.push("revision", "tlcheck", "done")'
+        in js.split("function statusActions")[1].split("function statusButtonDisabled")[0],
+    )
+    check(
         "status chip writes without waiting for Save",
         "commitCard({ fromChip: true, status: key })" in js and "close: !fromChip" in js,
     )
@@ -1959,6 +1969,16 @@ def test_status_receipt() -> None:
         "normal WIP from Ready does not ping Back to WIP",
         sum(1 for n in db.get("notices") or [] if n.get("kind") == "task.wip") == 1,
         str([n.get("kind") for n in db.get("notices") or []]),
+    )
+    task["studioStatus"] = "revision"
+    notice_io.on_task_change(db, task, {"studioStatus": "tlcheck"}, "teamlead")
+    fix = next((n for n in db.get("notices") or [] if n.get("kind") == "task.revision"), None)
+    check(
+        "TL Need Fixing pings the MD, not TL",
+        fix is not None
+        and "designer3" in (fix.get("audience") or [])
+        and "teamlead" not in (fix.get("audience") or []),
+        str(fix),
     )
 
 
@@ -2088,6 +2108,7 @@ def test_http(base: str) -> str | None:
         "GET /sw.js is a push worker",
         code == 200
         and "addEventListener(\"push\"" in sw
+        and "silent: false" in sw
         and (headers.get("Service-Worker-Allowed") or "") == "/",
         str(headers.get("Service-Worker-Allowed")),
     )
@@ -2609,6 +2630,100 @@ def test_http(base: str) -> str | None:
         _http(
             f"{base}/api/tasks/delete",
             {"id": urgent_id, "role": "manager", "actorId": "manager"},
+            cookie=lp_ck,
+        )
+        bounce_name = f"DD-TEST-TLBOUNCE-{stamp}"
+        code, payload, _ = _http(
+            f"{base}/api/tasks/create",
+            {"name": bounce_name, "month": "2026-10", "role": "manager", "actorId": "manager"},
+            cookie=lp_ck,
+        )
+        bounce = (payload or {}).get("task") or {}
+        bounce_id = str(bounce.get("id") or "")
+        check(
+            "LP creates MGX task for TL bounce",
+            code == 200 and bounce_id.startswith("t-"),
+            str(payload.get("error") or bounce),
+        )
+        code, payload, _ = _http(
+            f"{base}/api/tasks/update",
+            {
+                "id": bounce_id,
+                "role": "manager",
+                "actorId": "manager",
+                "assigneeId": "designer3",
+                "studioStatus": "tlcheck",
+                "resultUrl": "https://board.example/tl-bounce",
+            },
+            cookie=lp_ck,
+        )
+        staged = (payload or {}).get("task") or {}
+        check(
+            "LP can stage TL Check for bounce",
+            code == 200 and staged.get("studioStatus") == "tlcheck" and staged.get("assigneeId") == "designer3",
+            str(payload.get("error") or {k: staged.get(k) for k in ("studioStatus", "assigneeId")}),
+        )
+        code, payload, headers = _http(
+            f"{base}/api/login",
+            {"door": "studio", "role": "teamlead", "pin": "2026"},
+        )
+        tl_cookie = headers.get("Set-Cookie") if hasattr(headers, "get") else None
+        tl_sess = payload.get("session") or {}
+        check(
+            "TL login",
+            code == 200 and tl_sess.get("role") == "teamlead" and bool(tl_cookie),
+            str(payload.get("error") or tl_sess),
+        )
+        tl_ck = tl_cookie.split(";", 1)[0] if tl_cookie else ""
+        code, payload, _ = _http(
+            f"{base}/api/tasks/update",
+            {
+                "id": bounce_id,
+                "role": "teamlead",
+                "actorId": "teamlead",
+                "studioStatus": "revision",
+            },
+            cookie=tl_ck,
+        )
+        bounced = (payload or {}).get("task") or {}
+        notices = ((payload or {}).get("state") or {}).get("notices") or []
+        ping = next(
+            (
+                n
+                for n in notices
+                if n.get("kind") == "task.revision" and n.get("taskId") == bounce_id
+            ),
+            None,
+        )
+        check(
+            "TL can bounce TL Check to Need Fixing",
+            code == 200 and bounced.get("studioStatus") == "revision",
+            str(payload.get("error") or bounced.get("studioStatus")),
+        )
+        check(
+            "TL Need Fixing pings the assigned MD",
+            ping is not None and "designer3" in (ping.get("audience") or []),
+            str(ping),
+        )
+        code, payload, _ = _http(
+            f"{base}/api/tasks/update",
+            {
+                "id": bounce_id,
+                "role": "teamlead",
+                "actorId": "teamlead",
+                "urgent": True,
+            },
+            cookie=tl_ck,
+        )
+        flagged_tl = (payload or {}).get("task") or {}
+        check(
+            "TL can mark a task URGENT",
+            code == 200 and flagged_tl.get("urgent") is True,
+            str(payload.get("error") or {k: flagged_tl.get(k) for k in ("urgent", "studioStatus")}),
+        )
+        _http(
+            f"{base}/api/tasks/delete",
+            {"id": bounce_id, "role": "manager", "actorId": "manager"},
             cookie=lp_ck,
         )
 

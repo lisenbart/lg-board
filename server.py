@@ -32,7 +32,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-29u"
+BUILD = "2026-10-29v"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -909,7 +909,7 @@ OPS_ROLES = {"manager", "finance"}
 MGX_OPS_STATUSES = {"new", "wip", "revision", "tlcheck", "done", "closed"}
 STATUS_BY_ROLE = {
     "designer": {"wip", "tlcheck"},
-    "teamlead": {"wip", "tlcheck", "done"},
+    "teamlead": {"wip", "revision", "tlcheck", "done"},
     "manager": set(MGX_OPS_STATUSES),
     "finance": set(MGX_OPS_STATUSES),
     "art_director": set(),
@@ -2608,8 +2608,8 @@ class Handler(SimpleHTTPRequestHandler):
                         return
                     task["deadline"] = raw[:10] if raw else ""
                 if "urgent" in data:
-                    if role not in {"manager", "finance"}:
-                        self._json(403, {"error": "only manager or finance can mark urgent"})
+                    if role not in {"manager", "finance", "teamlead"}:
+                        self._json(403, {"error": "only LP, DL or TL can mark urgent"})
                         return
                     raw_flag = data.get("urgent")
                     if isinstance(raw_flag, bool):

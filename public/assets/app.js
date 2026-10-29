@@ -50,7 +50,7 @@ const NAME_WIDTH_MIN = 240;
 const MGX_OPS_STATUSES = ["new", "wip", "revision", "tlcheck", "done", "closed"];
 const STATUS_BY_ROLE = {
   designer: ["wip", "tlcheck"],
-  teamlead: ["wip", "tlcheck", "done"],
+  teamlead: ["wip", "revision", "tlcheck", "done"],
   manager: MGX_OPS_STATUSES.slice(),
   finance: MGX_OPS_STATUSES.slice(),
   art_director: ["new", "wip", "check", "artready"],
@@ -722,6 +722,9 @@ function isTeamLead() {
 }
 function canOps() {
   return me().role === "manager" || me().role === "finance";
+}
+function canMarkUrgent() {
+  return canOps() || isTeamLead();
 }
 function directionOf(t) {
   const raw = String(t?.department || t?.direction || "MGX").toLowerCase();
@@ -2750,7 +2753,7 @@ function cardJob(t) {
         return { tone: "fix", title: "This is your work · Need Fixing", body: "Fix, paste the new result link, then TL Check." };
       }
       if (t.studioStatus === "tlcheck") {
-        return { tone: "do", title: "Your work · TL Check", body: "Result is in. Set Done when you accept it." };
+        return { tone: "do", title: "Your work · TL Check", body: "Need Fixing if it needs another pass. Done when you accept it." };
       }
       if (!hasResult) {
         return { tone: "do", title: "This is your work", body: "Same as MD: paste the result link, then TL Check." };
@@ -2758,7 +2761,7 @@ function cardJob(t) {
       return { tone: "do", title: "TL Check", body: "Result link is in. Set TL Check, then Done." };
     }
     if (t.studioStatus === "tlcheck") {
-      return { tone: "do", title: "Your job", body: `${name || "Designer"} submitted. Check the result, then Done.` };
+      return { tone: "do", title: "Your job", body: `${name || "Designer"} submitted. Need Fixing if it is not ready. Done if you accept it.` };
     }
     if (t.studioStatus === "done") {
       return { tone: "wait", title: "Waiting for LP", body: `${name || "Designer"} passed TL Check. You cannot Send to client — that is LP.` };
@@ -3672,8 +3675,8 @@ function renderGuide() {
         <div class="guide-status-grid">
           ${statusCard("ready", "Ready", "Ready to Start", "Хто: LP створює, TL назначає", "Таск щойно створили. Після призначення людини статус лишається Ready — WIP ставить сам MD.")}
           ${statusCard("wip", "WIP", "WIP", "Хто: MD", "Виконавець почав роботу. Файл ще не зданий.")}
-          ${statusCard("fix", "Fix", "Need Fixing", "Хто: MD править", "Клієнт або LP відбили. Не TL Check — треба правка, потім знову здати.")}
-          ${statusCard("tlcheck", "TL chk", "TL Check", "Хто: MD здав, далі TL", "Лінк результату в картці. MD не ставить Done. TL перевіряє і лише тоді Done.")}
+          ${statusCard("fix", "Fix", "Need Fixing", "Хто: MD править", "TL, LP або клієнт відбили. Не TL Check — треба правка, потім знову здати.")}
+          ${statusCard("tlcheck", "TL chk", "TL Check", "Хто: MD здав, далі TL", "Лінк результату в картці. MD не ставить Done. TL перевіряє: Need Fixing або Done.")}
           ${statusCard("done", "Done", "Done", "Хто: TL перевірив, далі LP", "Team Lead прийняв роботу. LP може Send to client або одразу Closed.")}
           ${statusCard("appr", "Appr.", "Senior Approval", "Хто: чекаємо клієнта", "LP натиснув Send to client. Текст для Monday скопійовано. Ще не Closed.")}
           ${statusCard("closed", "Closed", "Closed", "Хто: LP після відповіді клієнта", "Клієнт прийняв. Години лишаються, роботи більше немає.")}
@@ -3686,7 +3689,7 @@ function renderGuide() {
           ${pipeStep("1", "LP", "Line Producer", "Таск заходить", `${ui("Create task")} або ${ui("Shift email")}. Статус одразу ${ui("Ready to Start")}.`, "ready", "Ready")}
           ${pipeStep("2", "TL", "Team Lead", "Ставить виконавця", `${ui("Who works this")} пише одразу. Статус лишається Ready.`, "ready", "Ready")}
           ${pipeStep("3", "MD", "Motion design", "Починає і здає", `${ui("WIP")} пише одразу. Потім лінк і ${ui("TL Check")} — теж одразу, без ${ui("Save")}. Не ${ui("Done")}. Після здачі WIP зникає.`, "tlcheck", "TL chk")}
-          ${pipeStep("4", "TL", "Team Lead", "Перевіряє", `Після ${ui("TL Check")} TL ставить ${ui("Done")}.`, "done", "Done")}
+          ${pipeStep("4", "TL", "Team Lead", "Перевіряє", `Після ${ui("TL Check")} TL ставить ${ui("Done")} або ${ui("Need Fixing")}. Відбій одразу пише MD.`, "done", "Done")}
           ${pipeStep("5", "LP", "Line Producer", "Відправляє клієнту", `${ui("Send to client")} лише з ${ui("Done")} + лінк. Це ${ui("Appr.")}.`, "appr", "Appr.")}
           ${pipeStep("6", "LP", "Line Producer", "Клієнт прийняв", `${ui("Closed")} з ${ui("Done")} або після ${ui("Send")}. Якщо відбили — ${ui("Need Fixing")}, MD знову ${ui("TL Check")}.`, "closed", "Closed")}
         </ol>
@@ -3695,7 +3698,7 @@ function renderGuide() {
         ${card("manager", "LP", "Line Producer", "Анастасія. Бачить усе.", [
           `Новий пак: ${ui("Create task")} (тека + бриф на Drive) або ${ui("Shift email")} (NAME 0.3 shift — тире, пробіл або |).`,
           `Бриф на картці пишеться в Google Doc. ${ui("Open brief")} — Doc. ${ui("Task folder")} — тека цього таску на Drive студії. ${ui("Working folder")} — тека клієнта з рядка Working folder у брифі; якщо рядка немає, кнопка сіра. ${ui("Client notes")} одразу під брифом.`,
-          `Години: ${ui("Shifts")} у рядку або в картці. 1 shift = 9 годин. Виконавця ставить TL. ${ui("Dead Line")} — дата з Excel. ${ui("URGENT")} — червоний ${ui("!")} на імені, вмикаєш з картки, це не статус.`,
+          `Години: ${ui("Shifts")} у рядку або в картці. 1 shift = 9 годин. Виконавця ставить TL. ${ui("Dead Line")} — дата з Excel. ${ui("URGENT")} — червоний ${ui("!")} на імені, вмикають LP / DL / TL з картки, це не статус.`,
           `Рядок фарбується за статусом. Чіп: ${ui("Ready")} / ${ui("WIP")} / ${ui("Fix")} / ${ui("Done")} / ${ui("Appr.")} / ${ui("Closed")}. Не ${ui("Send")}.`,
           `${ui("Excel")} — години як у файлі. Чіп зліва той самий, що в пайплайні, не лише WIP/Closed. ${ui("Dead Line")} = ${ui("DEADLINE")}. ${ui("URGENT")} — маркер ${ui("!")}, не статус.`,
           `Якщо MD або TL немає — постав ${ui("WIP")} / ${ui("TL Check")} / ${ui("Done")} сам. ${ui("Send to client")} лише з ${ui("Done")} + лінк файлу, кнопка внизу. Копіює текст у External Weekly. ${ui("Appr.")} сам не ставиться.`,
@@ -3705,7 +3708,9 @@ function renderGuide() {
         ${card("teamlead", "TL", "Team Lead", "Настя. Усі проєкти + свої як виконавця.", [
           `Дзвіночок ${ui("New")} — нові без людини. Картка каже ${ui("Assign a designer")} — це твоя робота, не URL і не Done.`,
           `Прочитай бриф, ${ui("Open brief")} якщо треба Doc. ${ui("Who works this")} пише одразу. Людина одразу бачить таск у себе.`,
-          `Свої таски — як MD: ${ui("Paste result link here")}, потім ${ui("Done")}.`,
+          `На ${ui("TL Check")} — перевір файл. Ок → ${ui("Done")}. Не ок → ${ui("Need Fixing")}: MD одразу бачить Fix і чує пінг.`,
+          `${ui("URGENT")} — червоний ${ui("!")} на імені, якщо треба взяти цей таск першим. Пишеться з картки одразу.`,
+          `Свої таски — як MD: ${ui("Paste result link here")}, потім ${ui("TL Check")} і ${ui("Done")}.`,
           `${ui("Hours split")} — якщо хтось відрендерив чужий файл, постав 0.5h (або скільки чесно). Клієнту години ті самі.`,
           `${ui("Excel")} — години як у ${ui("SP_MGX_check")}. Чіп зліва той самий, що в пайплайні: ${ui("WIP")} / ${ui("Fix")} / ${ui("Done")} / ${ui("Appr.")} / ${ui("Closed")}. ${ui("Send to client")} і ${ui("Closed")} у TL немає — це LP.`,
         ])}
@@ -3736,7 +3741,7 @@ function renderGuide() {
         </div>
         <div>
           <h3>Excel</h3>
-          <p>Місяць як ${ui("SP_MGX_check")}. Зліва жирні ${ui("DX")} / ${ui("DD")}, у тій клітинці чіп проєкту: ${ui("Ready")} / ${ui("WIP")} / ${ui("Fix")} / ${ui("Done")} / ${ui("Appr.")} / ${ui("Closed")}. ${ui("DEADLINE")} у файлі = ${ui("Dead Line")} на пайплайні. ${ui("URGENT")} — окремий маркер ${ui("!")} від LP/DL, не колонка в Excel. ${ui("Send")} там немає.</p>
+          <p>Місяць як ${ui("SP_MGX_check")}. Зліва жирні ${ui("DX")} / ${ui("DD")}, у тій клітинці чіп проєкту: ${ui("Ready")} / ${ui("WIP")} / ${ui("Fix")} / ${ui("Done")} / ${ui("Appr.")} / ${ui("Closed")}. ${ui("DEADLINE")} у файлі = ${ui("Dead Line")} на пайплайні. ${ui("URGENT")} — окремий маркер ${ui("!")} від LP / DL / TL, не колонка в Excel. ${ui("Send")} там немає.</p>
         </div>
         <div>
           <h3>Правила</h3>
@@ -4112,8 +4117,7 @@ function statusActions(task) {
       out.push("wip", "tlcheck");
     }
     if (cur === "tlcheck") {
-      out.push("tlcheck");
-      out.push("done");
+      out.push("revision", "tlcheck", "done");
     }
     return out;
   }
@@ -6167,7 +6171,7 @@ function openTask(id) {
   const whoAssign = showAssignee
     ? `<div class="who-assign"><label>Who works this</label>${mayAssign ? assignSelect : personCell(t.assigneeId)}</div>`
     : "";
-  const opsUrgent = canOps()
+  const opsUrgent = canMarkUrgent()
     ? `<div class="ops-item">
         <label>Flag</label>
         <button type="button" class="urgent-toggle${isUrgent(t) ? " is-on" : ""}" id="stUrgentBtn" aria-pressed="${isUrgent(t) ? "true" : "false"}">
@@ -6454,7 +6458,7 @@ function openTask(id) {
       } else if (performer && !hasResult && !["tlcheck", "done", "approve", "closed"].includes(t.studioStatus)) {
         hint.textContent = "Paste the result link, then TL Check. The chip writes at once.";
       } else if (isTeamLead() && t.studioStatus === "tlcheck") {
-        hint.textContent = "Check the result, then Done. LP sends after that.";
+        hint.textContent = "Need Fixing if it needs another pass. Done if you accept it. LP sends after Done.";
       } else if (canOps() && t.studioStatus === "done") {
         hint.textContent = "Send to client, or Mark Closed if they already accepted.";
       } else if (canOps() && t.studioStatus === "approve") {
@@ -6688,7 +6692,7 @@ function openTask(id) {
       }
       patch.deadline = deadline;
     }
-    if (canOps() && $("stUrgent")) {
+    if (canMarkUrgent() && $("stUrgent")) {
       patch.urgent = $("stUrgent").value === "1";
     }
     if (canOps() && $("stPoNumber")) {
@@ -6777,6 +6781,7 @@ function openTask(id) {
     $("stUrgentBtn").classList.toggle("is-on", on);
     $("stUrgentBtn").setAttribute("aria-pressed", on ? "true" : "false");
     refreshCardActions();
+    commitCard({ fromChip: true });
   });
   $("drawer")?.addEventListener("input", refreshCardActions);
   $("drawer")?.addEventListener("change", refreshCardActions);
@@ -6967,8 +6972,12 @@ function paintSoundCtrl() {
 function unlockNoticeSound() {
   const AC = window.AudioContext || window.webkitAudioContext;
   if (!AC) return Promise.resolve();
-  if (!noticeAudio) noticeAudio = new AC();
-  if (noticeAudio.state === "suspended") return noticeAudio.resume().catch(() => {});
+  try {
+    if (!noticeAudio) noticeAudio = new AC();
+    if (noticeAudio.state === "suspended") return noticeAudio.resume().catch(() => {});
+  } catch {
+    return Promise.resolve();
+  }
   return Promise.resolve();
 }
 const PUSH_SKIP_KEY = "lg-push-skip";
@@ -7085,7 +7094,7 @@ function pingNewNotice() {
 }
 function playNoticeSound(opts = {}) {
   if (!opts.preview && (!soundPrefs.on || soundPrefs.volume <= 0)) return;
-  const level = Math.max(0.04, soundPrefs.volume);
+  const level = Math.max(0.12, soundPrefs.volume);
   unlockNoticeSound().then(() => {
     try {
       if (!noticeAudio || noticeAudio.state !== "running") return;
@@ -7093,25 +7102,28 @@ function playNoticeSound(opts = {}) {
       const beep = (freq, at, dur, vol) => {
         const osc = noticeAudio.createOscillator();
         const gain = noticeAudio.createGain();
-        osc.type = "sine";
+        osc.type = "triangle";
         osc.frequency.setValueAtTime(freq, t + at);
         gain.gain.setValueAtTime(0.0001, t + at);
-        gain.gain.exponentialRampToValueAtTime(vol * level, t + at + 0.018);
+        gain.gain.exponentialRampToValueAtTime(vol * level, t + at + 0.02);
         gain.gain.exponentialRampToValueAtTime(0.0001, t + at + dur);
         osc.connect(gain);
         gain.connect(noticeAudio.destination);
         osc.start(t + at);
         osc.stop(t + at + dur + 0.02);
       };
-      beep(880, 0, 0.12, 0.18);
-      beep(1319, 0.14, 0.2, 0.16);
+      beep(880, 0, 0.16, 0.48);
+      beep(1319, 0.17, 0.24, 0.42);
     } catch {
-      /* autoplay blocked until a click on the desk */
+      /* autoplay blocked until a tap on the desk */
     }
   });
 }
-["pointerdown", "keydown"].forEach((ev) => {
+["pointerdown", "keydown", "touchstart"].forEach((ev) => {
   document.addEventListener(ev, unlockNoticeSound, { capture: true });
+});
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") unlockNoticeSound();
 });
 
 function applyRemoteState(db) {

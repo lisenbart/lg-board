@@ -20,6 +20,8 @@ self.addEventListener("push", (event) => {
       body,
       icon: "/icon-192.png",
       badge: "/favicon-32.png",
+      silent: false,
+      vibrate: [70, 40, 90],
       data: { url: data.url || "/", taskId: data.taskId || "" },
     })
   );
