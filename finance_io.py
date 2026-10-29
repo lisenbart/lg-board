@@ -433,6 +433,30 @@ def _plain_wt(xml: str) -> str:
     return "".join(m.group(2) for m in W_T.finditer(xml))
 
 
+def _rewrite_unit_price(xml: str, rate: float) -> str:
+    """Price cell is split in Word as <w:t>35 USD</w:t> + space + per hour."""
+    if abs(float(rate) - round(float(rate))) < 0.005:
+        num = str(int(round(float(rate))))
+    else:
+        num = f"{float(rate):g}"
+
+    def para(match: re.Match) -> str:
+        block = match.group(0)
+        joined = "".join(r.group(2) for r in W_T.finditer(block))
+        if not re.search(r"per hour", joined, re.I):
+            return block
+
+        def run(tm: re.Match) -> str:
+            inner = tm.group(2)
+            if re.search(r"USD", inner, re.I) and re.match(r"^\d", inner.strip() or ""):
+                return tm.group(1) + re.sub(r"^\d+(?:[.,]\d+)?", num, inner, count=1) + tm.group(3)
+            return tm.group(0)
+
+        return W_T.sub(run, block)
+
+    return W_P.sub(para, xml)
+
+
 def _replace_in_xml(xml: str, old: str, new: str) -> str:
     if not old or old == new:
         return xml
@@ -582,6 +606,7 @@ def clone_invoice(
     for name, xml in list(xmls.items()):
         for old, new in replacements:
             xml = _replace_in_xml(xml, old, new)
+        xml = _rewrite_unit_price(xml, float(rate))
         xmls[name] = xml
     out = BytesIO()
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zout:
