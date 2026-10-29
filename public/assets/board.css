@@ -2387,6 +2387,22 @@ a.pack-work:hover { background: #e2e4ec; }
   cursor: pointer;
 }
 .phone-bar-btn.active { color: var(--blue); }
+.phone-bar-btn.has-unread { color: var(--ink); }
+.phone-bar-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--red);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
 .phone-queue { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px 18px; }
 .phone-dirs {
   display: flex;

@@ -19,7 +19,7 @@ SLOTOMANIA
 
 LP / TL / AD / DEV / MD see the same groups without Hours or Finance. A third client is another group, not a row inside SuperPlay.
 
-On a phone the same PIN opens a **queue**: status chip, name, who, hours. Menu (left) switches SuperPlay / Slotomania and holds Sign out. Bottom bar is Queue / Notices, plus Hours and Finance for DL. Buttons and fields are finger-sized; the task card stacks instead of using the desktop footer row. Excel, Create task, invoices, and hour splits stay on the computer — this is the pocket scan, not a second app.
+On a phone the same PIN opens a **queue**: status chip, name, who, hours. Menu (left) switches SuperPlay / Slotomania and holds Sound / Sign out. Bottom bar is Queue / Notices, plus Hours and Finance for DL. A new notice pings and badges **Notices** while the board tab is open. A locked phone or closed Safari does not get a system push. Excel, Create task, invoices, and hour splits stay on the computer.
 
 The **Excel** tab is hours only — billed total and hours per person. No quote, no PO, no $. SuperPlay hours files are `SP_MGX_check` / `SP_PLBL_check`. Slotomania’s money file (`SLOTOMANIA_Calculator`) lives on that client’s Finance, not on the Excel tab. SuperPlay invoices stay SuperPlay-only. Slotomania invoice waits for a PO on the card.
 

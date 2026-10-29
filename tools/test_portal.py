@@ -427,6 +427,13 @@ def test_phone_queue_mvp() -> None:
         and "setBusy(desk, false)" in js
         and "delete out.dataset.signingOut" in js,
     )
+    check(
+        "phone notices ping while the tab is open",
+        "function pingNewNotice" in js
+        and 'id="phoneSound"' in js
+        and "phone-bar-count" in js
+        and "navigator.vibrate" in js,
+    )
 
 
 def test_pin_opens() -> None:

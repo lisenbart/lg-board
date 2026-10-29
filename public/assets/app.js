@@ -381,6 +381,7 @@ function enterStudio() {
     ? `${clientMeta(activeClientId()).label} — Lisenbart Board`
     : "Lisenbart Board";
   startLiveSync();
+  unlockNoticeSound();
 }
 function openLoginGate() {
   document.documentElement.classList.remove("in-app");
@@ -1751,14 +1752,23 @@ function renderPhoneBar() {
     const badge = jobMeta(p);
     foot.innerHTML = `
       <div class="phone-who">${escapeHtml(whoLabel(p) || p?.name || "")}${badge.code ? ` · ${escapeHtml(badge.code)}` : ""}</div>
+      <button type="button" class="nav-item" id="phoneSound">${soundPrefs.on && soundPrefs.volume > 0 ? "Sound on" : "Sound off"}</button>
       <button type="button" class="nav-item phone-signout" id="phoneSignOut">Sign out</button>`;
+    $("phoneSound")?.addEventListener("click", () => {
+      soundPrefs.on = !soundPrefs.on;
+      if (soundPrefs.on && soundPrefs.volume <= 0) soundPrefs.volume = 0.7;
+      saveSoundPrefs();
+      unlockNoticeSound();
+      if (soundPrefs.on) playNoticeSound({ preview: true });
+      renderPhoneBar();
+    });
     $("phoneSignOut")?.addEventListener("click", () => signOutNow($("phoneSignOut")));
   }
   bar.hidden = false;
   const notices = unreadNoticeCount();
   const items = [
     { view: "board", label: "Queue" },
-    { view: "inbox", label: notices ? `Notices ${notices}` : "Notices" },
+    { view: "inbox", label: "Notices", count: notices },
   ];
   if (isFinance()) {
     items.push({ view: "report", label: "Hours" });
@@ -1772,7 +1782,11 @@ function renderPhoneBar() {
           : item.view === "board"
             ? state.view !== "close" && state.view !== "report" && state.view !== "team"
             : state.view === item.view;
-      return `<button type="button" class="phone-bar-btn${on ? " active" : ""}" data-phone-view="${item.view}">${escapeHtml(item.label)}</button>`;
+      const count =
+        item.count > 0
+          ? `<span class="phone-bar-count">${item.count > 9 ? "9+" : item.count}</span>`
+          : "";
+      return `<button type="button" class="phone-bar-btn${on ? " active" : ""}${item.count > 0 ? " has-unread" : ""}" data-phone-view="${item.view}">${escapeHtml(item.label)}${count}</button>`;
     })
     .join("");
   bar.querySelectorAll("[data-phone-view]").forEach((el) => {
@@ -6924,6 +6938,15 @@ function unlockNoticeSound() {
   if (noticeAudio.state === "suspended") return noticeAudio.resume().catch(() => {});
   return Promise.resolve();
 }
+function pingNewNotice() {
+  playNoticeSound();
+  try {
+    if (navigator.vibrate) navigator.vibrate([70, 40, 90]);
+  } catch {
+    /* iPhone ignores vibrate from Safari */
+  }
+  toast("New on the board");
+}
 function playNoticeSound(opts = {}) {
   if (!opts.preview && (!soundPrefs.on || soundPrefs.volume <= 0)) return;
   const level = Math.max(0.04, soundPrefs.volume);
@@ -6961,10 +6984,7 @@ function applyRemoteState(db) {
   const dirty = cardIsDirty();
   const before = unreadCount();
   applyState(db);
-  if (unreadCount() > before) {
-    playNoticeSound();
-    toast("New on the board");
-  }
+  if (unreadCount() > before) pingNewNotice();
   if (!drawerOpen) return;
   const still = (db.tasks || []).some((t) => t.id === openId);
   if (!still) {
