@@ -2486,13 +2486,221 @@ a.pack-work:hover { background: #e2e4ec; }
   .sp-table col.sp-col-num { width: 4.75rem; }
   .sp-table .sp-num { width: 4.75rem; }
   .drawer {
-    padding-bottom: calc(12px + env(safe-area-inset-bottom));
+    width: 100%;
+    padding: 12px 12px calc(12px + env(safe-area-inset-bottom));
   }
   .drawer-close {
     min-height: 44px;
     min-width: 76px;
     font-size: 15px;
   }
+  html:not(.hours-host) {
+    --fs: 15px;
+    --fs-title: 17px;
+  }
+  html:not(.hours-host) button,
+  html:not(.hours-host) a.btn,
+  html:not(.hours-host) .home-door,
+  html:not(.hours-host) .login-acc,
+  html:not(.hours-host) .login-seat {
+    touch-action: manipulation;
+  }
+  html:not(.hours-host) .topbar {
+    padding: 8px 12px 8px;
+  }
+  html:not(.hours-host) .top-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+      "menu title"
+      "month month";
+    align-items: center;
+    gap: 8px;
+    flex-wrap: nowrap;
+    width: 100%;
+  }
+  html:not(.hours-host) .phone-menu-btn {
+    grid-area: menu;
+    min-height: 44px;
+    min-width: 44px;
+    padding: 8px 12px;
+    font-size: 15px;
+    font-weight: 600;
+    align-items: center;
+    justify-content: center;
+  }
+  html:not(.hours-host) .board-title {
+    grid-area: title;
+    font-size: 16px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  html:not(.hours-host) .month-switch {
+    grid-area: month;
+    width: 100%;
+    margin-left: 0;
+  }
+  html:not(.hours-host) .month-btn {
+    width: 44px;
+    min-height: 44px;
+    font-size: 20px;
+  }
+  html:not(.hours-host) .month-now {
+    flex: 1;
+    min-width: 0;
+    padding: 6px 8px;
+  }
+  html:not(.hours-host) .month-now small { display: none; }
+  html:not(.hours-host) .top-end {
+    position: absolute;
+    width: 0;
+    height: 0;
+    overflow: visible;
+    margin: 0;
+    pointer-events: none;
+  }
+  html:not(.hours-host) .inbox-panel { pointer-events: auto; }
+  html:not(.hours-host) .who,
+  html:not(.hours-host) #soundWrap,
+  html:not(.hours-host) #inboxBtn,
+  html:not(.hours-host) .top-row > .pill {
+    display: none !important;
+  }
+  html:not(.hours-host) .phone-bar {
+    min-height: 56px;
+    padding: 6px 4px calc(8px + env(safe-area-inset-bottom));
+  }
+  html:not(.hours-host) .phone-bar-btn {
+    min-height: 44px;
+    font-size: 13px;
+  }
+  html:not(.hours-host) .app { padding-bottom: 64px; }
+  html:not(.hours-host) .toolbar {
+    padding: 8px 12px;
+    gap: 8px;
+  }
+  html:not(.hours-host) .toolbar:empty { display: none; min-height: 0; padding: 0; }
+  html:not(.hours-host) .search {
+    min-height: 44px;
+    font-size: 16px;
+    padding: 10px 12px;
+  }
+  html:not(.hours-host) .kpis {
+    padding: 8px 12px 0;
+    gap: 8px;
+  }
+  html:not(.hours-host) .kpi {
+    flex: 1;
+    min-width: 0;
+    padding: 10px 10px;
+  }
+  html:not(.hours-host) .kpi b { font-size: 18px; }
+  html:not(.hours-host) .btn {
+    min-height: 44px;
+    padding: 10px 14px;
+    font-size: 15px;
+    border-radius: 8px;
+    justify-content: center;
+  }
+  html:not(.hours-host) .nav-item {
+    min-height: 44px;
+    padding: 12px 10px;
+    font-size: 15px;
+    align-items: center;
+  }
+  html:not(.hours-host) .phone-who {
+    padding: 10px 8px 4px;
+    color: #8b91b3;
+    font-size: 12px;
+  }
+  html:not(.hours-host) .phone-dirs {
+    padding: 10px 12px 0;
+    gap: 8px;
+  }
+  html:not(.hours-host) .phone-dirs button {
+    flex: 1;
+    min-height: 44px;
+    font-size: 15px;
+  }
+  html:not(.hours-host) .phone-queue { padding: 10px 12px 20px; gap: 10px; }
+  html:not(.hours-host) .phone-card {
+    padding: 14px;
+    border-radius: 12px;
+    gap: 6px 10px;
+  }
+  html:not(.hours-host) .phone-card .notice-chip {
+    font-size: 12px;
+    padding: 4px 8px;
+  }
+  html:not(.hours-host) .phone-card-name { font-size: 16px; }
+  html:not(.hours-host) .inbox-panel {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    top: 12px;
+    width: auto;
+    max-height: calc(100vh - 88px);
+    z-index: 40;
+  }
+  html:not(.hours-host) .inbox-item { min-height: 52px; padding: 12px; }
+  html:not(.hours-host) .drawer-actions,
+  html:not(.hours-host) .drawer-actions-main,
+  html:not(.hours-host) .drawer-actions-end {
+    flex-direction: column;
+    align-items: stretch;
+    margin-left: 0;
+    width: 100%;
+  }
+  html:not(.hours-host) .drawer-actions .btn {
+    width: 100%;
+  }
+  html:not(.hours-host) #closeCardFoot { display: none; }
+  html:not(.hours-host) .status-btns { gap: 8px; }
+  html:not(.hours-host) .status-btn {
+    min-height: 44px;
+    flex: 1 1 calc(50% - 8px);
+    font-size: 14px;
+    padding: 10px 8px;
+  }
+  html:not(.hours-host) .card-ops { grid-template-columns: 1fr; }
+  html:not(.hours-host) select,
+  html:not(.hours-host) input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+  html:not(.hours-host) textarea {
+    font-size: 16px;
+    min-height: 44px;
+  }
+  html:not(.hours-host) textarea { min-height: 96px; }
+  html:not(.hours-host) .urgent-toggle { min-height: 44px; }
+  html:not(.hours-host) .num-step { height: 44px; }
+  html:not(.hours-host) .shift-in,
+  html:not(.hours-host) .hours-in { font-size: 16px; }
+  html:not(.hours-host) .num-step-btns { width: 40px; }
+  html:not(.hours-host) .help-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  html:not(.hours-host) .help-row .help-h,
+  html:not(.hours-host) .help-row .help-del { width: 100%; }
+  html:not(.hours-host) .pack-links .btn { min-height: 44px; }
+  html:not(.hours-host) .fin-tabs { width: 100%; }
+  html:not(.hours-host) .fin-tab {
+    flex: 1;
+    min-height: 44px;
+    text-align: center;
+    font-size: 14px;
+  }
+  html:not(.hours-host) .fin-actions .btn,
+  html:not(.hours-host) .sl-pack-actions .btn,
+  html:not(.hours-host) .sl-mark-paid .btn {
+    min-height: 44px;
+    font-size: 15px;
+  }
+  html:not(.hours-host) .sl-play-pick input {
+    width: 22px;
+    height: 22px;
+  }
+  html:not(.hours-host) .sp-scroll,
+  html:not(.hours-host) .fin { -webkit-overflow-scrolling: touch; }
 }
 @media (max-width: 560px) {
   .guide-status-grid { grid-template-columns: 1fr; }

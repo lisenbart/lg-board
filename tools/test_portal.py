@@ -412,6 +412,9 @@ def test_phone_queue_mvp() -> None:
     check("Excel is not the phone home", "pinchPhoneView" in js and '"excel", "guide", "ready"' in js)
     check("DL phone bar has Finance", 'label: "Finance"' in js and 'label: "Queue"' in js)
     check("card Close sits in the header", 'class="btn drawer-close" id="closeCard"' in js)
+    check("phone Sign out sits in the boards menu", 'id="phoneSignOut"' in js)
+    check("phone Notices is on the bottom bar", 'view: "inbox"' in js)
+    check("phone hides the footer Close duplicate", "#closeCardFoot { display: none; }" in css)
 
 
 def test_pin_opens() -> None:

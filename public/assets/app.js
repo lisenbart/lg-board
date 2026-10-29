@@ -1712,10 +1712,18 @@ function renderPhoneQueue() {
   });
 }
 
+function unreadNoticeCount() {
+  const N = window.LGNotices;
+  if (!N || !state.db || !me()?.id) return 0;
+  return N.forPerson(state.db, me().id, true).length;
+}
+
 function renderPhoneBar() {
   const bar = $("phoneBar");
   const menu = $("phoneMenu");
   if (menu) menu.hidden = !isPhone();
+  document.documentElement.classList.toggle("phone-ui", isPhone());
+  const foot = $("sideFoot");
   if (!bar) return;
   if (!isPhone()) {
     bar.hidden = true;
@@ -1723,8 +1731,20 @@ function renderPhoneBar() {
     setNavOpen(false);
     return;
   }
+  if (foot) {
+    const p = me();
+    const badge = jobMeta(p);
+    foot.innerHTML = `
+      <div class="phone-who">${escapeHtml(whoLabel(p) || p?.name || "")}${badge.code ? ` · ${escapeHtml(badge.code)}` : ""}</div>
+      <button type="button" class="nav-item phone-signout" id="phoneSignOut">Sign out</button>`;
+    $("phoneSignOut")?.addEventListener("click", () => $("signOut")?.click());
+  }
   bar.hidden = false;
-  const items = [{ view: "board", label: "Queue" }];
+  const notices = unreadNoticeCount();
+  const items = [
+    { view: "board", label: "Queue" },
+    { view: "inbox", label: notices ? `Notices ${notices}` : "Notices" },
+  ];
   if (isFinance()) {
     items.push({ view: "report", label: "Hours" });
     items.push({ view: "close", label: "Finance" });
@@ -1732,16 +1752,24 @@ function renderPhoneBar() {
   bar.innerHTML = items
     .map((item) => {
       const on =
-        item.view === "board"
-          ? state.view !== "close" && state.view !== "report" && state.view !== "team"
-          : state.view === item.view;
-      return `<button type="button" class="phone-bar-btn${on ? " active" : ""}" data-phone-view="${item.view}">${item.label}</button>`;
+        item.view === "inbox"
+          ? inboxOpen()
+          : item.view === "board"
+            ? state.view !== "close" && state.view !== "report" && state.view !== "team"
+            : state.view === item.view;
+      return `<button type="button" class="phone-bar-btn${on ? " active" : ""}" data-phone-view="${item.view}">${escapeHtml(item.label)}</button>`;
     })
     .join("");
   bar.querySelectorAll("[data-phone-view]").forEach((el) => {
     el.addEventListener("click", () => {
       const view = el.dataset.phoneView;
       setNavOpen(false);
+      if (view === "inbox") {
+        setInboxOpen(!inboxOpen());
+        renderPhoneBar();
+        return;
+      }
+      setInboxOpen(false);
       if (view === "board") {
         state.view = "board";
         render();
@@ -1765,7 +1793,7 @@ function renderChrome() {
   syncDirection();
   if ($("inboxWrap")) $("inboxWrap").hidden = isClient();
   if ($("soundWrap")) {
-    const hideSound = isClient() || isHoursPage();
+    const hideSound = isClient() || isHoursPage() || isPhone();
     $("soundWrap").hidden = hideSound;
     if (hideSound) setSoundOpen(false);
   }
@@ -1785,7 +1813,7 @@ function renderChrome() {
     const play = state.direction === "playables";
     pill.className = play ? "pill dep-playables" : "pill dep-MGX";
     pill.textContent = play ? "Playables" : "MGX";
-    pill.hidden = isHoursView() || state.view === "close" || state.view === "team";
+    pill.hidden = isPhone() || isHoursView() || state.view === "close" || state.view === "team";
   }
   renderBoardsNav();
   renderMonth();
