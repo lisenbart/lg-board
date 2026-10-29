@@ -536,18 +536,19 @@ function showDoorForm(door, error) {
   $("loginTitle").hidden = false;
   $("loginLead").hidden = false;
   const pageClient = pathClientId();
-  $("loginTitle").textContent = pageClient ? clientMeta(pageClient).label : "Client";
+  $("loginTitle").textContent = "Sign in";
   $("loginLead").textContent = pageClient
-    ? `Type ${clientMeta(pageClient).label}, then that client's PIN.`
-    : "Type SuperPlay or Slotomania, then that client's PIN.";
-  document.title = pageClient
-    ? `${clientMeta(pageClient).label} — Lisenbart Board`
-    : "Client — Lisenbart Board";
+    ? "Type the PIN you were given."
+    : "Type the login and PIN you were given.";
+  document.title = "Sign in";
+  const loginField = pageClient
+    ? ""
+    : `<label class="login-pin-lab" for="loginEmail">Login</label>
+      <input id="loginEmail" class="login-pin login-email" type="text" autocomplete="username" />`;
   $("loginAccounts").innerHTML = `
     <form id="loginForm" class="login-form">
       <button type="button" class="btn ghost login-back" id="loginBack">Back</button>
-      <label class="login-pin-lab" for="loginEmail">Login</label>
-      <input id="loginEmail" class="login-pin login-email" type="text" autocomplete="username" placeholder="${pageClient ? escapeHtml(clientMeta(pageClient).label) : "SuperPlay or Slotomania"}" />
+      ${loginField}
       <label class="login-pin-lab" for="loginPin">PIN</label>
       <input id="loginPin" class="login-pin" type="password" maxlength="32" autocomplete="current-password" />
       ${error ? `<p class="login-err">${escapeHtml(error)}</p>` : ""}
@@ -560,14 +561,19 @@ function showDoorForm(door, error) {
     submitDoorLogin();
   });
   bindLoginGo();
-  $("loginEmail")?.focus();
+  (pageClient ? $("loginPin") : $("loginEmail"))?.focus();
 }
 async function submitDoorLogin(seatId) {
   const door = state.loginDoor || (isHoursPage() ? "client" : "studio");
   if (!seatId && $("loginGo")?.disabled) return;
   const pin = $("loginPin") ? $("loginPin").value : state.loginPin || "";
   if (pin) state.loginPin = pin;
-  const email = $("loginEmail") ? $("loginEmail").value : state.loginEmail || "";
+  const pageClient = pathClientId();
+  const email = $("loginEmail")
+    ? $("loginEmail").value
+    : pageClient
+      ? clientMeta(pageClient).label
+      : state.loginEmail || "";
   if (email) state.loginEmail = email;
   const role = state.loginRole?.role;
   const out = await api("/api/login", {
@@ -1405,7 +1411,8 @@ function bindLoginGo() {
   const go = $("loginGo");
   const sync = () => {
     const pinOk = pinLooksReady(pin?.value, state.loginDoor);
-    const emailOk = state.loginDoor !== "client" || String(email?.value || "").trim();
+    const emailOk =
+      state.loginDoor !== "client" || Boolean(pathClientId()) || String(email?.value || "").trim();
     setIdleEnabled(go, pinOk && emailOk);
   };
   pin?.addEventListener("input", sync);

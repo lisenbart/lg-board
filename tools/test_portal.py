@@ -1909,6 +1909,16 @@ def test_superplay_visits_and_status() -> None:
         "def resolve_client_login" in (ROOT / "auth_io.py").read_text(encoding="utf-8")
         and "def parse_login" in (ROOT / "client_io.py").read_text(encoding="utf-8"),
     )
+    js_login = (ROOT / "public" / "assets" / "app.js").read_text(encoding="utf-8")
+    form = js_login.split("function showDoorForm")[1].split("async function submitDoorLogin")[0]
+    check(
+        "client login form does not name clients",
+        "SuperPlay or Slotomania" not in form
+        and "Type SuperPlay" not in form
+        and "Type Slotomania" not in form
+        and "Type the PIN you were given." in form
+        and "clientMeta(pageClient).label" not in form.split("loginField")[0],
+    )
 
 
 def test_lp_can_close_without_send() -> None:
