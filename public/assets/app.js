@@ -1810,7 +1810,7 @@ function renderPhoneBar() {
     foot.innerHTML = `
       <div class="phone-who">${escapeHtml(whoLabel(p) || p?.name || "")}${badge.code ? ` · ${escapeHtml(badge.code)}` : ""}</div>
       <button type="button" class="nav-item" id="phoneSound">${soundPrefs.on && soundPrefs.volume > 0 ? "Sound on" : "Sound off"}</button>
-      <button type="button" class="nav-item" id="phonePings">Phone pings</button>
+      <button type="button" class="nav-item" id="phonePings">${pushMenuLabel()}</button>
       <button type="button" class="nav-item phone-signout" id="phoneSignOut">Sign out</button>`;
     $("phoneSound")?.addEventListener("click", () => {
       soundPrefs.on = !soundPrefs.on;
@@ -1822,7 +1822,7 @@ function renderPhoneBar() {
     });
     $("phonePings")?.addEventListener("click", () => {
       setNavOpen(false);
-      paintPushHint({ force: true });
+      runPhonePings();
     });
     $("phoneSignOut")?.addEventListener("click", () => signOutNow($("phoneSignOut")));
   }
@@ -1883,6 +1883,7 @@ function renderPhoneBar() {
 
 function renderChrome() {
   syncDirection();
+  document.documentElement.classList.toggle("standalone-app", isStandaloneApp());
   if ($("inboxWrap")) $("inboxWrap").hidden = isClient();
   if ($("soundWrap")) {
     const hideSound = isClient() || isHoursPage() || isPhone();
@@ -6899,6 +6900,7 @@ function applyState(db, opts = {}) {
   state.finApiMonth = null;
   state.finApiLoading = null;
   state.selected = new Set([...state.selected].filter((id) => db.tasks.some((t) => t.id === id)));
+  paintAppBadge();
   if (opts.render === false) return;
   render();
 }
@@ -6981,6 +6983,7 @@ function unlockNoticeSound() {
   return Promise.resolve();
 }
 const PUSH_SKIP_KEY = "lg-push-skip";
+const PUSH_OK_KEY = "lg-push-ok";
 function isStandaloneApp() {
   return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
 }
@@ -7000,56 +7003,121 @@ function canAskPush() {
   if (isIOSPhone() && !isStandaloneApp()) return false;
   return true;
 }
+function pushIsOn() {
+  return Notification?.permission === "granted" && Boolean(localStorage.getItem(PUSH_OK_KEY));
+}
+function pushMenuLabel() {
+  return pushIsOn() ? "Phone pings: on" : "Phone pings";
+}
+function paintAppBadge() {
+  const n = unreadNoticeCount();
+  try {
+    if (n > 0) navigator.setAppBadge?.(n);
+    else navigator.clearAppBadge?.();
+  } catch {
+    /* no badge on this phone */
+  }
+}
 function paintPushHint(opts = {}) {
   const box = $("pushHint");
   const text = $("pushHintText");
   const allow = $("pushAllow");
+  const test = $("pushTest");
   if (!box) return;
   const showHere = isPhone() || isStandaloneApp();
   if (!showHere || isHoursPage() || isClient()) {
     box.hidden = true;
     return;
   }
-  if (!opts.force && Notification?.permission === "granted") {
+  const granted = Notification?.permission === "granted";
+  const skipped = Number(localStorage.getItem(PUSH_SKIP_KEY) || 0);
+  if (!opts.force && granted && pushIsOn()) {
     box.hidden = true;
     return;
   }
-  const skipped = Number(localStorage.getItem(PUSH_SKIP_KEY) || 0);
-  if (!opts.force && skipped && Date.now() - skipped < 3 * 24 * 3600 * 1000) {
+  if (!opts.force && skipped && Date.now() - skipped < 3 * 24 * 3600 * 1000 && !granted) {
     box.hidden = true;
     return;
   }
   if (Notification?.permission === "denied") {
     text.textContent = "Notices are blocked. Phone Settings → LG Board → Allow Notifications.";
     if (allow) allow.hidden = true;
+    if (test) test.hidden = true;
     box.hidden = false;
     return;
   }
   if (isIOSPhone() && !isStandaloneApp()) {
     text.textContent = "Share → Add to Home Screen. Open that icon, then Allow notices. A Safari tab cannot ping when it is closed.";
     if (allow) allow.hidden = true;
+    if (test) test.hidden = true;
     box.hidden = false;
     return;
   }
-  text.textContent = "Allow notices so TL Check and Need Fixing reach this phone when the board is closed.";
+  if (granted && pushIsOn()) {
+    text.textContent = "Lock-screen pings are on. Send a test ping, then lock the phone — a popup should appear without opening the board.";
+    if (allow) allow.hidden = true;
+    if (test) test.hidden = false;
+    box.hidden = false;
+    return;
+  }
+  text.textContent = "Allow notices so TL Check and Need Fixing pop up when the board is closed. A Chrome shortcut is not enough until this phone is registered.";
   if (allow) allow.hidden = !canAskPush();
+  if (test) test.hidden = true;
   box.hidden = false;
 }
 async function subscribePush() {
   if (!canAskPush()) return false;
-  const perm = await Notification.requestPermission();
+  const perm = Notification.permission === "granted" ? "granted" : await Notification.requestPermission();
   if (perm !== "granted") return false;
   const keyOut = await api("/api/push/key");
   if (!keyOut?.publicKey) return false;
-  const reg = await navigator.serviceWorker.ready;
-  const sub = await reg.pushManager.subscribe({
+  const reg = await navigator.serviceWorker.register("/sw.js");
+  await navigator.serviceWorker.ready;
+  const opts = {
     userVisibleOnly: true,
     applicationServerKey: urlBase64ToUint8Array(keyOut.publicKey),
-  });
+  };
+  let sub;
+  try {
+    sub = await reg.pushManager.subscribe(opts);
+  } catch {
+    const old = await reg.pushManager.getSubscription();
+    if (old) await old.unsubscribe();
+    sub = await reg.pushManager.subscribe(opts);
+  }
   const raw = sub.toJSON();
   raw.userAgent = navigator.userAgent;
   const out = await api("/api/push/subscribe", raw);
-  return Boolean(out && !out.error);
+  if (out && !out.error) {
+    localStorage.setItem(PUSH_OK_KEY, String(Date.now()));
+    return true;
+  }
+  localStorage.removeItem(PUSH_OK_KEY);
+  return false;
+}
+async function sendTestPing() {
+  const ok = await subscribePush();
+  if (!ok) return false;
+  const out = await api("/api/push/test", {});
+  return Boolean(out && !out.error && out.sent > 0);
+}
+async function runPhonePings() {
+  try {
+    const ok = await subscribePush();
+    if (!ok) {
+      paintPushHint({ force: true });
+      toast("Could not turn pings on");
+      return;
+    }
+    const sent = await sendTestPing();
+    paintPushHint({ force: true });
+    renderPhoneBar();
+    toast(sent ? "Test ping sent. Lock the phone — a popup should appear." : "Phone is registered, but the test ping did not send.");
+  } catch {
+    localStorage.removeItem(PUSH_OK_KEY);
+    paintPushHint({ force: true });
+    toast("Could not turn pings on");
+  }
 }
 async function startPush() {
   if (isHoursPage() || isClient() || !isStudioHost()) return;
@@ -7071,8 +7139,9 @@ async function startPush() {
   if (Notification?.permission === "granted") {
     try {
       await subscribePush();
+      renderPhoneBar();
     } catch {
-      /* keep the in-tab ping */
+      localStorage.removeItem(PUSH_OK_KEY);
     }
   }
 }
@@ -7123,7 +7192,12 @@ function playNoticeSound(opts = {}) {
   document.addEventListener(ev, unlockNoticeSound, { capture: true });
 });
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible") unlockNoticeSound();
+  if (document.visibilityState === "visible") {
+    unlockNoticeSound();
+    if (Notification?.permission === "granted" && !isHoursPage() && !isClient()) {
+      subscribePush().catch(() => {});
+    }
+  }
 });
 
 function applyRemoteState(db) {
@@ -7426,10 +7500,24 @@ $("pushAllow")?.addEventListener("click", async () => {
   try {
     const ok = await subscribePush();
     if (ok) localStorage.removeItem(PUSH_SKIP_KEY);
-    toast(ok ? "Pings on. Keep the Home Screen icon." : "Could not turn pings on");
-    paintPushHint();
+    toast(ok ? "Pings on. Send a test ping, then lock the phone." : "Could not turn pings on");
+    paintPushHint({ force: true });
+    renderPhoneBar();
   } catch {
     toast("Could not turn pings on");
+  } finally {
+    setBusy(go, false);
+  }
+});
+$("pushTest")?.addEventListener("click", async () => {
+  const go = $("pushTest");
+  if (go?.classList.contains("is-busy")) return;
+  setBusy(go, true, "Sending…");
+  try {
+    const sent = await sendTestPing();
+    toast(sent ? "Test ping sent. Lock the phone — a popup should appear." : "Test ping did not send. Open the board icon, then try again.");
+  } catch {
+    toast("Test ping did not send");
   } finally {
     setBusy(go, false);
   }

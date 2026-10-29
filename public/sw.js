@@ -6,6 +6,21 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(self.clients.claim());
 });
 
+self.addEventListener("fetch", (event) => {
+  event.respondWith(fetch(event.request));
+});
+
+async function paintBadge(count) {
+  try {
+    if (navigator.setAppBadge) {
+      if (count > 0) await navigator.setAppBadge(count);
+      else await navigator.clearAppBadge();
+    }
+  } catch {
+    /* Android Chrome without Badging */
+  }
+}
+
 self.addEventListener("push", (event) => {
   let data = {};
   try {
@@ -13,17 +28,30 @@ self.addEventListener("push", (event) => {
   } catch {
     data = {};
   }
-  const title = data.title || "Lisenbart Board";
+  const title = data.title || "LG Board";
   const body = data.body || "New on the board";
   event.waitUntil(
-    self.registration.showNotification(title, {
-      body,
-      icon: "/icon-192.png",
-      badge: "/favicon-32.png",
-      silent: false,
-      vibrate: [70, 40, 90],
-      data: { url: data.url || "/", taskId: data.taskId || "" },
-    })
+    (async () => {
+      const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      const visible = windows.some((client) => client.visibilityState === "visible");
+      windows.forEach((client) => {
+        client.postMessage({ type: "push-notice", taskId: data.taskId || "" });
+      });
+      if (!visible) {
+        await self.registration.showNotification(title, {
+          body,
+          icon: "/icon-192.png",
+          badge: "/favicon-32.png",
+          silent: false,
+          vibrate: [70, 40, 90],
+          tag: data.tag || data.taskId || "lg-board",
+          renotify: true,
+          data: { url: data.url || "/", taskId: data.taskId || "" },
+        });
+      }
+      const notes = await self.registration.getNotifications();
+      await paintBadge(Math.max(1, notes.length));
+    })()
   );
 });
 

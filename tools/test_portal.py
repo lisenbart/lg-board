@@ -473,7 +473,13 @@ def test_phone_queue_mvp() -> None:
     )
     check(
         "phone ping banner stays off the desktop desk",
-        "html:not(.phone-ui) .push-hint" in css and 'if (hint) hint.hidden = true' in js,
+        "html:not(.phone-ui):not(.standalone-app) .push-hint" in css and 'if (hint) hint.hidden = true' in js,
+    )
+    check(
+        "phone pings can send a test popup",
+        "function sendTestPing" in js
+        and 'id="pushTest"' in html
+        and "function runPhonePings" in js,
     )
 
 
@@ -508,6 +514,14 @@ def test_web_push() -> None:
         n = push_io.fanout(notice, sender=fake)
         check("fanout hits the saved phone", n == 1 and sent and sent[0][1]["title"] == "TL Check", str(sent))
         check("card body names the project", "DX-AAA" in (sent[0][1].get("body") or ""), str(sent[0][1]))
+        check("count_for sees the phone", push_io.count_for("designer4") == 1)
+        sent.clear()
+        n = push_io.fanout({"kind": "push.test", "audience": ["designer4"]}, sender=fake)
+        check(
+            "test ping card is lock-screen copy",
+            n == 1 and sent and sent[0][1]["title"] == "LG Board" and "Test ping" in (sent[0][1].get("body") or ""),
+            str(sent),
+        )
         check("http endpoint without keys is rejected", push_io.save_subscription("x", {"endpoint": "http://x"}) is None)
         db = {
             "people": [{"id": "designer4", "name": "Alina", "role": "designer"}],
@@ -2108,6 +2122,7 @@ def test_http(base: str) -> str | None:
         "GET /sw.js is a push worker",
         code == 200
         and "addEventListener(\"push\"" in sw
+        and "addEventListener(\"fetch\"" in sw
         and "silent: false" in sw
         and (headers.get("Service-Worker-Allowed") or "") == "/",
         str(headers.get("Service-Worker-Allowed")),
@@ -2273,6 +2288,18 @@ def test_http(base: str) -> str | None:
             cookie=ck,
         )
         check("DL can subscribe a phone", code == 200 and payload.get("ok") is True, str(payload))
+        code, payload, _ = _http(f"{base}/api/push/status", cookie=ck)
+        check(
+            "DL push status sees the phone",
+            code == 200 and payload.get("subscribed") is True and payload.get("phones") >= 1,
+            str(payload),
+        )
+        code, payload, _ = _http(f"{base}/api/push/test", {}, cookie=ck)
+        check(
+            "DL can fire a test ping",
+            code == 200 and payload.get("ok") is True and payload.get("subscribed") is True,
+            str(payload),
+        )
         code, payload, _ = _http(f"{base}/api/me", cookie=ck)
         blob = json.dumps(payload)
         check("session state hides push endpoints", "push.example" not in blob and "pushSubs" not in blob, blob[:200])

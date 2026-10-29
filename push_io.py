@@ -173,8 +173,25 @@ def drop_endpoint(endpoint: str) -> int:
     return n
 
 
+def count_for(person_id: str) -> int:
+    pid = str(person_id or "").strip()
+    if not pid:
+        return 0
+    with _LOCK:
+        rows = (_load_subs().get("people") or {}).get(pid) or []
+    return len([row for row in rows if isinstance(row, dict) and row.get("endpoint")])
+
+
 def card(notice: dict | None) -> dict:
     notice = notice or {}
+    if notice.get("kind") == "push.test":
+        return {
+            "title": "LG Board",
+            "body": "Test ping — lock-screen notices work.",
+            "taskId": "",
+            "url": "/",
+            "tag": "push-test",
+        }
     spec = notice_io.KINDS.get(notice.get("kind") or "") or {}
     title = str(spec.get("label") or "Board")
     name = str((notice.get("payload") or {}).get("name") or "").strip()
@@ -183,7 +200,7 @@ def card(notice: dict | None) -> dict:
     body = " · ".join(bits) or "New on the board"
     task_id = str(notice.get("taskId") or "")
     url = f"/?task={task_id}" if task_id else "/"
-    return {"title": title, "body": body, "taskId": task_id, "url": url}
+    return {"title": title, "body": body, "taskId": task_id, "url": url, "tag": task_id or str(notice.get("kind") or "lg-board")}
 
 
 def send_one(sub: dict, payload: dict) -> str:
@@ -198,18 +215,27 @@ def send_one(sub: dict, payload: dict) -> str:
     try:
         webpush(
             subscription_info={"endpoint": sub["endpoint"], "keys": sub["keys"]},
-            data=json.dumps(payload, ensure_ascii=False),
+            data=json.dumps(payload, ensure_ascii=True),
             vapid_private_key=vapid["private"],
             vapid_claims={"sub": VAPID_MAIL},
             ttl=86400,
+            timeout=12,
         )
         return "ok"
     except WebPushException as exc:
         status = getattr(getattr(exc, "response", None), "status_code", None)
+        detail = ""
+        try:
+            resp = getattr(exc, "response", None)
+            detail = (getattr(resp, "text", None) or str(exc))[:240]
+        except Exception:
+            detail = str(exc)[:240]
+        print(f"[push] send {status or 'fail'}: {detail}", flush=True)
         if status in (404, 410):
             return "gone"
         return "fail"
-    except Exception:
+    except Exception as exc:
+        print(f"[push] send error: {exc}", flush=True)
         return "fail"
 
 
@@ -229,12 +255,34 @@ def fanout(notice: dict | None, *, sender=None) -> int:
                     rows.append(sub)
     n = 0
     gone = []
+    failed = 0
     for sub in rows:
         result = send(sub, payload)
         if result == "ok":
             n += 1
         elif result == "gone":
             gone.append(sub.get("endpoint") or "")
+        else:
+            failed += 1
     for endpoint in gone:
         drop_endpoint(endpoint)
+    print(
+        f"[push] {notice.get('kind') or 'notice'} people={len(people)} "
+        f"phones={len(rows)} sent={n} fail={failed} gone={len(gone)}",
+        flush=True,
+    )
     return n
+
+
+def ping_person(person_id: str) -> int:
+    pid = str(person_id or "").strip()
+    if not pid:
+        return 0
+    return fanout(
+        {
+            "kind": "push.test",
+            "audience": [pid],
+            "taskId": "",
+            "payload": {"name": "LG Board"},
+        }
+    )

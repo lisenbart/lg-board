@@ -32,7 +32,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-29v"
+BUILD = "2026-10-29w"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -1434,6 +1434,25 @@ class Handler(SimpleHTTPRequestHandler):
                 return
             self._json(200, {"ok": True, "ready": push_io.ready(), "publicKey": push_io.public_key()})
             return
+        if path == "/api/push/status":
+            sess = self._session()
+            if not sess:
+                self._json(401, {"error": "sign in"})
+                return
+            if auth_io.is_client_session(sess):
+                self._json(403, {"error": "studio only"})
+                return
+            pid = str(sess.get("seatId") or sess.get("personId") or "")
+            self._json(
+                200,
+                {
+                    "ok": True,
+                    "ready": push_io.ready(),
+                    "subscribed": push_io.count_for(pid) > 0,
+                    "phones": push_io.count_for(pid),
+                },
+            )
+            return
         if path == "/api/state":
             sess = self._session()
             if not sess:
@@ -1799,6 +1818,11 @@ class Handler(SimpleHTTPRequestHandler):
             person_id = str(sess.get("seatId") or sess.get("personId") or "")
             n = push_io.drop_subscription(person_id, str(data.get("endpoint") or ""))
             self._json(200, {"ok": True, "dropped": n})
+            return
+        if path == "/api/push/test":
+            person_id = str(sess.get("seatId") or sess.get("personId") or "")
+            n = push_io.ping_person(person_id)
+            self._json(200, {"ok": True, "sent": n, "subscribed": push_io.count_for(person_id) > 0})
             return
         if path == "/api/excel/pull":
             with LOCK:
