@@ -544,7 +544,7 @@ function showDoorForm(door, error) {
   const loginField = pageClient
     ? ""
     : `<label class="login-pin-lab" for="loginEmail">Login</label>
-      <input id="loginEmail" class="login-pin login-email" type="text" autocomplete="username" />`;
+      <input id="loginEmail" class="login-pin login-email" type="text" autocomplete="off" spellcheck="false" />`;
   $("loginAccounts").innerHTML = `
     <form id="loginForm" class="login-form">
       <button type="button" class="btn ghost login-back" id="loginBack">Back</button>

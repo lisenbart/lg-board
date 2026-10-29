@@ -1916,8 +1916,15 @@ def test_superplay_visits_and_status() -> None:
         "SuperPlay or Slotomania" not in form
         and "Type SuperPlay" not in form
         and "Type Slotomania" not in form
+        and "placeholder" not in form
         and "Type the PIN you were given." in form
         and "clientMeta(pageClient).label" not in form.split("loginField")[0],
+    )
+    boot = (ROOT / "public" / "index.html").read_text(encoding="utf-8")
+    boot_js = boot.split("<script>")[1].split("</script>")[0]
+    check(
+        "hours door tab does not name a client before sign-in",
+        "SuperPlay" not in boot_js and "Slotomania" not in boot_js,
     )
 
 
@@ -2261,14 +2268,22 @@ def test_http(base: str) -> str | None:
     sp_html = payload.decode("utf-8", errors="replace") if isinstance(payload, (bytes, bytearray)) else str(payload)
     check(
         "GET /superplay is the client desk",
-        code == 200 and "hours-host" in sp_html and "SuperPlay — Lisenbart Board" in sp_html,
+        code == 200
+        and "hours-host" in sp_html
+        and "<title>Lisenbart Board</title>" in sp_html
+        and "SuperPlay — Lisenbart Board" not in sp_html
+        and "Slotomania — Lisenbart Board" not in sp_html,
         sp_html[sp_html.find("<title>") : sp_html.find("</title>") + 8] if "<title>" in sp_html else str(code),
     )
     code, payload, _ = _http(f"{base}/slotomania")
     sl_html = payload.decode("utf-8", errors="replace") if isinstance(payload, (bytes, bytearray)) else str(payload)
     check(
         "GET /slotomania is the Slotomania desk",
-        code == 200 and "hours-host" in sl_html and "Slotomania — Lisenbart Board" in sl_html,
+        code == 200
+        and "hours-host" in sl_html
+        and "<title>Lisenbart Board</title>" in sl_html
+        and "SuperPlay — Lisenbart Board" not in sl_html
+        and "Slotomania — Lisenbart Board" not in sl_html,
         sl_html[sl_html.find("<title>") : sl_html.find("</title>") + 8] if "<title>" in sl_html else str(code),
     )
     try:
