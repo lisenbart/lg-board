@@ -1554,12 +1554,10 @@ function renderToolbar() {
   }
   if (state.view === "excel") {
     const sl = activeClientId() === "slotomania";
-    const drive = sl
-      ? state.db?.meta?.driveSlotomaniaCalculator || ""
-      : state.db?.meta?.driveLiveExcel || "";
+    const hoursDrive = sl ? "" : state.db?.meta?.driveLiveExcel || "";
     $("toolbar").innerHTML = `
       ${isFinance() && !sl ? `<button type="button" class="btn" id="btnDrivePull">Read Drive</button>` : ""}
-      ${drive ? `<a class="btn" href="${escapeHtml(drive)}" target="_blank" rel="noreferrer">${sl ? "Open calculator" : "Open on Drive"}</a>` : ""}
+      ${hoursDrive ? `<a class="btn" href="${escapeHtml(hoursDrive)}" target="_blank" rel="noreferrer">Open on Drive</a>` : ""}
       ${searchHtml()}
     `;
     bindSearch();

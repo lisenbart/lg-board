@@ -40,7 +40,7 @@ SPECS = {
         "rates": {"playables": 40.0},
         "money": "quote_po",
         "lineDefault": {"playables": "SL"},
-        "excelKind": "calculator",
+        "excelKind": "hours",
     },
 }
 
