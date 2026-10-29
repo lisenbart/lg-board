@@ -15,6 +15,7 @@ from pathlib import Path
 from urllib.request import urlopen, Request
 from urllib.error import URLError
 
+import client_io
 import direction_io
 import excel_io
 import playables_io
@@ -25,6 +26,7 @@ from openpyxl.utils import get_column_letter
 ROOT = Path(__file__).resolve().parent
 CALC_PATH = ROOT / "data" / "finance" / "SUPERPLAY_MGX_Calculator.xlsx"
 PLAY_CALC_PATH = ROOT / "data" / "finance" / "SUPERPLAY_Playable_Calculator.xlsx"
+SLOTO_CALC_PATH = ROOT / "data" / "finance" / "SLOTOMANIA_Calculator.xlsx"
 TEMPLATE_DIR = ROOT / "data" / "finance" / "templates"
 INVOICES_DIR = ROOT / "data" / "invoices"
 W_T = re.compile(r"(<w:t(?:\s[^>]*)?>)(.*?)(</w:t>)", re.DOTALL)
@@ -323,6 +325,40 @@ def snapshot(db: dict, month: str, nbu: dict | None = None) -> dict:
             unassigned["projects"] += 1
             unassigned["shifts"] += round(leftover / shift_hours, 2) if shift_hours else sh
             unassigned["hours"] += leftover
+    sl_tasks = client_io.tasks_for(db, client_io.SLOTOMANIA, month)
+    sl_rate = client_io.rate_of(client_io.SLOTOMANIA, direction_io.PLAYABLES)
+    sl_hours = 0.0
+    sl_bill = 0.0
+    sl_quote_h = 0.0
+    sl_quote_bill = 0.0
+    for t in sl_tasks:
+        direction = direction_io.PLAYABLES
+        h = hours_of(t, shift_hours)
+        sl_hours += h
+        sl_bill += h * sl_rate
+        sl_quote_h += client_io.quote_hours(t)
+        sl_quote_bill += client_io.quote_amount(t)
+        mgr_h = playables_io.producer_hours(t)
+        mgr_hours[direction] += mgr_h
+        mgr_projects[direction] += 1
+        allocated = 0.0
+        for pid, row in list(pay.items()):
+            if row.get("role") == "manager":
+                continue
+            ph = excel_io.hours_for_person(t, pid, shift_hours)
+            if ph <= 0:
+                continue
+            pay_rate = person_rate(
+                next((p for p in db.get("people") or [] if p.get("id") == pid), None),
+                meta=meta,
+                direction=direction,
+            )
+            row["projects"] += 1
+            row["hours"] += ph
+            row["payUsd"] += ph * pay_rate
+            row["hoursPlay"] += ph
+            row["payUsdPlay"] += ph * pay_rate
+            allocated = round(allocated + ph, 1)
     people_by_id = {p["id"]: p for p in db.get("people") or []}
     for row in pay.values():
         if row.get("role") != "manager":
@@ -362,14 +398,58 @@ def snapshot(db: dict, month: str, nbu: dict | None = None) -> dict:
         keep = row["projects"] or (key[0] == direction_io.MGX and key[1] != "DS")
         if keep:
             by_line.append(row)
-    hours = round(sum(r["hours"] for r in by_line), 1)
-    shifts = round(sum(r["shifts"] for r in by_line), 2)
-    client_in = round(sum(r["bill"] for r in by_line), 2)
+    sl_hours = round(sl_hours, 1)
+    sl_bill = round(sl_bill, 2)
+    sl_quote_h = round(sl_quote_h, 1)
+    sl_quote_bill = round(sl_quote_bill, 2)
+    sl_row = {
+        "clientId": client_io.SLOTOMANIA,
+        "direction": direction_io.PLAYABLES,
+        "label": "Playable SL",
+        "line": "SL",
+        "projects": len(sl_tasks),
+        "shifts": 0.0,
+        "hours": sl_hours,
+        "bill": sl_bill,
+        "quotedHours": sl_quote_h,
+        "quotedBill": sl_quote_bill,
+        "rate": sl_rate,
+    }
+    sp_hours = round(sum(r["hours"] for r in by_line), 1)
+    sp_shifts = round(sum(r["shifts"] for r in by_line), 2)
+    sp_in = round(sum(r["bill"] for r in by_line), 2)
+    hours = round(sp_hours + sl_hours, 1)
+    shifts = sp_shifts
+    client_in = round(sp_in + sl_bill, 2)
     after_tax = round(client_in - client_in * tax, 2)
     empl = round(sum(r["payUsd"] for r in payroll), 2)
     studio = round(after_tax - empl, 2)
     mgx_in = round(sum(r["bill"] for r in by_line if r["direction"] == direction_io.MGX), 2)
-    play_in = round(sum(r["bill"] for r in by_line if r["direction"] == direction_io.PLAYABLES), 2)
+    play_in = round(sum(r["bill"] for r in by_line if r["direction"] == direction_io.PLAYABLES) + sl_bill, 2)
+    by_client = [
+        {
+            "id": client_io.SUPERPLAY,
+            "label": client_io.label(client_io.SUPERPLAY),
+            "money": client_io.money_of(client_io.SUPERPLAY),
+            "byLine": by_line,
+            "hours": sp_hours,
+            "shifts": sp_shifts,
+            "clientIn": sp_in,
+            "projects": len(tasks),
+        },
+        {
+            "id": client_io.SLOTOMANIA,
+            "label": client_io.label(client_io.SLOTOMANIA),
+            "money": client_io.money_of(client_io.SLOTOMANIA),
+            "byLine": [sl_row] if sl_tasks else [],
+            "hours": sl_hours,
+            "shifts": 0.0,
+            "clientIn": sl_bill,
+            "quotedHours": sl_quote_h,
+            "quotedIn": sl_quote_bill,
+            "projects": len(sl_tasks),
+        },
+    ]
     return {
         "month": month,
         "hoursSource": hours_source,
@@ -379,11 +459,12 @@ def snapshot(db: dict, month: str, nbu: dict | None = None) -> dict:
         "nbu": nbu,
         "hours": hours,
         "shifts": shifts,
-        "projects": len(tasks),
+        "projects": len(tasks) + len(sl_tasks),
         "byLine": by_line,
+        "byClient": by_client,
         "byDirection": [
             {"direction": direction_io.MGX, "label": "MGX", "hours": round(sum(r["hours"] for r in by_line if r["direction"] == direction_io.MGX), 1), "bill": mgx_in},
-            {"direction": direction_io.PLAYABLES, "label": "Playable", "hours": round(sum(r["hours"] for r in by_line if r["direction"] == direction_io.PLAYABLES), 1), "bill": play_in},
+            {"direction": direction_io.PLAYABLES, "label": "Playable", "hours": round(sum(r["hours"] for r in by_line if r["direction"] == direction_io.PLAYABLES) + sl_hours, 1), "bill": play_in},
         ],
         "payroll": payroll,
         "unassigned": {
@@ -888,6 +969,7 @@ LINE_FILL = {
     "DX": PatternFill("solid", fgColor="9DC3E6"),
     "DD": PatternFill("solid", fgColor="BFBFBF"),
     "DS": PatternFill("solid", fgColor="C6B19B"),
+    "SL": PatternFill("solid", fgColor="B4A7D6"),
 }
 _SEAT_HEAD = ("EMPL", "LP ", "TL ", "MD ", "ARTD", "DEV ")
 
@@ -985,7 +1067,9 @@ def _write_playable_month_body(db, ym, path, wb, nbu_rate) -> Path:
     tasks = [
         t
         for t in db.get("tasks") or []
-        if (t.get("month") or ym) == ym and direction_io.is_playables(t)
+        if (t.get("month") or ym) == ym
+        and direction_io.is_playables(t)
+        and client_io.is_superplay(t)
     ]
     by_line = {k: [] for k in ("DX", "DD", "DS")}
     for t in tasks:
@@ -1130,6 +1214,170 @@ def _write_playable_month_body(db, ym, path, wb, nbu_rate) -> Path:
     _relabel_calculator_seats(wb, crew, name, "playables")
     _atomic_save(wb, path)
     return path
+
+
+def write_slotomania_month(db: dict, ym: str, nbu_rate: float | None = None, path: Path | None = None) -> Path | None:
+    """Write SLOTOMANIA_Calculator.xlsx from the board. Same math as the Drive file Dmytro sent."""
+    path = Path(path or SLOTO_CALC_PATH)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    meta = db.get("meta") or {}
+    client_rate = client_io.rate_of(client_io.SLOTOMANIA, direction_io.PLAYABLES)
+    tax = float(meta.get("taxPct") if meta.get("taxPct") is not None else TAX_PCT)
+    fx = float(nbu_rate or (meta.get("nbuRate") or FALLBACK_NBU))
+    crew = playable_calc_crew(db)
+    tasks = [
+        t
+        for t in db.get("tasks") or []
+        if (t.get("month") or ym) == ym and client_io.is_slotomania(t)
+    ]
+    tasks.sort(key=lambda t: str(t.get("name") or ""))
+    if path.exists():
+        wb = load_workbook(path)
+    else:
+        wb = Workbook()
+    try:
+        name = sheet_name_for(ym)
+        if name in wb.sheetnames:
+            del wb[name]
+        leftover = [n for n in wb.sheetnames if str(n).strip().lower() in {"sheet", "sheet1"}]
+        for n in leftover:
+            del wb[n]
+        ws = wb.create_sheet(name, 0)
+        n_empl = max(len(crew), 1)
+        hours_col = 3
+        empl_start = 4
+        total_empl_col = empl_start + n_empl
+        client_col = total_empl_col + 1
+        y, m = [int(x) for x in ym.split("-")]
+        ws.cell(2, 2, datetime(y, m, 1).strftime("%Y %B").upper()).font = CALIBRI_BOLD
+        roles = {"manager": "Producer", "art_director": "Art.", "programmer": "Dev", "designer": "Anim"}
+        for i, person in enumerate(crew):
+            ws.cell(2, empl_start + i, roles.get(person.get("role") or "", "")).font = CALIBRI_BOLD
+            ws.cell(2, empl_start + i).alignment = CENTER
+            cell = ws.cell(3, empl_start + i, person.get("name") or excel_io.role_seat_label(person, {}))
+            cell.font = CALIBRI_BOLD
+            cell.alignment = CENTER
+        labels = ["SL", "PlayableADs", "HOURS"]
+        labels += [f"EMPL {i}" for i in range(1, n_empl + 1)]
+        labels += ["Total EMPL", "TOTAL"]
+        for c, label in enumerate(labels, 1):
+            cell = ws.cell(4, c, label)
+            cell.fill = HEADER_FILL
+            cell.font = CALIBRI_BOLD
+            cell.border = THIN
+            cell.alignment = CENTER
+        ws.cell(4, 1).fill = LINE_FILL["SL"]
+        r = 5
+        first_data = r
+        for task in tasks:
+            billed = hours_of(task)
+            ws.cell(r, 2, task.get("name") or "")
+            ws.cell(r, hours_col, billed if billed else None)
+            hours_ref = f"C{r}"
+            for i, person in enumerate(crew):
+                cell = ws.cell(r, empl_start + i)
+                rate = person_rate(person, meta=meta, direction=direction_io.PLAYABLES)
+                if person.get("role") == "manager":
+                    cell.value = f"={hours_ref}*{rate:g}" if billed else None
+                    on_row = billed > 0
+                else:
+                    share = excel_io.hours_for_person(task, person["id"])
+                    on_row = share > 0
+                    if share > 0:
+                        cell.value = f"={share:g}*{rate:g}"
+                if on_row:
+                    raw = (person.get("color") or "92D050").replace("#", "")
+                    cell.fill = PatternFill("solid", fgColor=raw[:6] or "92D050")
+            first_empl = get_column_letter(empl_start)
+            last_empl = get_column_letter(empl_start + n_empl - 1)
+            ws.cell(r, total_empl_col, f"=SUM({first_empl}{r}:{last_empl}{r})")
+            ws.cell(r, client_col, f"={hours_ref}*{client_rate:g}")
+            _style_row(ws, r, client_col)
+            r += 1
+        last_data = max(r - 1, first_data)
+        total_row = r if tasks else r
+        ws.cell(total_row, 1, "total")
+        ws.cell(total_row, hours_col, f"=SUM(C{first_data}:C{last_data})")
+        for i in range(n_empl):
+            col = get_column_letter(empl_start + i)
+            ws.cell(total_row, empl_start + i, f"=SUM({col}{first_data}:{col}{last_data})")
+        first_empl = get_column_letter(empl_start)
+        last_empl = get_column_letter(empl_start + n_empl - 1)
+        ws.cell(total_row, total_empl_col, f"=SUM({first_empl}{total_row}:{last_empl}{total_row})")
+        ws.cell(
+            total_row,
+            client_col,
+            f"=SUM({get_column_letter(client_col)}{first_data}:{get_column_letter(client_col)}{last_data})",
+        )
+        _style_row(ws, total_row, client_col)
+        for c in range(1, client_col + 1):
+            ws.cell(total_row, c).fill = HEADER_FILL
+            ws.cell(total_row, c).font = CALIBRI_BOLD
+        uah_row = total_row + 1
+        ws.cell(total_row, client_col + 2, "UAH").font = CALIBRI_BOLD
+        ws.cell(total_row, client_col + 3, "USD").font = CALIBRI_BOLD
+        for i in range(n_empl + 2):
+            src = get_column_letter(empl_start + i)
+            ws.cell(uah_row, empl_start + i, f"={src}{total_row}*{fx:g}")
+        label_col = client_col + 1
+        usd_col = client_col + 3
+        uah_col = client_col + 2
+        tax_row = uah_row + 1
+        tax_col = usd_col + 1
+        tax_cell = ws.cell(tax_row, tax_col, tax)
+        tax_cell.number_format = "0.00%"
+        tax_cell.font = CALIBRI_BOLD
+        tax_cell.alignment = CENTER
+        ws.cell(uah_row, tax_col, "TAX").font = CALIBRI_BOLD
+        tax_ref = f"{get_column_letter(tax_col)}{tax_row}"
+        rows = [
+            (uah_row, "CLIENT IN", f"={get_column_letter(client_col)}{total_row}"),
+            (tax_row, "STUDIO (TAX)", f"={get_column_letter(usd_col)}{uah_row}-{get_column_letter(usd_col)}{uah_row}*{tax_ref}"),
+            (uah_row + 2, "EMPL", f"={get_column_letter(total_empl_col)}{total_row}"),
+            (uah_row + 3, "STUDIO", f"={get_column_letter(usd_col)}{tax_row}-{get_column_letter(usd_col)}{uah_row + 2}"),
+        ]
+        for row, label, formula in rows:
+            ws.cell(row, label_col, label).font = CALIBRI_BOLD
+            ws.cell(row, usd_col, formula)
+            ws.cell(row, uah_col, f"={get_column_letter(usd_col)}{row}*{fx:g}")
+        hours_head = total_row + 6
+        ws.cell(hours_head, 1, "SL").fill = LINE_FILL["SL"]
+        ws.cell(hours_head, 2, f"{ym[:4]} PROJECT NAME").font = CALIBRI_BOLD
+        ws.cell(hours_head, 3, "HOURS").font = CALIBRI_BOLD
+        for i, person in enumerate(crew):
+            ws.cell(hours_head, 4 + i, person.get("name") or "").font = CALIBRI_BOLD
+        ws.cell(hours_head + 1, 1, "SL").fill = LINE_FILL["SL"]
+        ws.cell(hours_head + 1, 2, "PlayableADs")
+        hr = hours_head + 2
+        first_h = hr
+        for task in tasks:
+            billed = hours_of(task)
+            ws.cell(hr, 2, task.get("name") or "")
+            ws.cell(hr, 3, billed if billed else None)
+            for i, person in enumerate(crew):
+                if person.get("role") == "manager":
+                    ws.cell(hr, 4 + i, billed if billed else None)
+                else:
+                    share = excel_io.hours_for_person(task, person["id"])
+                    ws.cell(hr, 4 + i, share or None)
+            hr += 1
+        last_h = max(hr - 1, first_h)
+        ws.cell(hr, 1, "total")
+        for i in range(n_empl + 1):
+            col = get_column_letter(3 + i)
+            ws.cell(hr, 3 + i, f"=SUM({col}{first_h}:{col}{last_h})")
+        ws.column_dimensions["A"].width = 11
+        ws.column_dimensions["B"].width = 72
+        for col in range(3, tax_col + 1):
+            ws.column_dimensions[get_column_letter(col)].width = 14
+        _write_employeers_sheet(wb, db)
+        _atomic_save(wb, path)
+        return path
+    finally:
+        try:
+            wb.close()
+        except Exception:
+            pass
 
 
 def write_month(db: dict, ym: str, nbu_rate: float | None = None, path: Path | None = None) -> Path:

@@ -194,9 +194,75 @@ def test_client_hours_xlsx() -> None:
     check("SuperPlay hours file skips Slotomania", "Coin Cruiser" not in super_names, str(super_names[:20]))
     check("Slotomania hours file is that client", "Coin Cruiser" in sl_names and "DX-AAA-0001" not in sl_names, str(sl_names[:20]))
     check(
-        "finance snapshot skips Slotomania hours",
+        "SuperPlay invoice hours skip Slotomania",
         not any(t.get("name") == "Coin Cruiser" for t in excel_io.tasks_for_finance(mixed, "2026-10")),
     )
+
+
+def test_studio_clients_registry() -> None:
+    boards = client_io.boards()
+    labels = [b["label"] for b in boards]
+    check("boards are SuperPlay MGX, Playables, Slotomania", labels == ["SUPERPLAY MGX", "SUPERPLAY Playables", "SLOTOMANIA Playables"], str(labels))
+    check("Slotomania line is SL", client_io.line_of({"clientId": "slotomania", "line": "PL"}) == "SL")
+    db = {
+        "meta": {"month": "2026-10", "nbuRate": 44.8, "clientRateUsd": 35, "playableClientRateUsd": 40, "taxPct": 0.06, "shiftHours": 9},
+        "people": [
+            {"id": "manager", "name": "Anastasia", "role": "manager", "rateUsd": 5, "rates": {"mgx": 5, "playables": 7}},
+            {"id": "artdir2", "name": "Yulia", "role": "art_director", "rateUsd": 15, "rates": {"playables": 15}, "directions": ["playables"]},
+            {"id": "programmer1", "name": "Bogdan", "role": "programmer", "rateUsd": 15, "rates": {"playables": 15}, "directions": ["playables"]},
+        ],
+        "tasks": [
+            {
+                "name": "DD-FIN-1",
+                "line": "DD",
+                "month": "2026-10",
+                "department": "MGX",
+                "clientId": "superplay",
+                "hours": 9,
+                "shifts": 1,
+                "assigneeId": "manager",
+            },
+            {
+                "name": "Snakes and Ladders",
+                "line": "SL",
+                "month": "2026-10",
+                "department": "Playables",
+                "clientId": "slotomania",
+                "hours": 32,
+                "quoteHours": 37,
+                "quoteAmount": 1480,
+                "assigneeId": "artdir2",
+                "assigneeHours": 12,
+                "programmerId": "programmer1",
+                "programmerHours": 20,
+            },
+        ],
+    }
+    snap = finance_io.snapshot(db, "2026-10", {"rate": 44.8, "source": "test"})
+    clients = {c["id"]: c for c in snap.get("byClient") or []}
+    check("Finance has SuperPlay and Slotomania", set(clients) == {"superplay", "slotomania"}, str(list(clients)))
+    check("SuperPlay byLine has no SL", not any(r.get("line") == "SL" for r in snap.get("byLine") or []), str(snap.get("byLine")))
+    sl = clients.get("slotomania") or {}
+    check("Slotomania CLIENT IN is board hours × $40", sl.get("clientIn") == 1280 and sl.get("hours") == 32, str(sl))
+    check("Slotomania quote sits next to CLIENT IN", sl.get("quotedHours") == 37 and sl.get("quotedIn") == 1480, str(sl))
+    check("studio CLIENT IN is both clients", snap.get("clientIn") == 9 * 35 + 1280, str(snap.get("clientIn")))
+    js = (ROOT / "public" / "assets" / "app.js").read_text(encoding="utf-8")
+    check("Excel Slotomania is SL / PlayableADs", "PlayableADs" in js and "function boardLines" in js)
+    check("Finance UI groups clients", "function renderClientGroup" in js and "byClient" in js)
+    with tempfile.TemporaryDirectory() as raw:
+        path = Path(raw) / "SLOTOMANIA_Calculator.xlsx"
+        out = finance_io.write_slotomania_month(db, "2026-10", nbu_rate=44.8, path=path)
+        check("Slotomania calculator writes", out and path.exists(), str(out))
+        wb = load_workbook(path)
+        try:
+            ws = wb.active
+            names = [str(ws.cell(r, 2).value or "") for r in range(1, 20)]
+            check("calculator header is SL PlayableADs", ws.cell(4, 1).value == "SL" and ws.cell(4, 2).value == "PlayableADs", str((ws.cell(4, 1).value, ws.cell(4, 2).value)))
+            check("calculator has Snakes hours", "Snakes and Ladders" in names, str(names))
+            snake = next(r for r in range(1, 20) if str(ws.cell(r, 2).value or "") == "Snakes and Ladders")
+            check("calculator CLIENT IN is board hours × $40", str(ws.cell(snake, 8).value or "").endswith("*40"), str(ws.cell(snake, 8).value))
+        finally:
+            wb.close()
 
 
 def test_client_login_names() -> None:
@@ -709,10 +775,15 @@ def test_playables_desk() -> None:
     check("MGX invoice Price stays $35/h", "35 USD per hour" in mgx_txt, mgx_txt)
     check("MGX invoice Price is not $40/h", "40 USD per hour" not in mgx_txt)
     lp = next((r for r in snap["payroll"] if r.get("role") == "manager"), None)
+    sl_play = sum(playables_io.producer_hours(t) for t in db["tasks"] if client_io.is_slotomania(t))
+    play_h = 29 + sl_play
     check(
         "LP Playables pay is producer hours × $7 not billed",
-        lp and abs(float(lp.get("hoursPlay") or 0) - 29) < 0.05 and abs(float(lp.get("payUsd") or 0) - (9 * 5 + 29 * 7)) < 0.05,
-        str(lp),
+        lp
+        and abs(float(lp.get("hoursPlay") or 0) - play_h) < 0.05
+        and abs(float(lp.get("payUsd") or 0) - (9 * 5 + play_h * 7)) < 0.05
+        and abs(play_h - (30 + sl_play)) > 0.05,
+        str((lp, play_h, sl_play)),
     )
     check("AD hours ignore billed buffer", excel_io.hours_for_person(db["tasks"][1], "artdir1") == 10)
     check("DEV hours sit on programmerId", excel_io.hours_for_person(db["tasks"][1], "programmer1") == 19)
@@ -938,7 +1009,7 @@ def test_playables_desk() -> None:
             "Playables Excel Hours is crew, DL adds buffer",
             "isFinance() ? playableDeskTotal(t) : playableCrewTotal(t)"
             in js.split("function renderExcelSheet")[1].split("function statusMark")[0]
-            and 'play ? `<th>Hours</th>`' in js,
+            and "<th>Hours</th>" in js.split("function renderExcelSheet")[1].split("function statusMark")[0],
         )
         check(
             "Playables Excel seats are LP / ARTD / DEV",
@@ -2661,6 +2732,7 @@ def main() -> int:
     print("Excel / db")
     for fn in (
         test_client_hours_xlsx,
+        test_studio_clients_registry,
         test_client_login_names,
         test_pin_opens,
         test_person_pins,

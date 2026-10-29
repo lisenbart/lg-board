@@ -1234,20 +1234,18 @@ def client_hours_bytes(
     dirs = (("playables", "Playable"),) if cid == client_io.SLOTOMANIA else (("mgx", "MGX"), ("playables", "Playable"))
     for dept, prefix in dirs:
         bucket = [t for t in tasks if hours_direction(t) == dept]
-        lines = ["PL"] if cid == client_io.SLOTOMANIA else ["DX", "DD"]
-        if cid != client_io.SLOTOMANIA and any(str(t.get("line") or "") == "DS" for t in bucket):
-            lines.append("DS")
         if cid == client_io.SLOTOMANIA:
+            lines = list(client_io.lines_of(cid, "playables"))
             extra = sorted(
-                {
-                    str(t.get("line") or "PL")
-                    for t in bucket
-                    if str(t.get("line") or "PL") not in lines
-                }
+                {client_io.line_of(t) for t in bucket if client_io.line_of(t) not in lines}
             )
             lines.extend(extra)
+        else:
+            lines = ["DX", "DD"]
+            if any(str(t.get("line") or "") == "DS" for t in bucket):
+                lines.append("DS")
         for line in lines:
-            rows = [t for t in bucket if (t.get("line") or "PL") == line]
+            rows = [t for t in bucket if client_io.line_of(t) == line]
             if not rows:
                 continue
             sections.append((f"{prefix} {line}", line, rows))

@@ -31,7 +31,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-29b"
+BUILD = "2026-10-29c"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -399,6 +399,11 @@ def sync_excel(db: dict, month: str | None = None, calculator: bool = False) -> 
             finance_io.write_playable_month(db, ym, nbu_rate=fx)
         except Exception as e:
             print(f"[finance] playable calculator: {e}", flush=True)
+        try:
+            fx = (db.get("meta") or {}).get("nbuRate")
+            finance_io.write_slotomania_month(db, ym, nbu_rate=fx)
+        except Exception as e:
+            print(f"[finance] slotomania calculator: {e}", flush=True)
     try:
         if excel_io.XLSX_PATH.exists():
             mirror_io.ORIGIN_XLSX.parent.mkdir(parents=True, exist_ok=True)
@@ -1432,9 +1437,9 @@ class Handler(SimpleHTTPRequestHandler):
             with LOCK:
                 db = peek_db()
                 rev = read_rev(db)
+            if _MEM_REV != rev:
+                publish_rev(rev)
             with _REV_COND:
-                if _MEM_REV != rev:
-                    _MEM_REV = rev
                 seen_event = _EVENT
             if client_rev and client_rev == rev and wait_s:
                 wait_for_newer(client_rev, wait_s, seen_event)
@@ -2111,7 +2116,7 @@ class Handler(SimpleHTTPRequestHandler):
                     data.get("direction") or data.get("department") or direction_io.of_name(name)
                 )
                 if client_id == client_io.SLOTOMANIA:
-                    line = "PL"
+                    line = "SL"
                     direction = direction_io.PLAYABLES
                 used = {str(t.get("id") or "") for t in db.get("tasks") or []}
                 n = 1
@@ -2578,7 +2583,7 @@ class Handler(SimpleHTTPRequestHandler):
                         pending_rename = old_name
                         task["name"] = new_name
                         if client_io.is_slotomania(task):
-                            task["line"] = "PL"
+                            task["line"] = "SL"
                         else:
                             task["line"] = drive_io.line_from_name(new_name)
                         task.setdefault("activity", []).append(

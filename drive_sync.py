@@ -537,6 +537,12 @@ def push_workbooks(*, excel: bool = True, calculator: bool = False) -> dict:
             str(cfg.get("playableCalculator") or ""),
             finance_io.PLAY_CALC_PATH,
         )
+        _push_xlsx(
+            uploaded,
+            "SLOTOMANIA_Calculator.xlsx",
+            str(cfg.get("slotomaniaCalculator") or ""),
+            finance_io.SLOTO_CALC_PATH,
+        )
     return {"ok": True, "uploaded": uploaded, "count": len(uploaded)}
 
 
@@ -804,6 +810,9 @@ def apply_meta(db: dict, extra: dict | None = None) -> bool:
     meta["driveDocs"] = folder_url(cfg["docs"]) if cfg.get("docs") else ""
     meta["driveLiveExcel"] = file_url(cfg["excel"]) if cfg.get("excel") else meta.get("driveLiveExcel")
     meta["driveCalculator"] = file_url(cfg["calculator"]) if cfg.get("calculator") else meta.get("driveCalculator")
+    meta["driveSlotomaniaCalculator"] = (
+        file_url(cfg["slotomaniaCalculator"]) if cfg.get("slotomaniaCalculator") else meta.get("driveSlotomaniaCalculator")
+    )
     meta["driveLiveOctober"] = folder_url(cfg["october"]) if cfg.get("october") else meta.get("driveLiveOctober")
     if cfg.get("octoberDD"):
         meta["driveLiveDD"] = folder_url(cfg["octoberDD"])
@@ -836,6 +845,7 @@ def status() -> dict:
         "docs": folder_url(cfg["docs"]) if cfg.get("docs") else "",
         "excel": file_url(cfg["excel"]) if cfg.get("excel") else "",
         "calculator": file_url(cfg["calculator"]) if cfg.get("calculator") else "",
+        "slotomaniaCalculator": file_url(cfg["slotomaniaCalculator"]) if cfg.get("slotomaniaCalculator") else "",
         "october": folder_url(cfg["october"]) if cfg.get("october") else "",
         "octoberDD": folder_url(cfg["octoberDD"]) if cfg.get("octoberDD") else "",
         "octoberDX": folder_url(cfg["octoberDX"]) if cfg.get("octoberDX") else "",

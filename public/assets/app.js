@@ -174,6 +174,27 @@ function clientOf(t) {
 function isSlotomania(t) {
   return clientOf(t) === "slotomania";
 }
+function taskLine(t) {
+  if (isSlotomania(t)) return t.line === "PL" ? "SL" : t.line || "SL";
+  return t.line;
+}
+function boardLines(tasks) {
+  const rows = tasks || monthTasks();
+  if (activeClientId() === "slotomania") {
+    const lines = ["SL"];
+    for (const t of rows) {
+      const line = taskLine(t);
+      if (line && !lines.includes(line)) lines.push(line);
+    }
+    return lines;
+  }
+  const lines = ["DX", "DD"];
+  if (rows.some((t) => t.line === "DS")) lines.push("DS");
+  return lines;
+}
+function studioMonthTasks() {
+  return (state.db.tasks || []).filter((t) => taskMonth(t) === state.month);
+}
 function clientMeta(id) {
   return CLIENTS.find((c) => c.id === id) || CLIENTS[0];
 }
@@ -892,20 +913,26 @@ function parseRate(raw) {
   return n;
 }
 function financeSnapshot() {
-  const tasks = monthTasks({ all: true });
+  const tasks = state.view === "close" ? studioMonthTasks() : monthTasks({ all: true });
   const fx = nbuRate();
   const tax = taxPct();
   const rate = clientRate();
   const playRate = Number(state.db?.meta?.playableClientRateUsd) || 40;
   const totalHours = tasks.reduce((s, t) => s + hoursOf(t), 0);
   const totalShifts = tasks.reduce((s, t) => s + (Number(t.shifts) || 0), 0);
-  const byLineMap = {};
+  const groups = {
+    superplay: { id: "superplay", label: "SuperPlay", money: "month_end", byLineMap: {}, hours: 0, shifts: 0, clientIn: 0, projects: 0 },
+    slotomania: { id: "slotomania", label: "Slotomania", money: "quote_po", byLineMap: {}, hours: 0, shifts: 0, clientIn: 0, quotedHours: 0, quotedIn: 0, projects: 0 },
+  };
   for (const t of tasks) {
+    const cid = clientOf(t);
+    const group = groups[cid] || groups.superplay;
     const dir = directionOf(t);
-    const line = LINES.includes(t.line) ? t.line : t.line || "—";
+    const line = isSlotomania(t) ? taskLine(t) : LINES.includes(t.line) ? t.line : t.line || "DD";
     const key = `${dir}:${line}`;
-    if (!byLineMap[key]) {
-      byLineMap[key] = {
+    const rowRate = dir === "playables" ? playRate : rate;
+    if (!group.byLineMap[key]) {
+      group.byLineMap[key] = {
         direction: dir,
         label: `${dir === "playables" ? "Playable" : "MGX"} ${line}`,
         line,
@@ -913,17 +940,37 @@ function financeSnapshot() {
         shifts: 0,
         hours: 0,
         bill: 0,
-        rate: dir === "playables" ? playRate : rate,
+        quotedHours: 0,
+        quotedBill: 0,
+        rate: rowRate,
       };
     }
     const h = hoursOf(t);
-    const rowRate = dir === "playables" ? playRate : rate;
-    byLineMap[key].projects += 1;
-    byLineMap[key].shifts += Number(t.shifts) || 0;
-    byLineMap[key].hours += h;
-    byLineMap[key].bill += h * rowRate;
+    const row = group.byLineMap[key];
+    row.projects += 1;
+    row.shifts += Number(t.shifts) || 0;
+    row.hours += h;
+    row.bill += h * rowRate;
+    group.projects += 1;
+    group.shifts += Number(t.shifts) || 0;
+    group.hours += h;
+    group.clientIn += h * rowRate;
+    if (cid === "slotomania") {
+      const qh = Number(t.quoteHours) || 0;
+      const qa = Number(t.quoteAmount) || qh * playRate;
+      row.quotedHours += qh;
+      row.quotedBill += qa;
+      group.quotedHours += qh;
+      group.quotedIn += qa;
+    }
   }
-  const byLine = Object.values(byLineMap);
+  const byClient = Object.values(groups)
+    .filter((g) => g.projects > 0)
+    .map((g) => ({
+      ...g,
+      byLine: Object.values(g.byLineMap),
+    }));
+  const byLine = groups.superplay.byLineMap ? Object.values(groups.superplay.byLineMap) : [];
   const payMap = {};
   for (const p of crew()) {
     payMap[p.id] = { person: p, projects: 0, shifts: 0, hours: 0, tasks: [] };
@@ -973,7 +1020,7 @@ function financeSnapshot() {
         (a.person.payOrder || 99) - (b.person.payOrder || 99) ||
         String(a.person.name).localeCompare(String(b.person.name))
     );
-  const clientIn = byLine.reduce((s, row) => s + row.bill, 0);
+  const clientIn = byClient.reduce((s, g) => s + (g.clientIn || 0), 0);
   const afterTax = clientIn - clientIn * tax;
   const empl = payroll.reduce((s, r) => s + r.payUsd, 0);
   const studio = afterTax - empl;
@@ -1002,6 +1049,7 @@ function financeSnapshot() {
     tax,
     clientRate: rate,
     playableClientRate: playRate,
+    byClient,
     nbu: state.nbu || { rate: fx, source: state.db?.meta?.nbuRate ? "manual" : "fallback" },
   };
 }
@@ -1070,7 +1118,11 @@ function boardPeople() {
 function excelPeople() {
   if (state.direction !== "playables") return designers();
   const lp = (state.db.people || []).find((p) => p.role === "manager");
-  const crew = playableCrew().filter((p) => p.role !== "designer" && p.id !== lp?.id);
+  const crew = playableCrew().filter((p) => {
+    if (p.id === lp?.id) return false;
+    if (activeClientId() === "slotomania") return true;
+    return p.role !== "designer";
+  });
   return lp ? [lp, ...crew] : crew;
 }
 function excelSeatLabel(p, used) {
@@ -1372,9 +1424,11 @@ function renderChrome() {
     title.hidden = showSpLogo;
     title.textContent = clientHours
       ? clientMeta(cid).label
-      : cid === "slotomania"
-        ? "SLOTOMANIA Playables"
-        : DIR_LABEL[state.direction] || DIR_LABEL.mgx;
+      : state.view === "close"
+        ? "Finance"
+        : cid === "slotomania"
+          ? "SLOTOMANIA Playables"
+          : DIR_LABEL[state.direction] || DIR_LABEL.mgx;
   }
   if (boardLogo) boardLogo.hidden = !showSpLogo;
   const pill = document.querySelector(".top-row > .pill");
@@ -1467,10 +1521,13 @@ function renderToolbar() {
     return;
   }
   if (state.view === "excel") {
-    const drive = state.db?.meta?.driveLiveExcel || "";
+    const sl = activeClientId() === "slotomania";
+    const drive = sl
+      ? state.db?.meta?.driveSlotomaniaCalculator || ""
+      : state.db?.meta?.driveLiveExcel || "";
     $("toolbar").innerHTML = `
-      ${isFinance() ? `<button type="button" class="btn" id="btnDrivePull">Read Drive</button>` : ""}
-      ${drive ? `<a class="btn" href="${escapeHtml(drive)}" target="_blank" rel="noreferrer">Open on Drive</a>` : ""}
+      ${isFinance() && !sl ? `<button type="button" class="btn" id="btnDrivePull">Read Drive</button>` : ""}
+      ${drive ? `<a class="btn" href="${escapeHtml(drive)}" target="_blank" rel="noreferrer">${sl ? "Open calculator" : "Open on Drive"}</a>` : ""}
       ${searchHtml()}
     `;
     bindSearch();
@@ -2744,17 +2801,10 @@ function reportSections(tasks) {
   for (const dir of ["mgx", "playables"]) {
     const prefix = dir === "playables" ? "Playable" : "MGX";
     const bucket = tasks.filter((t) => directionOf(t) === dir);
-    const lines = activeClientId() === "slotomania" ? ["PL"] : ["DX", "DD"];
-    if (activeClientId() !== "slotomania" && bucket.some((t) => t.line === "DS")) lines.push("DS");
-    if (activeClientId() === "slotomania") {
-      for (const t of bucket) {
-        const line = t.line || "PL";
-        if (!lines.includes(line)) lines.push(line);
-      }
-    }
+    const lines = boardLines(bucket);
     for (const line of lines) {
       const rows = bucket
-        .filter((t) => t.line === line)
+        .filter((t) => taskLine(t) === line)
         .slice()
         .sort((a, b) => String(a.name).localeCompare(String(b.name)));
       if (!rows.length) continue;
@@ -2994,8 +3044,14 @@ function renderExcelSheet() {
       })
       .join("");
     const mark = statusMark(t);
+    const sl = activeClientId() === "slotomania";
     const meta = play
-      ? `<td class="xl-num">${fmtHours(projectHours(t))}</td>`
+      ? sl
+        ? `<td class="xl-num">${fmtHours(projectHours(t))}</td>
+      <td class="xl-num">${t.quoteHours ? fmtHours(t.quoteHours) : ""}</td>
+      <td class="xl-num">${t.quoteAmount ? usd(t.quoteAmount) : ""}</td>
+      <td>${escapeHtml(t.poNumber || "")}</td>`
+        : `<td class="xl-num">${fmtHours(projectHours(t))}</td>`
       : `<td class="xl-num">${t.shifts ?? ""}</td>
       <td class="xl-num">${fmtHours(t.hours)}</td>
       <td class="xl-num">${escapeHtml(excelDate(t.deadline))}</td>`;
@@ -3007,10 +3063,15 @@ function renderExcelSheet() {
     </tr>`;
   };
 
-  const xlLabel = play ? "Playable" : "MGX";
+  const sl = activeClientId() === "slotomania";
+  const xlLabel = sl ? "PlayableADs" : play ? "Playable" : "MGX";
   const section = (line) => {
-    const rows = tasks.filter((t) => t.line === line);
-    const metaHeads = play ? `<th>Hours</th>` : `<th>SHIFTS</th><th>HOURS</th><th>DEADLINE</th>`;
+    const rows = tasks.filter((t) => taskLine(t) === line);
+    const metaHeads = play
+      ? sl
+        ? `<th>Hours</th><th>Quote h</th><th>Quote $</th><th>PO</th>`
+        : `<th>Hours</th>`
+      : `<th>SHIFTS</th><th>HOURS</th><th>DEADLINE</th>`;
     return `<tbody>
       <tr class="xl-sec">
         <th class="xl-line">${line}</th><th>${xlLabel}</th>${metaHeads}${emplHeads}
@@ -3020,12 +3081,19 @@ function renderExcelSheet() {
   };
 
   const totals = people.map((p) => `<td class="xl-num"><b>${fmtHours(hoursOfPerson(p.id))}</b></td>`).join("");
+  const quoteH = sl ? tasks.reduce((s, t) => s + (Number(t.quoteHours) || 0), 0) : 0;
+  const quoteUsd = sl ? tasks.reduce((s, t) => s + (Number(t.quoteAmount) || 0), 0) : 0;
   const footMeta = play
-    ? `<td class="xl-num"><b>${fmtHours(allHours)}</b></td>`
+    ? sl
+      ? `<td class="xl-num"><b>${fmtHours(allHours)}</b></td>
+              <td class="xl-num"><b>${fmtHours(quoteH)}</b></td>
+              <td class="xl-num"><b>${usd(quoteUsd)}</b></td>
+              <td></td>`
+      : `<td class="xl-num"><b>${fmtHours(allHours)}</b></td>`
     : `<td class="xl-num"><b>${fmtHours(allShifts)}</b></td>
               <td class="xl-num"><b>${fmtHours(allHours)}</b></td>
               <td></td>`;
-  const headPad = play ? `<th></th>` : `<th></th><th></th><th></th>`;
+  const headPad = play ? (sl ? `<th></th><th></th><th></th><th></th>` : `<th></th>`) : `<th></th><th></th><th></th>`;
 
   $("board").innerHTML = `
     <section class="xl-wrap">
@@ -3039,9 +3107,7 @@ function renderExcelSheet() {
               ${nameHeads}
             </tr>
           </thead>
-          ${section("DX")}
-          ${section("DD")}
-          ${tasks.some((t) => t.line === "DS") ? section("DS") : ""}
+          ${boardLines(tasks).map((line) => section(line)).join("")}
           <tfoot>
             <tr>
               <td></td>
@@ -3841,6 +3907,7 @@ function financeFromApi(snap) {
     clientRate: snap.clientRate,
     playableClientRate: snap.playableClientRate,
     byDirection: snap.byDirection || [],
+    byClient: snap.byClient || [],
     hoursSource: snap.hoursSource,
     nbu: snap.nbu,
   };
@@ -3895,6 +3962,7 @@ function drivePack() {
     docs: d.docs || meta.driveDocs || "",
     excel: d.excel || meta.driveLiveExcel || "",
     calculator: d.calculator || meta.driveCalculator || "",
+    slotomaniaCalculator: d.slotomaniaCalculator || meta.driveSlotomaniaCalculator || "",
     october: d.october || meta.driveLiveOctober || "",
     octoberDDId: d.octoberDDId || "",
     octoberDXId: d.octoberDXId || "",
@@ -3908,6 +3976,7 @@ function driveStrip() {
     ["docs", d.docs],
     ["Excel", d.excel],
     ["CALC", d.calculator],
+    ["Slotomania CALC", d.slotomaniaCalculator],
     ["October", d.october],
     ["Invoices", d.invoices],
   ]
@@ -4005,58 +4074,92 @@ function renderClose() {
   });
 }
 
-function renderClient(fin) {
-  const empty = !fin.tasks.length;
-  const lineRows = fin.byLine
-    .map((row) => {
-      const share = fin.totalHours ? Math.round((row.hours / fin.totalHours) * 100) : 0;
-      const rate = Number(row.rate) || (row.direction === "playables" ? fin.playableClientRate || 40 : fin.clientRate);
-      const label = row.label || `${row.direction === "playables" ? "Playable" : "MGX"} ${row.line}`;
-      return `<tr>
+function financeLineRow(row, fin, quote) {
+  const share = fin.totalHours ? Math.round((row.hours / fin.totalHours) * 100) : 0;
+  const rate = Number(row.rate) || (row.direction === "playables" ? fin.playableClientRate || 40 : fin.clientRate);
+  const label = row.label || `${row.direction === "playables" ? "Playable" : "MGX"} ${row.line}`;
+  const quoteCells = quote
+    ? `<td class="num">${row.quotedHours ? hoursLabel(row.quotedHours) : "—"}</td>
+        <td class="num">${row.quotedBill ? usd(row.quotedBill) : "—"}</td>`
+    : "";
+  return `<tr>
         <td><span class="pill ${row.direction === "playables" ? "dep-playables" : "dep-MGX"}">${escapeHtml(label)}</span></td>
         <td class="num">${row.projects}</td>
         <td class="num">${Number(row.shifts || 0).toFixed(1)}</td>
         <td class="num">${hoursLabel(row.hours)}</td>
         <td class="num">${usd(rate)}</td>
         <td class="num"><b>${usd(row.bill)}</b></td>
+        ${quoteCells}
         <td class="num muted">${share}%</td>
         <td></td>
       </tr>`;
-    })
-    .join("");
-  if (empty) {
-    return `<div class="fin-empty">No hours in ${escapeHtml(fin.month)}.</div>`;
-  }
-  const canCreate = fin.byLine.some((row) => row.hours);
+}
+
+function renderClientGroup(group, fin) {
+  const quote = group.money === "quote_po";
+  const lines = group.byLine || [];
+  const lineRows = lines.map((row) => financeLineRow(row, fin, quote)).join("");
+  const quoteHead = quote ? `<th class="num">Quote h</th><th class="num">Quote $</th>` : "";
+  const quoteFoot = quote
+    ? `<td class="num">${group.quotedHours ? hoursLabel(group.quotedHours) : "—"}</td>
+            <td class="num">${group.quotedIn ? usd(group.quotedIn) : "—"}</td>`
+    : "";
+  const actions =
+    group.id === "superplay"
+      ? `<button type="button" class="btn" id="btnOpenFolder">Open MGX folder</button>
+              <button type="button" class="btn" id="btnOpenFolderPlay">Open Playable folder</button>
+              <button type="button" class="btn primary" id="btnCreateInvoices" ${lines.some((row) => row.hours) ? "" : "disabled"}>Create SuperPlay invoices</button>`
+      : `<span class="fin-sl-note">CLIENT IN is board hours × $40, as in SLOTOMANIA_Calculator. Playtika invoice is the quote after PO — put PO on the card, then Accounting@playtika.com.</span>`;
   return `
-    <div class="fin-kpis">
-      <div class="kpi"><b>${fin.tasks.length}</b><span>projects</span></div>
-      <div class="kpi"><b>${hoursLabel(fin.totalHours)}</b><span>hours · MGX $35 / Playable $40</span></div>
-      <div class="kpi"><b>${usd(fin.clientIn)}</b><span>CLIENT IN</span></div>
-      <div class="kpi"><b>${usd(fin.studio)}</b><span>STUDIO</span></div>
-    </div>
     <section class="group fin-card">
+      <h3 class="fin-client-h">${escapeHtml(group.label || "Client")}</h3>
       <div class="fin-scroll">
         <table class="fin-table">
-          <thead><tr><th>Line</th><th class="num">Projects</th><th class="num">Shifts</th><th class="num">Hours</th><th class="num">Rate</th><th class="num">CLIENT IN</th><th class="num">Share</th><th></th></tr></thead>
-          <tbody>${lineRows}</tbody>
+          <thead><tr><th>Line</th><th class="num">Projects</th><th class="num">Shifts</th><th class="num">Hours</th><th class="num">Rate</th><th class="num">CLIENT IN</th>${quoteHead}<th class="num">Share</th><th></th></tr></thead>
+          <tbody>${lineRows || `<tr><td colspan="8" class="muted">No hours this month.</td></tr>`}</tbody>
           <tfoot><tr>
-            <td>SUPERPLAY</td>
-            <td class="num">${fin.tasks.length}</td>
-            <td class="num">${Number(fin.totalShifts || 0).toFixed(1)}</td>
-            <td class="num">${hoursLabel(fin.totalHours)}</td>
+            <td>${escapeHtml((group.label || "").toUpperCase())}</td>
+            <td class="num">${group.projects || 0}</td>
+            <td class="num">${Number(group.shifts || 0).toFixed(1)}</td>
+            <td class="num">${hoursLabel(group.hours || 0)}</td>
             <td></td>
-            <td class="num">${usd(fin.clientIn)}</td>
+            <td class="num">${usd(group.clientIn || 0)}</td>
+            ${quoteFoot}
             <td></td>
-            <td class="fin-foot-actions">
-              <button type="button" class="btn" id="btnOpenFolder">Open MGX folder</button>
-              <button type="button" class="btn" id="btnOpenFolderPlay">Open Playable folder</button>
-              <button type="button" class="btn primary" id="btnCreateInvoices" ${canCreate ? "" : "disabled"}>Create invoices</button>
-            </td>
+            <td class="fin-foot-actions">${actions}</td>
           </tr></tfoot>
         </table>
       </div>
     </section>`;
+}
+
+function renderClient(fin) {
+  const groups = (fin.byClient || []).filter((g) => (g.projects || 0) > 0 || (g.byLine || []).length);
+  const fallback = [
+    {
+      id: "superplay",
+      label: "SuperPlay",
+      money: "month_end",
+      byLine: fin.byLine || [],
+      hours: fin.totalHours,
+      shifts: fin.totalShifts,
+      clientIn: fin.clientIn,
+      projects: fin.tasks?.length || 0,
+    },
+  ];
+  const empty = !(fin.tasks?.length || groups.some((g) => g.projects));
+  if (empty) {
+    return `<div class="fin-empty">No hours in ${escapeHtml(fin.month)}.</div>`;
+  }
+  const blocks = (groups.length ? groups : fallback).map((g) => renderClientGroup(g, fin)).join("");
+  return `
+    <div class="fin-kpis">
+      <div class="kpi"><b>${fin.tasks.length}</b><span>projects · all clients</span></div>
+      <div class="kpi"><b>${hoursLabel(fin.totalHours)}</b><span>hours · SuperPlay MGX $35 / Playable $40</span></div>
+      <div class="kpi"><b>${usd(fin.clientIn)}</b><span>CLIENT IN</span></div>
+      <div class="kpi"><b>${usd(fin.studio)}</b><span>STUDIO</span></div>
+    </div>
+    ${blocks}`;
 }
 
 function renderStudio(fin) {

@@ -17,6 +17,33 @@ PATHS = {SUPERPLAY: "/superplay", SLOTOMANIA: "/slotomania"}
 DEFAULT_PINS = {SUPERPLAY: "3500", SLOTOMANIA: "4182"}
 RATE_USD = {SUPERPLAY: 40.0, SLOTOMANIA: 40.0}
 
+# One record per client. A third client is another entry here — not a SuperPlay fork.
+# boards() / Finance / Excel iterate this. Login aliases stay in _ALIASES.
+SPECS = {
+    SUPERPLAY: {
+        "id": SUPERPLAY,
+        "label": "SuperPlay",
+        "boardLabel": {"mgx": "SUPERPLAY MGX", "playables": "SUPERPLAY Playables"},
+        "directions": ("mgx", "playables"),
+        "lines": {"mgx": ("DX", "DD"), "playables": ("DX", "DD", "DS")},
+        "rates": {"mgx": 35.0, "playables": 40.0},
+        "money": "month_end",
+        "lineDefault": {"mgx": "DD", "playables": "DS"},
+        "excelKind": "tracker",
+    },
+    SLOTOMANIA: {
+        "id": SLOTOMANIA,
+        "label": "Slotomania",
+        "boardLabel": {"playables": "SLOTOMANIA Playables"},
+        "directions": ("playables",),
+        "lines": {"playables": ("SL",)},
+        "rates": {"playables": 40.0},
+        "money": "quote_po",
+        "lineDefault": {"playables": "SL"},
+        "excelKind": "calculator",
+    },
+}
+
 # Fold spaces / hyphens. Keep letters so "SuperPlay" and "слотоманія" both match.
 _LOGIN_KEEP = re.compile(r"[^\w]+", re.UNICODE)
 _ALIASES = {
@@ -46,7 +73,7 @@ OCTOBER_TASKS = (
     {
         "id": "t-sl-1",
         "name": "Snakes and Ladders",
-        "line": "PL",
+        "line": "SL",
         "department": "Playables",
         "clientId": SLOTOMANIA,
         "game": "Snakes and Ladders",
@@ -86,7 +113,7 @@ OCTOBER_TASKS = (
     {
         "id": "t-sl-2",
         "name": "Battle Ship",
-        "line": "PL",
+        "line": "SL",
         "department": "Playables",
         "clientId": SLOTOMANIA,
         "game": "Battle Ship",
@@ -126,7 +153,7 @@ OCTOBER_TASKS = (
     {
         "id": "t-sl-3",
         "name": "Coin Cruiser",
-        "line": "PL",
+        "line": "SL",
         "department": "Playables",
         "clientId": SLOTOMANIA,
         "game": "Coin Cruiser",
@@ -166,7 +193,7 @@ OCTOBER_TASKS = (
     {
         "id": "t-sl-4",
         "name": "Characters Playable",
-        "line": "PL",
+        "line": "SL",
         "department": "Playables",
         "clientId": SLOTOMANIA,
         "game": "Characters",
@@ -215,6 +242,63 @@ def _fold_login(raw: str) -> str:
 def parse_login(raw: str) -> str:
     """Return superplay / slotomania, or empty if the Login field is not a client name."""
     return _ALIASES.get(_fold_login(raw), "")
+
+
+def spec(client_id: str) -> dict:
+    return SPECS.get(norm(client_id), SPECS[SUPERPLAY])
+
+
+def boards() -> list[dict]:
+    """Studio sidebar: one row per client × direction. Add a client → add SPECS + aliases + PIN."""
+    out = []
+    for cid in CLIENTS:
+        item = SPECS[cid]
+        for direction in item["directions"]:
+            out.append(
+                {
+                    "clientId": cid,
+                    "direction": direction,
+                    "label": item["boardLabel"].get(direction) or item["label"],
+                    "money": item["money"],
+                    "lines": list(item["lines"].get(direction) or ()),
+                }
+            )
+    return out
+
+
+def line_of(task: dict | None) -> str:
+    cid = of_task(task)
+    raw = str((task or {}).get("line") or "").strip().upper()
+    if cid == SLOTOMANIA:
+        return "SL" if raw in {"", "PL", "SL"} else raw
+    if raw in {"DX", "DD", "DS"}:
+        return raw
+    return "DD"
+
+
+def lines_of(client_id: str, direction: str = "") -> tuple[str, ...]:
+    item = spec(client_id)
+    if direction:
+        return tuple(item["lines"].get(direction) or item["lineDefault"].values())
+    out: list[str] = []
+    for rows in item["lines"].values():
+        for line in rows:
+            if line not in out:
+                out.append(line)
+    return tuple(out)
+
+
+def rate_of(client_id: str, direction: str = "playables") -> float:
+    rates = spec(client_id).get("rates") or {}
+    if direction in rates:
+        return float(rates[direction])
+    if rates:
+        return float(next(iter(rates.values())))
+    return float(RATE_USD.get(norm(client_id), 40.0))
+
+
+def money_of(client_id: str) -> str:
+    return str(spec(client_id).get("money") or "month_end")
 
 
 def label(client_id: str) -> str:
@@ -406,8 +490,8 @@ def ensure_tasks(db: dict) -> bool:
     for task in tasks:
         if of_task(task) != SLOTOMANIA:
             continue
-        if task.get("line") != "PL":
-            task["line"] = "PL"
+        if line_of(task) != "SL" or task.get("line") != "SL":
+            task["line"] = "SL"
             dirty = True
         if task.get("clientId") != SLOTOMANIA:
             task["clientId"] = SLOTOMANIA
