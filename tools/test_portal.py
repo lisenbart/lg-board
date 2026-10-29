@@ -246,9 +246,18 @@ def test_studio_clients_registry() -> None:
     check("Slotomania CLIENT IN is board hours × $40", sl.get("clientIn") == 1280 and sl.get("hours") == 32, str(sl))
     check("Slotomania quote sits next to CLIENT IN", sl.get("quotedHours") == 37 and sl.get("quotedIn") == 1480, str(sl))
     check("studio CLIENT IN is both clients", snap.get("clientIn") == 9 * 35 + 1280, str(snap.get("clientIn")))
+    sp = clients.get("superplay") or {}
+    lp = next((r for r in snap.get("payroll") or [] if r.get("role") == "manager"), None)
+    yulia = next((r for r in snap.get("payroll") or [] if r.get("id") == "artdir2"), None)
+    check("SuperPlay Studio EMPL is SuperPlay pay only", abs(float(sp.get("empl") or 0) - 45) < 0.05, str(sp))
+    check("Slotomania Studio EMPL is Slotomania pay only", abs(float(sl.get("empl") or 0) - 704) < 0.05, str(sl))
+    check("LP SuperPlay hours skip Slotomania", lp and abs(float(lp.get("hoursPlay") or 0)) < 0.05 and abs(float(lp.get("hoursSl") or 0) - 32) < 0.05, str(lp))
+    check("Yulia hours sit on Slotomania", yulia and abs(float(yulia.get("hoursSl") or 0) - 12) < 0.05 and abs(float(yulia.get("hoursPlay") or 0)) < 0.05, str(yulia))
     js = (ROOT / "public" / "assets" / "app.js").read_text(encoding="utf-8")
     check("Excel Slotomania is SL / PlayableADs", "PlayableADs" in js and "function boardLines" in js)
     check("Finance UI groups clients", "function renderClientGroup" in js and "byClient" in js)
+    check("Studio books each client", "function renderStudioGroup" in js)
+    check("Employeers split Slotomania pay", "Slotomania Playables" in js and "SuperPlay Playables" in js)
     with tempfile.TemporaryDirectory() as raw:
         path = Path(raw) / "SLOTOMANIA_Calculator.xlsx"
         out = finance_io.write_slotomania_month(db, "2026-10", nbu_rate=44.8, path=path)
@@ -776,14 +785,13 @@ def test_playables_desk() -> None:
     check("MGX invoice Price is not $40/h", "40 USD per hour" not in mgx_txt)
     lp = next((r for r in snap["payroll"] if r.get("role") == "manager"), None)
     sl_play = sum(playables_io.producer_hours(t) for t in db["tasks"] if client_io.is_slotomania(t))
-    play_h = 29 + sl_play
     check(
         "LP Playables pay is producer hours × $7 not billed",
         lp
-        and abs(float(lp.get("hoursPlay") or 0) - play_h) < 0.05
-        and abs(float(lp.get("payUsd") or 0) - (9 * 5 + play_h * 7)) < 0.05
-        and abs(play_h - (30 + sl_play)) > 0.05,
-        str((lp, play_h, sl_play)),
+        and abs(float(lp.get("hoursPlay") or 0) - 29) < 0.05
+        and abs(float(lp.get("hoursSl") or 0) - sl_play) < 0.05
+        and abs(float(lp.get("payUsd") or 0) - (9 * 5 + 29 * 7 + sl_play * 7)) < 0.05,
+        str((lp, sl_play)),
     )
     check("AD hours ignore billed buffer", excel_io.hours_for_person(db["tasks"][1], "artdir1") == 10)
     check("DEV hours sit on programmerId", excel_io.hours_for_person(db["tasks"][1], "programmer1") == 19)

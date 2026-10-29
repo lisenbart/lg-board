@@ -973,7 +973,7 @@ function financeSnapshot() {
   const byLine = groups.superplay.byLineMap ? Object.values(groups.superplay.byLineMap) : [];
   const payMap = {};
   for (const p of crew()) {
-    payMap[p.id] = { person: p, projects: 0, shifts: 0, hours: 0, tasks: [] };
+    payMap[p.id] = { person: p, projects: 0, shifts: 0, hours: 0, hoursMgx: 0, hoursPlay: 0, hoursSl: 0, tasks: [] };
   }
   let unassignedHours = 0;
   let unassignedShifts = 0;
@@ -989,6 +989,9 @@ function financeSnapshot() {
       payMap[p.id].shifts += share / shiftHours();
       payMap[p.id].hours += share;
       payMap[p.id].tasks.push(t);
+      if (clientOf(t) === "slotomania") payMap[p.id].hoursSl += share;
+      else if (directionOf(t) === "playables") payMap[p.id].hoursPlay += share;
+      else payMap[p.id].hoursMgx += share;
       allocated += share;
     }
     const leftover = Math.max(0, roundHours(h - allocated));
@@ -1000,18 +1003,38 @@ function financeSnapshot() {
   }
   const payroll = Object.values(payMap)
     .map((row) => {
-      const payRate = personPayRate(row.person);
       const allHours = row.person.role === "manager";
-      const hours = allHours ? totalHours : row.hours;
-      const payUsd = hours * payRate;
+      const rateMgx = personPayRate(row.person);
+      const ratePlay = Number(row.person?.rates?.playables) || (row.person.role === "manager" ? 7 : personPayRate(row.person));
+      let hoursMgx = row.hoursMgx;
+      let hoursPlay = row.hoursPlay;
+      let hoursSl = row.hoursSl;
+      if (allHours) {
+        hoursMgx = tasks.filter((t) => clientOf(t) !== "slotomania" && directionOf(t) !== "playables").reduce((s, t) => s + hoursOf(t), 0);
+        hoursPlay = tasks.filter((t) => clientOf(t) !== "slotomania" && directionOf(t) === "playables").reduce((s, t) => s + hoursOf(t), 0);
+        hoursSl = tasks.filter((t) => clientOf(t) === "slotomania").reduce((s, t) => s + hoursOf(t), 0);
+      }
+      const payUsdMgx = hoursMgx * rateMgx;
+      const payUsdPlay = hoursPlay * ratePlay;
+      const payUsdSl = hoursSl * ratePlay;
+      const hours = hoursMgx + hoursPlay + hoursSl;
+      const payUsd = payUsdMgx + payUsdPlay + payUsdSl;
       return {
         ...row,
         hours,
+        hoursMgx,
+        hoursPlay,
+        hoursSl,
         shifts: allHours ? totalShifts : row.shifts,
         projects: allHours ? tasks.length : row.projects,
         allHours,
-        rate: payRate,
+        rate: rateMgx,
+        rateMgx,
+        ratePlay,
         payUsd,
+        payUsdMgx,
+        payUsdPlay,
+        payUsdSl,
         payUah: payUsd * fx,
       };
     })
@@ -1024,6 +1047,15 @@ function financeSnapshot() {
   const afterTax = clientIn - clientIn * tax;
   const empl = payroll.reduce((s, r) => s + r.payUsd, 0);
   const studio = afterTax - empl;
+  for (const g of byClient) {
+    const crewPay =
+      g.id === "slotomania"
+        ? payroll.reduce((s, r) => s + (Number(r.payUsdSl) || 0), 0)
+        : payroll.reduce((s, r) => s + (Number(r.payUsdMgx) || 0) + (Number(r.payUsdPlay) || 0), 0);
+    g.empl = crewPay;
+    g.afterTax = (g.clientIn || 0) - (g.clientIn || 0) * tax;
+    g.studio = g.afterTax - g.empl;
+  }
   return {
     month: monthLabel(state.month),
     ym: state.month,
@@ -3872,6 +3904,7 @@ function financeFromApi(snap) {
       hours: row.hours,
       hoursMgx: row.hoursMgx,
       hoursPlay: row.hoursPlay,
+      hoursSl: row.hoursSl,
       allHours: row.allHours,
       rate: row.rate,
       rateMgx: row.rateMgx,
@@ -3879,6 +3912,7 @@ function financeFromApi(snap) {
       payUsd: row.payUsd,
       payUsdMgx: row.payUsdMgx,
       payUsdPlay: row.payUsdPlay,
+      payUsdSl: row.payUsdSl,
       payUah: row.payUah,
     };
   });
@@ -4162,40 +4196,63 @@ function renderClient(fin) {
     ${blocks}`;
 }
 
-function renderStudio(fin) {
-  const pct = taxPercent(fin.tax);
+function studioBooks(group, fin) {
+  const clientIn = Number(group.clientIn) || 0;
+  const empl = Number(group.empl) || 0;
+  const afterTax = group.afterTax != null ? Number(group.afterTax) : clientIn - clientIn * (fin.tax || 0);
+  const studio = group.studio != null ? Number(group.studio) : afterTax - empl;
+  return { clientIn, afterTax, empl, studio };
+}
+
+function renderStudioGroup(group, fin) {
+  const books = studioBooks(group, fin);
   const rows = [
-    { key: "clientIn", label: "CLIENT IN", usd: fin.clientIn },
-    { key: "afterTax", label: "STUDIO (TAX)", usd: fin.afterTax },
-    { key: "empl", label: "EMPL", usd: fin.empl },
-    { key: "studio", label: "STUDIO", usd: fin.studio },
+    { key: "clientIn", label: "CLIENT IN", usd: books.clientIn },
+    { key: "afterTax", label: "STUDIO (TAX)", usd: books.afterTax },
+    { key: "empl", label: "EMPL — pay this crew", usd: books.empl },
+    { key: "studio", label: "STUDIO", usd: books.studio },
   ];
   const body = rows
-    .map((row) => {
-      const taxCtl =
-        row.key === "afterTax"
-          ? `<label class="fin-tax-line"><b>STUDIO (TAX)</b><input id="finTaxPct" class="fin-tax-in" type="number" min="0" max="100" step="0.1" value="${pct}" /><span>%</span></label>`
-          : `<b>${escapeHtml(row.label)}</b>`;
-      return `<tr class="${row.key === "studio" ? "fin-studio-row" : ""}" data-row="${row.key}">
-        <td>${taxCtl}</td>
+    .map(
+      (row) => `<tr class="${row.key === "studio" ? "fin-studio-row" : ""}" data-row="${row.key}">
+        <td><b>${escapeHtml(row.label)}</b></td>
         <td class="num" data-uah-amt data-usd-amt="${row.usd}">${uah(row.usd * fin.fx)}</td>
         <td class="num" data-usd>${usd(row.usd)}</td>
-      </tr>`;
-    })
+      </tr>`
+    )
     .join("");
-  const empty = !fin.tasks.length ? `<div class="fin-empty">No hours in ${escapeHtml(fin.month)}.</div>` : "";
+  const note =
+    group.id === "slotomania"
+      ? `<p class="fin-sl-note">Separate from SuperPlay. Pay this EMPL when Slotomania is closed. CLIENT IN is board hours × $40.</p>`
+      : `<p class="fin-sl-note">Month-end SuperPlay books. Pay this EMPL when SuperPlay is closed — Slotomania is not in these numbers.</p>`;
   return `
-    <section class="group fin-card">
-      <div class="fin-rates">
-        <label>NBU USD/UAH <input id="finNbu" type="number" min="0" step="0.01" value="${fin.fx}" /></label>
-      </div>
-      ${empty}
+    <div class="fin-dir-block">
+      <h3 class="fin-client-h">${escapeHtml(group.label || "Client")}</h3>
+      ${note}
       <div class="fin-scroll">
-        <table class="fin-table" id="finStudioTable" data-client-in="${fin.clientIn}" data-empl="${fin.empl}">
+        <table class="fin-table fin-studio-table" data-client-in="${books.clientIn}" data-empl="${books.empl}">
           <thead><tr><th></th><th class="num">UAH</th><th class="num">USD</th></tr></thead>
           <tbody>${body}</tbody>
         </table>
       </div>
+    </div>`;
+}
+
+function renderStudio(fin) {
+  const pct = taxPercent(fin.tax);
+  const groups = (fin.byClient || []).filter((g) => (g.projects || 0) > 0 || (g.clientIn || 0) > 0);
+  const empty = !fin.tasks.length && !groups.length ? `<div class="fin-empty">No hours in ${escapeHtml(fin.month)}.</div>` : "";
+  const blocks = (groups.length ? groups : [{ id: "superplay", label: "SuperPlay", clientIn: fin.clientIn, empl: fin.empl, afterTax: fin.afterTax, studio: fin.studio, projects: fin.tasks?.length || 0 }])
+    .map((g) => renderStudioGroup(g, fin))
+    .join("");
+  return `
+    <section class="group fin-card">
+      <div class="fin-rates">
+        <label>NBU USD/UAH <input id="finNbu" type="number" min="0" step="0.01" value="${fin.fx}" /></label>
+        <label>Tax <span class="fin-tax-line"><input id="finTaxPct" class="fin-tax-in" type="number" min="0" max="100" step="0.1" value="${pct}" /><span>%</span></span></label>
+      </div>
+      ${empty}
+      ${blocks}
     </section>`;
 }
 
@@ -4214,31 +4271,26 @@ function bindStudioPay() {
 
 function refreshStudioMoney() {
   const root = $("board");
-  const table = $("finStudioTable");
-  if (!root || !table) return;
+  if (!root) return;
   const fx = employeePayFx();
   const tax = studioTaxFraction();
-  const clientIn = Number(table.dataset.clientIn) || 0;
-  const empl = Number(table.dataset.empl) || 0;
-  const afterTax = clientIn - clientIn * tax;
-  const studio = afterTax - empl;
-  const amounts = { clientIn, afterTax, empl, studio };
-  root.querySelectorAll("tr[data-row]").forEach((tr) => {
-    const usdAmt = amounts[tr.dataset.row];
-    const uahEl = tr.querySelector("[data-uah-amt]");
-    const usdEl = tr.querySelector("[data-usd]");
-    if (uahEl) {
-      uahEl.dataset.usdAmt = String(usdAmt);
-      uahEl.textContent = uah(usdAmt * fx);
-    }
-    if (usdEl) usdEl.textContent = usd(usdAmt);
+  root.querySelectorAll("table.fin-studio-table").forEach((table) => {
+    const clientIn = Number(table.dataset.clientIn) || 0;
+    const empl = Number(table.dataset.empl) || 0;
+    const afterTax = clientIn - clientIn * tax;
+    const studio = afterTax - empl;
+    const amounts = { clientIn, afterTax, empl, studio };
+    table.querySelectorAll("tr[data-row]").forEach((tr) => {
+      const usdAmt = amounts[tr.dataset.row];
+      const uahEl = tr.querySelector("[data-uah-amt]");
+      const usdEl = tr.querySelector("[data-usd]");
+      if (uahEl) {
+        uahEl.dataset.usdAmt = String(usdAmt);
+        uahEl.textContent = uah(usdAmt * fx);
+      }
+      if (usdEl) usdEl.textContent = usd(usdAmt);
+    });
   });
-  for (const [key, val] of Object.entries(amounts)) {
-    const el = root.querySelector(`[data-kpi="${key}"]`);
-    if (el) el.textContent = usd(val);
-  }
-  const taxEl = root.querySelector("[data-kpi-tax]");
-  if (taxEl) taxEl.textContent = String(taxPercent(tax));
 }
 
 async function saveTaxPct(opts = {}) {
@@ -4287,19 +4339,23 @@ function refreshPayCopyButton(tr) {
 }
 
 function employeeDirHours(row, dir) {
-  return Number(dir === "playables" ? row.hoursPlay : row.hoursMgx) || 0;
+  if (dir === "slotomania") return Number(row.hoursSl) || 0;
+  if (dir === "playables") return Number(row.hoursPlay) || 0;
+  return Number(row.hoursMgx) || 0;
 }
 function employeeDirRate(row, dir) {
-  const named = Number(dir === "playables" ? row.ratePlay : row.rateMgx);
+  const named = Number(dir === "mgx" ? row.rateMgx : row.ratePlay);
   if (Number.isFinite(named) && named >= 0) return named;
   return Number(row.rate) || rolePayRate(row.person);
 }
 function employeeInDirection(row, dir) {
   const hours = employeeDirHours(row, dir);
   if (hours > 0) return true;
+  if (dir === "slotomania") return false;
   const dirs = personDirections(row.person);
   const other = employeeDirHours(row, dir === "playables" ? "mgx" : "playables");
-  return dirs.includes(dir) && other <= 0;
+  const sl = employeeDirHours(row, "slotomania");
+  return dirs.includes(dir) && other <= 0 && sl <= 0;
 }
 function employeePayRow(row, dir) {
   const hours = employeeDirHours(row, dir);
@@ -4328,8 +4384,8 @@ function employeePayRow(row, dir) {
         <td>${payCell}</td>
       </tr>`;
 }
-function employeeTable(title, rows, unRow, emplUsd, emplUah) {
-  const body = rows.map((row) => employeePayRow(row, title === "Playables" ? "playables" : "mgx")).join("");
+function employeeTable(title, rows, unRow, emplUsd, emplUah, dir) {
+  const body = rows.map((row) => employeePayRow(row, dir)).join("");
   return `
       <div class="fin-dir-block">
         <h3 class="fin-dir-title">${escapeHtml(title)}</h3>
@@ -4343,10 +4399,11 @@ function employeeTable(title, rows, unRow, emplUsd, emplUah) {
       </div>`;
 }
 function renderEmployees(fin) {
-  const mgxRows = fin.payroll.filter((row) => employeeInDirection(row, "mgx"));
-  const playRows = fin.payroll.filter((row) => employeeInDirection(row, "playables"));
-  const mgxUsd = mgxRows.reduce((s, row) => s + employeeDirHours(row, "mgx") * employeeDirRate(row, "mgx"), 0);
-  const playUsd = playRows.reduce((s, row) => s + employeeDirHours(row, "playables") * employeeDirRate(row, "playables"), 0);
+  const buckets = [
+    { dir: "mgx", title: "SuperPlay MGX" },
+    { dir: "playables", title: "SuperPlay Playables" },
+    { dir: "slotomania", title: "Slotomania Playables" },
+  ];
   const unRow = fin.unassignedProjects
     ? `<tr class="fin-warn-row">
         <td>Unassigned</td>
@@ -4355,13 +4412,23 @@ function renderEmployees(fin) {
       </tr>`
     : "";
   const empty = `<p class="io-empty">No hours this month.</p>`;
+  const blocks = buckets
+    .map((bucket) => {
+      const rows = fin.payroll.filter((row) => employeeInDirection(row, bucket.dir));
+      const emplUsd = rows.reduce((s, row) => s + employeeDirHours(row, bucket.dir) * employeeDirRate(row, bucket.dir), 0);
+      const extra = bucket.dir === "mgx" ? unRow : "";
+      if (!rows.length && !extra) {
+        return `<div class="fin-dir-block"><h3 class="fin-dir-title">${escapeHtml(bucket.title)}</h3>${empty}</div>`;
+      }
+      return employeeTable(bucket.title, rows, extra, emplUsd, emplUsd * fin.fx, bucket.dir);
+    })
+    .join("");
   return `
     <section class="group fin-card">
       <div class="fin-rates">
         <label>NBU USD/UAH <input id="finNbu" type="number" min="0" step="0.01" value="${fin.fx}" /></label>
       </div>
-      ${mgxRows.length || unRow ? employeeTable("MGX", mgxRows, unRow, mgxUsd, mgxUsd * fin.fx) : `<div class="fin-dir-block"><h3 class="fin-dir-title">MGX</h3>${empty}</div>`}
-      ${playRows.length ? employeeTable("Playables", playRows, "", playUsd, playUsd * fin.fx) : `<div class="fin-dir-block"><h3 class="fin-dir-title">Playables</h3>${empty}</div>`}
+      ${blocks}
     </section>`;
 }
 
@@ -4518,7 +4585,8 @@ async function saveEmployeeRates(opts = {}) {
     }
     const rate = parsed === null ? rolePayRate(p) : parsed;
     const row = el.closest("tr");
-    const dir = el.dataset.dir === "playables" ? "playables" : el.dataset.dir === "mgx" ? "mgx" : "";
+    const dir =
+      el.dataset.dir === "mgx" ? "mgx" : el.dataset.dir === "playables" || el.dataset.dir === "slotomania" ? "playables" : "";
     const cur = byId.get(p.id) || { id: p.id, rates: {} };
     if (dir) cur.rates[dir] = rate;
     cur.rateUsd = rate;

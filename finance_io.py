@@ -258,9 +258,11 @@ def snapshot(db: dict, month: str, nbu: dict | None = None) -> dict:
         row["ratePlay"] = person_rate(next((p for p in db.get("people") or [] if p.get("id") == row["id"]), None), meta=meta, direction="playables")
         row["hoursMgx"] = 0.0
         row["hoursPlay"] = 0.0
+        row["hoursSl"] = 0.0
         row["payUsd"] = 0.0
         row["payUsdMgx"] = 0.0
         row["payUsdPlay"] = 0.0
+        row["payUsdSl"] = 0.0
         row["allHours"] = False
     unassigned = {"projects": 0, "shifts": 0.0, "hours": 0.0}
     by_line = []
@@ -278,8 +280,8 @@ def snapshot(db: dict, month: str, nbu: dict | None = None) -> dict:
                 "bill": 0.0,
                 "rate": rate,
             }
-    mgr_hours = {direction_io.MGX: 0.0, direction_io.PLAYABLES: 0.0}
-    mgr_projects = {direction_io.MGX: 0, direction_io.PLAYABLES: 0}
+    mgr_hours = {direction_io.MGX: 0.0, direction_io.PLAYABLES: 0.0, client_io.SLOTOMANIA: 0.0}
+    mgr_projects = {direction_io.MGX: 0, direction_io.PLAYABLES: 0, client_io.SLOTOMANIA: 0}
     for t in tasks:
         direction = direction_io.of_task(t)
         line = t.get("line") if t.get("line") in {"DD", "DX", "DS"} else "DD"
@@ -339,8 +341,8 @@ def snapshot(db: dict, month: str, nbu: dict | None = None) -> dict:
         sl_quote_h += client_io.quote_hours(t)
         sl_quote_bill += client_io.quote_amount(t)
         mgr_h = playables_io.producer_hours(t)
-        mgr_hours[direction] += mgr_h
-        mgr_projects[direction] += 1
+        mgr_hours[client_io.SLOTOMANIA] += mgr_h
+        mgr_projects[client_io.SLOTOMANIA] += 1
         allocated = 0.0
         for pid, row in list(pay.items()):
             if row.get("role") == "manager":
@@ -356,8 +358,8 @@ def snapshot(db: dict, month: str, nbu: dict | None = None) -> dict:
             row["projects"] += 1
             row["hours"] += ph
             row["payUsd"] += ph * pay_rate
-            row["hoursPlay"] += ph
-            row["payUsdPlay"] += ph * pay_rate
+            row["hoursSl"] += ph
+            row["payUsdSl"] += ph * pay_rate
             allocated = round(allocated + ph, 1)
     people_by_id = {p["id"]: p for p in db.get("people") or []}
     for row in pay.values():
@@ -366,15 +368,23 @@ def snapshot(db: dict, month: str, nbu: dict | None = None) -> dict:
         person = people_by_id.get(row["id"])
         mgx_h = round(mgr_hours[direction_io.MGX], 1)
         play_h = round(mgr_hours[direction_io.PLAYABLES], 1)
+        sl_h = round(mgr_hours[client_io.SLOTOMANIA], 1)
         row["hoursMgx"] = mgx_h
         row["hoursPlay"] = play_h
-        row["hours"] = round(mgx_h + play_h, 1)
-        row["projects"] = mgr_projects[direction_io.MGX] + mgr_projects[direction_io.PLAYABLES]
+        row["hoursSl"] = sl_h
+        row["hours"] = round(mgx_h + play_h + sl_h, 1)
+        row["projects"] = (
+            mgr_projects[direction_io.MGX]
+            + mgr_projects[direction_io.PLAYABLES]
+            + mgr_projects[client_io.SLOTOMANIA]
+        )
         pay_mgx = mgx_h * person_rate(person, meta=meta, direction="mgx")
         pay_play = play_h * person_rate(person, meta=meta, direction="playables")
+        pay_sl = sl_h * person_rate(person, meta=meta, direction="playables")
         row["payUsdMgx"] = pay_mgx
         row["payUsdPlay"] = pay_play
-        row["payUsd"] = pay_mgx + pay_play
+        row["payUsdSl"] = pay_sl
+        row["payUsd"] = pay_mgx + pay_play + pay_sl
         row["allHours"] = True
         row["rate"] = person_rate(person, meta=meta, direction="mgx")
     payroll = sorted(pay.values(), key=lambda r: (r.get("payOrder") or 99, r["name"]))
@@ -383,11 +393,13 @@ def snapshot(db: dict, month: str, nbu: dict | None = None) -> dict:
             row["rate"] = row.get("ratePlay") if row.get("hoursPlay") and not row.get("hoursMgx") else row.get("rateMgx") or row.get("rate")
         row["payUsdMgx"] = round(row.get("payUsdMgx") or 0, 2)
         row["payUsdPlay"] = round(row.get("payUsdPlay") or 0, 2)
+        row["payUsdSl"] = round(row.get("payUsdSl") or 0, 2)
         row["payUah"] = round(row["payUsd"] * fx, 2)
         row["payUsd"] = round(row["payUsd"], 2)
         row["hours"] = round(row["hours"], 1)
         row["hoursMgx"] = round(row.get("hoursMgx") or 0, 1)
         row["hoursPlay"] = round(row.get("hoursPlay") or 0, 1)
+        row["hoursSl"] = round(row.get("hoursSl") or 0, 1)
         row["shifts"] = round(row["shifts"], 2)
     for key in ((direction_io.MGX, "DX"), (direction_io.MGX, "DD"), (direction_io.MGX, "DS"),
                 (direction_io.PLAYABLES, "DX"), (direction_io.PLAYABLES, "DD"), (direction_io.PLAYABLES, "DS")):
@@ -424,6 +436,12 @@ def snapshot(db: dict, month: str, nbu: dict | None = None) -> dict:
     after_tax = round(client_in - client_in * tax, 2)
     empl = round(sum(r["payUsd"] for r in payroll), 2)
     studio = round(after_tax - empl, 2)
+    sp_empl = round(sum((r.get("payUsdMgx") or 0) + (r.get("payUsdPlay") or 0) for r in payroll), 2)
+    sl_empl = round(sum(r.get("payUsdSl") or 0 for r in payroll), 2)
+    sp_after = round(sp_in - sp_in * tax, 2)
+    sl_after = round(sl_bill - sl_bill * tax, 2)
+    sp_studio = round(sp_after - sp_empl, 2)
+    sl_studio = round(sl_after - sl_empl, 2)
     mgx_in = round(sum(r["bill"] for r in by_line if r["direction"] == direction_io.MGX), 2)
     play_in = round(sum(r["bill"] for r in by_line if r["direction"] == direction_io.PLAYABLES) + sl_bill, 2)
     by_client = [
@@ -435,6 +453,9 @@ def snapshot(db: dict, month: str, nbu: dict | None = None) -> dict:
             "hours": sp_hours,
             "shifts": sp_shifts,
             "clientIn": sp_in,
+            "afterTax": sp_after,
+            "empl": sp_empl,
+            "studio": sp_studio,
             "projects": len(tasks),
         },
         {
@@ -445,6 +466,9 @@ def snapshot(db: dict, month: str, nbu: dict | None = None) -> dict:
             "hours": sl_hours,
             "shifts": 0.0,
             "clientIn": sl_bill,
+            "afterTax": sl_after,
+            "empl": sl_empl,
+            "studio": sl_studio,
             "quotedHours": sl_quote_h,
             "quotedIn": sl_quote_bill,
             "projects": len(sl_tasks),
