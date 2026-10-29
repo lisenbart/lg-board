@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-build="2026-10-29f">
+<html lang="en" data-build="2026-10-29g">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@300;400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/board.css?v=164" />
+  <link rel="stylesheet" href="assets/board.css?v=165" />
   <script>
     (function () {
       const host = location.hostname;
@@ -47,18 +47,10 @@
         <small id="brandMode"></small>
       </div>
       <div class="nav-label">Boards</div>
-      <button type="button" class="nav-item active" id="navMgx">SUPERPLAY MGX</button>
-      <button type="button" class="nav-item" id="navPlay">SUPERPLAY Playables</button>
-      <button type="button" class="nav-item" id="navSlotomania">SLOTOMANIA Playables</button>
-      <div id="financeNav" hidden>
-        <div class="nav-label">Finance</div>
-        <button class="nav-item" id="navClose">October 2026</button>
-        <button class="nav-item" id="navTeam">Team names</button>
-      </div>
-      <div id="clientsNav" hidden>
-        <div class="nav-label">Clients</div>
-        <button type="button" class="nav-item" id="navClientSuperplay" data-client="superplay">SuperPlay</button>
-        <button type="button" class="nav-item" id="navClientSlotomania" data-client="slotomania">Slotomania</button>
+      <nav id="boardsNav" class="boards-nav" aria-label="Client boards"></nav>
+      <div id="studioNav" hidden>
+        <div class="nav-label">Studio</div>
+        <button type="button" class="nav-item" id="navTeam">Team names</button>
       </div>
       <div class="side-foot" id="sideFoot"></div>
     </aside>
@@ -219,6 +211,6 @@
 
   <div class="toast" id="toast"></div>
   <script src="assets/notices.js?v=5"></script>
-  <script src="assets/app.js?v=217"></script>
+  <script src="assets/app.js?v=218"></script>
 </body>
 </html>

@@ -81,7 +81,18 @@ a { color: var(--blue); }
 .nav-item.active, .nav-item:hover { background: rgba(255,255,255,0.08); }
 .nav-item .soon { color: #8b91b3; font-size: 10px; }
 .nav-item[hidden] { display: none; }
-#clientsNav[hidden], #financeNav[hidden] { display: none; }
+#studioNav[hidden] { display: none; }
+.boards-nav { display: flex; flex-direction: column; gap: 2px; }
+.nav-group { display: flex; flex-direction: column; gap: 1px; margin: 0 0 8px; }
+.nav-group-h {
+  color: #c5cae3;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 8px 8px 2px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.nav-item.nav-child { padding-left: 16px; }
 .card-watch {
   margin: 0 16px 10px;
   padding: 8px 10px;

@@ -18,7 +18,8 @@ DEFAULT_PINS = {SUPERPLAY: "3500", SLOTOMANIA: "4182"}
 RATE_USD = {SUPERPLAY: 40.0, SLOTOMANIA: 40.0}
 
 # One record per client. A third client is another entry here — not a SuperPlay fork.
-# boards() / Finance / Excel iterate this. Login aliases stay in _ALIASES.
+# Mirror the same id/directions in public/assets/app.js CLIENTS so the sidebar
+# grows a new group (MGX / Playables / Finance). Login aliases stay in _ALIASES.
 SPECS = {
     SUPERPLAY: {
         "id": SUPERPLAY,

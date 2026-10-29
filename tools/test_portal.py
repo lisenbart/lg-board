@@ -273,7 +273,8 @@ def test_studio_clients_registry() -> None:
     )
     check("Finance UI groups clients", "function renderClientGroup" in js and "byClient" in js)
     check("Studio books each client", "function renderStudioGroup" in js)
-    check("Employeers split Slotomania pay", "Slotomania Playables" in js and "SuperPlay Playables" in js)
+    check("Finance is scoped to the open client", "function financeClient" in js and "function renderBoardsNav" in js)
+    check("Employeers follow the open client", 'dir: "slotomania"' in js and 'data-nav="finance"' in js)
     with tempfile.TemporaryDirectory() as raw:
         path = Path(raw) / "SLOTOMANIA_Calculator.xlsx"
         out = finance_io.write_slotomania_month(db, "2026-10", nbu_rate=44.8, path=path)
@@ -1116,13 +1117,14 @@ def test_playables_desk() -> None:
         check(
             "DL SuperPlay hours stay in the cabinet",
             'id: "report", label: clientMeta(cid).label' in js
-            and 'id="navClientSuperplay"' in html
-            and 'id="navClientSlotomania"' in html
+            and 'data-nav="hours"' in js
+            and 'id="boardsNav"' in html
             and "function isHoursView" in js,
         )
+        check("sidebar groups SuperPlay and Slotomania", "function renderBoardsNav" in js and "nav-group-h" in css)
         check("client page is /superplay", 'path: "/superplay"' in js and "function clientLink" in js)
         check("client page title is SuperPlay", "Lisenbart Board" in js and "Hours — Lisenbart Board" not in js)
-        check("Slotomania client page is /slotomania", 'path: "/slotomania"' in js and 'id="navSlotomania"' in html)
+        check("Slotomania client page is /slotomania", 'path: "/slotomania"' in js and 'id="boardsNav"' in html)
         check("client tab is SuperPlay not Hours", '{ id: "report", label: "Hours" }' not in js)
         check("card warns if it changed while open", "This card changed while it was open" in js)
         check("card shows who is writing", "is on this card" in js and "function paintCardWatch" in js)

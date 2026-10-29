@@ -78,10 +78,22 @@ const STUDIO_ROLES = [
 ];
 const DIR_KEY = "lg-direction";
 const CLIENT_KEY = "lg-client";
-const DIR_LABEL = { mgx: "SUPERPLAY MGX", playables: "SUPERPLAY Playables" };
 const CLIENTS = [
-  { id: "superplay", label: "SuperPlay", path: "/superplay" },
-  { id: "slotomania", label: "Slotomania", path: "/slotomania" },
+  {
+    id: "superplay",
+    label: "SuperPlay",
+    path: "/superplay",
+    directions: [
+      { id: "mgx", label: "MGX" },
+      { id: "playables", label: "Playables" },
+    ],
+  },
+  {
+    id: "slotomania",
+    label: "Slotomania",
+    path: "/slotomania",
+    directions: [{ id: "playables", label: "Playables" }],
+  },
 ];
 
 const MONTH_KEY = "lg-month";
@@ -198,6 +210,23 @@ function studioMonthTasks() {
 function clientMeta(id) {
   return CLIENTS.find((c) => c.id === id) || CLIENTS[0];
 }
+function clientDirections(c) {
+  return (c?.directions || []).map((d) =>
+    typeof d === "string" ? { id: d, label: d === "mgx" ? "MGX" : "Playables" } : d
+  );
+}
+function canSeeClient(c) {
+  if (isFinance()) return true;
+  return clientDirections(c).some((d) => canSeeDirection(d.id));
+}
+function boardHeading() {
+  const c = clientMeta(activeClientId());
+  if (state.view === "team") return "Team names";
+  if (state.view === "close") return `${c.label} Finance`;
+  if (state.view === "report") return c.label;
+  const dir = state.direction === "playables" ? "Playables" : "MGX";
+  return `${c.label.toUpperCase()} ${dir}`;
+}
 function pathClientId() {
   if (/\/slotomania\/?$/.test(location.pathname)) return "slotomania";
   if (/\/superplay\/?$/.test(location.pathname) || /\/hours\/?$/.test(location.pathname)) return "superplay";
@@ -211,16 +240,46 @@ function sessionClientId() {
   if (email.includes("superplay")) return "superplay";
   return "";
 }
+function knownClientId(raw) {
+  const id = String(raw || "").toLowerCase();
+  return CLIENTS.some((c) => c.id === id) ? id : "superplay";
+}
 function activeClientId() {
-  if (isClient() && !isFinance()) return sessionClientId() || pathClientId() || "superplay";
-  if (state.view === "report") return state.hoursClient === "slotomania" ? "slotomania" : "superplay";
-  return state.boardClient === "slotomania" ? "slotomania" : "superplay";
+  if (isClient() && !isFinance()) return knownClientId(sessionClientId() || pathClientId());
+  if (state.view === "report") return knownClientId(state.hoursClient);
+  return knownClientId(state.boardClient);
 }
 function setBoardClient(id) {
-  const next = id === "slotomania" ? "slotomania" : "superplay";
+  const next = CLIENTS.some((c) => c.id === id) ? id : "superplay";
   state.boardClient = next;
   localStorage.setItem(CLIENT_KEY, next);
-  if (next === "slotomania") state.direction = "playables";
+  const dirs = clientDirections(clientMeta(next));
+  if (!dirs.some((d) => d.id === state.direction)) {
+    state.direction = dirs[0]?.id || "playables";
+    localStorage.setItem(DIR_KEY, state.direction);
+  }
+}
+function syncBoardClient() {
+  const cur = clientMeta(activeClientId());
+  if (canSeeClient(cur) && clientDirections(cur).some((d) => canSeeDirection(d.id))) {
+    if (!canSeeDirection(state.direction)) {
+      const next = clientDirections(cur).find((d) => canSeeDirection(d.id));
+      if (next) {
+        state.direction = next.id;
+        localStorage.setItem(DIR_KEY, next.id);
+      }
+    }
+    return;
+  }
+  const first = CLIENTS.find(canSeeClient);
+  if (!first) return;
+  state.boardClient = first.id;
+  localStorage.setItem(CLIENT_KEY, first.id);
+  const next = clientDirections(first).find((d) => canSeeDirection(d.id));
+  if (next) {
+    state.direction = next.id;
+    localStorage.setItem(DIR_KEY, next.id);
+  }
 }
 function isHoursView() {
   return isClient() || isHoursPage() || (isFinance() && state.view === "report");
@@ -1423,8 +1482,6 @@ function renderMonth() {
   $("monthLabel").textContent = monthLabel(state.month);
   $("monthMeta").textContent = here ? "This month" : "";
   $("monthLabel").parentElement.classList.toggle("this-month", here);
-  const nav = $("navClose");
-  if (nav) nav.textContent = monthLabel(state.month);
 }
 
 function setMonth(ym) {
@@ -1436,10 +1493,67 @@ function setMonth(ym) {
   render();
 }
 
+function renderBoardsNav() {
+  const root = $("boardsNav");
+  const studio = $("studioNav");
+  if (!root) return;
+  if (isClient() || isHoursPage()) {
+    root.innerHTML = "";
+    if (studio) studio.hidden = true;
+    return;
+  }
+  syncBoardClient();
+  const cid = activeClientId();
+  const onBoard = state.view !== "close" && state.view !== "team" && state.view !== "report";
+  root.innerHTML = CLIENTS.filter(canSeeClient)
+    .map((c) => {
+      const dirs = clientDirections(c).filter((d) => isFinance() || canSeeDirection(d.id));
+      const dirBtns = dirs
+        .map((d) => {
+          const active = onBoard && cid === c.id && state.direction === d.id;
+          return `<button type="button" class="nav-item nav-child${active ? " active" : ""}" data-nav="board" data-client="${escapeHtml(c.id)}" data-dir="${escapeHtml(d.id)}">${escapeHtml(d.label)}</button>`;
+        })
+        .join("");
+      const hoursActive = isFinance() && state.view === "report" && (state.hoursClient || cid) === c.id;
+      const finActive = isFinance() && state.view === "close" && cid === c.id;
+      const extra = isFinance()
+        ? `<button type="button" class="nav-item nav-child${hoursActive ? " active" : ""}" data-nav="hours" data-client="${escapeHtml(c.id)}">Hours</button>
+           <button type="button" class="nav-item nav-child${finActive ? " active" : ""}" data-nav="finance" data-client="${escapeHtml(c.id)}">Finance</button>`
+        : "";
+      return `<div class="nav-group" data-client="${escapeHtml(c.id)}">
+        <div class="nav-group-h">${escapeHtml(c.label)}</div>
+        ${dirBtns}${extra}
+      </div>`;
+    })
+    .join("");
+  if (studio) {
+    studio.hidden = !isFinance();
+    $("navTeam")?.classList.toggle("active", isFinance() && state.view === "team");
+  }
+}
+
+function openClientNav(btn) {
+  if (!btn || isClient()) return;
+  const cid = btn.dataset.client;
+  const nav = btn.dataset.nav;
+  const dir = btn.dataset.dir;
+  if (nav === "board") {
+    if (state.view === "close" || state.view === "team" || state.view === "report") state.view = "board";
+    setBoardClient(cid);
+    setDirection(dir);
+    return;
+  }
+  if (!isFinance()) return;
+  setBoardClient(cid);
+  state.hoursClient = cid;
+  if (nav === "finance") state.view = "close";
+  else if (nav === "hours") state.view = "report";
+  else return;
+  render();
+}
+
 function renderChrome() {
   syncDirection();
-  $("financeNav").hidden = !isFinance();
-  if ($("clientsNav")) $("clientsNav").hidden = !isFinance();
   if ($("inboxWrap")) $("inboxWrap").hidden = isClient();
   if ($("soundWrap")) {
     const hideSound = isClient() || isHoursPage();
@@ -1454,13 +1568,7 @@ function renderChrome() {
   const showSpLogo = clientHours && cid === "superplay";
   if (title) {
     title.hidden = showSpLogo;
-    title.textContent = clientHours
-      ? clientMeta(cid).label
-      : state.view === "close"
-        ? "Finance"
-        : cid === "slotomania"
-          ? "SLOTOMANIA Playables"
-          : DIR_LABEL[state.direction] || DIR_LABEL.mgx;
+    title.textContent = clientHours ? clientMeta(cid).label : boardHeading();
   }
   if (boardLogo) boardLogo.hidden = !showSpLogo;
   const pill = document.querySelector(".top-row > .pill");
@@ -1468,28 +1576,9 @@ function renderChrome() {
     const play = state.direction === "playables";
     pill.className = play ? "pill dep-playables" : "pill dep-MGX";
     pill.textContent = play ? "Playables" : "MGX";
-    pill.hidden = isHoursView();
+    pill.hidden = isHoursView() || state.view === "close" || state.view === "team";
   }
-  const mgxNav = $("navMgx");
-  const playNav = $("navPlay");
-  const slNav = $("navSlotomania");
-  const onBoard = state.view !== "close" && state.view !== "team" && state.view !== "report";
-  if (mgxNav) {
-    mgxNav.hidden = isClient() || !canSeeDirection("mgx");
-    mgxNav.classList.toggle("active", onBoard && cid === "superplay" && state.direction === "mgx");
-  }
-  if (playNav) {
-    playNav.hidden = isClient() || !canSeeDirection("playables");
-    playNav.classList.toggle("active", onBoard && cid === "superplay" && state.direction === "playables");
-  }
-  if (slNav) {
-    slNav.hidden = isClient() || !canSeeDirection("playables");
-    slNav.classList.toggle("active", onBoard && cid === "slotomania");
-  }
-  $("navClose")?.classList.toggle("active", isFinance() && state.view === "close");
-  $("navTeam")?.classList.toggle("active", isFinance() && state.view === "team");
-  $("navClientSuperplay")?.classList.toggle("active", isFinance() && state.view === "report" && state.hoursClient === "superplay");
-  $("navClientSlotomania")?.classList.toggle("active", isFinance() && state.view === "report" && state.hoursClient === "slotomania");
+  renderBoardsNav();
   renderMonth();
   const meta = state.db?.meta || {};
   const brand = $("brandMode");
@@ -1503,24 +1592,20 @@ function renderChrome() {
   $("sideFoot").innerHTML = "";
   ensureDriveStatus();
 
+  const deskView = state.view !== "close" && state.view !== "team" && state.view !== "report";
   const tabs = [];
   if (isClient()) {
     tabs.push({ id: "report", label: clientMeta(cid).label });
-  } else {
+  } else if (deskView) {
     tabs.push({
       id: "board",
       label: isPerformer() ? "My projects" : isTeamLead() ? "All projects" : "Pipeline",
     });
     tabs.push({ id: "excel", label: "Excel" });
     if (canOps()) tabs.push({ id: "ready", label: "Ready to send" });
-    if (isFinance()) {
-      tabs.push({ id: "close", label: "Finance" });
-      tabs.push({ id: "team", label: "Team" });
-      tabs.push({ id: "report", label: clientMeta(state.hoursClient || "superplay").label });
-    }
     tabs.push({ id: "guide", label: "Як це працює" });
   }
-  if (!tabs.some((t) => t.id === state.view)) state.view = isClient() ? "report" : "board";
+  if (!isClient() && !deskView && !["close", "team", "report"].includes(state.view)) state.view = "board";
   if (tabs.length <= 1) {
     $("views").innerHTML = "";
     $("views").hidden = true;
@@ -1535,7 +1620,6 @@ function renderChrome() {
     $("views").querySelectorAll(".view-tab").forEach((el) => {
       el.addEventListener("click", () => {
         state.view = el.dataset.view;
-        if (state.view === "report") state.hoursClient = "superplay";
         render();
       });
     });
@@ -3989,14 +4073,16 @@ function drivePack() {
 
 function driveStrip() {
   const d = drivePack();
-  const links = [
-    ["docs", d.docs],
-    ["Excel", d.excel],
-    ["CALC", d.calculator],
-    ["Slotomania CALC", d.slotomaniaCalculator],
-    ["October", d.october],
-    ["Invoices", d.invoices],
-  ]
+  const sl = activeClientId() === "slotomania";
+  const links = (sl
+    ? [["CALC", d.slotomaniaCalculator]]
+    : [
+        ["docs", d.docs],
+        ["Excel", d.excel],
+        ["CALC", d.calculator],
+        ["October", d.october],
+        ["Invoices", d.invoices],
+      ])
     .filter((row) => row[1])
     .map(
       ([label, href]) =>
@@ -4112,6 +4198,25 @@ function financeLineRow(row, fin, quote) {
       </tr>`;
 }
 
+function financeClient(fin) {
+  const cid = activeClientId();
+  const found = (fin.byClient || []).find((g) => g.id === cid);
+  if (found) return found;
+  return {
+    id: cid,
+    label: clientMeta(cid).label,
+    money: cid === "slotomania" ? "quote_po" : "month_end",
+    byLine: cid === "superplay" ? fin.byLine || [] : [],
+    hours: 0,
+    shifts: 0,
+    clientIn: 0,
+    afterTax: 0,
+    empl: 0,
+    studio: 0,
+    projects: 0,
+  };
+}
+
 function renderClientGroup(group, fin) {
   const quote = group.money === "quote_po";
   const lines = group.byLine || [];
@@ -4151,32 +4256,21 @@ function renderClientGroup(group, fin) {
 }
 
 function renderClient(fin) {
-  const groups = (fin.byClient || []).filter((g) => (g.projects || 0) > 0 || (g.byLine || []).length);
-  const fallback = [
-    {
-      id: "superplay",
-      label: "SuperPlay",
-      money: "month_end",
-      byLine: fin.byLine || [],
-      hours: fin.totalHours,
-      shifts: fin.totalShifts,
-      clientIn: fin.clientIn,
-      projects: fin.tasks?.length || 0,
-    },
-  ];
-  const empty = !(fin.tasks?.length || groups.some((g) => g.projects));
+  const group = financeClient(fin);
+  const empty = !(group.projects || (group.byLine || []).length);
   if (empty) {
     return `<div class="fin-empty">No hours in ${escapeHtml(fin.month)}.</div>`;
   }
-  const blocks = (groups.length ? groups : fallback).map((g) => renderClientGroup(g, fin)).join("");
+  const rateNote =
+    group.id === "slotomania" ? "board hours × $40" : "MGX $35 / Playable $40";
   return `
     <div class="fin-kpis">
-      <div class="kpi"><b>${fin.tasks.length}</b><span>projects · all clients</span></div>
-      <div class="kpi"><b>${hoursLabel(fin.totalHours)}</b><span>hours · SuperPlay MGX $35 / Playable $40</span></div>
-      <div class="kpi"><b>${usd(fin.clientIn)}</b><span>CLIENT IN</span></div>
-      <div class="kpi"><b>${usd(fin.studio)}</b><span>STUDIO</span></div>
+      <div class="kpi"><b>${group.projects || 0}</b><span>projects · ${escapeHtml(group.label)}</span></div>
+      <div class="kpi"><b>${hoursLabel(group.hours || 0)}</b><span>hours · ${rateNote}</span></div>
+      <div class="kpi"><b>${usd(group.clientIn || 0)}</b><span>CLIENT IN</span></div>
+      <div class="kpi"><b>${usd(group.studio || 0)}</b><span>STUDIO</span></div>
     </div>
-    ${blocks}`;
+    ${renderClientGroup(group, fin)}`;
 }
 
 function studioBooks(group, fin) {
@@ -4206,8 +4300,8 @@ function renderStudioGroup(group, fin) {
     .join("");
   const note =
     group.id === "slotomania"
-      ? `<p class="fin-sl-note">Separate from SuperPlay. Pay this EMPL when Slotomania is closed. CLIENT IN is board hours × $40.</p>`
-      : `<p class="fin-sl-note">Month-end SuperPlay books. Pay this EMPL when SuperPlay is closed — Slotomania is not in these numbers.</p>`;
+      ? `<p class="fin-sl-note">CLIENT IN is board hours × $40. Pay this EMPL when Slotomania is closed.</p>`
+      : `<p class="fin-sl-note">Month-end SuperPlay books. Pay this EMPL when SuperPlay is closed.</p>`;
   return `
     <div class="fin-dir-block">
       <h3 class="fin-client-h">${escapeHtml(group.label || "Client")}</h3>
@@ -4223,11 +4317,9 @@ function renderStudioGroup(group, fin) {
 
 function renderStudio(fin) {
   const pct = taxPercent(fin.tax);
-  const groups = (fin.byClient || []).filter((g) => (g.projects || 0) > 0 || (g.clientIn || 0) > 0);
-  const empty = !fin.tasks.length && !groups.length ? `<div class="fin-empty">No hours in ${escapeHtml(fin.month)}.</div>` : "";
-  const blocks = (groups.length ? groups : [{ id: "superplay", label: "SuperPlay", clientIn: fin.clientIn, empl: fin.empl, afterTax: fin.afterTax, studio: fin.studio, projects: fin.tasks?.length || 0 }])
-    .map((g) => renderStudioGroup(g, fin))
-    .join("");
+  const group = financeClient(fin);
+  const empty = !(group.projects || group.clientIn) ? `<div class="fin-empty">No hours in ${escapeHtml(fin.month)}.</div>` : "";
+  const blocks = renderStudioGroup(group, fin);
   return `
     <section class="group fin-card">
       <div class="fin-rates">
@@ -4382,11 +4474,14 @@ function employeeTable(title, rows, unRow, emplUsd, emplUah, dir) {
       </div>`;
 }
 function renderEmployees(fin) {
-  const buckets = [
-    { dir: "mgx", title: "SuperPlay MGX" },
-    { dir: "playables", title: "SuperPlay Playables" },
-    { dir: "slotomania", title: "Slotomania Playables" },
-  ];
+  const cid = activeClientId();
+  const buckets =
+    cid === "slotomania"
+      ? [{ dir: "slotomania", title: "Playables" }]
+      : [
+          { dir: "mgx", title: "MGX" },
+          { dir: "playables", title: "Playables" },
+        ];
   const unRow = fin.unassignedProjects
     ? `<tr class="fin-warn-row">
         <td>Unassigned</td>
@@ -6599,44 +6694,12 @@ $("signOut").addEventListener("click", () => {
   }
   showLogin();
 });
-$("navMgx")?.addEventListener("click", () => {
-  if (isClient()) return;
-  if (state.view === "close" || state.view === "team" || state.view === "report") state.view = "board";
-  setBoardClient("superplay");
-  setDirection("mgx");
+$("boardsNav")?.addEventListener("click", (e) => {
+  openClientNav(e.target.closest("button[data-nav]"));
 });
-$("navPlay")?.addEventListener("click", () => {
-  if (isClient()) return;
-  if (state.view === "close" || state.view === "team" || state.view === "report") state.view = "board";
-  setBoardClient("superplay");
-  setDirection("playables");
-});
-$("navSlotomania")?.addEventListener("click", () => {
-  if (isClient()) return;
-  if (state.view === "close" || state.view === "team" || state.view === "report") state.view = "board";
-  setBoardClient("slotomania");
-  setDirection("playables");
-});
-$("navClose").addEventListener("click", () => {
-  if (!isFinance()) return;
-  state.view = "close";
-  render();
-});
-$("navTeam").addEventListener("click", () => {
+$("navTeam")?.addEventListener("click", () => {
   if (!isFinance()) return;
   state.view = "team";
-  render();
-});
-$("navClientSuperplay")?.addEventListener("click", () => {
-  if (!isFinance()) return;
-  state.view = "report";
-  state.hoursClient = "superplay";
-  render();
-});
-$("navClientSlotomania")?.addEventListener("click", () => {
-  if (!isFinance()) return;
-  state.view = "report";
-  state.hoursClient = "slotomania";
   render();
 });
 $("delCancel").onclick = () => $("delModal").classList.remove("show");
