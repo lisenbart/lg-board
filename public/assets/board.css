@@ -2442,6 +2442,8 @@ html:not(.phone-ui) .push-hint { display: none !important; }
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 4px 10px;
   width: 100%;
+  max-width: 100%;
+  overflow: hidden;
   text-align: left;
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -2459,6 +2461,8 @@ html:not(.phone-ui) .push-hint { display: none !important; }
   font-weight: 600;
   line-height: 1.3;
   min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .phone-card-meta {
   grid-column: 2 / -1;
@@ -2633,9 +2637,36 @@ html:not(.phone-ui) .push-hint { display: none !important; }
   html:not(.hours-host) .kpi {
     flex: 1;
     min-width: 0;
+    overflow: hidden;
     padding: 10px 10px;
   }
-  html:not(.hours-host) .kpi b { font-size: 18px; }
+  html:not(.hours-host) .kpi b {
+    font-size: 16px;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  html:not(.hours-host) .fin-kpis {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  html:not(.hours-host) .fin-card,
+  html:not(.hours-host) .fin-dir-block {
+    overflow: hidden;
+  }
+  html:not(.hours-host) .fin-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  html:not(.hours-host) .phone-inbox-lead {
+    padding: 4px 12px 8px;
+  }
+  html:not(.hours-host) .phone-inbox-lead p {
+    margin: 0 0 10px;
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 1.4;
+  }
+  html:not(.hours-host) #inboxWrap { display: none !important; }
   html:not(.hours-host) .btn {
     min-height: 44px;
     padding: 10px 14px;

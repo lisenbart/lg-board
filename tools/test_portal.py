@@ -413,7 +413,14 @@ def test_phone_queue_mvp() -> None:
     check("DL phone bar has Finance", 'label: "Finance"' in js and 'label: "Queue"' in js)
     check("card Close sits in the header", 'class="btn drawer-close" id="closeCard"' in js)
     check("phone Sign out sits in the boards menu", 'id="phoneSignOut"' in js)
-    check("phone Notices is on the bottom bar", 'view: "inbox"' in js)
+    check("phone Notices is on the bottom bar", 'view: "inbox"' in js and 'label: "For you"' in js)
+    check(
+        "phone For you is a full list",
+        "function renderPhoneInbox" in js
+        and "Nothing for you right now." in js
+        and "if (isPhone()) return" in js,
+    )
+    check("phone names wrap inside the card", "overflow-wrap: anywhere" in css and "word-break: break-word" in css)
     check("phone hides the footer Close duplicate", "#closeCardFoot { display: none; }" in css)
     check(
         "phone MGX/Playables chips follow the seat",

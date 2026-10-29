@@ -241,6 +241,7 @@ function boardHeading() {
   if (state.view === "team") return "Team names";
   if (state.view === "close") return `${c.label} Finance`;
   if (state.view === "report") return c.label;
+  if (state.view === "inbox") return "For you";
   const dir = state.direction === "playables" ? "Playables" : "MGX";
   return `${c.label.toUpperCase()} ${dir}`;
 }
@@ -1646,7 +1647,10 @@ function openClientNav(btn) {
 }
 
 function pinchPhoneView() {
-  if (!isPhone()) return;
+  if (!isPhone()) {
+    if (state.view === "inbox") state.view = "board";
+    return;
+  }
   if (["excel", "guide", "ready"].includes(state.view)) state.view = "board";
 }
 
@@ -1706,6 +1710,39 @@ function phoneCardHtml(t) {
       ${t.line ? `<span>${escapeHtml(t.line)}</span>` : ""}
     </span>
   </button>`;
+}
+
+function renderPhoneInbox() {
+  const N = window.LGNotices;
+  const unread = N && state.db && me()?.id ? N.forPerson(state.db, me().id, true) : [];
+  const lead = `<div class="phone-inbox-lead">
+    <p>TL Check, Need Fixing, a new project, or a client note — when someone needs you, it lands here. Tap a row to open the card.</p>
+    ${unread.length ? `<button type="button" class="btn ghost" id="phoneInboxAll">Mark all read</button>` : ""}
+  </div>`;
+  if (!unread.length) {
+    $("board").innerHTML = `${lead}<p class="io-empty">Nothing for you right now.</p>`;
+    return;
+  }
+  $("board").innerHTML = `${lead}<div class="phone-queue">${unread
+    .map((n) => {
+      const mark = (N.KINDS[n.kind] || {}).mark || "none";
+      return `<button type="button" class="phone-card" data-id="${escapeHtml(n.id)}" data-task="${escapeHtml(n.taskId || "")}">
+      <span class="notice-chip notice-${mark}">${escapeHtml(N.labelOf(n.kind))}</span>
+      <span class="phone-card-name">${escapeHtml(N.titleOf(n))}</span>
+      <span class="phone-card-meta"><span>${escapeHtml(N.detailOf(n))}</span></span>
+    </button>`;
+    })
+    .join("")}</div>`;
+  $("board").querySelectorAll(".phone-card").forEach((el) => {
+    el.addEventListener("click", async () => {
+      const taskId = el.dataset.task;
+      await ackNotices({ ids: [el.dataset.id] });
+      if (taskId) openTask(taskId);
+    });
+  });
+  $("phoneInboxAll")?.addEventListener("click", async () => {
+    await ackNotices({ all: true });
+  });
 }
 
 function renderPhoneQueue() {
@@ -1778,7 +1815,7 @@ function renderPhoneBar() {
   const notices = unreadNoticeCount();
   const items = [
     { view: "board", label: "Queue" },
-    { view: "inbox", label: "Notices", count: notices },
+    { view: "inbox", label: "For you", count: notices },
   ];
   if (isFinance()) {
     items.push({ view: "report", label: "Hours" });
@@ -1788,9 +1825,9 @@ function renderPhoneBar() {
     .map((item) => {
       const on =
         item.view === "inbox"
-          ? inboxOpen()
+          ? state.view === "inbox"
           : item.view === "board"
-            ? state.view !== "close" && state.view !== "report" && state.view !== "team"
+            ? state.view !== "close" && state.view !== "report" && state.view !== "team" && state.view !== "inbox"
             : state.view === item.view;
       const count =
         item.count > 0
@@ -1804,8 +1841,9 @@ function renderPhoneBar() {
       const view = el.dataset.phoneView;
       setNavOpen(false);
       if (view === "inbox") {
-        setInboxOpen(!inboxOpen());
-        renderPhoneBar();
+        setInboxOpen(false);
+        state.view = "inbox";
+        render();
         return;
       }
       setInboxOpen(false);
@@ -1859,7 +1897,7 @@ function renderChrome() {
   $("sideFoot").innerHTML = "";
   ensureDriveStatus();
 
-  const deskView = state.view !== "close" && state.view !== "team" && state.view !== "report";
+  const deskView = state.view !== "close" && state.view !== "team" && state.view !== "report" && state.view !== "inbox";
   const tabs = [];
   if (isClient()) {
     tabs.push({ id: "report", label: clientMeta(cid).label });
@@ -1872,7 +1910,7 @@ function renderChrome() {
     if (canOps()) tabs.push({ id: "ready", label: "Ready to send" });
     tabs.push({ id: "guide", label: "Як це працює" });
   }
-  if (!isClient() && !deskView && !["close", "team", "report"].includes(state.view)) state.view = "board";
+  if (!isClient() && !deskView && !["close", "team", "report", "inbox"].includes(state.view)) state.view = "board";
   if (tabs.length <= 1) {
     $("views").innerHTML = "";
     $("views").hidden = true;
@@ -1894,7 +1932,7 @@ function renderChrome() {
 }
 
 function renderToolbar() {
-  if (state.view === "team" || state.view === "close" || state.view === "guide") {
+  if (state.view === "team" || state.view === "close" || state.view === "guide" || state.view === "inbox") {
     $("toolbar").innerHTML = "";
     return;
   }
@@ -2091,7 +2129,7 @@ async function submitCreateTask() {
 }
 
 function renderKpis() {
-  if (state.view === "close" || state.view === "team" || state.view === "guide" || state.view === "report") {
+  if (state.view === "close" || state.view === "team" || state.view === "guide" || state.view === "report" || state.view === "inbox") {
     $("kpis").innerHTML = "";
     return;
   }
@@ -3753,6 +3791,10 @@ function renderBoard() {
     renderClientReport();
     return;
   }
+  if (isPhone() && state.view === "inbox") {
+    renderPhoneInbox();
+    return;
+  }
   if (isPhone()) {
     renderPhoneQueue();
     return;
@@ -4462,19 +4504,19 @@ function financeLineRow(row, fin, quote) {
   const rate = Number(row.rate) || (row.direction === "playables" ? fin.playableClientRate || 40 : fin.clientRate);
   const label = row.label || `${row.direction === "playables" ? "Playable" : "MGX"} ${row.line}`;
   const quoteCells = quote
-    ? `<td class="num">${row.quotedHours ? hoursLabel(row.quotedHours) : "—"}</td>
-        <td class="num">${row.quotedBill ? usd(row.quotedBill) : "—"}</td>`
+    ? `<td class="num hide-sm">${row.quotedHours ? hoursLabel(row.quotedHours) : "—"}</td>
+        <td class="num hide-sm">${row.quotedBill ? usd(row.quotedBill) : "—"}</td>`
     : "";
   return `<tr>
         <td><span class="pill ${row.direction === "playables" ? "dep-playables" : "dep-MGX"}">${escapeHtml(label)}</span></td>
         <td class="num">${row.projects}</td>
-        <td class="num">${Number(row.shifts || 0).toFixed(1)}</td>
+        <td class="num hide-sm">${Number(row.shifts || 0).toFixed(1)}</td>
         <td class="num">${hoursLabel(row.hours)}</td>
-        <td class="num">${usd(rate)}</td>
+        <td class="num hide-sm">${usd(rate)}</td>
         <td class="num"><b>${usd(row.bill)}</b></td>
         ${quoteCells}
-        <td class="num muted">${share}%</td>
-        <td></td>
+        <td class="num muted hide-sm">${share}%</td>
+        <td class="hide-sm"></td>
       </tr>`;
 }
 
@@ -4501,10 +4543,10 @@ function renderClientGroup(group, fin) {
   const quote = group.money === "quote_po";
   const lines = group.byLine || [];
   const lineRows = lines.map((row) => financeLineRow(row, fin, quote)).join("");
-  const quoteHead = quote ? `<th class="num">Quote h</th><th class="num">Quote $</th>` : "";
+  const quoteHead = quote ? `<th class="num hide-sm">Quote h</th><th class="num hide-sm">Quote $</th>` : "";
   const quoteFoot = quote
-    ? `<td class="num">${group.quotedHours ? hoursLabel(group.quotedHours) : "—"}</td>
-            <td class="num">${group.quotedIn ? usd(group.quotedIn) : "—"}</td>`
+    ? `<td class="num hide-sm">${group.quotedHours ? hoursLabel(group.quotedHours) : "—"}</td>
+            <td class="num hide-sm">${group.quotedIn ? usd(group.quotedIn) : "—"}</td>`
     : "";
   const actions =
     group.id === "superplay"
@@ -4517,18 +4559,18 @@ function renderClientGroup(group, fin) {
       <h3 class="fin-client-h">${escapeHtml(group.label || "Client")}</h3>
       <div class="fin-scroll">
         <table class="fin-table">
-          <thead><tr><th>Line</th><th class="num">Projects</th><th class="num">Shifts</th><th class="num">Hours</th><th class="num">Rate</th><th class="num">CLIENT IN</th>${quoteHead}<th class="num">Share</th><th></th></tr></thead>
+          <thead><tr><th>Line</th><th class="num">Projects</th><th class="num hide-sm">Shifts</th><th class="num">Hours</th><th class="num hide-sm">Rate</th><th class="num">CLIENT IN</th>${quoteHead}<th class="num hide-sm">Share</th><th class="hide-sm"></th></tr></thead>
           <tbody>${lineRows || `<tr><td colspan="8" class="muted">No hours this month.</td></tr>`}</tbody>
           <tfoot><tr>
             <td>${escapeHtml((group.label || "").toUpperCase())}</td>
             <td class="num">${group.projects || 0}</td>
-            <td class="num">${Number(group.shifts || 0).toFixed(1)}</td>
+            <td class="num hide-sm">${Number(group.shifts || 0).toFixed(1)}</td>
             <td class="num">${hoursLabel(group.hours || 0)}</td>
-            <td></td>
+            <td class="hide-sm"></td>
             <td class="num">${usd(group.clientIn || 0)}</td>
             ${quoteFoot}
-            <td></td>
-            <td class="fin-foot-actions">${actions}</td>
+            <td class="hide-sm"></td>
+            <td class="fin-foot-actions hide-sm">${actions}</td>
           </tr></tfoot>
         </table>
       </div>
@@ -7340,6 +7382,7 @@ $("soundVol")?.addEventListener("input", () => {
   }, 120);
 });
 document.addEventListener("click", (e) => {
+  if (isPhone()) return;
   if (!$("inboxWrap")?.contains(e.target)) setInboxOpen(false);
   if (!$("soundWrap")?.contains(e.target)) setSoundOpen(false);
 });
