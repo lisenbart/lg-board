@@ -19,9 +19,9 @@ SLOTOMANIA
 
 LP / TL / AD / DEV / MD see the same groups without Hours or Finance. A third client is another group, not a row inside SuperPlay.
 
-On a phone the same PIN opens a **queue**: status chip, name, who, hours. Menu (left) switches SuperPlay / Slotomania and holds Sound / Phone pings / Sign out. Bottom bar is Queue / Notices, plus Hours and Finance for DL. A new notice pings and badges **Notices** while the board tab is open.
+On a phone the same PIN opens a **queue**: status chip, name, who, hours. Menu (left) switches SuperPlay / Slotomania and holds Sound / Pings switches and Sign out. Bottom bar is Queue / Notices, plus Hours and Finance for DL. A new notice pings and badges **Notices** while the board tab is open.
 
-To get a lock-screen ping when the board is closed: install **LG Board** (iPhone: Share → Add to Home Screen; Android Chrome: Install app / Add to Home screen), open that icon, then **Phone pings** and **Allow notices**. Send a test ping — a popup should appear. Lock the phone and send another to confirm it still works closed. A Safari or Chrome tab cannot ping when it is closed. The in-tab beep only plays while the board is on screen. Excel, Create task, invoices, and hour splits stay on the computer.
+To get a lock-screen ping when the board is closed: install **LG Board** (iPhone: Share → Add to Home Screen; Android Chrome: Install app / Add to Home screen), open that icon, then turn **Pings** on and Allow notices. Send a test ping — a popup should appear. Lock the phone and send another to confirm it still works closed (the phone’s own notice sound, not the in-app beep). A Safari or Chrome tab cannot ping when it is closed. The in-tab beep only plays while the board is on screen. Excel, Create task, invoices, and hour splits stay on the computer.
 
 The **Excel** tab is hours only — billed total and hours per person. No quote, no PO, no $. SuperPlay hours files are `SP_MGX_check` / `SP_PLBL_check`. Slotomania’s money file (`SLOTOMANIA_Calculator`) lives on that client’s Finance, not on the Excel tab. SuperPlay invoices stay SuperPlay-only. Slotomania invoice waits for a PO on the card.
 

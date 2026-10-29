@@ -30,24 +30,25 @@ self.addEventListener("push", (event) => {
   }
   const title = data.title || "LG Board";
   const body = data.body || "New on the board";
+  const ios = /iPhone|iPad|iPod/i.test(navigator.userAgent || "");
+  const opts = {
+    body,
+    icon: "/icon-192.png",
+    badge: "/favicon-32.png",
+    silent: false,
+    tag: data.tag || data.taskId || "lg-board",
+    renotify: true,
+    data: { url: data.url || "/", taskId: data.taskId || "" },
+  };
+  if (!ios) opts.vibrate = [70, 40, 90];
   event.waitUntil(
     (async () => {
+      // Show the OS popup first. Chrome paints a second generic
+      // notification if this waits on open windows.
+      await self.registration.showNotification(title, opts);
       const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
       windows.forEach((client) => {
         client.postMessage({ type: "push-notice", taskId: data.taskId || "" });
-      });
-      // Always paint an OS notification. Skipping when a window is "visible"
-      // ate the test ping: send-then-lock found a still-visible PWA and
-      // never put a popup on the lock screen.
-      await self.registration.showNotification(title, {
-        body,
-        icon: "/icon-192.png",
-        badge: "/favicon-32.png",
-        silent: false,
-        vibrate: [70, 40, 90],
-        tag: data.tag || data.taskId || "lg-board",
-        renotify: true,
-        data: { url: data.url || "/", taskId: data.taskId || "" },
       });
       const notes = await self.registration.getNotifications();
       await paintBadge(Math.max(1, notes.length));

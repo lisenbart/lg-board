@@ -1355,10 +1355,16 @@ function crew() {
 
 function toast(msg, ms) {
   const el = $("toast");
-  el.textContent = msg;
+  if (!el) return;
+  el.innerHTML = `<span class="toast-msg">${escapeHtml(msg)}</span><button type="button" class="toast-x" aria-label="Close">×</button>`;
   el.classList.add("show");
+  const hide = () => el.classList.remove("show");
+  el.querySelector(".toast-x")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    hide();
+  });
   clearTimeout(el._hide);
-  el._hide = setTimeout(() => el.classList.remove("show"), ms || 3200);
+  el._hide = setTimeout(hide, ms || (isPhone() ? 5200 : 3200));
 }
 
 function setBusy(el, on, label) {
@@ -1807,22 +1813,58 @@ function renderPhoneBar() {
   if (foot) {
     const p = me();
     const badge = jobMeta(p);
+    const soundOn = soundPrefs.on && soundPrefs.volume > 0;
+    const pingsOn = pushIsOn();
     foot.innerHTML = `
       <div class="phone-who">${escapeHtml(whoLabel(p) || p?.name || "")}${badge.code ? ` · ${escapeHtml(badge.code)}` : ""}</div>
-      <button type="button" class="nav-item" id="phoneSound">${soundPrefs.on && soundPrefs.volume > 0 ? "Sound on" : "Sound off"}</button>
-      <button type="button" class="nav-item" id="phonePings">${pushMenuLabel()}</button>
-      <button type="button" class="nav-item phone-signout" id="phoneSignOut">Sign out</button>`;
-    $("phoneSound")?.addEventListener("click", () => {
+      <div class="phone-settings">
+        <div class="phone-toggle" id="phoneSoundRow">
+          <div class="phone-toggle-copy">
+            <strong>Sound</strong>
+            <span>${soundOn ? "Beep while the board is open" : "Off"}</span>
+          </div>
+          <button type="button" class="ios-switch${soundOn ? " is-on" : ""}" id="phoneSound" role="switch" aria-checked="${soundOn ? "true" : "false"}" aria-label="Sound"></button>
+        </div>
+        <div class="phone-toggle" id="phonePingsRow">
+          <div class="phone-toggle-copy">
+            <strong>Pings</strong>
+            <span>${pingsOn ? "Popup when the board is closed" : "Off until you allow notices"}</span>
+          </div>
+          <button type="button" class="ios-switch${pingsOn ? " is-on" : ""}" id="phonePings" role="switch" aria-checked="${pingsOn ? "true" : "false"}" aria-label="Pings"></button>
+        </div>
+        ${pingsOn ? `<button type="button" class="nav-item phone-test-ping" id="phoneTestPing">Send a test ping</button>` : ""}
+        <button type="button" class="nav-item phone-signout" id="phoneSignOut">Sign out</button>
+      </div>`;
+    const toggleSound = () => {
       soundPrefs.on = !soundPrefs.on;
       if (soundPrefs.on && soundPrefs.volume <= 0) soundPrefs.volume = 0.7;
       saveSoundPrefs();
       unlockNoticeSound();
       if (soundPrefs.on) playNoticeSound({ preview: true });
       renderPhoneBar();
+    };
+    $("phoneSound")?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleSound();
     });
-    $("phonePings")?.addEventListener("click", () => {
+    $("phoneSoundRow")?.addEventListener("click", (e) => {
+      if (e.target.closest("#phoneSound")) return;
+      toggleSound();
+    });
+    $("phonePings")?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      onPingsToggle();
+    });
+    $("phonePingsRow")?.addEventListener("click", (e) => {
+      if (e.target.closest("#phonePings")) return;
+      onPingsToggle();
+    });
+    $("phoneTestPing")?.addEventListener("click", () => {
       setNavOpen(false);
-      runPhonePings();
+      sendTestPing().then((result) => {
+        if (result.sent) playNoticeSound({ preview: true });
+        toast(testPingToast(result));
+      });
     });
     $("phoneSignOut")?.addEventListener("click", () => signOutNow($("phoneSignOut")));
   }
@@ -7006,9 +7048,6 @@ function canAskPush() {
 function pushIsOn() {
   return Notification?.permission === "granted" && Boolean(localStorage.getItem(PUSH_OK_KEY));
 }
-function pushMenuLabel() {
-  return pushIsOn() ? "Phone pings: on" : "Phone pings";
-}
 function paintAppBadge() {
   const n = unreadNoticeCount();
   try {
@@ -7054,7 +7093,7 @@ function paintPushHint(opts = {}) {
     return;
   }
   if (granted && pushIsOn()) {
-    text.textContent = "Lock-screen pings are on. Send a test ping, then lock the phone — a popup should appear without opening the board.";
+    text.textContent = "Lock-screen pings are on. Send a test ping, then lock the phone — you should hear the phone’s notice sound.";
     if (allow) allow.hidden = true;
     if (test) test.hidden = false;
     box.hidden = false;
@@ -7121,18 +7160,52 @@ async function runPhonePings() {
     const ok = await subscribePush();
     if (!ok) {
       paintPushHint({ force: true });
+      renderPhoneBar();
       toast("Could not turn pings on");
       return;
     }
     const result = await sendTestPing();
-    paintPushHint({ force: true });
+    if (result.sent) playNoticeSound({ preview: true });
+    paintPushHint(result.sent ? {} : { force: true });
     renderPhoneBar();
     toast(testPingToast(result));
   } catch {
     localStorage.removeItem(PUSH_OK_KEY);
     paintPushHint({ force: true });
+    renderPhoneBar();
     toast("Could not turn pings on");
   }
+}
+async function stopPhonePings() {
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if (sub) {
+      const raw = sub.toJSON();
+      await api("/api/push/unsubscribe", { endpoint: raw.endpoint || "" });
+      await sub.unsubscribe();
+    }
+  } catch {
+    /* already gone */
+  }
+  localStorage.removeItem(PUSH_OK_KEY);
+  const box = $("pushHint");
+  if (box) box.hidden = true;
+  renderPhoneBar();
+  toast("Pings off on this phone");
+}
+async function onPingsToggle() {
+  if (pushIsOn()) {
+    await stopPhonePings();
+    return;
+  }
+  if (Notification?.permission === "denied" || (isIOSPhone() && !isStandaloneApp())) {
+    setNavOpen(false);
+    paintPushHint({ force: true });
+    return;
+  }
+  setNavOpen(false);
+  await runPhonePings();
 }
 async function startPush() {
   if (isHoursPage() || isClient() || !isStudioHost()) return;
@@ -7145,8 +7218,18 @@ async function startPush() {
     if (!startPush.wired) {
       startPush.wired = true;
       navigator.serviceWorker.addEventListener("message", (e) => {
+        const type = e.data?.type;
         const id = e.data?.taskId;
-        if (e.data?.type === "open-task" && id && state.db) openTask(id);
+        if (type === "push-notice") {
+          playNoticeSound();
+          try {
+            navigator.vibrate?.([70, 40, 90]);
+          } catch {
+            /* iPhone has no vibrate from Safari */
+          }
+          return;
+        }
+        if (type === "open-task" && id && state.db) openTask(id);
       });
     }
   }
@@ -7516,7 +7599,7 @@ $("pushAllow")?.addEventListener("click", async () => {
     const ok = await subscribePush();
     if (ok) localStorage.removeItem(PUSH_SKIP_KEY);
     toast(ok ? "Pings on. Send a test ping, then lock the phone." : "Could not turn pings on");
-    paintPushHint({ force: true });
+    paintPushHint(ok ? {} : { force: true });
     renderPhoneBar();
   } catch {
     toast("Could not turn pings on");
@@ -7530,17 +7613,22 @@ $("pushTest")?.addEventListener("click", async () => {
   setBusy(go, true, "Sending…");
   try {
     const result = await sendTestPing();
+    if (result.sent) playNoticeSound({ preview: true });
     toast(testPingToast(result));
+    paintPushHint(result.sent ? {} : { force: true });
+    renderPhoneBar();
   } catch {
     toast("Test ping did not send");
   } finally {
     setBusy(go, false);
   }
 });
-$("pushHintHide")?.addEventListener("click", () => {
+function dismissPushHint() {
   localStorage.setItem(PUSH_SKIP_KEY, String(Date.now()));
-  paintPushHint();
-});
+  const box = $("pushHint");
+  if (box) box.hidden = true;
+}
+$("pushHintClose")?.addEventListener("click", dismissPushHint);
 $("phoneMenu")?.addEventListener("click", () => setNavOpen(!navOpen()));
 $("navScrim")?.addEventListener("click", () => setNavOpen(false));
 window.matchMedia("(max-width: 980px)").addEventListener("change", () => {

@@ -458,6 +458,7 @@ def test_phone_queue_mvp() -> None:
         "phone notices ping while the tab is open",
         "function pingNewNotice" in js
         and 'id="phoneSound"' in js
+        and 'role="switch"' in js
         and "phone-bar-count" in js
         and "navigator.vibrate" in js
         and "function playNoticeSound" in js
@@ -481,7 +482,14 @@ def test_phone_queue_mvp() -> None:
         and "function testPingToast" in js
         and "out.detail" in js
         and 'id="pushTest"' in html
+        and 'id="pushHintClose"' in html
+        and "ios-switch" in css
+        and "function onPingsToggle" in js
         and "function runPhonePings" in js,
+    )
+    check(
+        "lock-screen worker beeps the open board",
+        'type === "push-notice"' in js and "playNoticeSound()" in js.split("push-notice")[-1][:400],
     )
 
 
@@ -2196,6 +2204,7 @@ def test_http(base: str) -> str | None:
         and "addEventListener(\"fetch\"" in sw
         and "silent: false" in sw
         and "showNotification" in sw
+        and sw.find("showNotification") < sw.find("matchAll")
         and "if (!visible)" not in sw
         and (headers.get("Service-Worker-Allowed") or "") == "/",
         str(headers.get("Service-Worker-Allowed")),

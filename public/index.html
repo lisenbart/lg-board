@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-build="2026-10-29x">
+<html lang="en" data-build="2026-10-29y">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -17,7 +17,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@300;400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/board.css?v=178" />
+  <link rel="stylesheet" href="assets/board.css?v=179" />
   <script>
     (function () {
       const host = location.hostname;
@@ -135,10 +135,10 @@
   <div class="nav-scrim" id="navScrim" hidden></div>
   <nav class="phone-bar" id="phoneBar" hidden aria-label="Phone"></nav>
   <div class="push-hint" id="pushHint" hidden>
+    <button type="button" class="push-hint-x" id="pushHintClose" aria-label="Close">×</button>
     <strong>Pings on this phone</strong>
     <p id="pushHintText"></p>
     <div class="push-hint-actions">
-      <button type="button" class="btn ghost" id="pushHintHide">Not now</button>
       <button type="button" class="btn primary" id="pushAllow">Allow notices</button>
       <button type="button" class="btn primary" id="pushTest" hidden>Send a test ping</button>
     </div>
@@ -230,6 +230,6 @@
 
   <div class="toast" id="toast"></div>
   <script src="assets/notices.js?v=5"></script>
-  <script src="assets/app.js?v=233"></script>
+  <script src="assets/app.js?v=234"></script>
 </body>
 </html>
