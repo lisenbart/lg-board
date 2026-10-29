@@ -411,6 +411,7 @@ def test_phone_queue_mvp() -> None:
     )
     check("Excel is not the phone home", "pinchPhoneView" in js and '"excel", "guide", "ready"' in js)
     check("DL phone bar has Finance", 'label: "Finance"' in js and 'label: "Queue"' in js)
+    check("card Close sits in the header", 'class="btn drawer-close" id="closeCard"' in js)
 
 
 def test_pin_opens() -> None:

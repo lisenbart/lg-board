@@ -6125,6 +6125,7 @@ function openTask(id) {
           ? `<input id="stName" class="task-name-edit" value="${escapeHtml(t.name)}" spellcheck="false" aria-label="Project name" />`
           : `<h2>${escapeHtml(t.name)}</h2>`
       }
+      <button type="button" class="btn drawer-close" id="closeCard">Close</button>
     </div>
     <div class="meta"><span class="pill line-${t.line}">${t.line}</span> ${isUrgent(t) ? `<span class="urgent-flag">${urgentMark(t)} URGENT</span>` : ""} ${play ? (playableCardMeta(t) ? `${playableCardMeta(t)} · ` : "") : `${t.shifts || 0} shift · ${t.hours || 0} h · `}<span id="stMetaStatus" class="pill ${st.cls}">${statusText(t.studioStatus || "new", t)}</span>${moneyChipHtml(t)}</div>
     <p class="card-watch" id="cardWatch" hidden></p>
@@ -6154,7 +6155,7 @@ function openTask(id) {
       </div>
       <div class="drawer-actions-end">
         <span class="save-wait" id="saveWait" hidden></span>
-        <button type="button" class="btn ghost" id="closeCard">Close</button>
+        <button type="button" class="btn drawer-close" id="closeCardFoot">Close</button>
         ${canEdit || canOps() ? `<button type="button" class="btn primary card-save" id="saveTask" disabled>Save</button>` : ""}
       </div>
     </div>
@@ -6427,7 +6428,9 @@ function openTask(id) {
     }
     hint.textContent = `${hoursFromShifts(shifts)} h`;
   });
-  $("closeCard")?.addEventListener("click", closeDrawer);
+  $("drawer")?.querySelectorAll(".drawer-close").forEach((el) => {
+    el.addEventListener("click", closeDrawer);
+  });
   async function commitCard(opts = {}) {
     const fromChip = Boolean(opts.fromChip);
     const saveBtn = $("saveTask");
