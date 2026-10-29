@@ -486,10 +486,13 @@ def _detect_tokens(xml: str) -> dict:
         totals = [
             a
             for a in re.findall(r"(\d+(?:[.,]\d+)?)\s*USD", plain)
-            if a not in {"35"} and "per hour" not in a
+            if a not in {"35", "40"} and "per hour" not in a
         ]
         if totals:
             tok["amount"] = f"{totals[-1]} USD"
+    m = re.search(r"\d+(?:[.,]\d+)?\s*USD per hour", plain, re.I)
+    if m:
+        tok["unit"] = m.group(0)
     m = re.search(r"Total to pay/\s*(.+?United States dollars \d{2} cents)", plain)
     if m:
         tok["words"] = m.group(1).strip()
@@ -510,6 +513,16 @@ def format_amount(amount: float) -> str:
     return f"{round(amount, 2):.2f} USD"
 
 
+def format_unit_price(rate: float, sample: str = "35 USD per hour") -> str:
+    sample = sample or "35 USD per hour"
+    if abs(float(rate) - round(float(rate))) < 0.005:
+        text = str(int(round(float(rate))))
+    else:
+        sep = "," if "," in sample else "."
+        text = f"{float(rate):.2f}".rstrip("0").rstrip(".").replace(".", sep)
+    return re.sub(r"\d+(?:[.,]\d+)?", text, sample, count=1)
+
+
 def template_path(line: str) -> Path:
     line = (line or "DD").upper()
     key = "DD" if line == "DS" else line
@@ -524,9 +537,19 @@ def template_path(line: str) -> Path:
     )
 
 
-def clone_invoice(line: str, hours: float, amount: float, when: datetime | None = None, direction: str = "mgx") -> bytes:
+def clone_invoice(
+    line: str,
+    hours: float,
+    amount: float,
+    when: datetime | None = None,
+    direction: str = "mgx",
+    rate: float | None = None,
+) -> bytes:
     line = (line or "DD").upper()
+    direction = direction_io.norm_dir(direction)
     when = when or now_kyiv()
+    if rate is None:
+        rate = direction_io.client_rate(direction)
     src = template_path(line).read_bytes()
     zin = zipfile.ZipFile(BytesIO(src))
     xmls = {}
@@ -549,10 +572,11 @@ def clone_invoice(line: str, hours: float, amount: float, when: datetime | None 
             f"Marketing video and design for {tok.get('line') or line}",
             (
                 f"Playable ads for {line}"
-                if direction_io.norm_dir(direction) == direction_io.PLAYABLES
+                if direction == direction_io.PLAYABLES
                 else f"Marketing video and design for {line}"
             ),
         ),
+        (tok.get("unit") or "", format_unit_price(float(rate), tok.get("unit") or "35 USD per hour")),
     ]
     replacements.sort(key=lambda p: len(p[0]), reverse=True)
     for name, xml in list(xmls.items()):
@@ -567,8 +591,15 @@ def clone_invoice(line: str, hours: float, amount: float, when: datetime | None 
     return out.getvalue()
 
 
-def build_invoice(line: str, hours: float, amount: float, when: datetime | None = None, direction: str = "mgx") -> bytes:
-    return clone_invoice(line, hours, amount, when, direction=direction)
+def build_invoice(
+    line: str,
+    hours: float,
+    amount: float,
+    when: datetime | None = None,
+    direction: str = "mgx",
+    rate: float | None = None,
+) -> bytes:
+    return clone_invoice(line, hours, amount, when, direction=direction, rate=rate)
 
 
 def invoice_destinations(ym: str, direction: str = "mgx") -> list[Path]:
@@ -695,11 +726,14 @@ def issue_invoice(
     month: str,
     when: datetime | None = None,
     direction: str = "mgx",
+    rate: float | None = None,
 ) -> dict:
     line = (line or "DD").upper()
     direction = direction_io.norm_dir(direction)
     when = when or now_kyiv()
-    docx_bytes = clone_invoice(line, hours, amount, when, direction=direction)
+    if rate is None:
+        rate = direction_io.client_rate(direction)
+    docx_bytes = clone_invoice(line, hours, amount, when, direction=direction, rate=rate)
     docx_name = invoice_filename(line, when, "docx", direction)
     pdf_name = invoice_filename(line, when, "pdf", direction)
     dests = invoice_destinations(month, direction)

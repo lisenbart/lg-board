@@ -1972,6 +1972,12 @@ class Handler(SimpleHTTPRequestHandler):
                     r["bill"],
                     month,
                     direction=r.get("direction") or "mgx",
+                    rate=r.get("rate")
+                    or (
+                        snap["playableClientRate"]
+                        if (r.get("direction") or "mgx") == direction_io.PLAYABLES
+                        else snap["clientRate"]
+                    ),
                 )
                 for r in rows
             ]

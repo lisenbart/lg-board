@@ -619,6 +619,22 @@ def test_playables_desk() -> None:
     check("finance Client has MGX and Playable lines", any("MGX" in str(x) for x in labels) and any("Playable" in str(x) for x in labels), str(labels))
     play = next((r for r in snap["byLine"] if r.get("direction") == "playables"), None)
     check("Playable billed at $40", play and play.get("rate") == 40 and play.get("bill") == 1200, str(play))
+    def _invoice_plain(data: bytes) -> str:
+        import zipfile
+
+        with zipfile.ZipFile(BytesIO(data)) as z:
+            xml = z.read("word/document.xml").decode("utf-8")
+        return "".join(m.group(2) for m in finance_io.W_T.finditer(xml))
+
+    play_docx = finance_io.clone_invoice("DS", 30, 1200, direction="playables", rate=40)
+    play_txt = _invoice_plain(play_docx)
+    check("playable invoice Price is $40/h", "40 USD per hour" in play_txt, play_txt)
+    check("playable invoice Price is not $35/h", "35 USD per hour" not in play_txt)
+    check("playable invoice total is hours × 40", "1200 USD" in play_txt, play_txt)
+    mgx_docx = finance_io.clone_invoice("DD", 9, 315, direction="mgx", rate=35)
+    mgx_txt = _invoice_plain(mgx_docx)
+    check("MGX invoice Price stays $35/h", "35 USD per hour" in mgx_txt, mgx_txt)
+    check("MGX invoice Price is not $40/h", "40 USD per hour" not in mgx_txt)
     lp = next((r for r in snap["payroll"] if r.get("role") == "manager"), None)
     check(
         "LP Playables pay is producer hours × $7 not billed",
