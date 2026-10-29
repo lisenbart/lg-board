@@ -415,6 +415,18 @@ def test_phone_queue_mvp() -> None:
     check("phone Sign out sits in the boards menu", 'id="phoneSignOut"' in js)
     check("phone Notices is on the bottom bar", 'view: "inbox"' in js)
     check("phone hides the footer Close duplicate", "#closeCardFoot { display: none; }" in css)
+    check(
+        "phone MGX/Playables chips follow the seat",
+        "function phoneDirSwitchHtml" in js
+        and "canSeeDirection(d.id)" in js
+        and "if (dirs.length < 2) return \"\"" in js,
+    )
+    check(
+        "Sign out spinner clears after logout",
+        "function signOutNow" in js
+        and "setBusy(desk, false)" in js
+        and "delete out.dataset.signingOut" in js,
+    )
 
 
 def test_pin_opens() -> None:

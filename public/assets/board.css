@@ -272,7 +272,8 @@ a { color: var(--blue); }
   cursor: wait;
   pointer-events: none;
 }
-.btn.is-busy::after {
+.btn.is-busy::after,
+.nav-item.is-busy::after {
   content: "";
   width: 11px;
   height: 11px;
@@ -281,6 +282,11 @@ a { color: var(--blue); }
   border-right-color: transparent;
   border-radius: 50%;
   animation: btnspin 0.7s linear infinite;
+}
+.nav-item.is-busy {
+  opacity: 0.6;
+  cursor: wait;
+  pointer-events: none;
 }
 @keyframes btnspin {
   to { transform: rotate(360deg); }

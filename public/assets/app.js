@@ -386,6 +386,12 @@ function openLoginGate() {
   document.documentElement.classList.remove("in-app");
   $("loginGate").hidden = false;
   stopLiveSync();
+  const out = $("signOut");
+  setBusy(out, false);
+  if (out) {
+    out.hidden = true;
+    delete out.dataset.signingOut;
+  }
 }
 function showHome() {
   state.loginDoor = null;
@@ -1642,6 +1648,21 @@ function pinchPhoneView() {
   if (["excel", "guide", "ready"].includes(state.view)) state.view = "board";
 }
 
+function phoneDirSwitchHtml() {
+  if (activeClientId() === "slotomania") return "";
+  const dirs = [
+    { id: "mgx", label: "MGX" },
+    { id: "playables", label: "Playables" },
+  ].filter((d) => canSeeDirection(d.id));
+  if (dirs.length < 2) return "";
+  return `<div class="phone-dirs">${dirs
+    .map(
+      (d) =>
+        `<button type="button" data-dir="${escapeHtml(d.id)}" class="${state.direction === d.id ? "active" : ""}">${escapeHtml(d.label)}</button>`
+    )
+    .join("")}</div>`;
+}
+
 function phoneWhoLine(t) {
   if (isPlayables(t)) {
     const names = [];
@@ -1689,13 +1710,7 @@ function renderPhoneQueue() {
   let tasks = visibleTasks();
   if (state.view === "ready") tasks = tasks.filter((t) => t.studioStatus === "done");
   tasks = sortedTasks(tasks);
-  const dirs =
-    activeClientId() === "slotomania"
-      ? ""
-      : `<div class="phone-dirs">
-        <button type="button" data-dir="mgx" class="${state.direction === "mgx" ? "active" : ""}">MGX</button>
-        <button type="button" data-dir="playables" class="${state.direction === "playables" ? "active" : ""}">Playables</button>
-      </div>`;
+  const dirs = phoneDirSwitchHtml();
   const empty = `<p class="io-empty" style="padding:16px">${
     isPerformer()
       ? `Nothing assigned in ${monthLabel(state.month)}`
@@ -1737,7 +1752,7 @@ function renderPhoneBar() {
     foot.innerHTML = `
       <div class="phone-who">${escapeHtml(whoLabel(p) || p?.name || "")}${badge.code ? ` · ${escapeHtml(badge.code)}` : ""}</div>
       <button type="button" class="nav-item phone-signout" id="phoneSignOut">Sign out</button>`;
-    $("phoneSignOut")?.addEventListener("click", () => $("signOut")?.click());
+    $("phoneSignOut")?.addEventListener("click", () => signOutNow($("phoneSignOut")));
   }
   bar.hidden = false;
   const notices = unreadNoticeCount();
@@ -7196,28 +7211,36 @@ document.addEventListener("click", (e) => {
   if (!$("soundWrap")?.contains(e.target)) setSoundOpen(false);
 });
 paintSoundCtrl();
-$("signOut").addEventListener("click", async () => {
-  const btn = $("signOut");
-  if (btn?.dataset.signingOut === "1") return;
-  if (btn) btn.dataset.signingOut = "1";
-  setBusy(btn, true, "Sign out");
-  stopLiveSync();
-  stopCardPresence();
-  await api("/api/logout", {});
-  writeSession(null);
-  state.roleId = "manager";
-  state.view = "board";
-  state.selected.clear();
-  state.designerFilter = null;
-  state.hoursDir = null;
-  state.openId = null;
-  $("drawerBg").classList.remove("show");
-  if (isHoursPage()) {
-    location.replace("/");
-    return;
+async function signOutNow(fromBtn) {
+  const desk = $("signOut");
+  if (desk?.classList.contains("is-busy")) return;
+  const extra = fromBtn && fromBtn !== desk ? fromBtn : null;
+  setBusy(desk, true, "Sign out");
+  if (extra) setBusy(extra, true, "Sign out");
+  try {
+    stopLiveSync();
+    stopCardPresence();
+    await api("/api/logout", {});
+    writeSession(null);
+    state.roleId = "manager";
+    state.view = "board";
+    state.selected.clear();
+    state.designerFilter = null;
+    state.hoursDir = null;
+    state.openId = null;
+    $("drawerBg").classList.remove("show");
+    setNavOpen(false);
+    if (isHoursPage()) {
+      location.replace("/");
+      return;
+    }
+    showLogin();
+  } finally {
+    setBusy(desk, false);
+    if (extra) setBusy(extra, false);
   }
-  showLogin();
-});
+}
+$("signOut").addEventListener("click", () => signOutNow($("signOut")));
 $("boardsNav")?.addEventListener("click", (e) => {
   openClientNav(e.target.closest("button[data-nav]"));
 });
