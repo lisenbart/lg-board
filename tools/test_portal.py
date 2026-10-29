@@ -255,6 +255,8 @@ def test_studio_clients_registry() -> None:
     check("Yulia hours sit on Slotomania", yulia and abs(float(yulia.get("hoursSl") or 0) - 12) < 0.05 and abs(float(yulia.get("hoursPlay") or 0)) < 0.05, str(yulia))
     js = (ROOT / "public" / "assets" / "app.js").read_text(encoding="utf-8")
     check("Excel Slotomania is SL / PlayableADs", "PlayableADs" in js and "function boardLines" in js)
+    excel_js = js.split("function renderExcelSheet")[1].split("function excelIngestNote")[0]
+    check("Excel tab has no quote money", "Quote $" not in excel_js and "quoteAmount" not in excel_js and "poNumber" not in excel_js)
     check("Finance UI groups clients", "function renderClientGroup" in js and "byClient" in js)
     check("Studio books each client", "function renderStudioGroup" in js)
     check("Employeers split Slotomania pay", "Slotomania Playables" in js and "SuperPlay Playables" in js)

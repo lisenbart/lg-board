@@ -3076,14 +3076,8 @@ function renderExcelSheet() {
       })
       .join("");
     const mark = statusMark(t);
-    const sl = activeClientId() === "slotomania";
     const meta = play
-      ? sl
-        ? `<td class="xl-num">${fmtHours(projectHours(t))}</td>
-      <td class="xl-num">${t.quoteHours ? fmtHours(t.quoteHours) : ""}</td>
-      <td class="xl-num">${t.quoteAmount ? usd(t.quoteAmount) : ""}</td>
-      <td>${escapeHtml(t.poNumber || "")}</td>`
-        : `<td class="xl-num">${fmtHours(projectHours(t))}</td>`
+      ? `<td class="xl-num">${fmtHours(projectHours(t))}</td>`
       : `<td class="xl-num">${t.shifts ?? ""}</td>
       <td class="xl-num">${fmtHours(t.hours)}</td>
       <td class="xl-num">${escapeHtml(excelDate(t.deadline))}</td>`;
@@ -3100,9 +3094,7 @@ function renderExcelSheet() {
   const section = (line) => {
     const rows = tasks.filter((t) => taskLine(t) === line);
     const metaHeads = play
-      ? sl
-        ? `<th>Hours</th><th>Quote h</th><th>Quote $</th><th>PO</th>`
-        : `<th>Hours</th>`
+      ? `<th>Hours</th>`
       : `<th>SHIFTS</th><th>HOURS</th><th>DEADLINE</th>`;
     return `<tbody>
       <tr class="xl-sec">
@@ -3113,19 +3105,12 @@ function renderExcelSheet() {
   };
 
   const totals = people.map((p) => `<td class="xl-num"><b>${fmtHours(hoursOfPerson(p.id))}</b></td>`).join("");
-  const quoteH = sl ? tasks.reduce((s, t) => s + (Number(t.quoteHours) || 0), 0) : 0;
-  const quoteUsd = sl ? tasks.reduce((s, t) => s + (Number(t.quoteAmount) || 0), 0) : 0;
   const footMeta = play
-    ? sl
-      ? `<td class="xl-num"><b>${fmtHours(allHours)}</b></td>
-              <td class="xl-num"><b>${fmtHours(quoteH)}</b></td>
-              <td class="xl-num"><b>${usd(quoteUsd)}</b></td>
-              <td></td>`
-      : `<td class="xl-num"><b>${fmtHours(allHours)}</b></td>`
+    ? `<td class="xl-num"><b>${fmtHours(allHours)}</b></td>`
     : `<td class="xl-num"><b>${fmtHours(allShifts)}</b></td>
               <td class="xl-num"><b>${fmtHours(allHours)}</b></td>
               <td></td>`;
-  const headPad = play ? (sl ? `<th></th><th></th><th></th><th></th>` : `<th></th>`) : `<th></th><th></th><th></th>`;
+  const headPad = play ? `<th></th>` : `<th></th><th></th><th></th>`;
 
   $("board").innerHTML = `
     <section class="xl-wrap">
