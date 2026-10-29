@@ -427,6 +427,13 @@ def test_phone_queue_mvp() -> None:
         and "if (isPhone()) return" in js,
     )
     check("phone names wrap inside the card", "overflow-wrap: anywhere" in css and "word-break: break-word" in css)
+    check(
+        "Who on the row lists every person, not +1",
+        "function whoIds" in js
+        and "ids.map(personCell)" in js
+        and "+${ads.length}" not in js
+        and 'class="help-mark"' not in js,
+    )
     check("phone hides the footer Close duplicate", "#closeCardFoot { display: none; }" in css)
     check(
         "phone MGX/Playables chips follow the seat",

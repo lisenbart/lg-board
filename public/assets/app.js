@@ -1669,16 +1669,28 @@ function phoneDirSwitchHtml() {
     .join("")}</div>`;
 }
 
-function phoneWhoLine(t) {
+function whoIds(t) {
+  const ids = [];
+  const add = (id) => {
+    const pid = String(id || "").trim();
+    if (!pid || ids.includes(pid)) return;
+    ids.push(pid);
+  };
   if (isPlayables(t)) {
-    const names = [];
-    const ad = playableAdId(t);
-    if (ad) names.push(person(ad)?.name || "AD");
-    if (t.programmerId) names.push(person(t.programmerId)?.name || "DEV");
-    if (t.motionId && t.motionId !== ad && t.motionId !== t.programmerId) names.push(person(t.motionId)?.name || "MD");
-    return names.join(" · ") || "unassigned";
+    add(playableAdId(t));
+    playableAdSplits(t).forEach((row) => add(row.id));
+    add(t.programmerId);
+    playableDevSplits(t).forEach((row) => add(row.id));
+    add(t.motionId);
+  } else {
+    add(t.assigneeId);
+    helpEntries(t).forEach((row) => add(row.id));
   }
-  return person(t.assigneeId)?.name || "unassigned";
+  return ids;
+}
+function phoneWhoLine(t) {
+  const names = whoIds(t).map((id) => person(id)?.name || id);
+  return names.join(" · ") || "unassigned";
 }
 
 function phoneHoursLine(t) {
@@ -2186,41 +2198,10 @@ function personCell(id) {
   return `<span class="person">${avatarHtml(p)}${escapeHtml(displayName(p))}${jobBadgeHtml(p)}</span>`;
 }
 function whoCell(t) {
-  if (isPlayables(t)) {
-    const ad = playableAdId(t);
-    const bits = [];
-    if (ad) {
-      bits.push(personCell(ad));
-      const ads = playableAdSplits(t);
-      if (ads.length) {
-        const names = ads.map((row) => person(row.id)?.name || row.id).join(", ");
-        bits.push(`<small class="help-mark" title="${escapeHtml(names)}">+${ads.length}</small>`);
-      }
-    }
-    if (t.programmerId) {
-      bits.push(personCell(t.programmerId));
-      const devs = playableDevSplits(t);
-      if (devs.length) {
-        const names = devs.map((row) => person(row.id)?.name || row.id).join(", ");
-        bits.push(`<small class="help-mark" title="${escapeHtml(names)}">+${devs.length}</small>`);
-      }
-    }
-    if (t.motionId && t.motionId !== ad && t.motionId !== t.programmerId) {
-      bits.push(personCell(t.motionId));
-    }
-    if (!bits.length) return personCell("");
-    if (bits.length === 1) return bits[0];
-    return `<span class="who-stack">${bits.join("")}</span>`;
-  }
-  const base = personCell(t.assigneeId);
-  const extra = [];
-  const ads = helpEntries(t);
-  if (ads.length) {
-    const names = ads.map((row) => person(row.id)?.name || row.id).join(", ");
-    extra.push(`<small class="help-mark" title="${escapeHtml(names)}">+${ads.length}</small>`);
-  }
-  if (!extra.length) return base;
-  return `<span class="who-stack">${base}${extra.join("")}</span>`;
+  const ids = whoIds(t);
+  if (!ids.length) return personCell("");
+  if (ids.length === 1) return personCell(ids[0]);
+  return `<span class="who-stack">${ids.map(personCell).join("")}</span>`;
 }
 function normalizeDriveFolder(url) {
   const raw = String(url || "");
