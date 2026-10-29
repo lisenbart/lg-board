@@ -419,6 +419,13 @@ def test_phone_queue_mvp() -> None:
     check("DL phone bar has Finance", 'label: "Finance"' in js and 'label: "Queue"' in js)
     check("card Close sits in the header", 'class="btn drawer-close" id="closeCard"' in js)
     check("phone Sign out sits in the boards menu", 'id="phoneSignOut"' in js)
+    check(
+        "phone boards menu scrolls and keeps Sign out in view",
+        'class="side-scroll"' in html
+        and "html:not(.hours-host) .phone-signout" in css
+        and ".side-scroll" in css
+        and "overflow-y: auto" in css,
+    )
     check("phone Notices is on the bottom bar", 'view: "inbox"' in js and 'label: "For you"' in js)
     check(
         "phone For you is a full list",

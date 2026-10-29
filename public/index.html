@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-build="2026-10-29t">
+<html lang="en" data-build="2026-10-29u">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -17,7 +17,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@300;400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/board.css?v=176" />
+  <link rel="stylesheet" href="assets/board.css?v=177" />
   <script>
     (function () {
       const host = location.hostname;
@@ -51,11 +51,13 @@
       <div class="brand">
         <img class="brand-logo" src="assets/logo.png" alt="Lisenbart Games Animation" />
       </div>
-      <div class="nav-label">Boards</div>
-      <nav id="boardsNav" class="boards-nav" aria-label="Client boards"></nav>
-      <div id="studioNav" class="nav-studio" hidden>
-        <div class="nav-label">Studio</div>
-        <button type="button" class="nav-item" id="navTeam">Team names</button>
+      <div class="side-scroll">
+        <div class="nav-label">Boards</div>
+        <nav id="boardsNav" class="boards-nav" aria-label="Client boards"></nav>
+        <div id="studioNav" class="nav-studio" hidden>
+          <div class="nav-label">Studio</div>
+          <button type="button" class="nav-item" id="navTeam">Team names</button>
+        </div>
       </div>
       <div class="side-foot" id="sideFoot"></div>
     </aside>
