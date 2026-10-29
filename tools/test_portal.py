@@ -635,6 +635,17 @@ def test_playables_desk() -> None:
     shot_ds = _invoice_plain(finance_io.clone_invoice("DS", 150, 6000, direction="playables", rate=40))
     check("playable DD 26h Price is $40", "40 USD per hour" in shot_dd and "35 USD per hour" not in shot_dd, shot_dd)
     check("playable DS 150h Price is $40", "40 USD per hour" in shot_ds and "35 USD per hour" not in shot_ds, shot_ds)
+    split_xml = (
+        '<w:p><w:r><w:t>35</w:t></w:r>'
+        '<w:r><w:t xml:space="preserve"> USD per hour</w:t></w:r></w:p>'
+    )
+    split_out = finance_io._rewrite_unit_price(split_xml, 40)
+    split_plain = finance_io._plain_wt(split_out)
+    check(
+        "unit price rewrite survives split Word runs",
+        "40 USD per hour" in split_plain and "35 USD per hour" not in split_plain,
+        split_plain,
+    )
     mgx_docx = finance_io.clone_invoice("DD", 9, 315, direction="mgx", rate=35)
     mgx_txt = _invoice_plain(mgx_docx)
     check("MGX invoice Price stays $35/h", "35 USD per hour" in mgx_txt, mgx_txt)

@@ -434,27 +434,43 @@ def _plain_wt(xml: str) -> str:
 
 
 def _rewrite_unit_price(xml: str, rate: float) -> str:
-    """Price cell is split in Word as <w:t>35 USD</w:t> + space + per hour."""
+    """Replace the unit price across split Word runs (35 | USD | per hour)."""
     if abs(float(rate) - round(float(rate))) < 0.005:
         num = str(int(round(float(rate))))
     else:
         num = f"{float(rate):g}"
-
-    def para(match: re.Match) -> str:
-        block = match.group(0)
-        joined = "".join(r.group(2) for r in W_T.finditer(block))
-        if not re.search(r"per hour", joined, re.I):
-            return block
-
-        def run(tm: re.Match) -> str:
-            inner = tm.group(2)
-            if re.search(r"USD", inner, re.I) and re.match(r"^\d", inner.strip() or ""):
-                return tm.group(1) + re.sub(r"^\d+(?:[.,]\d+)?", num, inner, count=1) + tm.group(3)
-            return tm.group(0)
-
-        return W_T.sub(run, block)
-
-    return W_P.sub(para, xml)
+    runs = list(W_T.finditer(xml))
+    if not runs:
+        return xml
+    parts = [r.group(2) for r in runs]
+    joined = "".join(parts)
+    m = re.search(r"(\d+(?:[.,]\d+)?)(\s*USD\s+per\s+hour)", joined, re.I)
+    if not m:
+        return xml
+    start, end = m.start(1), m.end(1)
+    new_parts = list(parts)
+    placed = False
+    pos = 0
+    for i, part in enumerate(parts):
+        a, b = pos, pos + len(part)
+        pos = b
+        if b <= start or a >= end:
+            continue
+        local_s = max(0, start - a)
+        local_e = min(len(part), end - a)
+        if not placed:
+            new_parts[i] = part[:local_s] + num + part[local_e:]
+            placed = True
+        else:
+            new_parts[i] = part[:local_s] + part[local_e:]
+    chunks: list[str] = []
+    last = 0
+    for i, r in enumerate(runs):
+        chunks.append(xml[last : r.start()])
+        chunks.append(r.group(1) + new_parts[i] + r.group(3))
+        last = r.end()
+    chunks.append(xml[last:])
+    return "".join(chunks)
 
 
 def _replace_in_xml(xml: str, old: str, new: str) -> str:

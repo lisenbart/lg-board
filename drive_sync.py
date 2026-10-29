@@ -1015,13 +1015,8 @@ def pull(db: dict | None = None, hydrate: bool = True) -> dict:
         downloaded.append("SUPERPLAY_Playable_Calculator.xlsx")
 
     index_rows = walk_docs(token)
-    for line, row in _latest_templates(index_rows).items():
-        fid = str(row.get("id") or "")
-        if not fid:
-            continue
-        dest = finance_io.TEMPLATE_DIR / f"invoice{line}.docx"
-        _write_bytes(dest, download_file(token, fid))
-        downloaded.append(dest.name)
+    # Dated invoiceDD_YYYY.MM.DD.docx files are outputs, not the Word form.
+    # Keep bundled data/finance/templates/invoiceDD.docx / invoiceDX.docx.
 
     applied = False
     briefs = 0
