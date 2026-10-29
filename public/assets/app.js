@@ -77,8 +77,12 @@ const STUDIO_ROLES = [
   { role: "programmer", label: "DEV", blurb: "Programmer" },
 ];
 const DIR_KEY = "lg-direction";
+const CLIENT_KEY = "lg-client";
 const DIR_LABEL = { mgx: "SUPERPLAY MGX", playables: "SUPERPLAY Playables" };
-const CLIENTS = [{ id: "superplay", label: "SuperPlay" }];
+const CLIENTS = [
+  { id: "superplay", label: "SuperPlay", path: "/superplay" },
+  { id: "slotomania", label: "Slotomania", path: "/slotomania" },
+];
 
 const MONTH_KEY = "lg-month";
 const SESSION_KEY = "lg-session";
@@ -108,6 +112,12 @@ const ACCOUNTS = [
     blurb: "SuperPlay",
     lockRole: "client",
   },
+  {
+    email: "slotomania@lg-board",
+    name: "Slotomania",
+    blurb: "Slotomania",
+    lockRole: "client",
+  },
 ];
 
 const state = {
@@ -119,6 +129,7 @@ const state = {
   designerFilter: null,
   hoursDir: null,
   hoursClient: "superplay",
+  boardClient: localStorage.getItem("lg-client") || "superplay",
   presence: {},
   cardOpenedStamp: "",
   cardStale: false,
@@ -153,14 +164,49 @@ function isLocalHost() {
 function isHoursPage() {
   return (
     document.documentElement.classList.contains("hours-host") ||
-    /^\/(superplay|hours)\/?$/.test(location.pathname)
+    /^\/(superplay|slotomania|hours)\/?$/.test(location.pathname)
   );
+}
+function clientOf(t) {
+  const raw = String(t?.clientId || "").toLowerCase();
+  return raw === "slotomania" ? "slotomania" : "superplay";
+}
+function isSlotomania(t) {
+  return clientOf(t) === "slotomania";
+}
+function clientMeta(id) {
+  return CLIENTS.find((c) => c.id === id) || CLIENTS[0];
+}
+function pathClientId() {
+  if (/\/slotomania\/?$/.test(location.pathname)) return "slotomania";
+  if (/\/superplay\/?$/.test(location.pathname) || /\/hours\/?$/.test(location.pathname)) return "superplay";
+  return "";
+}
+function sessionClientId() {
+  const raw = String(state.session?.clientId || "").toLowerCase();
+  if (raw === "slotomania" || raw === "superplay") return raw;
+  const email = String(state.session?.email || "").toLowerCase();
+  if (email.includes("slotomania")) return "slotomania";
+  if (email.includes("superplay")) return "superplay";
+  return "";
+}
+function activeClientId() {
+  if (isClient() && !isFinance()) return sessionClientId() || pathClientId() || "superplay";
+  if (state.view === "report") return state.hoursClient === "slotomania" ? "slotomania" : "superplay";
+  return state.boardClient === "slotomania" ? "slotomania" : "superplay";
+}
+function setBoardClient(id) {
+  const next = id === "slotomania" ? "slotomania" : "superplay";
+  state.boardClient = next;
+  localStorage.setItem(CLIENT_KEY, next);
+  if (next === "slotomania") state.direction = "playables";
 }
 function isHoursView() {
   return isClient() || isHoursPage() || (isFinance() && state.view === "report");
 }
-function clientLink() {
-  return `${location.origin}/superplay`;
+function clientLink(id) {
+  const cid = id || activeClientId();
+  return `${location.origin}${clientMeta(cid).path}`;
 }
 function studioAccounts() {
   return ACCOUNTS.filter((a) => a.lockRole !== "client");
@@ -218,10 +264,15 @@ function applySession(session) {
     return false;
   }
   state.roleId = seat.id;
+  const email = session.email || seat.email || "";
+  const clientId =
+    session.clientId ||
+    (String(email).includes("slotomania") ? "slotomania" : String(email).includes("superplay") ? "superplay" : "");
   state.session = {
-    email: session.email || seat.email || "",
+    email,
     seatId: seat.id,
     role: seat.role,
+    clientId,
   };
   writeSession(state.session);
   return true;
@@ -229,7 +280,9 @@ function applySession(session) {
 function enterStudio() {
   document.documentElement.classList.add("in-app");
   $("loginGate").hidden = true;
-  document.title = isHoursPage() ? "SuperPlay — Lisenbart Board" : "Lisenbart Board";
+  document.title = isHoursPage()
+    ? `${clientMeta(activeClientId()).label} — Lisenbart Board`
+    : "Lisenbart Board";
   startLiveSync();
 }
 function openLoginGate() {
@@ -376,17 +429,20 @@ function showDoorForm(door, error) {
   $("loginCard")?.classList.remove("is-home");
   $("loginTitle").hidden = false;
   $("loginLead").hidden = false;
-  $("loginTitle").textContent = isHoursPage() ? "SuperPlay" : "Client";
-  $("loginLead").textContent = isHoursPage()
-    ? "Type your name, then the SuperPlay PIN."
-    : "Type your name, then the PIN.";
-  document.title = isHoursPage() ? "SuperPlay — Lisenbart Board" : "Client — Lisenbart Board";
+  const pageClient = pathClientId();
+  $("loginTitle").textContent = pageClient ? clientMeta(pageClient).label : "Client";
+  $("loginLead").textContent = pageClient
+    ? `Type ${clientMeta(pageClient).label}, then that client's PIN.`
+    : "Type SuperPlay or Slotomania, then that client's PIN.";
+  document.title = pageClient
+    ? `${clientMeta(pageClient).label} — Lisenbart Board`
+    : "Client — Lisenbart Board";
   $("loginAccounts").innerHTML = `
     <form id="loginForm" class="login-form">
       <button type="button" class="btn ghost login-back" id="loginBack">Back</button>
       <label class="login-pin-lab" for="loginEmail">Login</label>
-      <input id="loginEmail" class="login-pin login-email" type="text" autocomplete="username" />
-      <label class="login-pin-lab" for="loginPin">Password</label>
+      <input id="loginEmail" class="login-pin login-email" type="text" autocomplete="username" placeholder="${pageClient ? escapeHtml(clientMeta(pageClient).label) : "SuperPlay or Slotomania"}" />
+      <label class="login-pin-lab" for="loginPin">PIN</label>
       <input id="loginPin" class="login-pin" type="password" maxlength="32" autocomplete="current-password" />
       ${error ? `<p class="login-err">${escapeHtml(error)}</p>` : ""}
       <button type="submit" class="btn primary login-go" id="loginGo" disabled>Open</button>
@@ -437,9 +493,14 @@ async function submitDoorLogin(seatId) {
     showDoorForm(door, "Could not open this seat");
     return;
   }
-  if ((sess.role === "client" || door === "client") && !isHoursPage()) {
-    location.replace("/superplay");
-    return;
+  if (sess.role === "client" || door === "client") {
+    const want = clientLink(sess.clientId || sessionClientId() || "superplay");
+    const here = `${location.origin}${location.pathname.replace(/\/$/, "") || "/"}`;
+    const dest = want.replace(/\/$/, "");
+    if (here !== dest) {
+      location.replace(want);
+      return;
+    }
   }
   enterStudio();
   render();
@@ -1174,8 +1235,10 @@ function taskMonth(t) {
   return t.month || (t.deadline && String(t.deadline).slice(0, 7)) || state.db?.meta?.month || state.month;
 }
 function monthTasks(opts) {
-  const all = (state.db.tasks || []).filter((t) => taskMonth(t) === state.month);
+  const cid = activeClientId();
+  const all = (state.db.tasks || []).filter((t) => taskMonth(t) === state.month && clientOf(t) === cid);
   if (opts?.all) return all;
+  if (cid === "slotomania") return all.filter((t) => directionOf(t) === "playables");
   return all.filter((t) => directionOf(t) === state.direction);
 }
 function searchQuery() {
@@ -1299,19 +1362,21 @@ function renderChrome() {
     $("soundWrap").hidden = hideSound;
     if (hideSound) setSoundOpen(false);
   }
-  document.title = isHoursView() ? "SuperPlay — Lisenbart Board" : "Lisenbart Board";
+  const cid = activeClientId();
+  document.title = isHoursView() ? `${clientMeta(cid).label} — Lisenbart Board` : "Lisenbart Board";
   const title = document.querySelector(".board-title");
   const boardLogo = $("boardLogo");
   const clientHours = isClient() || isHoursPage();
+  const showSpLogo = clientHours && cid === "superplay";
   if (title) {
-    title.hidden = clientHours;
+    title.hidden = showSpLogo;
     title.textContent = clientHours
-      ? ""
-      : isHoursView()
-        ? "SuperPlay"
+      ? clientMeta(cid).label
+      : cid === "slotomania"
+        ? "SLOTOMANIA Playables"
         : DIR_LABEL[state.direction] || DIR_LABEL.mgx;
   }
-  if (boardLogo) boardLogo.hidden = !clientHours;
+  if (boardLogo) boardLogo.hidden = !showSpLogo;
   const pill = document.querySelector(".top-row > .pill");
   if (pill) {
     const play = state.direction === "playables";
@@ -1321,18 +1386,24 @@ function renderChrome() {
   }
   const mgxNav = $("navMgx");
   const playNav = $("navPlay");
+  const slNav = $("navSlotomania");
   const onBoard = state.view !== "close" && state.view !== "team" && state.view !== "report";
   if (mgxNav) {
     mgxNav.hidden = isClient() || !canSeeDirection("mgx");
-    mgxNav.classList.toggle("active", onBoard && state.direction === "mgx");
+    mgxNav.classList.toggle("active", onBoard && cid === "superplay" && state.direction === "mgx");
   }
   if (playNav) {
     playNav.hidden = isClient() || !canSeeDirection("playables");
-    playNav.classList.toggle("active", onBoard && state.direction === "playables");
+    playNav.classList.toggle("active", onBoard && cid === "superplay" && state.direction === "playables");
+  }
+  if (slNav) {
+    slNav.hidden = isClient() || !canSeeDirection("playables");
+    slNav.classList.toggle("active", onBoard && cid === "slotomania");
   }
   $("navClose")?.classList.toggle("active", isFinance() && state.view === "close");
   $("navTeam")?.classList.toggle("active", isFinance() && state.view === "team");
-  $("navClientSuperplay")?.classList.toggle("active", isFinance() && state.view === "report");
+  $("navClientSuperplay")?.classList.toggle("active", isFinance() && state.view === "report" && state.hoursClient === "superplay");
+  $("navClientSlotomania")?.classList.toggle("active", isFinance() && state.view === "report" && state.hoursClient === "slotomania");
   renderMonth();
   const meta = state.db?.meta || {};
   const brand = $("brandMode");
@@ -1348,7 +1419,7 @@ function renderChrome() {
 
   const tabs = [];
   if (isClient()) {
-    tabs.push({ id: "report", label: "SuperPlay" });
+    tabs.push({ id: "report", label: clientMeta(cid).label });
   } else {
     tabs.push({
       id: "board",
@@ -1359,7 +1430,7 @@ function renderChrome() {
     if (isFinance()) {
       tabs.push({ id: "close", label: "Finance" });
       tabs.push({ id: "team", label: "Team" });
-      tabs.push({ id: "report", label: "SuperPlay" });
+      tabs.push({ id: "report", label: clientMeta(state.hoursClient || "superplay").label });
     }
     tabs.push({ id: "guide", label: "Як це працює" });
   }
@@ -1423,11 +1494,11 @@ function renderToolbar() {
     $("toolbar").innerHTML = `
       ${isFinance() ? driveStrip() : ""}
       ${canOps() && state.view === "board" ? `<button type="button" class="btn primary" id="btnCreateTask">Create task</button>` : ""}
-      <button class="btn orange" id="btnEmail">${state.direction === "playables" ? "Hours list" : "Shift email"}</button>
+      ${activeClientId() === "slotomania" ? "" : `<button class="btn orange" id="btnEmail">${state.direction === "playables" ? "Hours list" : "Shift email"}</button>`}
       ${drive ? `<a class="btn" href="${escapeHtml(drive)}" target="_blank" rel="noreferrer">Open Drive</a>` : ""}
       <button class="btn green" id="btnExport" ${n ? "" : "disabled"}>Send to client (${n})</button>
       ${searchHtml()}
-      <button class="btn ghost" id="btnClientLink">Copy SuperPlay link</button>
+      <button class="btn ghost" id="btnClientLink">Copy ${activeClientId() === "slotomania" ? "Slotomania" : "SuperPlay"} link</button>
     `;
   }
   bindSearch();
@@ -1450,14 +1521,24 @@ function renderToolbar() {
   bindDriveButtons();
 }
 async function copyClientPage() {
+  const label = clientMeta(activeClientId()).label;
   const ok = await copyText(clientLink());
-  toast(ok ? "SuperPlay link copied" : "Copy failed");
+  toast(ok ? `${label} link copied` : "Copy failed");
 }
 
 function openCreateTask() {
   if (!canOps()) return;
   $("createTaskErr").textContent = "";
   $("createTaskName").value = "";
+  const sl = activeClientId() === "slotomania";
+  const lead = $("createTaskLead");
+  const name = $("createTaskName");
+  if (lead) {
+    lead.textContent = sl
+      ? "Project name as the game (Coin Cruiser, Battle Sheep). Card lands on Slotomania Playables. Quote and PO sit on the card after the client approves hours."
+      : "Paste the full project name (DD- / DX- / DS- / DS-P-). This creates the card, the month line folder if it is missing, the project folder, an empty brief Doc, and a row in the live Excel for that board. Save on the card writes the brief into that Doc.";
+  }
+  if (name) name.placeholder = sl ? "Coin Cruiser" : "DS-P-060_MergeSolitaire";
   $("createTaskModal").classList.add("show");
   refreshCreateGo();
   $("createTaskName").focus();
@@ -1542,7 +1623,8 @@ async function submitCreateTask() {
     month: state.month,
     role: me().role,
     actorId: me().id,
-    direction: state.direction,
+    direction: activeClientId() === "slotomania" ? "playables" : state.direction,
+    clientId: activeClientId(),
   };
   let out = {};
   try {
@@ -2626,7 +2708,7 @@ function hoursStampKpi() {
 function hoursXlsxName(res) {
   const raw = res.headers.get("Content-Disposition") || "";
   const m = raw.match(/filename="([^"]+)"/i);
-  return m ? m[1] : `SUPERPLAY_hours_${state.month}.xlsx`;
+  return m ? m[1] : `${activeClientId() === "slotomania" ? "SLOTOMANIA" : "SUPERPLAY"}_hours_${state.month}.xlsx`;
 }
 function bindHoursDownload() {
   $("btnHoursXlsx")?.addEventListener("click", downloadHoursXlsx);
@@ -2635,7 +2717,7 @@ async function downloadHoursXlsx() {
   const btn = $("btnHoursXlsx");
   setBusy(btn, true, "Building…");
   try {
-    const qs = new URLSearchParams({ month: state.month, tz: viewerZone() });
+    const qs = new URLSearchParams({ month: state.month, tz: viewerZone(), client: activeClientId() });
     const res = await fetch(`/api/hours/file?${qs}`, {
       credentials: "same-origin",
     });
@@ -2662,8 +2744,14 @@ function reportSections(tasks) {
   for (const dir of ["mgx", "playables"]) {
     const prefix = dir === "playables" ? "Playable" : "MGX";
     const bucket = tasks.filter((t) => directionOf(t) === dir);
-    const lines = ["DX", "DD"];
-    if (bucket.some((t) => t.line === "DS")) lines.push("DS");
+    const lines = activeClientId() === "slotomania" ? ["PL"] : ["DX", "DD"];
+    if (activeClientId() !== "slotomania" && bucket.some((t) => t.line === "DS")) lines.push("DS");
+    if (activeClientId() === "slotomania") {
+      for (const t of bucket) {
+        const line = t.line || "PL";
+        if (!lines.includes(line)) lines.push(line);
+      }
+    }
     for (const line of lines) {
       const rows = bucket
         .filter((t) => t.line === line)
@@ -2722,20 +2810,23 @@ function visitPlace(row) {
   return "—";
 }
 function superplayVisitsHtml() {
-  const rows = Array.isArray(state.db?.superplayVisits) ? state.db.superplayVisits : [];
-  const blurb = "Clock is Kyiv time. Where is the IP country / provider — not the city on the clock. Shared PIN — Login is whatever they typed.";
+  const cid = activeClientId();
+  const key = cid === "slotomania" ? "slotomaniaVisits" : "superplayVisits";
+  const rows = Array.isArray(state.db?.[key]) ? state.db[key] : [];
+  const who = clientMeta(cid).label;
+  const blurb = "Clock is Kyiv time. Where is the IP country / provider — not the city on the clock. Login is SuperPlay or Slotomania.";
   if (!rows.length) {
     return `<section class="sp-visits">
       <h3>Sign-ins</h3>
       <p>${blurb}</p>
-      <p class="sp-visits-empty">No SuperPlay sign-ins yet.</p>
+      <p class="sp-visits-empty">No ${escapeHtml(who)} sign-ins yet.</p>
     </section>`;
   }
   const body = rows
     .map(
       (row) => `<tr>
         <td>${escapeHtml(kyivVisitStamp(row.at))}</td>
-        <td>${escapeHtml(row.login || "SuperPlay")}</td>
+        <td>${escapeHtml(row.login || who)}</td>
         <td class="sp-where" title="${escapeHtml(row.host || row.ip || "")}">${escapeHtml(visitPlace(row))}</td>
         <td class="sp-ip">${escapeHtml(row.ip || "—")}</td>
         <td title="${escapeHtml(row.ua || "")}">${escapeHtml(uaLabel(row.ua))}</td>
@@ -3174,10 +3265,10 @@ function renderGuide() {
           "SuperPlay",
           "Клієнт. Своя сторінка годин, без черги студії.",
           [
-            `Адреса студії ${ui("board.lisenbart.games")}. Кнопка ${ui("Client")} → логін + PIN. Після входу — ${ui("SuperPlay")}.`,
-            `Можна кинути пряме посилання ${ui("/superplay")}. Старе ${ui("/hours")} туди ж. Список: ${ui("PROJECT NAME")} / ${ui("STATUS")} / ${ui("SHIFTS")} / ${ui("HOURS")}.`,
-            `У ${ui("Login")} можна написати ім’я — PIN спільний. ${ui("DL")} бачить журнал входів (час Київ, Login, IP, браузер).`,
-            `Секції ${ui("MGX")} і ${ui("Playable")} (DX / DD / DS), статус як на пайплайні, ${ui("TOTAL")} знизу. Імен виконавців, ставок і карток немає.`,
+            `Адреса студії ${ui("board.lisenbart.games")}. Кнопка ${ui("Client")} → логін ${ui("SuperPlay")} або ${ui("Slotomania")} і PIN саме цього клієнта.`,
+            `Прямі посилання ${ui("/superplay")} і ${ui("/slotomania")}. Старе ${ui("/hours")} веде на SuperPlay. Список: ${ui("PROJECT NAME")} / ${ui("STATUS")} / ${ui("SHIFTS")} / ${ui("HOURS")}.`,
+            `Логін має бути ім’я клієнта, не ім’я людини. ${ui("DL")} бачить журнал входів окремо для SuperPlay і Slotomania.`,
+            `SuperPlay: секції ${ui("MGX")} і ${ui("Playable")}. Slotomania: лише Playable. Імен виконавців, ставок, квотів і PO клієнт не бачить.`,
           ]
         )}
       </div>
@@ -3472,7 +3563,7 @@ function rowHtml(t, mode, gap) {
       ${frozen}
       <div class="meta">
         <div class="cell">${timeCell(t)}</div>
-        <div class="cell"><span class="pill ${st.cls}">${statusText(t.studioStatus || "new", t)}</span></div>
+        <div class="cell"><span class="pill ${st.cls}">${statusText(t.studioStatus || "new", t)}</span>${moneyChipHtml(t)}</div>
         <div class="cell">${brief}</div>
         <div class="cell">${result}</div>
         <div class="cell">${whoCell(t)}</div>
@@ -4659,6 +4750,51 @@ function playableRoleOptions(list, selected, taken, kind) {
     .join("");
   return `<option value="">— ${label}</option>${opts}`;
 }
+function moneyStatusOf(t) {
+  if (!isSlotomania(t)) return "";
+  const invoiced = String(t.invoiceStatus || "").toLowerCase();
+  if (invoiced === "paid") return "paid";
+  if (invoiced === "invoiced") return "invoiced";
+  if (String(t.poNumber || "").trim()) return "has_po";
+  const quoted = Number(t.quoteHours) > 0 || String(t.quoteStatus || "").trim();
+  if (quoted && t.hoursApproved === false) return "quote_pending";
+  if (quoted) return "waiting_po";
+  return "no_quote";
+}
+function moneyLabelOf(t) {
+  const key = moneyStatusOf(t);
+  if (key === "has_po") return String(t.poNumber || "").trim() || "PO in";
+  return {
+    no_quote: "No quote",
+    quote_pending: "Quote sent · hours pending",
+    waiting_po: "Waiting PO",
+    invoiced: "Invoiced",
+    paid: "Paid",
+  }[key] || "";
+}
+function moneyChipHtml(t) {
+  if (!isSlotomania(t) || isClient() || isHoursPage()) return "";
+  const key = moneyStatusOf(t);
+  const label = moneyLabelOf(t);
+  if (!key || !label) return "";
+  return `<span class="money-chip ${escapeHtml(key)}">${escapeHtml(label)}</span>`;
+}
+function slotomaniaMoneyHtml(t) {
+  if (!isSlotomania(t) || !canOps()) return "";
+  const hours = Number(t.quoteHours) || 0;
+  const amount = Number(t.quoteAmount) || hours * 40;
+  const po = escapeHtml(t.poNumber || "");
+  const status = moneyLabelOf(t);
+  return `<section class="sl-money">
+      <h3>Playtika money</h3>
+      <p class="status-hint">${escapeHtml(status)}${hours ? ` · quoted ${hours} h × $40 = $${amount}` : ""}</p>
+      <div class="field">
+        <label for="stPoNumber">PO</label>
+        <input id="stPoNumber" type="text" spellcheck="false" placeholder="PO12020151" value="${po}" />
+      </div>
+      <p class="status-hint">PO comes from Playtika after they push the quote. Put it here, then the invoice can go to Accounting@playtika.com.</p>
+    </section>`;
+}
 function playableOwnerHtml(id, empty) {
   return id && person(id) ? personCell(id) : `<span class="play-seat-empty">${empty}</span>`;
 }
@@ -5255,7 +5391,7 @@ function openTask(id) {
           : `<h2>${escapeHtml(t.name)}</h2>`
       }
     </div>
-    <div class="meta"><span class="pill line-${t.line}">${t.line}</span> ${isUrgent(t) ? `<span class="urgent-flag">${urgentMark(t)} URGENT</span>` : ""} ${play ? (playableCardMeta(t) ? `${playableCardMeta(t)} · ` : "") : `${t.shifts || 0} shift · ${t.hours || 0} h · `}<span id="stMetaStatus" class="pill ${st.cls}">${statusText(t.studioStatus || "new", t)}</span></div>
+    <div class="meta"><span class="pill line-${t.line}">${t.line}</span> ${isUrgent(t) ? `<span class="urgent-flag">${urgentMark(t)} URGENT</span>` : ""} ${play ? (playableCardMeta(t) ? `${playableCardMeta(t)} · ` : "") : `${t.shifts || 0} shift · ${t.hours || 0} h · `}<span id="stMetaStatus" class="pill ${st.cls}">${statusText(t.studioStatus || "new", t)}</span>${moneyChipHtml(t)}</div>
     <p class="card-watch" id="cardWatch" hidden></p>
     <div class="drawer-body">
     <div class="card-job tone-${job.tone}">
@@ -5271,6 +5407,7 @@ function openTask(id) {
     ${sourceBlock || resultBlock ? `<div class="io-stack">${sourceBlock}${resultBlock}</div>` : ""}
     ${whoBlock}
     ${play ? playableHoursHtml(t, canEditPlayableCrew()) : helpSplitHtml(t, canEditHelp())}
+    ${slotomaniaMoneyHtml(t)}
     ${opsTime ? `<div class="card-ops">${opsTime}</div>` : ""}
     </div>
     <div class="drawer-actions">
@@ -5725,6 +5862,9 @@ function openTask(id) {
     }
     if (canOps() && $("stUrgent")) {
       patch.urgent = $("stUrgent").value === "1";
+    }
+    if (canOps() && $("stPoNumber")) {
+      patch.poNumber = String($("stPoNumber").value || "").trim();
     }
     if (studioStatus === "closed") patch.urgent = false;
     const helpNote = patch.help
@@ -6308,11 +6448,19 @@ $("signOut").addEventListener("click", () => {
 $("navMgx")?.addEventListener("click", () => {
   if (isClient()) return;
   if (state.view === "close" || state.view === "team" || state.view === "report") state.view = "board";
+  setBoardClient("superplay");
   setDirection("mgx");
 });
 $("navPlay")?.addEventListener("click", () => {
   if (isClient()) return;
   if (state.view === "close" || state.view === "team" || state.view === "report") state.view = "board";
+  setBoardClient("superplay");
+  setDirection("playables");
+});
+$("navSlotomania")?.addEventListener("click", () => {
+  if (isClient()) return;
+  if (state.view === "close" || state.view === "team" || state.view === "report") state.view = "board";
+  setBoardClient("slotomania");
   setDirection("playables");
 });
 $("navClose").addEventListener("click", () => {
@@ -6329,6 +6477,12 @@ $("navClientSuperplay")?.addEventListener("click", () => {
   if (!isFinance()) return;
   state.view = "report";
   state.hoursClient = "superplay";
+  render();
+});
+$("navClientSlotomania")?.addEventListener("click", () => {
+  if (!isFinance()) return;
+  state.view = "report";
+  state.hoursClient = "slotomania";
   render();
 });
 $("delCancel").onclick = () => $("delModal").classList.remove("show");
@@ -6475,9 +6629,13 @@ probeStudioApi()
       showLogin();
       return;
     }
-    if ((meOut.session.role === "client" || meOut.session.email === "superplay@lg-board") && !isHoursPage()) {
-      location.replace("/superplay");
-      return;
+    if (meOut.session.role === "client" || String(meOut.session.email || "").includes("@lg-board")) {
+      const want = clientLink(meOut.session.clientId || (String(meOut.session.email || "").includes("slotomania") ? "slotomania" : "superplay"));
+      const here = `${location.origin}${location.pathname.replace(/\/$/, "") || "/"}`;
+      if (here !== want.replace(/\/$/, "")) {
+        location.replace(want);
+        return;
+      }
     }
     enterStudio();
     render();

@@ -733,8 +733,14 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
 
 
 def tasks_for_finance(db: dict, ym: str) -> list[dict]:
-    """Hours and assignees for money from the board. Portal is the source of truth."""
-    return [t for t in db.get("tasks") or [] if (t.get("month") or ym) == ym]
+    """Hours and assignees for SuperPlay money. Slotomania quotes sit on their own cards."""
+    import client_io
+
+    return [
+        t
+        for t in db.get("tasks") or []
+        if (t.get("month") or ym) == ym and client_io.is_superplay(t)
+    ]
 
 
 def _style_range(ws, row: int, cols: int) -> None:
@@ -1148,8 +1154,11 @@ def _as_float(value, default: float = 0.0) -> float:
         return default
 
 
-def client_hours_filename(ym: str) -> str:
-    return f"SUPERPLAY_hours_{ym}.xlsx"
+def client_hours_filename(ym: str, client_id: str = "") -> str:
+    import client_io
+
+    prefix = "SLOTOMANIA" if client_io.norm(client_id) == client_io.SLOTOMANIA else "SUPERPLAY"
+    return f"{prefix}_hours_{ym}.xlsx"
 
 
 TZ_NAME = re.compile(r"^[A-Za-z0-9_+\-/]{1,64}$")
@@ -1202,19 +1211,43 @@ HOURS_INK = Font(name="Calibri", size=11, bold=True, color="3D4F63")
 HOURS_TOTAL_FONT = Font(name="Calibri", size=12, bold=True, color="1F3348")
 
 
-def client_hours_bytes(db: dict, ym: str, *, generated_at: datetime | None = None, tz_name: str = "UTC") -> bytes:
-    """Build a fresh SuperPlay hours xlsx at download time. No people, rates, or status."""
+def client_hours_bytes(
+    db: dict,
+    ym: str,
+    *,
+    generated_at: datetime | None = None,
+    tz_name: str = "UTC",
+    client_id: str = "",
+) -> bytes:
+    """Build a fresh client hours xlsx at download time. No people, rates, or money."""
+    import client_io
+
     ym = str(ym or "").strip()
+    cid = client_io.norm(client_id) if client_id else client_io.SUPERPLAY
     shift_hours = _as_float((db.get("meta") or {}).get("shiftHours"), 9) or 9
-    tasks = [t for t in db.get("tasks") or [] if (t.get("month") or ym) == ym]
+    tasks = [
+        t
+        for t in db.get("tasks") or []
+        if (t.get("month") or ym) == ym and client_io.of_task(t) == cid
+    ]
     sections = []
-    for dept, prefix in (("mgx", "MGX"), ("playables", "Playable")):
+    dirs = (("playables", "Playable"),) if cid == client_io.SLOTOMANIA else (("mgx", "MGX"), ("playables", "Playable"))
+    for dept, prefix in dirs:
         bucket = [t for t in tasks if hours_direction(t) == dept]
-        lines = ["DX", "DD"]
-        if any(str(t.get("line") or "") == "DS" for t in bucket):
+        lines = ["PL"] if cid == client_io.SLOTOMANIA else ["DX", "DD"]
+        if cid != client_io.SLOTOMANIA and any(str(t.get("line") or "") == "DS" for t in bucket):
             lines.append("DS")
+        if cid == client_io.SLOTOMANIA:
+            extra = sorted(
+                {
+                    str(t.get("line") or "PL")
+                    for t in bucket
+                    if str(t.get("line") or "PL") not in lines
+                }
+            )
+            lines.extend(extra)
         for line in lines:
-            rows = [t for t in bucket if t.get("line") == line]
+            rows = [t for t in bucket if (t.get("line") or "PL") == line]
             if not rows:
                 continue
             sections.append((f"{prefix} {line}", line, rows))

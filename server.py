@@ -15,6 +15,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
 import auth_io
+import client_io
 import direction_io
 import drive_io
 import drive_sync
@@ -30,7 +31,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-21a"
+BUILD = "2026-10-29b"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -1371,7 +1372,7 @@ class Handler(SimpleHTTPRequestHandler):
         if path in {"/hours", "/hours/"}:
             self._redirect("/superplay")
             return
-        if path in {"/superplay", "/superplay/"}:
+        if path in {"/superplay", "/superplay/", "/slotomania", "/slotomania/"}:
             self.path = "/index.html"
             return SimpleHTTPRequestHandler.do_GET(self)
         if path == "/health":
@@ -1456,7 +1457,7 @@ class Handler(SimpleHTTPRequestHandler):
             )
             return
         sess = self._session()
-        studio = bool(sess) and sess.get("role") != "client" and sess.get("email") != auth_io.CLIENT_EMAIL
+        studio = bool(sess) and not auth_io.is_client_session(sess)
         finance = bool(sess) and sess.get("role") == "finance"
         if path == "/api/hours/file":
             if not sess:
@@ -1470,6 +1471,11 @@ class Handler(SimpleHTTPRequestHandler):
                     month = str((peek_db().get("meta") or {}).get("month") or "2026-10")
             with LOCK:
                 db = peek_db()
+                cid = auth_io.client_id_of_session(sess) if auth_io.is_client_session(sess) else client_io.SUPERPLAY
+                if not auth_io.is_client_session(sess):
+                    asked = str((qs.get("client") or [""])[0] or "").strip()
+                    if asked:
+                        cid = client_io.norm(asked)
                 snap = {
                     "meta": {"shiftHours": (db.get("meta") or {}).get("shiftHours") or 9},
                     "tasks": [
@@ -1481,15 +1487,16 @@ class Handler(SimpleHTTPRequestHandler):
                             "hours": t.get("hours"),
                             "department": t.get("department"),
                             "direction": t.get("direction"),
+                            "clientId": client_io.of_task(t),
                         }
                         for t in db.get("tasks") or []
                     ],
                 }
-            data = excel_io.client_hours_bytes(snap, month, tz_name=tz_name)
+            data = excel_io.client_hours_bytes(snap, month, tz_name=tz_name, client_id=cid)
             self._bytes(
                 data,
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                excel_io.client_hours_filename(month),
+                excel_io.client_hours_filename(month, cid),
             )
             return
         if path == "/api/drive/status":
@@ -1643,10 +1650,9 @@ class Handler(SimpleHTTPRequestHandler):
             pin = str(data.get("pin") or "")
             door = str(data.get("door") or "")
             if door == "client":
-                if not auth_io.pin_ok_for_role("client", pin) and not auth_io.pin_ok(
-                    auth_io.CLIENT_EMAIL, pin
-                ):
-                    self._json(403, {"error": "wrong login or PIN"})
+                got = auth_io.resolve_client_login(str(data.get("email") or ""), pin)
+                if got.get("error"):
+                    self._json(403, {"error": got["error"]})
                     return
             elif door == "studio":
                 role = str(data.get("role") or "").strip()
@@ -1665,14 +1671,23 @@ class Handler(SimpleHTTPRequestHandler):
                 email = auth_io.resolve_email(data.get("email") or "")
                 seat = None
                 if door == "client":
-                    email = auth_io.CLIENT_EMAIL
-                    person = next((p for p in people if p.get("role") == "client"), None)
+                    cid = got.get("clientId") or client_io.SUPERPLAY
+                    email = client_io.email_of(cid)
+                    person = next(
+                        (
+                            p
+                            for p in people
+                            if p.get("role") == "client"
+                            and client_io.of_email(p.get("email") or "") == cid
+                        ),
+                        None,
+                    )
                     if not person:
                         self._json(400, {"error": "no seat for this login"})
                         return
                     seat = {
                         "id": person.get("id"),
-                        "name": person.get("name") or "",
+                        "name": person.get("name") or client_io.label(cid),
                         "role": "client",
                     }
                 elif door == "studio":
@@ -1712,6 +1727,7 @@ class Handler(SimpleHTTPRequestHandler):
                         login=str(data.get("email") or ""),
                         ip=self._peer_ip(),
                         ua=self.headers.get("User-Agent") or "",
+                        client_id=auth_io.client_id_of_session(sess) or client_io.parse_login(data.get("email") or ""),
                     )
                 cookie = auth_io.cookie_header(token, secure=self._cookie_secure())
                 payload = {
@@ -1733,7 +1749,7 @@ class Handler(SimpleHTTPRequestHandler):
         if path == "/api/seat":
             self._json(403, {"error": "sign out and pick your name again"})
             return
-        if sess.get("role") == "client" or sess.get("email") == auth_io.CLIENT_EMAIL:
+        if auth_io.is_client_session(sess):
             self._json(403, {"error": "client cannot edit"})
             return
         data = self._bind_actor(data, sess)
@@ -2089,10 +2105,14 @@ class Handler(SimpleHTTPRequestHandler):
                     return
                 undrop_name(db, name)
                 ym = str(data.get("month") or db.get("meta", {}).get("month") or "2026-10")
+                client_id = client_io.norm(data.get("clientId") or client_io.SUPERPLAY)
                 line = drive_io.line_from_name(name)
                 direction = direction_io.norm_dir(
                     data.get("direction") or data.get("department") or direction_io.of_name(name)
                 )
+                if client_id == client_io.SLOTOMANIA:
+                    line = "PL"
+                    direction = direction_io.PLAYABLES
                 used = {str(t.get("id") or "") for t in db.get("tasks") or []}
                 n = 1
                 while f"t-new-{n}" in used:
@@ -2103,6 +2123,7 @@ class Handler(SimpleHTTPRequestHandler):
                     "name": name,
                     "line": line,
                     "department": direction_io.DEPT[direction],
+                    "clientId": client_id,
                     "game": game,
                     "shifts": 0,
                     "hours": 0,
@@ -2127,7 +2148,7 @@ class Handler(SimpleHTTPRequestHandler):
                 }
                 given_folder = str(data.get("folderUrl") or "").strip()
                 given_doc = str(data.get("docUrl") or "").strip()
-                need_pack = True
+                need_pack = client_id != client_io.SLOTOMANIA
                 if given_folder and given_doc:
                     pack = {
                         "folderUrl": given_folder,
@@ -2556,7 +2577,10 @@ class Handler(SimpleHTTPRequestHandler):
                             return
                         pending_rename = old_name
                         task["name"] = new_name
-                        task["line"] = drive_io.line_from_name(new_name)
+                        if client_io.is_slotomania(task):
+                            task["line"] = "PL"
+                        else:
+                            task["line"] = drive_io.line_from_name(new_name)
                         task.setdefault("activity", []).append(
                             {"at": utc_now(), "text": f"Renamed {old_name} → {new_name}"}
                         )
@@ -2572,6 +2596,12 @@ class Handler(SimpleHTTPRequestHandler):
                     elif role != "finance":
                         data.pop("producerHours", None)
                         data.pop("studioBuffer", None)
+                if role not in OPS_ROLES:
+                    data.pop("poNumber", None)
+                    data.pop("quoteStatus", None)
+                    data.pop("hoursApproved", None)
+                if "poNumber" in data:
+                    data["poNumber"] = str(data.get("poNumber") or "").strip()
                 brief_before = task.get("brief")
                 for key in (
                     "studioStatus",
@@ -2585,6 +2615,9 @@ class Handler(SimpleHTTPRequestHandler):
                     "brief",
                     "folderUrl",
                     "docUrl",
+                    "poNumber",
+                    "quoteStatus",
+                    "hoursApproved",
                 ):
                     if key in data:
                         task[key] = data[key]
@@ -3056,6 +3089,8 @@ def _missing_playable_pack_specs(db: dict, ym: str) -> list[dict]:
     for task in db.get("tasks") or []:
         if not direction_io.is_playables(task):
             continue
+        if client_io.is_slotomania(task):
+            continue
         if (task.get("month") or ym) != ym:
             continue
         if direction_io.playable_norm_status(task.get("studioStatus")) == "closed":
@@ -3084,6 +3119,7 @@ def main() -> None:
     httpd.timeout = 45
     print(f"LG Board http://127.0.0.1:{PORT}", flush=True)
     print("SuperPlay http://127.0.0.1:%s/superplay" % PORT, flush=True)
+    print("Slotomania http://127.0.0.1:%s/slotomania" % PORT, flush=True)
     httpd.serve_forever()
 
 

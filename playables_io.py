@@ -9,6 +9,7 @@ from openpyxl.comments import Comment
 from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
 
+import client_io
 import direction_io
 import excel_io
 
@@ -301,7 +302,11 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
     existing = {
         str(t.get("name") or "").strip(): t
         for t in db.get("tasks") or []
-        if (t.get("month") or ym) == ym and direction_io.is_playables(t)
+        if (
+            (t.get("month") or ym) == ym
+            and direction_io.is_playables(t)
+            and client_io.is_superplay(t)
+        )
     }
     added = 0
     updated = 0
@@ -339,6 +344,11 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
         excel_ad = assignee_id if assignee_id and assignee_id != programmer_id else ""
         excel_status = row.get("excelStatus") or ""
         task = existing.get(name)
+        if not task and any(
+            client_io.is_slotomania(t) and str(t.get("name") or "").strip() == name
+            for t in db.get("tasks") or []
+        ):
+            continue
         if task:
             before = (task.get("studioStatus"), task.get("excelStatus"), task.get("mondayStatus"))
             task["name"] = name
@@ -366,6 +376,7 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
                 "name": name,
                 "line": row["line"],
                 "department": "Playables",
+                "clientId": client_io.SUPERPLAY,
                 "game": "",
                 "shifts": 0,
                 "hours": row["hours"],
@@ -519,7 +530,11 @@ def write_month(db: dict, ym: str, path: Path | None = None) -> Path | None:
     if not path.exists():
         return None
     people = crew(db)
-    tasks = direction_io.month_tasks(db, ym, direction_io.PLAYABLES)
+    tasks = [
+        t
+        for t in direction_io.month_tasks(db, ym, direction_io.PLAYABLES)
+        if client_io.is_superplay(t)
+    ]
     wb = load_workbook(path)
     try:
         ws = excel_io.find_sheet(wb, ym)

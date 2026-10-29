@@ -3,11 +3,14 @@ from __future__ import annotations
 
 import re
 
+import client_io
+
 MGX = "mgx"
 PLAYABLES = "playables"
 DIRECTIONS = (MGX, PLAYABLES)
 
 LABELS = {MGX: "SUPERPLAY MGX", PLAYABLES: "SUPERPLAY Playables"}
+SLOTOMANIA_LABEL = "SLOTOMANIA Playables"
 SHORT = {MGX: "MGX", PLAYABLES: "Playables"}
 DEPT = {MGX: "MGX", PLAYABLES: "Playables"}
 CLIENT_RATE = {MGX: 35.0, PLAYABLES: 40.0}
@@ -117,6 +120,12 @@ def norm_dir(raw) -> str:
     if text in {PLAYABLES, "playable", "plads", "plbl", "html"}:
         return PLAYABLES
     return MGX
+
+
+def board_label(direction: str, client_id: str = "") -> str:
+    if client_io.norm(client_id) == client_io.SLOTOMANIA:
+        return SLOTOMANIA_LABEL
+    return LABELS.get(norm_dir(direction), LABELS[MGX])
 
 
 def of_name(name: str) -> str:
@@ -402,6 +411,10 @@ def _ensure_person(db: dict, spec: dict) -> bool:
 def ensure_crew(db: dict) -> bool:
     """Seats stay; people can change. Fill missing Playables crew and direction rates."""
     dirty = False
+    if client_io.ensure_people(db):
+        dirty = True
+    if client_io.ensure_tasks(db):
+        dirty = True
     meta = db.setdefault("meta", {})
     if meta.get("playableClientRateUsd") in (None, ""):
         meta["playableClientRateUsd"] = CLIENT_RATE[PLAYABLES]
@@ -409,7 +422,10 @@ def ensure_crew(db: dict) -> bool:
     for person in db.get("people") or []:
         role = str(person.get("role") or "")
         if "directions" not in person:
-            if role in {"finance", "manager", "client"}:
+            if role == "client":
+                cid = client_io.of_email(person.get("email") or "") or client_io.SUPERPLAY
+                person["directions"] = [PLAYABLES] if cid == client_io.SLOTOMANIA else [MGX, PLAYABLES]
+            elif role in {"finance", "manager"}:
                 person["directions"] = [MGX, PLAYABLES]
             elif person.get("id") == "designer3":
                 person["directions"] = [MGX, PLAYABLES]

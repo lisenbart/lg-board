@@ -23,6 +23,7 @@ sys.path.insert(0, str(ROOT))
 from openpyxl import Workbook, load_workbook
 
 import auth_io
+import client_io
 import direction_io
 import drive_io
 import excel_io
@@ -172,6 +173,63 @@ def test_client_hours_xlsx() -> None:
     a = load_workbook(BytesIO(data)).active.cell(1, 1).value
     b = load_workbook(BytesIO(later)).active.cell(1, 1).value
     check("hours xlsx is generated per download", a != b, f"{a} vs {b}")
+    mixed = dict(db)
+    mixed["tasks"] = list(db["tasks"]) + [
+        {
+            "name": "Coin Cruiser",
+            "line": "PL",
+            "month": "2026-10",
+            "department": "Playables",
+            "clientId": "slotomania",
+            "hours": 43,
+            "quoteHours": 43,
+        }
+    ]
+    super_only = excel_io.client_hours_bytes(mixed, "2026-10", generated_at=at, tz_name="Europe/Kyiv")
+    sl_only = excel_io.client_hours_bytes(
+        mixed, "2026-10", generated_at=at, tz_name="Europe/Kyiv", client_id="slotomania"
+    )
+    super_names = [str(load_workbook(BytesIO(super_only)).active.cell(r, 1).value or "") for r in range(1, 40)]
+    sl_names = [str(load_workbook(BytesIO(sl_only)).active.cell(r, 1).value or "") for r in range(1, 40)]
+    check("SuperPlay hours file skips Slotomania", "Coin Cruiser" not in super_names, str(super_names[:20]))
+    check("Slotomania hours file is that client", "Coin Cruiser" in sl_names and "DX-AAA-0001" not in sl_names, str(sl_names[:20]))
+    check(
+        "finance snapshot skips Slotomania hours",
+        not any(t.get("name") == "Coin Cruiser" for t in excel_io.tasks_for_finance(mixed, "2026-10")),
+    )
+
+
+def test_client_login_names() -> None:
+    check("SuperPlay login", client_io.parse_login("SuperPlay") == "superplay")
+    check("super play folds", client_io.parse_login("super play") == "superplay")
+    check("Slotomania login", client_io.parse_login("Slotomania") == "slotomania")
+    check("слотоманія login", client_io.parse_login("слотоманія") == "slotomania")
+    check("sloto alias", client_io.parse_login("sloto") == "slotomania")
+    check("person name is not a client login", client_io.parse_login("Olena-test") == "")
+    check("Playtika is not a login", client_io.parse_login("Playtika") == "")
+    check("waiting PO before the number arrives", client_io.money_status({"clientId": "slotomania", "quoteHours": 37, "hoursApproved": True}) == "waiting_po")
+    check(
+        "quote sent hours pending",
+        client_io.money_status({"clientId": "slotomania", "quoteHours": 44, "hoursApproved": False}) == "quote_pending",
+    )
+    with tempfile.TemporaryDirectory() as raw:
+        orig = auth_io.PINS_PATH
+        auth_io.PINS_PATH = Path(raw) / "pins.json"
+        try:
+            auth_io.ensure_pins()
+            check(
+                "typed name SuperPlay + 3500",
+                auth_io.resolve_client_login("SuperPlay", "3500").get("clientId") == "superplay",
+            )
+            check(
+                "typed name Slotomania + 4182",
+                auth_io.resolve_client_login("слотоманія", "4182").get("clientId") == "slotomania",
+            )
+            check("Olena-test is 403", "error" in auth_io.resolve_client_login("Olena-test", "3500"))
+            check("cross PIN SuperPlay+4182 fails", "error" in auth_io.resolve_client_login("SuperPlay", "4182"))
+            check("cross PIN Slotomania+3500 fails", "error" in auth_io.resolve_client_login("Slotomania", "3500"))
+        finally:
+            auth_io.PINS_PATH = orig
 
 
 def test_pin_opens() -> None:
@@ -962,12 +1020,14 @@ def test_playables_desk() -> None:
         html = (ROOT / "public" / "index.html").read_text(encoding="utf-8")
         check(
             "DL SuperPlay hours stay in the cabinet",
-            'id: "report", label: "SuperPlay"' in js
+            'id: "report", label: clientMeta(cid).label' in js
             and 'id="navClientSuperplay"' in html
+            and 'id="navClientSlotomania"' in html
             and "function isHoursView" in js,
         )
-        check("client page is /superplay", "`${location.origin}/superplay`" in js or "origin}/superplay`" in js)
-        check("client page title is SuperPlay", "SuperPlay — Lisenbart Board" in js and "Hours — Lisenbart Board" not in js)
+        check("client page is /superplay", 'path: "/superplay"' in js and "function clientLink" in js)
+        check("client page title is SuperPlay", "Lisenbart Board" in js and "Hours — Lisenbart Board" not in js)
+        check("Slotomania client page is /slotomania", 'path: "/slotomania"' in js and 'id="navSlotomania"' in html)
         check("client tab is SuperPlay not Hours", '{ id: "report", label: "Hours" }' not in js)
         check("card warns if it changed while open", "This card changed while it was open" in js)
         check("card shows who is writing", "is on this card" in js and "function paintCardWatch" in js)
@@ -1006,13 +1066,13 @@ def test_playables_desk() -> None:
             'id="boardLogo"' in html
             and 'src="assets/superplay.svg"' in html
             and (ROOT / "public" / "assets" / "superplay.svg").is_file()
-            and "boardLogo.hidden = !clientHours" in js
+            and "boardLogo.hidden = !showSpLogo" in js
             and "background: #000" not in css.split(".board-logo")[1].split("}")[0]
             and 'id="whoLogo"' not in html,
         )
         check(
             "client hours put the logo where the SuperPlay word was",
-            "title.hidden = clientHours" in js
+            "title.hidden = showSpLogo" in js
             and 'id="boardLogo"' in html.split('class="board-title"')[1].split('class="pill"')[0]
             and ".board-title[hidden]" in css
             and ".pill[hidden]" in css,
@@ -1394,7 +1454,7 @@ def test_superplay_visits_and_status() -> None:
         rows = auth_io.client_visits()
         check(
             "sign-in log keeps login and ip",
-            bool(rows) and rows[0].get("login") == "Olena" and rows[0].get("ip") == "10.0.0.8",
+            bool(rows) and rows[0].get("login") == "SuperPlay" and rows[0].get("ip") == "10.0.0.8",
             str(rows[:1]),
         )
         check("sign-in log has a timestamp", bool((rows or [{}])[0].get("at")))
@@ -1446,8 +1506,9 @@ def test_superplay_visits_and_status() -> None:
         and "(Kyiv)" not in js.split("function kyivVisitStamp")[1].split("function uaLabel")[0],
     )
     check(
-        "SuperPlay Login is a name, PIN is the key",
-        'if email not in {auth_io.CLIENT_EMAIL, "superplay@lg-board"}:' not in py,
+        "client Login is SuperPlay or Slotomania, not a person name",
+        "def resolve_client_login" in (ROOT / "auth_io.py").read_text(encoding="utf-8")
+        and "def parse_login" in (ROOT / "client_io.py").read_text(encoding="utf-8"),
     )
 
 
@@ -1748,6 +1809,13 @@ def test_http(base: str) -> str | None:
         "GET /superplay is the client desk",
         code == 200 and "hours-host" in sp_html and "SuperPlay — Lisenbart Board" in sp_html,
         sp_html[sp_html.find("<title>") : sp_html.find("</title>") + 8] if "<title>" in sp_html else str(code),
+    )
+    code, payload, _ = _http(f"{base}/slotomania")
+    sl_html = payload.decode("utf-8", errors="replace") if isinstance(payload, (bytes, bytearray)) else str(payload)
+    check(
+        "GET /slotomania is the Slotomania desk",
+        code == 200 and "hours-host" in sl_html and "Slotomania — Lisenbart Board" in sl_html,
+        sl_html[sl_html.find("<title>") : sl_html.find("</title>") + 8] if "<title>" in sl_html else str(code),
     )
     try:
         with urllib.request.urlopen(f"{base}/hours", timeout=2) as res:
@@ -2205,18 +2273,71 @@ def test_http(base: str) -> str | None:
     code, payload, _ = _http(f"{base}/api/login", {"door": "client", "email": "Olena-test", "pin": "0000"})
     check("SuperPlay wrong PIN is 403", code == 403, str(payload))
 
-    code, payload, headers = _http(
+    code, payload, _ = _http(
         f"{base}/api/login",
         {"door": "client", "email": "Olena-test", "pin": "3500"},
+    )
+    check(
+        "client Login rejects a person name",
+        code == 403,
+        str(payload),
+    )
+    code, payload, _ = _http(
+        f"{base}/api/login",
+        {"door": "client", "email": "Slotomania", "pin": "3500"},
+    )
+    check("Slotomania does not open with SuperPlay PIN", code == 403, str(payload))
+    code, payload, _ = _http(
+        f"{base}/api/login",
+        {"door": "client", "email": "SuperPlay", "pin": "4182"},
+    )
+    check("SuperPlay does not open with Slotomania PIN", code == 403, str(payload))
+
+    code, payload, headers = _http(
+        f"{base}/api/login",
+        {"door": "client", "email": "SuperPlay", "pin": "3500"},
     )
     sp_cookie = headers.get("Set-Cookie") if hasattr(headers, "get") else None
     sp_sess = payload.get("session") or {}
     sp_state = payload.get("state") or {}
     sp_tasks = sp_state.get("tasks") or []
     check(
-        "SuperPlay login accepts a typed name",
-        code == 200 and sp_sess.get("role") == "client" and bool(sp_cookie),
+        "SuperPlay login needs SuperPlay + PIN 3500",
+        code == 200
+        and sp_sess.get("role") == "client"
+        and sp_sess.get("clientId") == "superplay"
+        and bool(sp_cookie),
         str(payload.get("error") or sp_sess),
+    )
+    check(
+        "SuperPlay desk has no Slotomania cards",
+        not any(t.get("clientId") == "slotomania" for t in sp_tasks)
+        and not any(t.get("name") == "Coin Cruiser" for t in sp_tasks),
+        str([t.get("name") for t in sp_tasks if "Cruiser" in str(t.get("name") or "") or t.get("clientId") == "slotomania"][:8]),
+    )
+
+    code, payload, sl_headers = _http(
+        f"{base}/api/login",
+        {"door": "client", "email": "слотоманія", "pin": "4182"},
+    )
+    sl_sess = payload.get("session") or {}
+    sl_tasks = ((payload or {}).get("state") or {}).get("tasks") or []
+    check(
+        "Slotomania login needs Slotomania + PIN 4182",
+        code == 200 and sl_sess.get("clientId") == "slotomania" and sl_sess.get("role") == "client",
+        str(payload.get("error") or sl_sess),
+    )
+    check(
+        "Slotomania desk is that client only",
+        bool(sl_tasks)
+        and all(t.get("clientId") == "slotomania" for t in sl_tasks)
+        and any(t.get("name") == "Coin Cruiser" for t in sl_tasks),
+        str([t.get("name") for t in sl_tasks]),
+    )
+    check(
+        "Slotomania desk hides quote and PO",
+        not sl_tasks or ("quoteHours" not in sl_tasks[0] and "poNumber" not in sl_tasks[0]),
+        str(sl_tasks[:1] if sl_tasks else None),
     )
     check(
         "SuperPlay hours payload has STATUS",
@@ -2242,12 +2363,12 @@ def test_http(base: str) -> str | None:
         visits = ((payload or {}).get("state") or {}).get("superplayVisits") or []
         check(
             "DL sees SuperPlay sign-in Login",
-            any(v.get("login") == "Olena-test" for v in visits),
+            any(v.get("login") == "SuperPlay" for v in visits),
             str(visits[:3]),
         )
         check(
             "DL sign-in row has IP place",
-            any(v.get("login") == "Olena-test" and (v.get("isp") or v.get("country")) for v in visits),
+            any(v.get("login") == "SuperPlay" and (v.get("isp") or v.get("country")) for v in visits),
             str(visits[:3]),
         )
 
@@ -2540,6 +2661,7 @@ def main() -> int:
     print("Excel / db")
     for fn in (
         test_client_hours_xlsx,
+        test_client_login_names,
         test_pin_opens,
         test_person_pins,
         test_parse_past_total,

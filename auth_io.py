@@ -1,4 +1,4 @@
-"""Studio PIN login. SuperPlay uses /superplay. Pins live in data/secrets/pins.json."""
+"""Studio PIN login. SuperPlay uses /superplay, Slotomania uses /slotomania."""
 from __future__ import annotations
 
 import ipaddress
@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from http.cookies import SimpleCookie
 from pathlib import Path
 
+import client_io
 import playables_io
 
 ROOT = Path(__file__).resolve().parent
@@ -132,7 +133,9 @@ STUDIO_ACCOUNTS = (
     "anastasiia@lisenbart.games",
     "lisenbart.games@gmail.com",
 )
-CLIENT_EMAIL = "superplay@lg-board"
+CLIENT_EMAIL = client_io.EMAILS[client_io.SUPERPLAY]
+SLOTOMANIA_EMAIL = client_io.EMAILS[client_io.SLOTOMANIA]
+CLIENT_EMAILS = tuple(client_io.EMAILS.values())
 ALIASES = {
     "dmytro": "dmytro@lisenbart.games",
     "anastasiia": "anastasiia@lisenbart.games",
@@ -141,6 +144,9 @@ ALIASES = {
     "designers": "lisenbart.games@gmail.com",
     "superplay": CLIENT_EMAIL,
     "sp": CLIENT_EMAIL,
+    "slotomania": SLOTOMANIA_EMAIL,
+    "sloto": SLOTOMANIA_EMAIL,
+    "slm": SLOTOMANIA_EMAIL,
 }
 
 
@@ -152,7 +158,7 @@ def resolve_email(raw: str) -> str:
 def door_allows(door: str, email: str) -> bool:
     door = str(door or "").strip().lower()
     if door == "client":
-        return email == CLIENT_EMAIL
+        return is_client_email(email)
     if door == "studio":
         return email in STUDIO_ACCOUNTS
     return email in LOCK_ROLE
@@ -166,6 +172,7 @@ DEFAULT_PINS = {
     "programmer": "4429",
     "client": "3500",
     CLIENT_EMAIL: "3500",
+    SLOTOMANIA_EMAIL: "4182",
 }
 ROLE_PIN_KEYS = {
     "finance": "finance",
@@ -221,10 +228,46 @@ LOCK_ROLE = {
     "anastasiia@lisenbart.games": "manager",
     "lisenbart.games@gmail.com": None,
     CLIENT_EMAIL: "client",
+    SLOTOMANIA_EMAIL: "client",
 }
+
+
+def is_client_email(email: str) -> bool:
+    return client_io.is_client_email(email)
+
+
+def is_client_session(sess: dict | None) -> bool:
+    if not sess:
+        return False
+    return str(sess.get("role") or "") == "client" or is_client_email(sess.get("email") or "")
+
+
+def client_id_of_session(sess: dict | None) -> str:
+    if not sess:
+        return ""
+    raw = str(sess.get("clientId") or "").strip().lower()
+    if raw in client_io.CLIENTS:
+        return raw
+    return client_io.of_email(sess.get("email") or "")
+
+
+def resolve_client_login(raw_login: str, pin: str) -> dict:
+    """Login must be SuperPlay or Slotomania. Each client has its own PIN."""
+    cid = client_io.parse_login(raw_login)
+    if not cid:
+        return {"error": "wrong login or PIN"}
+    email = client_io.email_of(cid)
+    if not pin_ok(email, str(pin or "")):
+        return {"error": "wrong login or PIN"}
+    return {
+        "clientId": cid,
+        "email": email,
+        "label": client_io.label(cid),
+    }
 
 CLIENT_META = (
     "client",
+    "clientId",
     "board",
     "month",
     "shiftHours",
@@ -338,8 +381,10 @@ def set_person_pin(people: list[dict], person_id: str, pin: str) -> str:
     same = [p for p in people or [] if p.get("role") == role]
     if key and len(same) <= 1:
         pins[key] = pin
-        if role == "client":
-            pins[CLIENT_EMAIL] = pin
+    if role == "client":
+        email = str(person.get("email") or "").strip().lower()
+        if email:
+            pins[email] = pin
     _save_pins(pins)
     return ""
 
@@ -531,6 +576,10 @@ ROLE_EMAIL = {
 def email_for_person(person: dict | None) -> str:
     if not person:
         return ""
+    if str(person.get("role") or "") == "client":
+        email = str(person.get("email") or "").strip().lower()
+        if is_client_email(email):
+            return email
     return ROLE_EMAIL.get(str(person.get("role") or ""), "")
 
 
@@ -623,13 +672,18 @@ def pick_seat(email: str, people: list[dict], seat_id: str | None) -> dict | Non
 def create_session(email: str, seat: dict) -> str:
     token = secrets.token_urlsafe(32)
     rows = _sessions()
-    rows[token] = {
-        "email": str(email).strip().lower(),
+    email = str(email).strip().lower()
+    row = {
+        "email": email,
         "seatId": seat.get("id"),
         "role": seat.get("role"),
         "personId": seat.get("id"),
         "at": utc_now(),
     }
+    cid = client_io.of_email(email)
+    if cid:
+        row["clientId"] = cid
+    rows[token] = row
     _save_sessions(rows)
     return token
 
@@ -657,7 +711,7 @@ def switch_seat(token: str, people: list[dict], seat_id: str) -> dict | None:
     if not row:
         return None
     email = row.get("email")
-    if email == CLIENT_EMAIL or LOCK_ROLE.get(email):
+    if is_client_email(email) or LOCK_ROLE.get(email):
         return row
     seat = pick_seat(email, people, seat_id)
     if not seat:
@@ -774,9 +828,13 @@ def lookup_ip_place(ip: str) -> dict:
 
 
 def _public_visit(row: dict) -> dict:
+    cid = str(row.get("clientId") or "").strip().lower()
+    if cid not in client_io.CLIENTS:
+        cid = client_io.parse_login(row.get("login") or "") or client_io.SUPERPLAY
     return {
         "at": str(row.get("at") or ""),
-        "login": str(row.get("login") or "SuperPlay"),
+        "login": str(row.get("login") or client_io.label(cid)),
+        "clientId": cid,
         "ip": str(row.get("ip") or ""),
         "ua": str(row.get("ua") or ""),
         "host": str(row.get("host") or "")[:120],
@@ -785,12 +843,14 @@ def _public_visit(row: dict) -> dict:
     }
 
 
-def record_client_visit(*, login: str = "", ip: str = "", ua: str = "") -> None:
+def record_client_visit(*, login: str = "", ip: str = "", ua: str = "", client_id: str = "") -> None:
     ip = str(ip or "").strip()[:80]
     place = lookup_ip_place(ip)
+    cid = client_io.norm(client_id) if client_id else client_io.parse_login(login) or client_io.SUPERPLAY
     row = {
         "at": utc_now(),
-        "login": " ".join(str(login or "").split())[:80] or "SuperPlay",
+        "login": client_io.label(cid),
+        "clientId": cid,
         "ip": ip,
         "ua": str(ua or "").strip()[:180],
         "host": str(place.get("host") or "")[:120],
@@ -808,7 +868,7 @@ def record_client_visit(*, login: str = "", ip: str = "", ua: str = "") -> None:
         return
 
 
-def client_visits() -> list:
+def client_visits(client_id: str = "") -> list:
     with _VISITS_LOCK:
         rows = _load_json(VISITS_PATH, [])
     if not isinstance(rows, list):
@@ -831,6 +891,8 @@ def client_visits() -> list:
             row["isp"] = item["isp"]
             dirty = True
             enriched += 1
+        if client_id and item.get("clientId") != client_io.norm(client_id):
+            continue
         out.append(item)
     if dirty:
         try:
@@ -841,35 +903,42 @@ def client_visits() -> list:
     return out
 
 
-def client_state(db: dict) -> dict:
+def client_state(db: dict, sess: dict | None = None) -> dict:
     meta = db.get("meta") or {}
-    return {
-        "meta": {key: meta.get(key) for key in CLIENT_META},
-        "people": [
-            {
-                "id": p.get("id"),
-                "name": p.get("name") or "SuperPlay",
-                "role": "client",
-                "email": p.get("email") or CLIENT_EMAIL,
-            }
-            for p in db.get("people") or []
-            if p.get("role") == "client"
-        ],
-        "tasks": [
+    cid = client_id_of_session(sess) or client_io.SUPERPLAY
+    people = [
+        {
+            "id": p.get("id"),
+            "name": p.get("name") or client_io.label(cid),
+            "role": "client",
+            "email": p.get("email") or client_io.email_of(cid),
+            "clientId": cid,
+        }
+        for p in db.get("people") or []
+        if p.get("role") == "client" and (client_io.of_email(p.get("email") or "") or client_io.SUPERPLAY) == cid
+    ]
+    tasks = []
+    for t in client_io.tasks_for(db, cid):
+        tasks.append(
             {
                 "id": t.get("id"),
                 "name": t.get("name"),
                 "line": t.get("line"),
-                "department": t.get("department") or "MGX",
+                "department": t.get("department") or "Playables",
                 "game": t.get("game"),
                 "month": t.get("month"),
                 "shifts": t.get("shifts"),
                 "hours": t.get("hours"),
                 "studioStatus": t.get("studioStatus") or "new",
+                "clientId": cid,
             }
-            for t in db.get("tasks") or []
-        ],
+        )
+    return {
+        "meta": {key: meta.get(key) for key in CLIENT_META},
+        "people": people,
+        "tasks": tasks,
         "events": [],
+        "clientId": cid,
     }
 
 
@@ -879,11 +948,12 @@ PAY_PEOPLE_KEYS = ("rates", "rateUsd", "iban", "bankCard", "taxId", "legalName",
 def view_state(db: dict, sess: dict | None) -> dict:
     if not sess:
         return {"error": "sign in"}
-    if sess.get("role") == "client" or sess.get("email") == CLIENT_EMAIL:
-        return client_state(db)
+    if is_client_session(sess):
+        return client_state(db, sess)
     if sess.get("role") == "finance":
         out = attach_pins(db)
-        out["superplayVisits"] = client_visits()
+        out["superplayVisits"] = client_visits(client_io.SUPERPLAY)
+        out["slotomaniaVisits"] = client_visits(client_io.SLOTOMANIA)
         return out
     people = []
     for person in db.get("people") or []:

@@ -2,7 +2,7 @@
 
 Internal studio board. Superplay stays on Monday (`External Weekly`). Designers work here and are never added to Monday.
 
-One portal: **SUPERPLAY MGX** and **SUPERPLAY Playables** on the same desk (`board.lisenbart.games`). The sidebar switches boards. Finance and SuperPlay stay combined — no page hop.
+One portal: **SUPERPLAY MGX**, **SUPERPLAY Playables**, and **SLOTOMANIA Playables** on the same desk (`board.lisenbart.games`). The sidebar switches boards. SuperPlay Finance stays SuperPlay-only — Slotomania quotes and POs sit on their cards, not in SuperPlay invoices.
 
 The board is one month at a time. Hours and load follow the selected month — same idea as a tab in `SP_MGX_check.xlsx` / `SP_PLBL_check.xlsx`.
 
@@ -28,15 +28,16 @@ After a studio push, the agent always puts `ssh board-update` in a copy box. Run
 
 Google Drive is always the live disk ([LLC/docs](https://drive.google.com/drive/folders/191q3zTumkNi-2tc9LCB1SG2lZwtu0pVs)). The VPS stays signed in with a service account file at `data/secrets/google_service.json` (share October DD/DX with that account). **Create task** then makes the folder + brief Doc; **Save** on the card writes the brief into the Doc. To update the live desk: `bash deploy/update.sh` on the VPS, then hard-refresh the browser.
 
-Home: **Client** or **Studio**. Seats: Finance, LP, TL, MD, AD, DEV, Client. PINs live in `data/secrets/pins.json`. The PIN is a key, not a home desk: you sit the tile you tapped if your PIN ranks high enough. **DL** opens every seat. **LP** opens LP and below (not DL). **TL** opens TL / MD / AD / DEV. Team PIN `4429` is MD / AD / DEV only — several people on that door still asks who is at the desk. A personal PIN on Team **replaces** the old one: the previous PIN no longer opens that seat, and it does not open other performer desks. Save on a Team row (and on a card) stays dim until there is something to write. One-direction people stay on their board; dual-seat people (LP, DL, Сергій, SuperPlay) see **MGX | Playables**.
+Home: **Client** or **Studio**. Seats: Finance, LP, TL, MD, AD, DEV, Client. PINs live in `data/secrets/pins.json`. The PIN is a key, not a home desk: you sit the tile you tapped if your PIN ranks high enough. **DL** opens every seat. **LP** opens LP and below (not DL). **TL** opens TL / MD / AD / DEV. Team PIN `4429` is MD / AD / DEV only — several people on that door still asks who is at the desk. A personal PIN on Team **replaces** the old one: the previous PIN no longer opens that seat, and it does not open other performer desks. Save on a Team row (and on a card) stays dim until there is something to write. One-direction people stay on their board; dual-seat people (LP, DL, Сергій) see **MGX | Playables | Slotomania**. Client Login is the client name, not a person: **SuperPlay** (PIN `3500`) or **Slotomania** (PIN `4182`). Any other name is rejected. Each PIN opens only that client.
 
 Then:
 
 - **Team lead** — MGX: own work plus every designer. Assigns people. No Monday send, no Finance.
 - **Designer** — only their queue, plus a read-only Excel picture of the month. Сергій sits Playables as well as MGX.
 - **Art Director / Programmer** — Playables queue only. Hours are agreed in Telegram before the card exists. AD: Ready→WIP, paste storyboard link, Check. LP sends the board (Sent). Bounce is Need Fixing; approve is Final art. AD sets Art ready, then DEV starts HTML. DEV WIP → paste HTML → Done. Code-only (no AD) starts DEV at Ready. MD on Playables has hours, not status.
-- **Line producer / Finance** — both boards. **Create task** after the client approved hours. Assign AD and DEV on the new card, hours next to the person. DEV can sit on the card from Ready; they start HTML after Art ready. LP/DL can set any MGX or Playables work status if the performer is away (MGX: WIP, TL Check, Done…; Playables: WIP, Check, Art ready, Done…). Send to the client stays the footer button. Bounce after Send is Need Fixing. **DL** also has **Clients → SuperPlay** (same Hours tables as the SuperPlay login, without switching seat). More clients can sit in that Clients list later. If two people have the same card open, the card says who is on it; Save warns if the card changed while it was open.
-- **Client (SuperPlay)** — page is **https://board.lisenbart.games/superplay** (`/hours` still redirects). MGX and Playable sit in two separate tables: name, **STATUS** (same chips as the pipeline), SHIFTS, HOURS. Tap the MGX or Playable hours KPI to show only that table (tap again, or **projects**, to show both). Fills are a pastel tone ladder — header light, section a step darker, totals darker still, final hours the darkest. A green **Download Excel** under the tables builds a fresh file at click time (no studio people or rates), stamped with the viewer’s local date, time, and city. `DS-P-` / `DD-P-` / `DX-P-` rows stay in the Playable block even if department is missing. No studio queue, no money. **DL** sees a Sign-ins list on the same SuperPlay tab: time (Kyiv), Login field, IP, browser — one row per SuperPlay PIN sign-in.
+- **Line producer / Finance** — SuperPlay MGX, SuperPlay Playables, and Slotomania Playables. **Create task** after the client approved hours. Assign AD and DEV on the new card, hours next to the person. DEV can sit on the card from Ready; they start HTML after Art ready. LP/DL can set any MGX or Playables work status if the performer is away (MGX: WIP, TL Check, Done…; Playables: WIP, Check, Art ready, Done…). Send to the client stays the footer button. Bounce after Send is Need Fixing. **DL** also has **Clients → SuperPlay** and **Clients → Slotomania** (same Hours tables as that client’s login, without switching seat). Slotomania money (quote → PO → invoice) is on the card, not in SuperPlay Finance. If two people have the same card open, the card says who is on it; Save warns if the card changed while it was open.
+- **Client (SuperPlay)** — page is **https://board.lisenbart.games/superplay** (`/hours` still redirects). Login field must be **SuperPlay**, PIN `3500`. MGX and Playable sit in two separate tables: name, **STATUS** (same chips as the pipeline), SHIFTS, HOURS. Tap the MGX or Playable hours KPI to show only that table (tap again, or **projects**, to show both). Fills are a pastel tone ladder — header light, section a step darker, totals darker still, final hours the darkest. A green **Download Excel** under the tables builds a fresh file at click time (no studio people or rates), stamped with the viewer’s local date, time, and city. `DS-P-` / `DD-P-` / `DX-P-` rows stay in the Playable block even if department is missing. No studio queue, no money. **DL** sees a Sign-ins list on the same SuperPlay tab: time (Kyiv), Login field, IP, browser — one row per SuperPlay PIN sign-in.
+- **Client (Slotomania)** — page is **https://board.lisenbart.games/slotomania**. Login field must be **Slotomania** (or `слотоманія` / `sloto`), PIN `4182`. Playable table only: name, STATUS, HOURS. No quotes, no PO, no $40. Studio sees quote hours, PO, and waiting/invoiced chips on the card. Invoice amount is the quoted hours, not the tracker. PO goes on the card when Playtika sends it, then the invoice goes to Accounting@playtika.com.
 
 Studio no longer uses a shared team mailbox. The name on the door is the seat.
 
@@ -71,7 +72,7 @@ pip install -r requirements.txt
 python3 server.py
 ```
 
-Open [http://127.0.0.1:43141](http://127.0.0.1:43141) and sign in as Studio (DL / LP / TL / MD / AD / DEV) or Client.
+Open [http://127.0.0.1:43141](http://127.0.0.1:43141) and sign in as Studio (DL / LP / TL / MD / AD / DEV) or Client (**SuperPlay** / **Slotomania** + that client’s PIN).
 
 Data: `data/db.json` (copied from `data/seed.json` on first start). Live Excel is `data/SP_MGX_check.xlsx`; `ssh board-update` snapshots it under `~/lg-board-backups` before git reset.
 
@@ -88,4 +89,5 @@ python3 tools/test_portal.py
 3. **lisenbart.games@gmail.com** → Team lead — assign a designer.
 4. Same mailbox → a designer — own queue, Excel is the month picture.
 5. Back to Anastasiia: pick Done rows → **Send to client**.
-6. **SuperPlay** — `/superplay` for the month. Switch months with the arrows.
+6. **SuperPlay** — `/superplay` for the month. Login `SuperPlay`, PIN `3500`. Switch months with the arrows.
+7. **Slotomania** — `/slotomania`. Login `Slotomania`, PIN `4182`. October: Snakes and Ladders, Battle Ship, Coin Cruiser, Characters Playable.

@@ -40,7 +40,7 @@ sudo systemctl restart lg-board
 
 ## Studio site (public door)
 
-See `site/README.md`. Public face is **https://lisenbart.games** on Netlify: Studio door (`/?door=studio`) and Client door (`/superplay`). The board stays on this VPS. Do not serve the homepage from nginx on the desk machine. `ssh board-status` should show `"build": "2026-10-18b"` after update.
+See `site/README.md`. Public face is **https://lisenbart.games** on Netlify: Studio door (`/?door=studio`) and Client doors (`/superplay`, `/slotomania`). The board stays on this VPS. Do not serve the homepage from nginx on the desk machine. `ssh board-status` should show `"build": "2026-10-29b"` after update.
 
 ## Invoices
 
