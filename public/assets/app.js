@@ -7097,9 +7097,24 @@ async function subscribePush() {
 }
 async function sendTestPing() {
   const ok = await subscribePush();
-  if (!ok) return false;
+  if (!ok) return { sent: false, registered: false, detail: "" };
   const out = await api("/api/push/test", {});
-  return Boolean(out && !out.error && out.sent > 0);
+  if (out && out.error) {
+    return { sent: false, registered: Boolean(out.subscribed), detail: String(out.error) };
+  }
+  return {
+    sent: Boolean(out && Number(out.sent) > 0),
+    registered: Boolean(out && out.subscribed),
+    detail: String((out && out.detail) || ""),
+  };
+}
+function testPingToast(result) {
+  if (result.sent) return "Test ping sent. Lock the phone — a popup should appear.";
+  if (!result.registered) return "Test ping did not send. Open the board icon, then try again.";
+  const extra = String(result.detail || "").trim();
+  return extra
+    ? `Phone is registered, but the test ping did not send. ${extra}`
+    : "Phone is registered, but the test ping did not send.";
 }
 async function runPhonePings() {
   try {
@@ -7109,10 +7124,10 @@ async function runPhonePings() {
       toast("Could not turn pings on");
       return;
     }
-    const sent = await sendTestPing();
+    const result = await sendTestPing();
     paintPushHint({ force: true });
     renderPhoneBar();
-    toast(sent ? "Test ping sent. Lock the phone — a popup should appear." : "Phone is registered, but the test ping did not send.");
+    toast(testPingToast(result));
   } catch {
     localStorage.removeItem(PUSH_OK_KEY);
     paintPushHint({ force: true });
@@ -7514,8 +7529,8 @@ $("pushTest")?.addEventListener("click", async () => {
   if (go?.classList.contains("is-busy")) return;
   setBusy(go, true, "Sending…");
   try {
-    const sent = await sendTestPing();
-    toast(sent ? "Test ping sent. Lock the phone — a popup should appear." : "Test ping did not send. Open the board icon, then try again.");
+    const result = await sendTestPing();
+    toast(testPingToast(result));
   } catch {
     toast("Test ping did not send");
   } finally {

@@ -478,6 +478,8 @@ def test_phone_queue_mvp() -> None:
     check(
         "phone pings can send a test popup",
         "function sendTestPing" in js
+        and "function testPingToast" in js
+        and "out.detail" in js
         and 'id="pushTest"' in html
         and "function runPhonePings" in js,
     )
@@ -490,9 +492,11 @@ def test_web_push() -> None:
     old_sub = push_io.SUBS_PATH
     old_vapid = push_io.VAPID_PATH
     old_cache = push_io._VAPID
+    old_signer = push_io._SIGNER
     push_io.SUBS_PATH = tmp / "push_subs.json"
     push_io.VAPID_PATH = tmp / "vapid.json"
     push_io._VAPID = None
+    push_io._SIGNER = None
     try:
         check("push library is ready", push_io.ready())
         key = push_io.public_key()
@@ -532,10 +536,77 @@ def test_web_push() -> None:
         check("LP state has no pushSubs", "pushSubs" not in view)
         src = (ROOT / "notice_io.py").read_text(encoding="utf-8")
         check("bootstrap emit does not push", "push=False" in src)
+        src_push = (ROOT / "push_io.py").read_text(encoding="utf-8")
+        check(
+            "send signs with from_pem, not a PEM string",
+            "from_pem" in src_push and "_vapid_signer" in src_push and 'vapid_private_key=vapid["private"]' not in src_push,
+        )
+        sw = (ROOT / "public" / "sw.js").read_text(encoding="utf-8")
+        check(
+            "lock-screen worker always shows the OS popup",
+            "showNotification" in sw and "if (!visible)" not in sw,
+        )
+        signer = push_io._vapid_signer()
+        check("PKCS8 PEM loads as a VAPID signer", signer is not None)
+        import base64
+        import os
+
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.asymmetric import ec
+        from py_vapid import Vapid
+        from pywebpush import webpush
+
+        pem = str(push_io.ensure_vapid().get("private") or "")
+        pem_str_fails = False
+        try:
+            Vapid.from_string(private_key=pem)
+        except Exception:
+            pem_str_fails = True
+        check("pywebpush from_string cannot read PKCS8 PEM", pem_str_fails)
+        peer = ec.generate_private_key(ec.SECP256R1())
+        p256dh = (
+            base64.urlsafe_b64encode(
+                peer.public_key().public_bytes(
+                    encoding=serialization.Encoding.X962,
+                    format=serialization.PublicFormat.UncompressedPoint,
+                )
+            )
+            .decode("ascii")
+            .rstrip("=")
+        )
+        auth = base64.urlsafe_b64encode(os.urandom(16)).decode("ascii").rstrip("=")
+        curl = webpush(
+            subscription_info={
+                "endpoint": "https://fcm.googleapis.com/fcm/send/lg-board-test",
+                "keys": {"p256dh": p256dh, "auth": auth},
+            },
+            data=json.dumps({"title": "LG Board", "body": "Test ping"}),
+            vapid_private_key=signer,
+            vapid_claims={"sub": push_io.VAPID_MAIL},
+            curl=True,
+        )
+        check(
+            "VAPID signer produces an Authorization header",
+            isinstance(curl, str) and "authorization:" in curl.lower() and "vapid" in curl.lower(),
+            str(curl)[:220],
+        )
+        ping = push_io.ping_person("designer4")
+        check(
+            "test ping returns a send detail when FCM is fake",
+            isinstance(ping, dict) and ping.get("sent") == 0 and bool(ping.get("detail")),
+            str(ping),
+        )
+        check(
+            "fake keys are not a PEM parse error",
+            "deserialize" not in str(ping.get("detail") or "").lower()
+            and "ASN.1" not in str(ping.get("detail") or ""),
+            str(ping.get("detail")),
+        )
     finally:
         push_io.SUBS_PATH = old_sub
         push_io.VAPID_PATH = old_vapid
         push_io._VAPID = old_cache
+        push_io._SIGNER = old_signer
         shutil.rmtree(tmp, ignore_errors=True)
 
 
@@ -2124,6 +2195,8 @@ def test_http(base: str) -> str | None:
         and "addEventListener(\"push\"" in sw
         and "addEventListener(\"fetch\"" in sw
         and "silent: false" in sw
+        and "showNotification" in sw
+        and "if (!visible)" not in sw
         and (headers.get("Service-Worker-Allowed") or "") == "/",
         str(headers.get("Service-Worker-Allowed")),
     )
@@ -2297,7 +2370,10 @@ def test_http(base: str) -> str | None:
         code, payload, _ = _http(f"{base}/api/push/test", {}, cookie=ck)
         check(
             "DL can fire a test ping",
-            code == 200 and payload.get("ok") is True and payload.get("subscribed") is True,
+            code == 200
+            and payload.get("ok") is True
+            and payload.get("subscribed") is True
+            and "detail" in payload,
             str(payload),
         )
         code, payload, _ = _http(f"{base}/api/me", cookie=ck)

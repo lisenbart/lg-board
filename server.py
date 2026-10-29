@@ -32,7 +32,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-29w"
+BUILD = "2026-10-29x"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -1821,8 +1821,16 @@ class Handler(SimpleHTTPRequestHandler):
             return
         if path == "/api/push/test":
             person_id = str(sess.get("seatId") or sess.get("personId") or "")
-            n = push_io.ping_person(person_id)
-            self._json(200, {"ok": True, "sent": n, "subscribed": push_io.count_for(person_id) > 0})
+            out = push_io.ping_person(person_id)
+            self._json(
+                200,
+                {
+                    "ok": True,
+                    "sent": int(out.get("sent") or 0),
+                    "subscribed": push_io.count_for(person_id) > 0,
+                    "detail": str(out.get("detail") or ""),
+                },
+            )
             return
         if path == "/api/excel/pull":
             with LOCK:

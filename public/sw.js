@@ -33,22 +33,22 @@ self.addEventListener("push", (event) => {
   event.waitUntil(
     (async () => {
       const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
-      const visible = windows.some((client) => client.visibilityState === "visible");
       windows.forEach((client) => {
         client.postMessage({ type: "push-notice", taskId: data.taskId || "" });
       });
-      if (!visible) {
-        await self.registration.showNotification(title, {
-          body,
-          icon: "/icon-192.png",
-          badge: "/favicon-32.png",
-          silent: false,
-          vibrate: [70, 40, 90],
-          tag: data.tag || data.taskId || "lg-board",
-          renotify: true,
-          data: { url: data.url || "/", taskId: data.taskId || "" },
-        });
-      }
+      // Always paint an OS notification. Skipping when a window is "visible"
+      // ate the test ping: send-then-lock found a still-visible PWA and
+      // never put a popup on the lock screen.
+      await self.registration.showNotification(title, {
+        body,
+        icon: "/icon-192.png",
+        badge: "/favicon-32.png",
+        silent: false,
+        vibrate: [70, 40, 90],
+        tag: data.tag || data.taskId || "lg-board",
+        renotify: true,
+        data: { url: data.url || "/", taskId: data.taskId || "" },
+      });
       const notes = await self.registration.getNotifications();
       await paintBadge(Math.max(1, notes.length));
     })()

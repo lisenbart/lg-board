@@ -20,6 +20,7 @@ VAPID_MAIL = "mailto:board@lisenbart.games"
 KEEP_PER_PERSON = 8
 _LOCK = threading.Lock()
 _VAPID = None
+_SIGNER = None
 
 
 def ready() -> bool:
@@ -36,9 +37,10 @@ def _b64(raw: bytes) -> str:
 
 
 def ensure_vapid() -> dict:
-    global _VAPID
+    global _VAPID, _SIGNER
     if _VAPID:
         return _VAPID
+    _SIGNER = None
     if VAPID_PATH.is_file():
         try:
             got = json.loads(VAPID_PATH.read_text(encoding="utf-8"))
@@ -77,6 +79,38 @@ def ensure_vapid() -> dict:
 
 def public_key() -> str:
     return str(ensure_vapid().get("public") or "")
+
+
+def _vapid_signer():
+    """Load PKCS8 PEM via from_pem. pywebpush treats a PEM string as from_string."""
+    global _SIGNER
+    vapid = ensure_vapid()
+    pem = str(vapid.get("private") or "")
+    if not pem.strip():
+        return None
+    if _SIGNER is None:
+        from py_vapid import Vapid
+
+        try:
+            _SIGNER = Vapid.from_pem(pem.encode("ascii"))
+        except Exception as exc:
+            print(f"[push] from_pem failed: {exc}", flush=True)
+            return None
+    return _SIGNER
+
+
+def _fail_reason(exc: BaseException) -> str:
+    text = " ".join(str(exc).split())
+    low = text.lower()
+    if "deserialize" in low or "asn.1" in low or "invalid length" in low:
+        return "server could not sign the ping"
+    if "invalid p256dh" in low or "invalid ec key" in low or "missing keys" in low:
+        return "this phone's keys are stale — tap Allow notices again"
+    if " 403" in f" {text}" or "status 403" in low:
+        return "Google rejected the ping"
+    if "timed out" in low or "timeout" in low:
+        return "push service timed out"
+    return text[:140]
 
 
 def _load_subs() -> dict:
@@ -203,25 +237,25 @@ def card(notice: dict | None) -> dict:
     return {"title": title, "body": body, "taskId": task_id, "url": url, "tag": task_id or str(notice.get("kind") or "lg-board")}
 
 
-def send_one(sub: dict, payload: dict) -> str:
-    """ok | gone | fail"""
+def _deliver(sub: dict, payload: dict) -> tuple[str, str]:
+    """('ok', '') | ('gone', reason) | ('fail', reason)"""
     if not ready():
-        return "fail"
-    vapid = ensure_vapid()
-    if not vapid.get("private"):
-        return "fail"
+        return "fail", "push library is missing"
+    signer = _vapid_signer()
+    if signer is None:
+        return "fail", "server has no VAPID key"
     from pywebpush import WebPushException, webpush
 
     try:
         webpush(
             subscription_info={"endpoint": sub["endpoint"], "keys": sub["keys"]},
             data=json.dumps(payload, ensure_ascii=True),
-            vapid_private_key=vapid["private"],
+            vapid_private_key=signer,
             vapid_claims={"sub": VAPID_MAIL},
             ttl=86400,
             timeout=12,
         )
-        return "ok"
+        return "ok", ""
     except WebPushException as exc:
         status = getattr(getattr(exc, "response", None), "status_code", None)
         detail = ""
@@ -232,11 +266,17 @@ def send_one(sub: dict, payload: dict) -> str:
             detail = str(exc)[:240]
         print(f"[push] send {status or 'fail'}: {detail}", flush=True)
         if status in (404, 410):
-            return "gone"
-        return "fail"
+            return "gone", "this phone dropped the subscription"
+        return "fail", _fail_reason(exc)
     except Exception as exc:
         print(f"[push] send error: {exc}", flush=True)
-        return "fail"
+        return "fail", _fail_reason(exc)
+
+
+def send_one(sub: dict, payload: dict) -> str:
+    """ok | gone | fail"""
+    status, _ = _deliver(sub, payload)
+    return status
 
 
 def fanout(notice: dict | None, *, sender=None) -> int:
@@ -274,15 +314,28 @@ def fanout(notice: dict | None, *, sender=None) -> int:
     return n
 
 
-def ping_person(person_id: str) -> int:
+def ping_person(person_id: str) -> dict:
     pid = str(person_id or "").strip()
     if not pid:
-        return 0
-    return fanout(
+        return {"sent": 0, "detail": "no person"}
+    if count_for(pid) <= 0:
+        return {"sent": 0, "detail": "no phone registered"}
+    why: list[str] = []
+
+    def send(sub: dict, payload: dict) -> str:
+        status, err = _deliver(sub, payload)
+        if status != "ok" and err:
+            why.append(err)
+        return status
+
+    n = fanout(
         {
             "kind": "push.test",
             "audience": [pid],
             "taskId": "",
             "payload": {"name": "LG Board"},
-        }
+        },
+        sender=send,
     )
+    detail = "" if n else (why[0] if why else "push service did not accept the ping")
+    return {"sent": n, "detail": detail}
