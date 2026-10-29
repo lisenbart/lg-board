@@ -31,7 +31,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-29h"
+BUILD = "2026-10-29i"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -1745,7 +1745,7 @@ class Handler(SimpleHTTPRequestHandler):
         if path == "/api/logout":
             drop_presence(self._token())
             auth_io.drop_session(self._token())
-            self._json(200, {"ok": True}, cookie=auth_io.cookie_header("", clear=True))
+            self._json(200, {"ok": True}, cookie=auth_io.cookie_header("", clear=True, secure=self._cookie_secure()))
             return
         sess = self._session()
         if not sess:

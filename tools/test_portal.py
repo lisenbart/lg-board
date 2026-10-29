@@ -344,6 +344,11 @@ def test_pin_opens() -> None:
         set(auth_io.pin_owner_roles("4429")) == {"designer", "art_director", "programmer"},
     )
     check("bad PIN opens nothing", auth_io.pin_owner_roles("0000") == ())
+    check(
+        "HTTPS logout drops Secure cookie",
+        "Max-Age=0" in auth_io.cookie_header("", clear=True, secure=True)
+        and "Secure" in auth_io.cookie_header("", clear=True, secure=True),
+    )
     people = [
         {"id": "dl", "name": "D", "role": "finance"},
         {"id": "lp", "name": "A", "role": "manager"},
@@ -1151,6 +1156,7 @@ def test_playables_desk() -> None:
             "identity sits under Sign out",
             'class="who-tools"' in html and 'class="who-id"' in html and 'id="roleHint"' in html,
         )
+        check("Sign out waits for logout", 'await api("/api/logout"' in js)
         check(
             "search has a clear control",
             "function searchHtml" in js
@@ -2456,6 +2462,12 @@ def test_http(base: str) -> str | None:
             code == 200 and "superplayVisits" not in me_state,
             str(list(me_state)[:12]),
         )
+        code, payload, out_h = _http(f"{base}/api/logout", {}, cookie=sp_cookie.split(";", 1)[0])
+        check("client logout", code == 200 and (payload or {}).get("ok") is True, str(payload))
+        clear = out_h.get("Set-Cookie") or ""
+        check("client logout clears cookie", "Max-Age=0" in clear, clear)
+        code, payload, _ = _http(f"{base}/api/me", cookie=sp_cookie.split(";", 1)[0])
+        check("client Sign out drops the session", code == 401, str(payload))
     if cookie:
         code, payload, _ = _http(f"{base}/api/me", cookie=cookie.split(";", 1)[0])
         visits = ((payload or {}).get("state") or {}).get("superplayVisits") or []

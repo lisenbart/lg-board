@@ -733,7 +733,10 @@ def switch_seat(token: str, people: list[dict], seat_id: str) -> dict | None:
 
 def cookie_header(token: str, *, clear: bool = False, secure: bool = False) -> str:
     if clear:
-        return f"{COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax"
+        parts = [f"{COOKIE}=", "Path=/", "Max-Age=0", "HttpOnly", "SameSite=Lax"]
+        if secure:
+            parts.append("Secure")
+        return "; ".join(parts)
     parts = [f"{COOKIE}={token}", "Path=/", "Max-Age=2592000", "HttpOnly", "SameSite=Lax"]
     if secure:
         parts.append("Secure")

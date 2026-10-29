@@ -1339,7 +1339,7 @@ async function api(path, payload, opts = {}) {
     const type = res.headers.get("content-type") || "";
     if (!type.includes("json")) return { error: "desk did not answer" };
     const body = await res.json();
-    if (res.status === 401 && path !== "/api/me" && path !== "/api/login") {
+    if (res.status === 401 && path !== "/api/me" && path !== "/api/login" && path !== "/api/logout") {
       writeSession(null);
       showLogin();
     }
@@ -5522,6 +5522,7 @@ let presenceTimer = 0;
 function stopCardPresence() {
   clearInterval(presenceTimer);
   presenceTimer = 0;
+  if (isClient() || isHoursPage()) return;
   api("/api/presence", { id: "" });
 }
 function startCardPresence(id) {
@@ -6668,9 +6669,14 @@ document.addEventListener("click", (e) => {
   if (!$("soundWrap")?.contains(e.target)) setSoundOpen(false);
 });
 paintSoundCtrl();
-$("signOut").addEventListener("click", () => {
+$("signOut").addEventListener("click", async () => {
+  const btn = $("signOut");
+  if (btn?.dataset.signingOut === "1") return;
+  if (btn) btn.dataset.signingOut = "1";
+  setBusy(btn, true, "Sign out");
+  stopLiveSync();
   stopCardPresence();
-  api("/api/logout", {});
+  await api("/api/logout", {});
   writeSession(null);
   state.roleId = "manager";
   state.view = "board";
