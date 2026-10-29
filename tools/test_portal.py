@@ -409,6 +409,12 @@ def test_phone_queue_mvp() -> None:
         "phone keeps Boards as a slide menu",
         "html:not(.hours-host) .sidebar" in css and "html.hours-host .sidebar { display: none; }" in css,
     )
+    check(
+        "client names sit above their boards as cards",
+        '.nav-group[data-client="superplay"]' in css
+        and '.nav-group[data-client="slotomania"]' in css
+        and "html:not(.hours-host) .nav-group-h" in css,
+    )
     check("Excel is not the phone home", "pinchPhoneView" in js and '"excel", "guide", "ready"' in js)
     check("DL phone bar has Finance", 'label: "Finance"' in js and 'label: "Queue"' in js)
     check("card Close sits in the header", 'class="btn drawer-close" id="closeCard"' in js)
