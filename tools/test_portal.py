@@ -441,6 +441,10 @@ def test_phone_queue_mvp() -> None:
         and 'href="/manifest.webmanifest"' in html
         and 'id="pushHint"' in html,
     )
+    check(
+        "phone ping banner stays off the desktop desk",
+        "html:not(.phone-ui) .push-hint" in css and 'if (hint) hint.hidden = true' in js,
+    )
 
 
 def test_web_push() -> None:

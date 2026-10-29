@@ -1740,6 +1740,10 @@ function renderPhoneBar() {
   const menu = $("phoneMenu");
   if (menu) menu.hidden = !isPhone();
   document.documentElement.classList.toggle("phone-ui", isPhone());
+  if (!isPhone()) {
+    const hint = $("pushHint");
+    if (hint) hint.hidden = true;
+  }
   const foot = $("sideFoot");
   if (!bar) return;
   if (!isPhone()) {
@@ -7403,6 +7407,7 @@ $("navScrim")?.addEventListener("click", () => setNavOpen(false));
 window.matchMedia("(max-width: 980px)").addEventListener("change", () => {
   if (!window.matchMedia("(max-width: 980px)").matches) setNavOpen(false);
   if (state.db) render();
+  paintPushHint();
 });
 $("delCancel").onclick = () => $("delModal").classList.remove("show");
 $("delConfirm").onclick = () => confirmDeletePerson();

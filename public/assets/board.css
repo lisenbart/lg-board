@@ -2401,6 +2401,7 @@ a.pack-work:hover { background: #e2e4ec; }
   box-shadow: var(--shadow);
 }
 .push-hint[hidden] { display: none !important; }
+html:not(.phone-ui) .push-hint { display: none !important; }
 .push-hint strong { display: block; font-size: 15px; margin-bottom: 6px; }
 .push-hint p { margin: 0 0 12px; font-size: 13px; color: var(--muted); line-height: 1.4; }
 .push-hint-actions { display: flex; gap: 8px; }
