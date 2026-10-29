@@ -24,6 +24,7 @@ import finance_io
 import mirror_io
 import notice_io
 import playables_io
+import push_io
 
 ROOT = Path(__file__).resolve().parent
 PUBLIC = ROOT / "public"
@@ -31,7 +32,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-29o"
+BUILD = "2026-10-29p"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -356,7 +357,15 @@ def combat_status() -> dict:
         "playableCalculator": finance_io.PLAY_CALC_PATH.exists(),
         "backup": latest_backup(),
         "excelWatch": dict(_EXCEL_WATCH),
+        "push": push_io.ready(),
     }
+
+
+def _push_notice(notice) -> None:
+    _spawn(push_io.fanout, _clone(notice))
+
+
+notice_io.ON_EMIT = _push_notice
 
 
 def parse_money(val):
@@ -1211,6 +1220,7 @@ class Handler(SimpleHTTPRequestHandler):
         ".png": "image/png",
         ".svg": "image/svg+xml",
         ".webp": "image/webp",
+        ".webmanifest": "application/manifest+json",
     }
     _ICON_PATHS = {
         "/favicon.ico",
@@ -1220,6 +1230,8 @@ class Handler(SimpleHTTPRequestHandler):
         "/favicon-48.png",
         "/favicon.svg",
         "/apple-touch-icon.png",
+        "/icon-192.png",
+        "/icon-512.png",
     }
 
     def __init__(self, *args, **kwargs):
@@ -1242,6 +1254,8 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_header("Cache-Control", "public, max-age=86400")
         else:
             self.send_header("Cache-Control", "no-store")
+        if path == "/sw.js":
+            self.send_header("Service-Worker-Allowed", "/")
         super().end_headers()
 
     def _json(self, code: int, payload, cookie: str | None = None) -> None:
@@ -1409,6 +1423,16 @@ class Handler(SimpleHTTPRequestHandler):
             with LOCK:
                 db = peek_db()
             self._json(200, {"session": sess, "state": auth_io.view_state(db, sess)})
+            return
+        if path == "/api/push/key":
+            sess = self._session()
+            if not sess:
+                self._json(401, {"error": "sign in"})
+                return
+            if auth_io.is_client_session(sess):
+                self._json(403, {"error": "studio only"})
+                return
+            self._json(200, {"ok": True, "ready": push_io.ready(), "publicKey": push_io.public_key()})
             return
         if path == "/api/state":
             sess = self._session()
@@ -1761,6 +1785,20 @@ class Handler(SimpleHTTPRequestHandler):
         if path == "/api/presence":
             touch_presence(self._token(), sess, str(data.get("id") or ""))
             self._json(200, {"ok": True, "presence": presence_view(self._token())})
+            return
+        if path == "/api/push/subscribe":
+            person_id = str(sess.get("seatId") or sess.get("personId") or "")
+            data["userAgent"] = (self.headers.get("User-Agent") or "")[:180]
+            sub = push_io.save_subscription(person_id, data)
+            if not sub:
+                self._json(400, {"error": "bad subscription"})
+                return
+            self._json(200, {"ok": True})
+            return
+        if path == "/api/push/unsubscribe":
+            person_id = str(sess.get("seatId") or sess.get("personId") or "")
+            n = push_io.drop_subscription(person_id, str(data.get("endpoint") or ""))
+            self._json(200, {"ok": True, "dropped": n})
             return
         if path == "/api/excel/pull":
             with LOCK:

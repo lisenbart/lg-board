@@ -401,6 +401,7 @@ def drop_person_pin(person_id: str) -> None:
 
 def attach_pins(db: dict) -> dict:
     out = dict(db or {})
+    out.pop("pushSubs", None)
     out["people"] = [dict(p, pin=effective_pin(p)) for p in (db or {}).get("people") or []]
     return out
 
@@ -974,6 +975,7 @@ def view_state(db: dict, sess: dict | None) -> dict:
         row.pop("crewPaidAt", None)
         tasks.append(row)
     out = dict(db)
+    out.pop("pushSubs", None)
     out["people"] = people
     out["tasks"] = tasks
     return out

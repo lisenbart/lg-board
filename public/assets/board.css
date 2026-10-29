@@ -2388,6 +2388,23 @@ a.pack-work:hover { background: #e2e4ec; }
 }
 .phone-bar-btn.active { color: var(--blue); }
 .phone-bar-btn.has-unread { color: var(--ink); }
+.push-hint {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(72px + env(safe-area-inset-bottom));
+  z-index: 18;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px;
+  box-shadow: var(--shadow);
+}
+.push-hint[hidden] { display: none !important; }
+.push-hint strong { display: block; font-size: 15px; margin-bottom: 6px; }
+.push-hint p { margin: 0 0 12px; font-size: 13px; color: var(--muted); line-height: 1.4; }
+.push-hint-actions { display: flex; gap: 8px; }
+.push-hint-actions .btn { flex: 1; justify-content: center; }
 .phone-bar-count {
   display: inline-flex;
   align-items: center;

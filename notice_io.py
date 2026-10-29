@@ -189,7 +189,17 @@ def ensure(db: dict) -> bool:
     return mutated
 
 
-def emit(db: dict, kind: str, *, actor_id: str = "", task: dict | None = None, payload: dict | None = None, at: str | None = None):
+def fill(template: str, payload: dict | None = None) -> str:
+    text = str(template or "")
+    for key, val in (payload or {}).items():
+        text = text.replace("{" + str(key) + "}", str(val or ""))
+    return text
+
+
+ON_EMIT = None
+
+
+def emit(db: dict, kind: str, *, actor_id: str = "", task: dict | None = None, payload: dict | None = None, at: str | None = None, push: bool = True):
     spec = KINDS.get(kind)
     if not spec:
         return None
@@ -216,6 +226,11 @@ def emit(db: dict, kind: str, *, actor_id: str = "", task: dict | None = None, p
     }
     db["notices"].insert(0, notice)
     db["notices"] = db["notices"][:KEEP]
+    if push and callable(ON_EMIT):
+        try:
+            ON_EMIT(notice)
+        except Exception:
+            pass
     return notice
 
 
@@ -279,8 +294,8 @@ def ack(
     return n
 
 
-def on_landed(db: dict, task: dict, actor_id: str = "", at: str | None = None):
-    return emit(db, "task.landed", actor_id=actor_id, task=task, at=at)
+def on_landed(db: dict, task: dict, actor_id: str = "", at: str | None = None, push: bool = True):
+    return emit(db, "task.landed", actor_id=actor_id, task=task, at=at, push=push)
 
 
 def stamp_status(db: dict, task: dict, prev: str, nxt: str, actor_id: str = "", at: str | None = None) -> dict:
@@ -358,12 +373,12 @@ def bootstrap(db: dict) -> int:
         assignee = task.get("assigneeId") or ""
         at = ((task.get("activity") or [{}])[-1]).get("at")
         if status == "new" and not assignee:
-            if on_landed(db, task, at=at):
+            if on_landed(db, task, at=at, push=False):
                 n += 1
         elif status == "done" and str(task.get("resultUrl") or "").strip():
-            if emit(db, "task.ready", task=task, at=at):
+            if emit(db, "task.ready", task=task, at=at, push=False):
                 n += 1
         elif status == "revision" and assignee:
-            if emit(db, "task.revision", task=task, at=at):
+            if emit(db, "task.revision", task=task, at=at, push=False):
                 n += 1
     return n

@@ -382,6 +382,7 @@ function enterStudio() {
     : "Lisenbart Board";
   startLiveSync();
   unlockNoticeSound();
+  startPush();
 }
 function openLoginGate() {
   document.documentElement.classList.remove("in-app");
@@ -1753,6 +1754,7 @@ function renderPhoneBar() {
     foot.innerHTML = `
       <div class="phone-who">${escapeHtml(whoLabel(p) || p?.name || "")}${badge.code ? ` · ${escapeHtml(badge.code)}` : ""}</div>
       <button type="button" class="nav-item" id="phoneSound">${soundPrefs.on && soundPrefs.volume > 0 ? "Sound on" : "Sound off"}</button>
+      <button type="button" class="nav-item" id="phonePings">Phone pings</button>
       <button type="button" class="nav-item phone-signout" id="phoneSignOut">Sign out</button>`;
     $("phoneSound")?.addEventListener("click", () => {
       soundPrefs.on = !soundPrefs.on;
@@ -1761,6 +1763,10 @@ function renderPhoneBar() {
       unlockNoticeSound();
       if (soundPrefs.on) playNoticeSound({ preview: true });
       renderPhoneBar();
+    });
+    $("phonePings")?.addEventListener("click", () => {
+      setNavOpen(false);
+      paintPushHint({ force: true });
     });
     $("phoneSignOut")?.addEventListener("click", () => signOutNow($("phoneSignOut")));
   }
@@ -6938,6 +6944,109 @@ function unlockNoticeSound() {
   if (noticeAudio.state === "suspended") return noticeAudio.resume().catch(() => {});
   return Promise.resolve();
 }
+const PUSH_SKIP_KEY = "lg-push-skip";
+function isStandaloneApp() {
+  return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+}
+function isIOSPhone() {
+  return /iPhone|iPad|iPod/i.test(navigator.userAgent || "") || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+}
+function urlBase64ToUint8Array(b64) {
+  const pad = "=".repeat((4 - (String(b64 || "").length % 4)) % 4);
+  const raw = atob(String(b64 || "").replace(/-/g, "+").replace(/_/g, "/") + pad);
+  const out = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
+function canAskPush() {
+  if (!("Notification" in window) || !("serviceWorker" in navigator) || !("PushManager" in window)) return false;
+  if (Notification.permission === "denied") return false;
+  if (isIOSPhone() && !isStandaloneApp()) return false;
+  return true;
+}
+function paintPushHint(opts = {}) {
+  const box = $("pushHint");
+  const text = $("pushHintText");
+  const allow = $("pushAllow");
+  if (!box) return;
+  const showHere = isPhone() || isStandaloneApp();
+  if (!showHere || isHoursPage() || isClient()) {
+    box.hidden = true;
+    return;
+  }
+  if (!opts.force && Notification?.permission === "granted") {
+    box.hidden = true;
+    return;
+  }
+  const skipped = Number(localStorage.getItem(PUSH_SKIP_KEY) || 0);
+  if (!opts.force && skipped && Date.now() - skipped < 3 * 24 * 3600 * 1000) {
+    box.hidden = true;
+    return;
+  }
+  if (Notification?.permission === "denied") {
+    text.textContent = "Notices are blocked. Phone Settings → LG Board → Allow Notifications.";
+    if (allow) allow.hidden = true;
+    box.hidden = false;
+    return;
+  }
+  if (isIOSPhone() && !isStandaloneApp()) {
+    text.textContent = "Share → Add to Home Screen. Open that icon, then Allow notices. A Safari tab cannot ping when it is closed.";
+    if (allow) allow.hidden = true;
+    box.hidden = false;
+    return;
+  }
+  text.textContent = "Allow notices so TL Check and Need Fixing reach this phone when the board is closed.";
+  if (allow) allow.hidden = !canAskPush();
+  box.hidden = false;
+}
+async function subscribePush() {
+  if (!canAskPush()) return false;
+  const perm = await Notification.requestPermission();
+  if (perm !== "granted") return false;
+  const keyOut = await api("/api/push/key");
+  if (!keyOut?.publicKey) return false;
+  const reg = await navigator.serviceWorker.ready;
+  const sub = await reg.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: urlBase64ToUint8Array(keyOut.publicKey),
+  });
+  const raw = sub.toJSON();
+  raw.userAgent = navigator.userAgent;
+  const out = await api("/api/push/subscribe", raw);
+  return Boolean(out && !out.error);
+}
+async function startPush() {
+  if (isHoursPage() || isClient() || !isStudioHost()) return;
+  if ("serviceWorker" in navigator) {
+    try {
+      await navigator.serviceWorker.register("/sw.js");
+    } catch {
+      /* older Safari */
+    }
+    if (!startPush.wired) {
+      startPush.wired = true;
+      navigator.serviceWorker.addEventListener("message", (e) => {
+        const id = e.data?.taskId;
+        if (e.data?.type === "open-task" && id && state.db) openTask(id);
+      });
+    }
+  }
+  paintPushHint();
+  if (Notification?.permission === "granted") {
+    try {
+      await subscribePush();
+    } catch {
+      /* keep the in-tab ping */
+    }
+  }
+}
+function pendingTaskId() {
+  try {
+    return new URLSearchParams(location.search).get("task") || "";
+  } catch {
+    return "";
+  }
+}
 function pingNewNotice() {
   playNoticeSound();
   try {
@@ -7270,6 +7379,25 @@ $("navTeam")?.addEventListener("click", () => {
   state.view = "team";
   render();
 });
+$("pushAllow")?.addEventListener("click", async () => {
+  const go = $("pushAllow");
+  if (go?.classList.contains("is-busy")) return;
+  setBusy(go, true, "Allowing…");
+  try {
+    const ok = await subscribePush();
+    if (ok) localStorage.removeItem(PUSH_SKIP_KEY);
+    toast(ok ? "Pings on. Keep the Home Screen icon." : "Could not turn pings on");
+    paintPushHint();
+  } catch {
+    toast("Could not turn pings on");
+  } finally {
+    setBusy(go, false);
+  }
+});
+$("pushHintHide")?.addEventListener("click", () => {
+  localStorage.setItem(PUSH_SKIP_KEY, String(Date.now()));
+  paintPushHint();
+});
 $("phoneMenu")?.addEventListener("click", () => setNavOpen(!navOpen()));
 $("navScrim")?.addEventListener("click", () => setNavOpen(false));
 window.matchMedia("(max-width: 980px)").addEventListener("change", () => {
@@ -7430,6 +7558,8 @@ probeStudioApi()
     }
     enterStudio();
     render();
+    const tid = pendingTaskId();
+    if (tid) openTask(tid);
   })
   .catch(() => {
     if (isStudioHost()) showLogin();

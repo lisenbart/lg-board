@@ -18,4 +18,6 @@ site/dist/
 .env
 .env.local
 data/secrets/
+data/push_subs.json
+data/push_subs.json.tmp
 data/comments/

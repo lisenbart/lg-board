@@ -434,6 +434,61 @@ def test_phone_queue_mvp() -> None:
         and "phone-bar-count" in js
         and "navigator.vibrate" in js,
     )
+    check(
+        "phone pings ask for Home Screen then Allow",
+        "function startPush" in js
+        and "Add to Home Screen" in js
+        and 'href="/manifest.webmanifest"' in html
+        and 'id="pushHint"' in html,
+    )
+
+
+def test_web_push() -> None:
+    import push_io
+
+    tmp = Path(tempfile.mkdtemp())
+    old_sub = push_io.SUBS_PATH
+    old_vapid = push_io.VAPID_PATH
+    old_cache = push_io._VAPID
+    push_io.SUBS_PATH = tmp / "push_subs.json"
+    push_io.VAPID_PATH = tmp / "vapid.json"
+    push_io._VAPID = None
+    try:
+        check("push library is ready", push_io.ready())
+        key = push_io.public_key()
+        check("vapid public key is url-safe", bool(key) and "+" not in key and "/" not in key, key[:40])
+        sub = {"endpoint": "https://push.example/x", "keys": {"p256dh": "abc", "auth": "def"}}
+        check("saves a subscription", push_io.save_subscription("designer4", sub) is not None)
+        sent = []
+
+        def fake(row, payload):
+            sent.append((row, payload))
+            return "ok"
+
+        notice = {
+            "kind": "task.tlcheck",
+            "audience": ["designer4", "teamlead1"],
+            "taskId": "t1",
+            "payload": {"name": "DX-AAA"},
+        }
+        n = push_io.fanout(notice, sender=fake)
+        check("fanout hits the saved phone", n == 1 and sent and sent[0][1]["title"] == "TL Check", str(sent))
+        check("card body names the project", "DX-AAA" in (sent[0][1].get("body") or ""), str(sent[0][1]))
+        check("http endpoint without keys is rejected", push_io.save_subscription("x", {"endpoint": "http://x"}) is None)
+        db = {
+            "people": [{"id": "designer4", "name": "Alina", "role": "designer"}],
+            "tasks": [],
+            "pushSubs": {"designer4": [sub]},
+        }
+        view = auth_io.view_state(db, {"role": "manager", "seatId": "manager"})
+        check("LP state has no pushSubs", "pushSubs" not in view)
+        src = (ROOT / "notice_io.py").read_text(encoding="utf-8")
+        check("bootstrap emit does not push", "push=False" in src)
+    finally:
+        push_io.SUBS_PATH = old_sub
+        push_io.VAPID_PATH = old_vapid
+        push_io._VAPID = old_cache
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 def test_pin_opens() -> None:
@@ -1987,6 +2042,30 @@ def test_http(base: str) -> str | None:
     check("GET /health", code == 200 and payload.get("ok") is True and payload.get("build"), str(payload))
     code, payload, _ = _http(f"{base}/api/version")
     check("GET /api/version", code == 200 and payload.get("build") == server.BUILD, str(payload.get("build")))
+    check("version says push is ready", payload.get("push") is True, str(payload.get("push")))
+    code, payload, headers = _http(f"{base}/manifest.webmanifest")
+    man = payload if isinstance(payload, dict) else {}
+    man_type = (headers.get("Content-Type") or "").lower()
+    check(
+        "GET /manifest.webmanifest",
+        code == 200 and man.get("display") == "standalone" and "manifest" in man_type,
+        f"{code} {man_type} {str(payload)[:80]}",
+    )
+    code, payload, headers = _http(f"{base}/sw.js")
+    sw = payload.decode("utf-8", errors="replace") if isinstance(payload, (bytes, bytearray)) else str(payload)
+    check(
+        "GET /sw.js is a push worker",
+        code == 200
+        and "addEventListener(\"push\"" in sw
+        and (headers.get("Service-Worker-Allowed") or "") == "/",
+        str(headers.get("Service-Worker-Allowed")),
+    )
+    code, payload, _ = _http(f"{base}/icon-192.png")
+    check(
+        "GET /icon-192.png",
+        code == 200 and isinstance(payload, (bytes, bytearray)) and bytes(payload[:8]) == b"\x89PNG\r\n\x1a\n",
+        str(code),
+    )
 
     code, payload, headers = _http(f"{base}/favicon.ico")
     ico_type = (headers.get("Content-Type") or "").lower()
@@ -2126,6 +2205,25 @@ def test_http(base: str) -> str | None:
         str(payload.get("error") or sess),
     )
     check("login sets cookie", bool(cookie), str(cookie))
+    code, payload, _ = _http(f"{base}/api/push/key")
+    check("push key requires sign in", code == 401, str(payload))
+    if cookie:
+        ck = cookie.split(";", 1)[0]
+        code, payload, _ = _http(f"{base}/api/push/key", cookie=ck)
+        check(
+            "signed-in studio gets a VAPID key",
+            code == 200 and bool(payload.get("publicKey")) and payload.get("ready") is True,
+            str(payload),
+        )
+        code, payload, _ = _http(
+            f"{base}/api/push/subscribe",
+            {"endpoint": "https://push.example/lg-board", "keys": {"p256dh": "p256", "auth": "auth"}},
+            cookie=ck,
+        )
+        check("DL can subscribe a phone", code == 200 and payload.get("ok") is True, str(payload))
+        code, payload, _ = _http(f"{base}/api/me", cookie=ck)
+        blob = json.dumps(payload)
+        check("session state hides push endpoints", "push.example" not in blob and "pushSubs" not in blob, blob[:200])
     if cookie:
         ck = cookie.split(";", 1)[0]
         with server.LOCK:
@@ -2959,6 +3057,7 @@ def main() -> int:
         test_client_login_names,
         test_slotomania_crew_pay,
         test_phone_queue_mvp,
+        test_web_push,
         test_pin_opens,
         test_person_pins,
         test_parse_past_total,

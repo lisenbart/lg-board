@@ -17,6 +17,8 @@ LIVE_FILES=(
   data/drive_index.json
   data/drive_cache.json
   data/mirror/live_folders.json
+  data/push_subs.json
+  data/secrets/vapid.json
 )
 PRESERVE_FLAG="/tmp/lg-board-preserved"
 
@@ -98,6 +100,8 @@ try:
 except Exception as e:
     print(f"[update] calculator seats: {e}", flush=True)
 PY
+
+"$PY" -m pip install -q -r "$ROOT/requirements.txt" || true
 
 ensure_pdf
 sudo systemctl restart lg-board
