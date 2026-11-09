@@ -2012,9 +2012,22 @@ a.pack-work:hover { background: #e2e4ec; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 
 .toast {
-  position: fixed; bottom: 18px; left: 18px; background: #323338; color: #fff;
-  padding: 10px 36px 10px 14px; border-radius: 10px; display: none; z-index: 50; max-width: 360px;
-  font-size: 13px; font-weight: 400; pointer-events: auto;
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  background: #323338;
+  color: #fff;
+  padding: 12px 40px 12px 18px;
+  border-radius: 12px;
+  display: none;
+  z-index: 90;
+  max-width: min(360px, calc(100vw - 32px));
+  font-size: 13px;
+  font-weight: 400;
+  text-align: center;
+  pointer-events: auto;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.28);
 }
 .toast.show { display: block; }
 .toast-x {
@@ -2946,10 +2959,12 @@ html:not(.phone-ui):not(.standalone-app) .push-hint { display: none !important; 
     font-size: 13px;
   }
   html:not(.hours-host) .toast {
-    left: 12px;
-    right: 12px;
-    bottom: calc(72px + env(safe-area-inset-bottom));
-    max-width: none;
+    left: 50%;
+    right: auto;
+    bottom: auto;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    max-width: min(360px, calc(100vw - 24px));
   }
   html:not(.hours-host) .app { padding-bottom: 64px; }
   html:not(.hours-host) .toolbar {
