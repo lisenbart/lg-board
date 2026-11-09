@@ -1468,8 +1468,10 @@ function xhrSend(path, { json, body, timeout, onProgress } = {}) {
     xhr.withCredentials = true;
     xhr.responseType = "text";
     if (onProgress && xhr.upload) {
+      const known = body && typeof body.size === "number" ? body.size : 0;
+      xhr.upload.onloadstart = () => onProgress(0, known);
       xhr.upload.onprogress = (e) => {
-        if (e.lengthComputable) onProgress(e.loaded, e.total);
+        onProgress(e.loaded, e.lengthComputable ? e.total : known);
       };
     }
     xhr.onload = () => {
@@ -6403,7 +6405,7 @@ function openTask(id) {
           ? `<input id="stName" class="task-name-edit" value="${escapeHtml(t.name)}" spellcheck="false" aria-label="Project name" />`
           : `<h2>${escapeHtml(t.name)}</h2>`
       }
-      <button type="button" class="btn drawer-close" id="closeCard">Close</button>
+      <button type="button" class="drawer-x" id="closeCard" aria-label="Close">×</button>
     </div>
     <div class="meta"><span class="pill line-${t.line}">${t.line}</span> ${isUrgent(t) ? `<span class="urgent-flag">${urgentMark(t)} URGENT</span>` : ""} ${play ? (playableCardMeta(t) ? `${playableCardMeta(t)} · ` : "") : `${t.shifts || 0} shift · ${t.hours || 0} h · `}<span id="stMetaStatus" class="pill ${st.cls}">${statusText(t.studioStatus || "new", t)}</span>${moneyChipHtml(t)}</div>
     <p class="card-watch" id="cardWatch" hidden></p>
@@ -6432,8 +6434,8 @@ function openTask(id) {
       </div>
       <div class="drawer-actions-end">
         <span class="save-wait" id="saveWait" hidden></span>
-        <button type="button" class="btn drawer-close" id="closeCardFoot">Close</button>
-        ${canEdit || canOps() ? `<button type="button" class="btn primary card-save" id="saveTask" disabled>Save</button>` : ""}
+        ${canEdit || canOps() ? `<button type="button" class="btn ghost" id="cancelTask" disabled>Cancel</button>
+        <button type="button" class="btn primary card-save" id="saveTask" disabled>Save</button>` : ""}
       </div>
     </div>
   `;
@@ -6462,7 +6464,9 @@ function openTask(id) {
   function refreshCardSave() {
     const on = cardFingerprint() !== cardBaseline;
     const btn = $("saveTask");
+    const cancel = $("cancelTask");
     setIdleEnabled(btn, on);
+    setIdleEnabled(cancel, on);
     btn?.classList.toggle("is-ready", on);
   }
   function refreshCardActions() {
@@ -6608,6 +6612,7 @@ function openTask(id) {
       el.innerHTML = `<div class="card-video-play">
           ${face}
           <span class="card-video-icon notes-upload-spin" aria-hidden="true"></span>
+          <span class="notes-upload-pct">0%</span>
         </div>
         <div class="notes-upload-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span></span></div>
         <p class="card-video-name">Waiting · ${label}</p>`;
@@ -6617,6 +6622,7 @@ function openTask(id) {
           <span class="notes-file-face">
             <span class="notes-file-ext">${ext}</span>
             <span class="card-video-icon notes-upload-spin" aria-hidden="true"></span>
+            <span class="notes-upload-pct">0%</span>
           </span>
         </div>
         <div class="notes-upload-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span></span></div>
@@ -6626,6 +6632,8 @@ function openTask(id) {
     const bar = el.querySelector(".notes-upload-bar");
     const fill = bar?.querySelector("span");
     const status = el.querySelector(".card-video-name, .notes-file-name");
+    const pctLabel = el.querySelector(".notes-upload-pct");
+    const spin = el.querySelector(".notes-upload-spin");
     return {
       el,
       setPoster(shot) {
@@ -6641,9 +6649,15 @@ function openTask(id) {
       },
       setProgress(pct, labelText) {
         const n = Math.max(0, Math.min(100, Math.round(pct || 0)));
-        if (fill) fill.style.width = `${Math.min(99, n)}%`;
-        if (bar) bar.setAttribute("aria-valuenow", String(Math.min(99, n)));
-        if (status) status.textContent = labelText || `Uploading ${n}% · ${name}`;
+        const shown = Math.min(99, n);
+        if (fill) fill.style.width = `${shown}%`;
+        if (bar) bar.setAttribute("aria-valuenow", String(shown));
+        if (pctLabel) {
+          pctLabel.textContent = `${shown}%`;
+          pctLabel.classList.add("is-on");
+        }
+        if (spin && n > 0) spin.classList.add("is-off");
+        if (status) status.textContent = labelText || `Uploading ${shown}% · ${name}`;
       },
       setError(msg) {
         el.classList.add("is-error");
@@ -6696,12 +6710,15 @@ function openTask(id) {
       tile.setError(videoError(start.error));
       return false;
     }
+    const size = Number(file.size) || 0;
+    tile.setProgress(0, `Uploading 0% · ${file.name}`);
     const out = await xhrSend(`/api/tasks/video/bytes?uploadId=${encodeURIComponent(start.uploadId)}`, {
       body: file,
       timeout: 600000,
       onProgress: (loaded, total) => {
-        const pct = total ? Math.min(99, Math.round((loaded / total) * 100)) : 0;
-        tile.setProgress(pct);
+        const max = total || size;
+        const pct = max ? Math.min(99, Math.round((loaded / max) * 100)) : 0;
+        tile.setProgress(loaded > 0 ? Math.max(pct, 1) : pct);
       },
     });
     if (out.error || !out.state) {
@@ -6898,8 +6915,10 @@ function openTask(id) {
     }
     hint.textContent = `${hoursFromShifts(shifts)} h`;
   });
-  $("drawer")?.querySelectorAll(".drawer-close").forEach((el) => {
-    el.addEventListener("click", closeDrawer);
+  $("closeCard")?.addEventListener("click", closeDrawer);
+  $("cancelTask")?.addEventListener("click", () => {
+    if ($("cancelTask")?.disabled) return;
+    closeDrawer({ force: true });
   });
   async function commitCard(opts = {}) {
     const fromChip = Boolean(opts.fromChip);
@@ -7162,16 +7181,8 @@ function openTask(id) {
   startCardPresence(id);
 }
 
-function hideCardSaveModal() {
-  $("cardSaveModal")?.classList.remove("show");
-}
-
 async function closeDrawer(opts = {}) {
   closeShot();
-  if (!opts.force && $("cardSaveModal")?.classList.contains("show")) {
-    hideCardSaveModal();
-    return false;
-  }
   if (!opts.force && $("drawerBg")?.classList.contains("show")) {
     if ($("drawer")?.querySelector(".is-uploading")) {
       toast("Wait — the file is still uploading.");
@@ -7182,12 +7193,10 @@ async function closeDrawer(opts = {}) {
       return false;
     }
     if (typeof state.cardChanged === "function" ? state.cardChanged() : typeof state.cardDirty === "function" && state.cardDirty()) {
-      $("cardSaveModal")?.classList.add("show");
-      $("cardSaveKeep")?.focus();
+      toast("Save or Cancel");
       return false;
     }
   }
-  hideCardSaveModal();
   $("drawerBg").classList.remove("show");
   stopCardPresence();
   state.openId = null;
@@ -8058,28 +8067,8 @@ $("emailApply").onclick = async () => {
 $("drawerBg").addEventListener("click", (e) => {
   if (e.target === $("drawerBg")) closeDrawer();
 });
-$("cardSaveModal")?.addEventListener("click", (e) => {
-  if (e.target === $("cardSaveModal")) hideCardSaveModal();
-});
-$("cardSaveDiscard")?.addEventListener("click", () => {
-  hideCardSaveModal();
-  closeDrawer({ force: true });
-});
-$("cardSaveKeep")?.addEventListener("click", async () => {
-  hideCardSaveModal();
-  const fn = state.commitCard;
-  if (typeof fn === "function") {
-    await fn({ close: true });
-    return;
-  }
-  closeDrawer({ force: true });
-});
 document.addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
-  if ($("cardSaveModal")?.classList.contains("show")) {
-    hideCardSaveModal();
-    return;
-  }
   if ($("taskDelModal")?.classList.contains("show")) {
     closeTaskDelete();
     return;

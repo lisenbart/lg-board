@@ -417,7 +417,7 @@ def test_phone_queue_mvp() -> None:
     )
     check("Excel is not the phone home", "pinchPhoneView" in js and '"excel", "guide", "ready"' in js)
     check("DL phone bar has Finance", 'label: "Finance"' in js and 'label: "Queue"' in js)
-    check("card Close sits in the header", 'class="btn drawer-close" id="closeCard"' in js)
+    check("card Close sits in the header", 'class="drawer-x" id="closeCard"' in js)
     check("phone Sign out sits in the boards menu", 'id="phoneSignOut"' in js)
     check(
         "phone boards menu scrolls and keeps Sign out in view",
@@ -441,7 +441,7 @@ def test_phone_queue_mvp() -> None:
         and "+${ads.length}" not in js
         and 'class="help-mark"' not in js,
     )
-    check("phone hides the footer Close duplicate", "#closeCardFoot { display: none; }" in css)
+    check("phone footer has Cancel and Save", 'id="cancelTask"' in js and 'id="saveTask"' in js)
     check(
         "phone MGX/Playables chips follow the seat",
         "function phoneDirSwitchHtml" in js
@@ -1781,7 +1781,7 @@ def test_urgent_marker() -> None:
     check("urgent is not a studio status", '"urgent"' not in src.split("STATUS_BY_ROLE")[0] and "urgent" not in server.STATUS_BY_ROLE.get("manager", []))
     check("LP/DL/TL may mark urgent", "only LP, DL or TL can mark urgent" in src)
     check("card has URGENT toggle", 'id="stUrgent"' in js and "function urgentMark" in js and "function canMarkUrgent" in js)
-    check("URGENT toggle writes at once", 'commitCard({ fromChip: true })' in js.split('$("stUrgentBtn")')[-1].split("function hideCardSaveModal")[0])
+    check("URGENT toggle writes at once", 'commitCard({ fromChip: true })' in js.split('$("stUrgentBtn")')[-1].split("async function closeDrawer")[0])
     check("urgent mark is a ! badge", 'class="urgent-mark"' in js and ".urgent-mark" in css)
     check("urgent sorts above same status", "Number(isUrgent(b)) - Number(isUrgent(a))" in js)
     closed_bit = src.split('elif nxt == "new":')[-1].split("note = data.get")[0]
@@ -1967,8 +1967,9 @@ def test_lp_can_close_without_send() -> None:
     )
     check(
         "close asks Save not discard",
-        'id="cardSaveModal"' in (ROOT / "public" / "index.html").read_text(encoding="utf-8")
-        and "Don’t save" in (ROOT / "public" / "index.html").read_text(encoding="utf-8")
+        'id="cancelTask"' in js
+        and "Save or Cancel" in js
+        and "Don’t save" not in (ROOT / "public" / "index.html").read_text(encoding="utf-8")
         and "Discard unsaved changes?" not in js,
     )
     check(
@@ -2009,7 +2010,8 @@ def test_lp_can_close_without_send() -> None:
         "video attach shows upload progress",
         "function startUploadTile" in js
         and "notes-upload-bar" in js
-        and "Uploading ${n}%" in js,
+        and "notes-upload-pct" in js
+        and "Uploading ${shown}%" in js,
     )
     check(
         "several files each get a progress tile",
