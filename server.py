@@ -33,7 +33,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-11-09n"
+BUILD = "2026-11-09o"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -3334,6 +3334,25 @@ class Handler(SimpleHTTPRequestHandler):
                     task["comments"] = [row for row in rows if row.get("id") != delete_id]
                     save_db(db)
                     self._json(200, {"task": task, "state": db})
+                    return
+                edit_id = str(data.get("editId") or "").strip()
+                if edit_id:
+                    rows = list(task.get("comments") or [])
+                    found = next((row for row in rows if row.get("id") == edit_id), None)
+                    if not found:
+                        self._json(404, {"error": "note not found"})
+                        return
+                    if found.get("source") == "monday":
+                        self._json(400, {"error": "Monday notes stay until the Monday sync"})
+                        return
+                    text = str(data.get("body") or "").strip()
+                    if not text and not (found.get("attachments") or []):
+                        self._json(400, {"error": "paste client text"})
+                        return
+                    found["body"] = text
+                    found["editedAt"] = utc_now()
+                    save_db(db)
+                    self._json(200, {"comment": found, "task": task, "state": db})
                     return
                 comment = make_comment(
                     db,

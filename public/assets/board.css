@@ -1401,6 +1401,18 @@ body.col-resizing * { cursor: col-resize !important; }
 }
 .notes-meta strong { color: var(--ink); font-size: 12px; }
 .notes-meta span { margin-right: auto; }
+.notes-edit {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.notes-edit:hover { background: #eef1f7; color: var(--ink); }
 .notes-del {
   border: 0;
   background: transparent;
@@ -1412,6 +1424,17 @@ body.col-resizing * { cursor: col-resize !important; }
   border-radius: 4px;
 }
 .notes-del:hover { background: #fde8ee; color: #9b2245; }
+.notes-edit-box textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.45;
+  resize: vertical;
+  min-height: 72px;
+}
 .notes-body {
   font-size: 13px;
   line-height: 1.5;

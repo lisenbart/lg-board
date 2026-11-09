@@ -2824,10 +2824,11 @@ function notesHtml(t) {
       (row) => `<article class="notes-item" data-id="${escapeHtml(row.id || "")}">
         <header class="notes-meta">
           <strong>${escapeHtml(row.authorName || person(row.authorId)?.name || "Client")}</strong>
-          <span>${escapeHtml(commentWhen(row.at))}${row.source === "monday" ? " · Monday" : ""}</span>
+          <span>${escapeHtml(commentWhen(row.editedAt || row.at))}${row.editedAt ? " · edited" : ""}${row.source === "monday" ? " · Monday" : ""}</span>
           ${
             canWrite && row.source !== "monday" && row.id
-              ? `<button type="button" class="notes-del" data-id="${escapeHtml(row.id)}" aria-label="Remove note">×</button>`
+              ? `<button type="button" class="notes-edit" data-id="${escapeHtml(row.id)}">Edit</button>
+                 <button type="button" class="notes-del" data-id="${escapeHtml(row.id)}" aria-label="Remove note">×</button>`
               : ""
           }
         </header>
@@ -6930,6 +6931,73 @@ function openTask(id) {
       }
       applyState(out.state);
       openTask(t.id);
+    });
+  });
+  function paintNoteBody(item, row) {
+    const box = item.querySelector(".notes-edit-box, .notes-body");
+    if (!box) return;
+    const next = document.createElement("div");
+    next.className = "notes-body";
+    next.innerHTML = linkifyBrief(row.body || "");
+    box.replaceWith(next);
+    item.classList.remove("is-editing");
+  }
+  async function saveNoteEdit(item, row, body) {
+    const out = await api("/api/tasks/comment", {
+      id: t.id,
+      editId: row.id,
+      body,
+      actorId: me().id,
+      role: me().role,
+    });
+    if (out.error || !out.state) {
+      toast(out.error || "Could not update note", 5000);
+      return;
+    }
+    applyState(out.state, { render: false });
+    const fresh = state.db?.tasks?.find((x) => x.id === t.id);
+    if (fresh) Object.assign(t, fresh);
+    const updated = clientComments(t).find((x) => x.id === row.id) || out.comment || { ...row, body };
+    paintNoteBody(item, updated);
+    const when = item.querySelector(".notes-meta span");
+    if (when) when.textContent = `${commentWhen(updated.editedAt || updated.at)}${updated.editedAt ? " · edited" : ""}`;
+    toast("Note updated");
+  }
+  $("drawer")?.querySelectorAll(".notes-edit").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const id = btn.dataset.id;
+      const row = clientComments(t).find((x) => x.id === id);
+      const item = btn.closest(".notes-item");
+      if (!row || !item || item.classList.contains("is-editing")) return;
+      const bodyEl = item.querySelector(".notes-body");
+      if (!bodyEl) return;
+      const box = document.createElement("div");
+      box.className = "notes-edit-box";
+      box.innerHTML = `<textarea class="notes-edit-text" rows="3"></textarea>
+        <div class="notes-compose-actions">
+          <button type="button" class="btn ghost notes-edit-cancel">Cancel</button>
+          <button type="button" class="btn primary notes-edit-ok">OK</button>
+        </div>`;
+      const area = box.querySelector(".notes-edit-text");
+      area.value = row.body || "";
+      bodyEl.replaceWith(box);
+      item.classList.add("is-editing");
+      area.focus();
+      area.setSelectionRange(area.value.length, area.value.length);
+      box.querySelector(".notes-edit-cancel")?.addEventListener("click", () => paintNoteBody(item, row));
+      box.querySelector(".notes-edit-ok")?.addEventListener("click", () => saveNoteEdit(item, row, area.value));
+      area.addEventListener("keydown", (ev) => {
+        if (ev.key === "Escape") {
+          ev.preventDefault();
+          paintNoteBody(item, row);
+        }
+        if (ev.key === "Enter" && !ev.shiftKey) {
+          ev.preventDefault();
+          saveNoteEdit(item, row, area.value);
+        }
+      });
     });
   });
   bindNoteShots(t);

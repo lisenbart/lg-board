@@ -2167,6 +2167,15 @@ def test_comment_shots() -> None:
         "payload cap names screenshots",
         "screenshots are too large together" in (ROOT / "server.py").read_text(encoding="utf-8"),
     )
+    js = (ROOT / "public" / "assets" / "app.js").read_text(encoding="utf-8")
+    src = (ROOT / "server.py").read_text(encoding="utf-8")
+    check(
+        "studio notes can be edited",
+        'class="notes-edit"' in js
+        and "editId" in src
+        and "function saveNoteEdit" in js
+        and "Monday notes stay until the Monday sync" in src,
+    )
 
 
 def test_card_videos() -> None:
