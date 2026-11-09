@@ -2018,7 +2018,9 @@ def test_lp_can_close_without_send() -> None:
         "function queueDriveUploads" in js
         and "Waiting ·" in js
         and "function runPool" in js
-        and "tile.finish" in js,
+        and "tile.finish" in js
+        and "el.replaceWith" not in js
+        and "is-uploading" in (ROOT / "public" / "assets" / "board.css").read_text(encoding="utf-8"),
     )
     check(
         "card shows who set the status and when",

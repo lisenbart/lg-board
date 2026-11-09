@@ -1632,13 +1632,18 @@ body.col-resizing * { cursor: col-resize !important; }
 }
 .notes-upload-pct.is-on { opacity: 1; }
 .notes-upload-spin.is-off { display: none; }
+.card-video.is-uploading,
+.notes-file.is-uploading {
+  filter: grayscale(0.5) contrast(0.78);
+  opacity: 0.58;
+}
 .card-video.is-uploading .card-video-play::after,
 .notes-file.is-uploading .notes-file-face::after {
   content: "";
   position: absolute;
   inset: 0;
   z-index: 1;
-  background: rgba(12, 14, 22, 0.38);
+  background: rgba(12, 14, 22, 0.22);
   pointer-events: none;
 }
 .notes-file .notes-upload-bar { background: #2a2e3d; }

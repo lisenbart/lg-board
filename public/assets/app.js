@@ -6611,22 +6611,22 @@ function openTask(id) {
       const face = poster?.data
         ? `<img src="${poster.data}" alt="">`
         : `<span class="card-video-fallback">${label}</span>`;
-      el.innerHTML = `<div class="card-video-play">
+      el.innerHTML = `<a class="card-video-play">
           ${face}
           <span class="card-video-icon notes-upload-spin" aria-hidden="true"></span>
           <span class="notes-upload-pct"></span>
-        </div>
+        </a>
         <div class="notes-upload-bar is-wait" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span></span></div>
         <p class="card-video-name">Waiting · ${label}</p>`;
     } else {
       const ext = escapeHtml(fileExtOf(name).slice(0, 4));
-      el.innerHTML = `<div class="notes-file-link">
+      el.innerHTML = `<a class="notes-file-link">
           <span class="notes-file-face">
             <span class="notes-file-ext">${ext}</span>
             <span class="card-video-icon notes-upload-spin" aria-hidden="true"></span>
             <span class="notes-upload-pct"></span>
           </span>
-        </div>
+        </a>
         <div class="notes-upload-bar is-wait" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span></span></div>
         <p class="notes-file-name">Waiting · ${label}</p>`;
     }
@@ -6685,17 +6685,50 @@ function openTask(id) {
         refreshCardActions();
       },
       finish(row) {
-        const html = driveFileTileHtml(row);
-        const wrap = document.createElement("div");
-        wrap.innerHTML = html;
-        const next = wrap.firstElementChild;
-        if (!next) return;
-        el.replaceWith(next);
-        next.querySelector("[data-del-video]")?.addEventListener("click", (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          deleteCardVideo(next.getAttribute("data-video-id") || "");
-        });
+        el.classList.remove("is-uploading", "is-error");
+        el.dataset.videoId = row?.id || "";
+        bar?.remove();
+        pctLabel?.remove();
+        spin?.remove();
+        const href = String(row?.driveUrl || "").trim();
+        const link = el.querySelector(".card-video-play, .notes-file-link");
+        if (link && href) {
+          link.setAttribute("href", href);
+          link.setAttribute("target", "_blank");
+          link.setAttribute("rel", "noopener noreferrer");
+        }
+        if (status) status.textContent = row?.name || name;
+        if (video && !el.querySelector(".card-video-icon")) {
+          el.querySelector(".card-video-play")?.insertAdjacentHTML(
+            "beforeend",
+            `<span class="card-video-icon" aria-hidden="true">▶</span>`,
+          );
+        }
+        if (canWriteNotes() && !el.querySelector("[data-del-video]")) {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "card-video-del";
+          btn.setAttribute("data-del-video", row?.id || "");
+          btn.setAttribute("aria-label", "Remove file");
+          btn.textContent = "×";
+          btn.addEventListener("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            deleteCardVideo(el.getAttribute("data-video-id") || "");
+          });
+          el.appendChild(btn);
+        }
+        const poster = drivePoster(row);
+        const img = el.querySelector(".card-video-play img");
+        if (poster && img) {
+          const prev = img.src;
+          const probe = new Image();
+          probe.onload = () => {
+            img.src = poster;
+            if (prev.startsWith("blob:")) URL.revokeObjectURL(prev);
+          };
+          probe.src = poster;
+        }
         refreshCardActions();
       },
     };
@@ -6766,8 +6799,8 @@ function openTask(id) {
       },
     });
     watch.stop();
-    if (job.previewUrl) URL.revokeObjectURL(job.previewUrl);
     if (out.error || !out.state) {
+      if (job.previewUrl) URL.revokeObjectURL(job.previewUrl);
       tile.setError(videoError(out.error));
       return false;
     }
@@ -6793,27 +6826,27 @@ function openTask(id) {
       }
       const video = isVideoFile(file);
       const image = isImageFile(file);
+      const previewUrl = image ? URL.createObjectURL(file) : "";
       jobs.push({
         file,
         video,
         image,
         poster: null,
-        previewUrl: "",
-        tile: startUploadTile({ name: file.name, poster: null, video, image }),
+        previewUrl,
+        tile: startUploadTile({
+          name: file.name,
+          poster: previewUrl ? { data: previewUrl } : null,
+          video,
+          image,
+        }),
       });
     }
     if (!jobs.length) return;
     await Promise.all(
       jobs.map(async (job) => {
-        if (job.video) {
-          job.poster = await videoPoster(job.file);
-          job.tile.setPoster(job.poster);
-          return;
-        }
-        if (job.image) {
-          job.previewUrl = URL.createObjectURL(job.file);
-          job.tile.setPoster({ data: job.previewUrl });
-        }
+        if (!job.video) return;
+        job.poster = await videoPoster(job.file);
+        job.tile.setPoster(job.poster);
       }),
     );
     let ok = 0;
