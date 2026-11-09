@@ -2816,9 +2816,9 @@ function notesHtml(t) {
     .join("");
   const composer = canWrite
     ? `<div class="notes-compose" id="stCommentBox">
-        <textarea id="stComment" rows="3" placeholder="Write the client note here"></textarea>
+        <textarea id="stComment" rows="3" placeholder="Write a note — it saves when you click away"></textarea>
         <div class="notes-shots" id="stCommentShots"></div>
-        <p class="io-hint">Add note sends this box. Save is the card (brief, hours) and does not send the note.</p>
+        <p class="io-hint">Attach lands at once. Save is the rest of the card (brief, hours).</p>
         <p class="status-hint" id="stNoteHint" hidden></p>
         <div class="notes-compose-actions">
           <label class="btn ghost notes-attach" for="stCommentFiles" title="Attach a screenshot, video, or file">
@@ -2826,7 +2826,6 @@ function notesHtml(t) {
             Attach
           </label>
           <input id="stCommentFiles" type="file" accept="image/*,video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.txt,.csv,.rtf" multiple hidden />
-          <button class="btn" type="button" id="addNote" disabled>Add note</button>
         </div>
       </div>`
     : "";
@@ -6460,9 +6459,6 @@ function openTask(id) {
   function noteDraft() {
     return Boolean(String($("stComment")?.value || "").trim() || pendingShots.length);
   }
-  function refreshAddNote() {
-    setIdleEnabled($("addNote"), noteDraft());
-  }
   function refreshCardSave() {
     const on = cardFingerprint() !== cardBaseline;
     const btn = $("saveTask");
@@ -6470,7 +6466,6 @@ function openTask(id) {
     btn?.classList.toggle("is-ready", on);
   }
   function refreshCardActions() {
-    refreshAddNote();
     refreshCardSave();
   }
   state.noteDraft = noteDraft;
@@ -6516,13 +6511,13 @@ function openTask(id) {
       toast("Use an image, video, or a document");
     }
     renderPendingShots();
+    if (pendingShots.length) await flushNote({ reopen: true });
   }
-  async function postClientNote({ reopen } = { reopen: true }) {
+  let noteBusy = false;
+  let holdNote = false;
+  async function postClientNote({ reopen, silent } = { reopen: true }) {
     const body = String($("stComment")?.value || "").trim();
-    if (!body && !pendingShots.length) {
-      toast("Paste client text or a screenshot");
-      return false;
-    }
+    if (!body && !pendingShots.length) return true;
     const rawBytes = pendingShots.reduce((n, s) => n + String(s.data || "").length, 0);
     if (rawBytes > MAX_NOTE_BYTES) {
       toast(noteError("payload too large"), 5000);
@@ -6545,7 +6540,7 @@ function openTask(id) {
     }
     pendingShots.length = 0;
     applyState(out.state, { render: reopen !== false });
-    toast("Note added");
+    if (!silent) toast("Note added");
     if (reopen) openTask(t.id);
     else {
       if ($("stComment")) $("stComment").value = "";
@@ -6553,9 +6548,34 @@ function openTask(id) {
     }
     return true;
   }
-  $("addNote")?.addEventListener("click", () => {
-    if ($("addNote")?.disabled) return;
-    postClientNote();
+  async function flushNote(opts = {}) {
+    if (noteBusy) return true;
+    if (!noteDraft()) return true;
+    noteBusy = true;
+    try {
+      return await postClientNote({ reopen: true, silent: true, ...opts });
+    } finally {
+      noteBusy = false;
+    }
+  }
+  state.flushNote = flushNote;
+  $("stCommentBox")?.querySelector(".notes-attach")?.addEventListener("mousedown", () => {
+    holdNote = true;
+  });
+  $("stComment")?.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" || e.shiftKey) return;
+    e.preventDefault();
+    flushNote({ reopen: true, silent: true });
+  });
+  $("stComment")?.addEventListener("blur", () => {
+    setTimeout(() => {
+      if (holdNote) {
+        holdNote = false;
+        return;
+      }
+      if ($("stCommentBox")?.contains(document.activeElement)) return;
+      flushNote({ reopen: true, silent: true });
+    }, 0);
   });
   $("stCommentFiles")?.addEventListener("change", async (e) => {
     await addPendingFiles([...e.target.files]);
@@ -7010,9 +7030,8 @@ function openTask(id) {
             ? `${me().name} pasted the result`
             : `${me().name} updated status`;
     startBusy("Saving…");
-      const keepNote = noteDraft();
-      await updateTask(t.id, { ...patch, note }, { close: !fromChip && !keepNote });
-      if (!fromChip && keepNote) toast("Card saved. Add note still needs a tap.");
+      if (noteDraft()) await flushNote({ reopen: false, silent: true });
+      await updateTask(t.id, { ...patch, note }, { close: !fromChip });
     } catch (err) {
       toast(err?.message || "Could not save", 5000);
     } finally {
@@ -7082,16 +7101,16 @@ function hideCardSaveModal() {
   $("cardSaveModal")?.classList.remove("show");
 }
 
-function closeDrawer(opts = {}) {
+async function closeDrawer(opts = {}) {
   closeShot();
   if (!opts.force && $("cardSaveModal")?.classList.contains("show")) {
     hideCardSaveModal();
     return false;
   }
   if (!opts.force && $("drawerBg")?.classList.contains("show")) {
-    if (typeof state.noteDraft === "function" && state.noteDraft()) {
-      toast("Add the note first, or clear the box.");
-      return false;
+    if (typeof state.flushNote === "function" && typeof state.noteDraft === "function" && state.noteDraft()) {
+      const ok = await state.flushNote({ reopen: false, silent: true });
+      if (!ok) return false;
     }
     if (typeof state.cardChanged === "function" ? state.cardChanged() : typeof state.cardDirty === "function" && state.cardDirty()) {
       $("cardSaveModal")?.classList.add("show");
@@ -7106,6 +7125,7 @@ function closeDrawer(opts = {}) {
   state.cardDirty = null;
   state.cardChanged = null;
   state.noteDraft = null;
+  state.flushNote = null;
   state.commitCard = null;
   state.cardOpenedStamp = "";
   state.cardStale = false;

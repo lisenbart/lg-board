@@ -1979,16 +1979,17 @@ def test_lp_can_close_without_send() -> None:
     check(
         "Save does not send Client notes",
         'el.id !== "stComment"' in js
-        and "Add note still needs a tap" in js
         and "Saving ${n} screenshot" not in js
-        and "Add the note first, or clear the box." in js,
+        and "function flushNote" in js,
     )
     check(
-        "Add note sends the note box",
+        "Client notes save live without Add note",
         "function postClientNote" in js
-        and 'id="addNote"' in js
+        and 'id="addNote"' not in js
+        and "Add note" not in js
         and "MAX_NOTE_BYTES" in js
-        and "timeout: 90000" in js,
+        and "timeout: 90000" in js
+        and 'e.key !== "Enter"' in js,
     )
     check(
         "card shows who set the status and when",
