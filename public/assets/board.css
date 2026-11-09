@@ -1231,6 +1231,21 @@ body.col-resizing * { cursor: col-resize !important; }
   border-top: 1.5px solid #d0d4e4;
   background: #f6f7fb;
 }
+.brief-thread .notes {
+  border: 0;
+  border-radius: 0;
+  margin: 0;
+  background: transparent;
+}
+.brief-thread .notes.is-empty {
+  border: 0;
+}
+.brief-thread .notes-item {
+  border-bottom-color: #eceef5;
+}
+.brief-thread .notes-compose {
+  border-top-color: #eceef5;
+}
 .pin-actions .btn { text-decoration: none; }
 .pin-link { font-size: 12px; font-weight: 500; text-decoration: none; }
 .pin-link:hover { text-decoration: underline; }

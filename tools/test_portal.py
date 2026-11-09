@@ -2000,6 +2000,12 @@ def test_lp_can_close_without_send() -> None:
         and "notes-empty" not in js,
     )
     check(
+        "brief and notes share one panel",
+        "brief-thread" in js
+        and "${notesHtml(t)}" in js.split("function pinHtml")[1].split("function isDriveVideo")[0]
+        and "<header class=\"notes-head\">Client notes</header>" not in js,
+    )
+    check(
         "video attach shows upload progress",
         "function startUploadTile" in js
         and "notes-upload-bar" in js

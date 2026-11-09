@@ -2353,10 +2353,11 @@ function pinHtml(t) {
     ? `<button type="button" class="btn" id="ensureDrive">Create Drive folder</button>`
     : "";
   const actions = `<footer class="pin-actions">${pack.brief}${pack.taskBtn}${pack.workBtn}${retry}</footer>`;
-  return `<article class="pin">
+  return `<article class="pin brief-thread">
       <header class="pin-head">Brief</header>
       ${body}
       ${actions}
+      ${notesHtml(t)}
     </article>`;
 }
 function isDriveVideo(v) {
@@ -2821,11 +2822,10 @@ function notesHtml(t) {
         </div>
       </div>`
     : "";
-  return `<section class="notes${rows.length || files ? "" : " is-empty"}">
-      <header class="notes-head">Client notes</header>
+  return `<div class="notes${rows.length || files ? "" : " is-empty"}">
       ${items}${files}
       ${composer}
-    </section>`;
+    </div>`;
 }
 function sourceHtml(t) {
   const parts = parseBrief(t);
@@ -6404,7 +6404,6 @@ function openTask(id) {
     </div>
     ${heroAssign}
     ${pinHtml(t)}
-    ${notesHtml(t)}
     ${sourceBlock || resultBlock ? `<div class="io-stack">${sourceBlock}${resultBlock}</div>` : ""}
     ${whoBlock}
     ${play ? playableHoursHtml(t, canEditPlayableCrew()) : helpSplitHtml(t, canEditHelp())}
