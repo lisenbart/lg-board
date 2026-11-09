@@ -2426,6 +2426,88 @@ function notesFilesHtml(t) {
   if (!rows.length) return "";
   return `<div class="notes-files">${rows.map(driveFileTileHtml).join("")}</div>`;
 }
+function uploadsBusy() {
+  return Boolean($("drawer")?.querySelector(".is-uploading"));
+}
+function commentStamp(t) {
+  return JSON.stringify(
+    (t?.comments || []).map((row) => [row.id, row.body || "", row.editedAt || row.at || ""]),
+  );
+}
+function ensureNotesFilesGrid() {
+  let grid = $("drawer")?.querySelector(".notes-files");
+  if (grid) return grid;
+  grid = document.createElement("div");
+  grid.className = "notes-files";
+  const notes = $("drawer")?.querySelector(".notes");
+  const box = $("stCommentBox");
+  if (box) notes?.insertBefore(grid, box);
+  else notes?.appendChild(grid);
+  return grid;
+}
+async function deleteCardVideo(videoId) {
+  if (!canWriteNotes() || !videoId) return;
+  const t = state.db?.tasks?.find((row) => row.id === state.openId);
+  if (!t) return;
+  if (!confirm("Remove this file from the card? It goes to Drive trash.")) return;
+  const out = await api("/api/tasks/video/delete", {
+    id: t.id,
+    videoId,
+    actorId: me().id,
+    role: me().role,
+  });
+  if (out.error || !out.state) {
+    toast(out.error || "Could not remove file", 5000);
+    return;
+  }
+  applyState(out.state, { render: false });
+  const fresh = state.db?.tasks?.find((row) => row.id === t.id);
+  if (fresh && state.openCard && state.openCard.id === t.id) Object.assign(state.openCard, fresh);
+  $("drawer")?.querySelector(`[data-video-id="${CSS.escape(videoId)}"]`)?.remove();
+  const grid = $("drawer")?.querySelector(".notes-files");
+  if (grid && !grid.childElementCount) grid.remove();
+  toast("File removed");
+}
+function bindCardVideoButtons(root = $("drawer")) {
+  root?.querySelectorAll("[data-del-video]").forEach((btn) => {
+    if (btn.dataset.boundDel) return;
+    btn.dataset.boundDel = "1";
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      deleteCardVideo(btn.getAttribute("data-del-video") || "");
+    });
+  });
+}
+function syncOpenCardFiles(t) {
+  if (!t || state.openId !== t.id) return;
+  const rows = Array.isArray(t.videos) ? t.videos : [];
+  let grid = $("drawer")?.querySelector(".notes-files");
+  if (!rows.length && !grid) return;
+  if (!grid) grid = ensureNotesFilesGrid();
+  const pending = [...grid.querySelectorAll(".is-uploading, .is-error")];
+  const have = new Set(
+    [...grid.children].map((el) => el.getAttribute("data-video-id") || "").filter(Boolean),
+  );
+  const liveIds = new Set(rows.map((row) => row.id).filter(Boolean));
+  for (const el of [...grid.children]) {
+    if (el.classList.contains("is-uploading") || el.classList.contains("is-error")) continue;
+    const id = el.getAttribute("data-video-id") || "";
+    if (id && !liveIds.has(id)) el.remove();
+  }
+  for (const row of rows) {
+    if (!row?.id || have.has(row.id)) continue;
+    const name = String(row.name || "");
+    const inflight = pending.find(
+      (el) => !el.getAttribute("data-video-id") && (el.getAttribute("data-file-name") || "") === name,
+    );
+    if (inflight) continue;
+    grid.insertAdjacentHTML("beforeend", driveFileTileHtml(row));
+    have.add(row.id);
+  }
+  bindCardVideoButtons(grid);
+  if (!grid.childElementCount) grid.remove();
+}
 function driveFileId(url) {
   const text = String(url || "");
   const file = text.match(/\/file\/d\/([a-zA-Z0-9_-]+)/i);
@@ -3099,8 +3181,11 @@ function fillDrivePackIfMissing(t) {
   state.driveTried[t.id] = true;
   api("/api/drive/ensure", { id: t.id, month: state.month, role: me().role }).then((out) => {
     const hadDoc = hasDriveDoc(t);
-    if (out.state) applyState(out.state);
-    if (out.ok && state.openId === t.id) openTask(t.id);
+    if (out.state) applyState(out.state, { render: uploadsBusy() ? false : undefined });
+    if (out.ok && state.openId === t.id) {
+      if (uploadsBusy()) syncOpenCardFiles(state.db?.tasks?.find((row) => row.id === t.id) || t);
+      else openTask(t.id);
+    }
     else if (out.error) toast(out.error);
     if (out.ok && out.docUrl && !hadDoc) toast("Linked the brief Doc from Drive");
   });
@@ -3111,12 +3196,15 @@ async function retryDrivePack(t) {
   let out = await api("/api/drive/ensure", { id: t.id, month: state.month, role: me().role });
   if (out.error || !out.ok) {
     toast(out.error || "Drive folder was not created");
-    if (state.openId === t.id) openTask(t.id);
+    if (state.openId === t.id && !uploadsBusy()) openTask(t.id);
     return;
   }
-  if (out.state) applyState(out.state);
+  if (out.state) applyState(out.state, { render: uploadsBusy() ? false : undefined });
   toast("Drive folder + brief Doc ready");
-  if (state.openId === t.id) openTask(t.id);
+  if (state.openId === t.id) {
+    if (uploadsBusy()) syncOpenCardFiles(state.db?.tasks?.find((row) => row.id === t.id) || t);
+    else openTask(t.id);
+  }
 }
 
 function bindDriveButtons() {
@@ -6338,7 +6426,13 @@ function openTask(id) {
   if (isClient()) return;
   const t = state.db.tasks.find((x) => x.id === id);
   if (!t) return;
+  const keepFiles =
+    state.openId === id
+      ? [...($("drawer")?.querySelector(".notes-files")?.children || [])]
+      : [];
+  keepFiles.forEach((el) => el.remove());
   state.openId = id;
+  state.openCard = t;
   state.cardOpenedStamp = cardRemoteStamp(t);
   state.cardStale = false;
   const mine = onMyPlayable(t);
@@ -6453,6 +6547,18 @@ function openTask(id) {
       </div>
     </div>
   `;
+  if (keepFiles.length) {
+    const grid = ensureNotesFilesGrid();
+    const have = new Set(
+      keepFiles.map((el) => el.getAttribute("data-video-id") || "").filter(Boolean),
+    );
+    const extra = [...grid.children].filter((el) => {
+      const vid = el.getAttribute("data-video-id") || "";
+      return vid && !have.has(vid);
+    });
+    grid.replaceChildren(...keepFiles, ...extra);
+  }
+  bindCardVideoButtons();
   const pendingShots = [];
   function cardFingerprint() {
     const d = $("drawer");
@@ -6468,9 +6574,6 @@ function openTask(id) {
   let cardBaseline = "";
   function noteDraft() {
     return Boolean(String($("stComment")?.value || "").trim() || pendingShots.length);
-  }
-  function uploadsBusy() {
-    return Boolean($("drawer")?.querySelector(".is-uploading"));
   }
   function refreshSendNote() {
     setIdleEnabled($("sendNote"), noteDraft());
@@ -6593,21 +6696,13 @@ function openTask(id) {
     await addPendingFiles([...e.target.files]);
     e.target.value = "";
   });
-  function ensureNotesFilesGrid() {
-    let grid = $("drawer")?.querySelector(".notes-files");
-    if (grid) return grid;
-    const notes = $("drawer")?.querySelector(".notes");
-    grid = document.createElement("div");
-    grid.className = "notes-files";
-    notes?.insertBefore(grid, $("stCommentBox"));
-    return grid;
-  }
   function startUploadTile({ name, poster, video, image }) {
     const grid = ensureNotesFilesGrid();
     const el = document.createElement("div");
     const label = escapeHtml(name || "file");
     const photo = Boolean(video || image);
     el.className = photo ? `card-video is-uploading${image ? " is-image" : ""}` : `notes-file ${fileKindClass(name)} is-uploading`;
+    el.setAttribute("data-file-name", name || "");
     if (photo) {
       const face = poster?.data
         ? `<img src="${poster.data}" alt="">`
@@ -6710,6 +6805,7 @@ function openTask(id) {
           btn.type = "button";
           btn.className = "card-video-del";
           btn.setAttribute("data-del-video", row?.id || "");
+          btn.dataset.boundDel = "1";
           btn.setAttribute("aria-label", "Remove file");
           btn.textContent = "×";
           btn.addEventListener("click", (e) => {
@@ -6857,32 +6953,6 @@ function openTask(id) {
     if (ok === 1) toast("File added");
     else if (ok > 1) toast(`${ok} files added`);
   }
-  async function deleteCardVideo(videoId) {
-    if (!canWriteNotes() || !videoId) return;
-    if (!confirm("Remove this file from the card? It goes to Drive trash.")) return;
-    const out = await api("/api/tasks/video/delete", {
-      id: t.id,
-      videoId,
-      actorId: me().id,
-      role: me().role,
-    });
-    if (out.error || !out.state) {
-      toast(out.error || "Could not remove file", 5000);
-      return;
-    }
-    applyState(out.state, { render: false });
-    toast("File removed");
-    openTask(t.id);
-  }
-  $("drawer")
-    ?.querySelectorAll("[data-del-video]")
-    .forEach((btn) => {
-      btn.addEventListener("click", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        deleteCardVideo(btn.getAttribute("data-del-video") || "");
-      });
-    });
   $("stComment")?.addEventListener("paste", async (e) => {
     const files = [];
     for (const item of e.clipboardData?.items || []) {
@@ -7356,6 +7426,7 @@ async function closeDrawer(opts = {}) {
   $("drawerBg").classList.remove("show");
   stopCardPresence();
   state.openId = null;
+  state.openCard = null;
   state.cardDirty = null;
   state.cardChanged = null;
   state.noteDraft = null;
@@ -7386,7 +7457,12 @@ async function updateTask(id, patch, opts = {}) {
     closeDrawer({ force: true });
     return true;
   }
-  if (state.openId && $("drawerBg").classList.contains("show")) openTask(id);
+  if (state.openId && $("drawerBg").classList.contains("show")) {
+    if (uploadsBusy()) {
+      const live = state.db?.tasks?.find((row) => row.id === id);
+      if (live && state.openCard?.id === id) Object.assign(state.openCard, live);
+    } else openTask(id);
+  }
   return true;
 }
 function driveToast(drive) {
@@ -7804,21 +7880,30 @@ function applyRemoteState(db) {
   const drawerOpen = Boolean($("drawerBg")?.classList.contains("show") && openId);
   const dirty = cardIsDirty();
   const before = unreadCount();
+  const prev = drawerOpen ? state.db?.tasks?.find((row) => row.id === openId) : null;
   applyState(db);
   if (unreadCount() > before) pingNewNotice();
   if (!drawerOpen) return;
-  const still = (db.tasks || []).some((t) => t.id === openId);
+  const still = (db.tasks || []).some((row) => row.id === openId);
   if (!still) {
     closeDrawer({ force: true });
     toast("This project was removed");
     return;
   }
   const live = (db.tasks || []).find((row) => row.id === openId);
+  if (state.openCard && live && state.openCard.id === live.id) Object.assign(state.openCard, live);
   if (live && cardRemoteStamp(live) !== state.cardOpenedStamp) {
     state.cardStale = true;
     paintCardWatch();
   }
-  if (!dirty) openTask(openId);
+  if (dirty) return;
+  const sameFields = live && prev && cardRemoteStamp(live) === cardRemoteStamp(prev);
+  const sameNotes = live && prev && commentStamp(live) === commentStamp(prev);
+  if (uploadsBusy() || (sameFields && sameNotes)) {
+    syncOpenCardFiles(live);
+    return;
+  }
+  openTask(openId);
 }
 
 function stopLiveSync() {

@@ -2020,6 +2020,9 @@ def test_lp_can_close_without_send() -> None:
         and "function runPool" in js
         and "tile.finish" in js
         and "el.replaceWith" not in js
+        and "function syncOpenCardFiles" in js
+        and "sameFields && sameNotes" in js
+        and "data-file-name" in js
         and "is-uploading" in (ROOT / "public" / "assets" / "board.css").read_text(encoding="utf-8"),
     )
     check(
