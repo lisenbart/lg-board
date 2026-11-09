@@ -1998,6 +1998,13 @@ def test_lp_can_close_without_send() -> None:
         and "Uploading ${n}%" in js,
     )
     check(
+        "several files each get a progress tile",
+        "function queueDriveUploads" in js
+        and "Waiting ·" in js
+        and "function runPool" in js
+        and "tile.finish" in js,
+    )
+    check(
         "card shows who set the status and when",
         "function statusLogHtml" in js
         and "status-log" in js
@@ -2159,7 +2166,7 @@ def test_card_videos() -> None:
     check("one Attach control in Client notes", "notes-attach" in js and "Add video" not in js and "Attach screenshot" not in js)
     check("LP DL TL may attach Drive files", "COMMENT_ROLES" in src.split("/api/tasks/video/start")[1].split("/api/excel/import")[0])
     check("card delete sends video to Drive trash", "data-del-video" in js and "/api/tasks/video/delete" in js)
-    check("click opens Drive view", "v.driveUrl" in js)
+    check("click opens Drive view", "v?.driveUrl" in js and "function driveFileTileHtml" in js)
     check("video tile CSS", ".card-video-icon" in css and ".card-video-del" in css)
     check(
         "Client notes actions sit in the center",

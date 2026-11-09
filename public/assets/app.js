@@ -2367,42 +2367,39 @@ function isDriveVideo(v) {
   if (!v || v.kind === "file") return false;
   return String(v.mime || "").startsWith("video") || /\.(mp4|mov|webm|m4v)$/i.test(v.name || "");
 }
+function driveFileTileHtml(v) {
+  const href = String(v?.driveUrl || "").trim();
+  const name = String(v?.name || "file");
+  const del = canWriteNotes()
+    ? `<button type="button" class="card-video-del" data-del-video="${escapeHtml(v.id || "")}" aria-label="Remove file">×</button>`
+    : "";
+  if (isDriveVideo(v)) {
+    const poster = String(v.posterUrl || "").trim();
+    const face = poster
+      ? `<img src="${escapeHtml(poster)}" alt="">`
+      : `<span class="card-video-fallback">${escapeHtml(name)}</span>`;
+    return `<div class="card-video" data-video-id="${escapeHtml(v.id || "")}">
+      <a class="card-video-play" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">
+        ${face}
+        <span class="card-video-icon" aria-hidden="true">▶</span>
+      </a>
+      ${del}
+      <p class="card-video-name">${escapeHtml(name)}</p>
+    </div>`;
+  }
+  const ext = (name.split(".").pop() || "file").toUpperCase();
+  return `<div class="notes-file" data-video-id="${escapeHtml(v.id || "")}">
+    <a class="notes-file-link" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">
+      <span class="notes-file-ext">${escapeHtml(ext.slice(0, 4))}</span>
+      <span class="notes-file-name">${escapeHtml(name)}</span>
+    </a>
+    ${del}
+  </div>`;
+}
 function notesFilesHtml(t) {
   const rows = Array.isArray(t?.videos) ? t.videos : [];
   if (!rows.length) return "";
-  const canEdit = canWriteNotes();
-  const tiles = rows
-    .map((v) => {
-      const href = String(v.driveUrl || "").trim();
-      const name = String(v.name || "file");
-      const del = canEdit
-        ? `<button type="button" class="card-video-del" data-del-video="${escapeHtml(v.id || "")}" aria-label="Remove file">×</button>`
-        : "";
-      if (isDriveVideo(v)) {
-        const poster = String(v.posterUrl || "").trim();
-        const face = poster
-          ? `<img src="${escapeHtml(poster)}" alt="">`
-          : `<span class="card-video-fallback">${escapeHtml(name)}</span>`;
-        return `<div class="card-video" data-video-id="${escapeHtml(v.id || "")}">
-          <a class="card-video-play" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">
-            ${face}
-            <span class="card-video-icon" aria-hidden="true">▶</span>
-          </a>
-          ${del}
-          <p class="card-video-name">${escapeHtml(name)}</p>
-        </div>`;
-      }
-      const ext = (name.split(".").pop() || "file").toUpperCase();
-      return `<div class="notes-file" data-video-id="${escapeHtml(v.id || "")}">
-        <a class="notes-file-link" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">
-          <span class="notes-file-ext">${escapeHtml(ext.slice(0, 4))}</span>
-          <span class="notes-file-name">${escapeHtml(name)}</span>
-        </a>
-        ${del}
-      </div>`;
-    })
-    .join("");
-  return `<div class="notes-files">${tiles}</div>`;
+  return `<div class="notes-files">${rows.map(driveFileTileHtml).join("")}</div>`;
 }
 function driveFileId(url) {
   const text = String(url || "");
@@ -6496,28 +6493,43 @@ function openTask(id) {
     });
     refreshCardActions();
   }
+  function isImageFile(file) {
+    const type = String(file?.type || "");
+    const name = String(file?.name || "");
+    return type.startsWith("image/") || /\.(png|jpe?g|gif|webp|bmp)$/i.test(name);
+  }
+  function isVideoFile(file) {
+    const type = String(file?.type || "");
+    const name = String(file?.name || "");
+    return type.startsWith("video/") || /\.(mp4|mov|webm|m4v)$/i.test(name);
+  }
+  function isDocFile(file) {
+    return /\.(pdf|docx?|xlsx?|pptx?|zip|txt|csv|rtf|odt)$/i.test(file?.name || "");
+  }
+  function liveFileCount() {
+    const saved = Array.isArray(t.videos) ? t.videos.length : 0;
+    const uploading = $("drawer")?.querySelectorAll(".is-uploading").length || 0;
+    return saved + uploading;
+  }
   async function addPendingFiles(files) {
-    for (const file of files || []) {
-      const type = String(file.type || "");
-      const name = String(file.name || "");
-      const image = type.startsWith("image/") || /\.(png|jpe?g|gif|webp|bmp)$/i.test(name);
-      const video = type.startsWith("video/") || /\.(mp4|mov|webm|m4v)$/i.test(name);
-      if (image) {
-        if (pendingShots.length >= 8) {
-          toast("Up to 8 screenshots on one note");
-          break;
-        }
-        const shot = await fileToShot(file);
-        if (shot) pendingShots.push(shot);
-        continue;
+    const list = [...(files || [])];
+    const images = [];
+    const drive = [];
+    for (const file of list) {
+      if (isImageFile(file)) images.push(file);
+      else if (isVideoFile(file) || isDocFile(file)) drive.push(file);
+      else toast("Use an image, video, or a document");
+    }
+    for (const file of images) {
+      if (pendingShots.length >= 8) {
+        toast("Up to 8 screenshots on one note");
+        break;
       }
-      if (video || /\.(pdf|docx?|xlsx?|pptx?|zip|txt|csv|rtf|odt)$/i.test(name)) {
-        await addCardDriveFile(file);
-        continue;
-      }
-      toast("Use an image, video, or a document");
+      const shot = await fileToShot(file);
+      if (shot) pendingShots.push(shot);
     }
     renderPendingShots();
+    if (drive.length) await queueDriveUploads(drive);
   }
   let noteBusy = false;
   async function postClientNote({ reopen } = { reopen: true }) {
@@ -6600,7 +6612,7 @@ function openTask(id) {
           <span class="card-video-icon notes-upload-spin" aria-hidden="true"></span>
         </div>
         <div class="notes-upload-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span></span></div>
-        <p class="card-video-name">Preparing · ${label}</p>`;
+        <p class="card-video-name">Waiting · ${label}</p>`;
     } else {
       const ext = escapeHtml(((name || "file").split(".").pop() || "file").slice(0, 4).toUpperCase());
       el.innerHTML = `<div class="notes-file-link">
@@ -6608,7 +6620,7 @@ function openTask(id) {
           <span class="notes-file-name">${label}</span>
         </div>
         <div class="notes-upload-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span></span></div>
-        <p class="notes-file-status">Preparing</p>`;
+        <p class="notes-file-status">Waiting</p>`;
     }
     grid.appendChild(el);
     const bar = el.querySelector(".notes-upload-bar");
@@ -6616,40 +6628,65 @@ function openTask(id) {
     const status = el.querySelector(".card-video-name, .notes-file-status");
     return {
       el,
-      setProgress(pct) {
-        const n = Math.max(0, Math.min(99, Math.round(pct || 0)));
-        if (fill) fill.style.width = `${n}%`;
-        if (bar) bar.setAttribute("aria-valuenow", String(n));
-        if (status) status.textContent = video ? `Uploading ${n}% · ${name}` : `Uploading ${n}%`;
+      setPoster(shot) {
+        if (!shot?.data) return;
+        const play = el.querySelector(".card-video-play");
+        if (!play) return;
+        const img = play.querySelector("img");
+        if (img) img.src = shot.data;
+        else {
+          play.querySelector(".card-video-fallback")?.remove();
+          play.insertAdjacentHTML("afterbegin", `<img src="${shot.data}" alt="">`);
+        }
+      },
+      setProgress(pct, labelText) {
+        const n = Math.max(0, Math.min(100, Math.round(pct || 0)));
+        if (fill) fill.style.width = `${Math.min(99, n)}%`;
+        if (bar) bar.setAttribute("aria-valuenow", String(Math.min(99, n)));
+        if (status) status.textContent = labelText || (video ? `Uploading ${n}% · ${name}` : `Uploading ${n}%`);
       },
       setError(msg) {
         el.classList.add("is-error");
+        el.classList.remove("is-uploading");
         if (status) status.textContent = msg || "Upload failed";
+      },
+      finish(row) {
+        const html = driveFileTileHtml(row);
+        const wrap = document.createElement("div");
+        wrap.innerHTML = html;
+        const next = wrap.firstElementChild;
+        if (!next) return;
+        el.replaceWith(next);
+        next.querySelector("[data-del-video]")?.addEventListener("click", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          deleteCardVideo(next.getAttribute("data-video-id") || "");
+        });
       },
     };
   }
-  async function addCardDriveFile(file) {
-    if (!file || !canWriteNotes()) return;
-    if (file.size > 500 * 1024 * 1024) {
-      toast("File is over 500 MB");
-      return;
-    }
-    const rows = Array.isArray(t.videos) ? t.videos : [];
-    if (rows.length >= 8) {
-      toast("Up to 8 files on one card");
-      return;
-    }
-    const video = String(file.type || "").startsWith("video/") || /\.(mp4|mov|webm|m4v)$/i.test(file.name || "");
-    const poster = video ? await videoPoster(file) : null;
-    const tile = startUploadTile({ name: file.name, poster, video });
-    tile.setProgress(0);
+  async function runPool(items, limit, worker) {
+    const queue = [...items];
+    const n = Math.max(1, Math.min(limit, queue.length));
+    await Promise.all(
+      Array.from({ length: n }, async () => {
+        while (queue.length) {
+          const item = queue.shift();
+          if (item) await worker(item);
+        }
+      }),
+    );
+  }
+  async function addCardDriveFile(job) {
+    const { file, video, tile } = job;
+    tile.setProgress(0, video ? `Uploading 0% · ${file.name}` : "Uploading 0%");
     const start = await xhrSend("/api/tasks/video/start", {
       json: {
         id: t.id,
         name: file.name,
         mime: file.type || "",
         size: file.size,
-        poster,
+        poster: job.poster || null,
         actorId: me().id,
         role: me().role,
       },
@@ -6657,8 +6694,7 @@ function openTask(id) {
     });
     if (start.error || !start.uploadId) {
       tile.setError(videoError(start.error));
-      toast(videoError(start.error), 5000);
-      return;
+      return false;
     }
     const out = await xhrSend(`/api/tasks/video/bytes?uploadId=${encodeURIComponent(start.uploadId)}`, {
       body: file,
@@ -6670,12 +6706,50 @@ function openTask(id) {
     });
     if (out.error || !out.state) {
       tile.setError(videoError(out.error));
-      toast(videoError(out.error), 5000);
-      return;
+      return false;
     }
     applyState(out.state, { render: false });
-    toast(video ? "Video added" : "File added");
-    openTask(t.id);
+    const fresh = state.db?.tasks?.find((row) => row.id === t.id);
+    if (fresh) Object.assign(t, fresh);
+    const row = out.video || (t.videos || []).slice(-1)[0];
+    if (row) tile.finish(row);
+    else tile.setError("Upload finished, refresh the card");
+    return true;
+  }
+  async function queueDriveUploads(files) {
+    if (!canWriteNotes()) return;
+    const jobs = [];
+    for (const file of files) {
+      if (file.size > 500 * 1024 * 1024) {
+        toast(`${file.name} is over 500 MB`);
+        continue;
+      }
+      if (liveFileCount() >= 8) {
+        toast("Up to 8 files on one card");
+        break;
+      }
+      const video = isVideoFile(file);
+      jobs.push({
+        file,
+        video,
+        poster: null,
+        tile: startUploadTile({ name: file.name, poster: null, video }),
+      });
+    }
+    if (!jobs.length) return;
+    await Promise.all(
+      jobs.map(async (job) => {
+        if (!job.video) return;
+        job.poster = await videoPoster(job.file);
+        job.tile.setPoster(job.poster);
+      }),
+    );
+    let ok = 0;
+    await runPool(jobs, 3, async (job) => {
+      if (await addCardDriveFile(job)) ok += 1;
+    });
+    if (ok === 1) toast("File added");
+    else if (ok > 1) toast(`${ok} files added`);
   }
   async function deleteCardVideo(videoId) {
     if (!canWriteNotes() || !videoId) return;
