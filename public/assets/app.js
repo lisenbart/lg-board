@@ -2363,8 +2363,20 @@ function pinHtml(t) {
     </article>`;
 }
 function isDriveVideo(v) {
-  if (!v || v.kind === "file") return false;
+  if (!v || v.kind === "file" || v.kind === "image") return false;
   return String(v.mime || "").startsWith("video") || /\.(mp4|mov|webm|m4v)$/i.test(v.name || "");
+}
+function isDriveImage(v) {
+  if (!v || v.kind === "file" || v.kind === "video") return false;
+  if (v.kind === "image") return true;
+  return String(v.mime || "").startsWith("image/") || /\.(png|jpe?g|gif|webp|bmp)$/i.test(v.name || "");
+}
+function drivePoster(v) {
+  const local = String(v?.posterUrl || "").trim();
+  if (local) return local;
+  const id = String(v?.driveId || "").trim() || driveFileId(v?.driveUrl);
+  if (id) return `https://drive.google.com/thumbnail?id=${encodeURIComponent(id)}&sz=w640`;
+  return "";
 }
 function fileExtOf(name) {
   return (String(name || "").split(".").pop() || "FILE").toUpperCase();
@@ -2385,15 +2397,16 @@ function driveFileTileHtml(v) {
   const del = canWriteNotes()
     ? `<button type="button" class="card-video-del" data-del-video="${escapeHtml(v.id || "")}" aria-label="Remove file">×</button>`
     : "";
-  if (isDriveVideo(v)) {
-    const poster = String(v.posterUrl || "").trim();
+  if (isDriveVideo(v) || isDriveImage(v)) {
+    const poster = drivePoster(v);
     const face = poster
       ? `<img src="${escapeHtml(poster)}" alt="">`
       : `<span class="card-video-fallback">${escapeHtml(name)}</span>`;
-    return `<div class="card-video" data-video-id="${escapeHtml(v.id || "")}">
+    const play = isDriveVideo(v) ? `<span class="card-video-icon" aria-hidden="true">▶</span>` : "";
+    return `<div class="card-video${isDriveImage(v) ? " is-image" : ""}" data-video-id="${escapeHtml(v.id || "")}">
       <a class="card-video-play" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">
         ${face}
-        <span class="card-video-icon" aria-hidden="true">▶</span>
+        ${play}
       </a>
       ${del}
       <p class="card-video-name">${escapeHtml(name)}</p>
@@ -6514,23 +6527,11 @@ function openTask(id) {
     return saved + uploading;
   }
   async function addPendingFiles(files) {
-    const list = [...(files || [])];
-    const images = [];
     const drive = [];
-    for (const file of list) {
-      if (isImageFile(file)) images.push(file);
-      else if (isVideoFile(file) || isDocFile(file)) drive.push(file);
+    for (const file of files || []) {
+      if (isImageFile(file) || isVideoFile(file) || isDocFile(file)) drive.push(file);
       else toast("Use an image, video, or a document");
     }
-    for (const file of images) {
-      if (pendingShots.length >= 8) {
-        toast("Up to 8 screenshots on one note");
-        break;
-      }
-      const shot = await fileToShot(file);
-      if (shot) pendingShots.push(shot);
-    }
-    renderPendingShots();
     if (drive.length) await queueDriveUploads(drive);
   }
   let noteBusy = false;
@@ -6600,12 +6601,13 @@ function openTask(id) {
     notes?.insertBefore(grid, $("stCommentBox"));
     return grid;
   }
-  function startUploadTile({ name, poster, video }) {
+  function startUploadTile({ name, poster, video, image }) {
     const grid = ensureNotesFilesGrid();
     const el = document.createElement("div");
     const label = escapeHtml(name || "file");
-    el.className = video ? "card-video is-uploading" : `notes-file ${fileKindClass(name)} is-uploading`;
-    if (video) {
+    const photo = Boolean(video || image);
+    el.className = photo ? `card-video is-uploading${image ? " is-image" : ""}` : `notes-file ${fileKindClass(name)} is-uploading`;
+    if (photo) {
       const face = poster?.data
         ? `<img src="${poster.data}" alt="">`
         : `<span class="card-video-fallback">${label}</span>`;
@@ -6740,13 +6742,14 @@ function openTask(id) {
         name: file.name,
         mime: file.type || "",
         size: file.size,
-        poster: job.poster || null,
+        poster: job.video ? job.poster || null : null,
         actorId: me().id,
         role: me().role,
       },
       timeout: 60000,
     });
     if (start.error || !start.uploadId) {
+      if (job.previewUrl) URL.revokeObjectURL(job.previewUrl);
       tile.setError(videoError(start.error));
       return false;
     }
@@ -6763,6 +6766,7 @@ function openTask(id) {
       },
     });
     watch.stop();
+    if (job.previewUrl) URL.revokeObjectURL(job.previewUrl);
     if (out.error || !out.state) {
       tile.setError(videoError(out.error));
       return false;
@@ -6788,19 +6792,28 @@ function openTask(id) {
         break;
       }
       const video = isVideoFile(file);
+      const image = isImageFile(file);
       jobs.push({
         file,
         video,
+        image,
         poster: null,
-        tile: startUploadTile({ name: file.name, poster: null, video }),
+        previewUrl: "",
+        tile: startUploadTile({ name: file.name, poster: null, video, image }),
       });
     }
     if (!jobs.length) return;
     await Promise.all(
       jobs.map(async (job) => {
-        if (!job.video) return;
-        job.poster = await videoPoster(job.file);
-        job.tile.setPoster(job.poster);
+        if (job.video) {
+          job.poster = await videoPoster(job.file);
+          job.tile.setPoster(job.poster);
+          return;
+        }
+        if (job.image) {
+          job.previewUrl = URL.createObjectURL(job.file);
+          job.tile.setPoster({ data: job.previewUrl });
+        }
       }),
     );
     let ok = 0;

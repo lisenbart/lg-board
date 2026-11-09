@@ -2188,6 +2188,13 @@ def test_card_videos() -> None:
     check("poster filename is allowed", bool(server.COMMENT_FILE_NAME.match("v-1.jpg")))
     check("card shows play tile", "function notesFilesHtml" in js and "card-video-play" in js)
     check("one Attach control in Client notes", "notes-attach" in js and "Add video" not in js and "Attach screenshot" not in js)
+    check(
+        "images go to Drive like other files",
+        'return "image"' in src
+        and "function isDriveImage" in js
+        and "Up to 8 screenshots on one note" not in js
+        and "isImageFile(file) || isVideoFile(file) || isDocFile(file)" in js,
+    )
     check("LP DL TL may attach Drive files", "COMMENT_ROLES" in src.split("/api/tasks/video/start")[1].split("/api/excel/import")[0])
     check("card delete sends video to Drive trash", "data-del-video" in js and "/api/tasks/video/delete" in js)
     check("click opens Drive view", "v?.driveUrl" in js and "function driveFileTileHtml" in js)
@@ -2261,6 +2268,28 @@ def test_card_videos() -> None:
             "delete drops the row and the poster",
             gone and gone.get("driveId") == "fid9" and not task.get("videos") and not (tmp / "t-vid" / "v-1.png").exists(),
             str(gone),
+        )
+        kind, mime = server.guess_card_file("shot.PNG", "image/png")
+        check("png is a card image", kind == "image" and mime == "image/png")
+        pic = server.attach_card_video(
+            db,
+            task,
+            uploaded={
+                "id": "fid-img",
+                "name": "DD-P-001_shot.png",
+                "url": "https://drive.google.com/file/d/fid-img/view",
+            },
+            mime="image/png",
+            size=24,
+            actor_id="manager",
+            kind="image",
+        )
+        check(
+            "image row has no VPS poster",
+            pic.get("kind") == "image"
+            and not pic.get("posterUrl")
+            and not (tmp / "t-vid" / "v-2.png").exists(),
+            str(pic),
         )
     finally:
         server.COMMENT_FILES = orig

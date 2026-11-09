@@ -33,7 +33,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-11-09l"
+BUILD = "2026-11-09m"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -966,6 +966,15 @@ IMAGE_EXT = {
     "image/jpg": "jpg",
     "image/gif": "gif",
     "image/webp": "webp",
+    "image/bmp": "bmp",
+}
+IMAGE_NAME_MIME = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+    ".bmp": "image/bmp",
 }
 MAX_SHOT_BYTES = 6 * 1024 * 1024
 MAX_SHOTS = 8
@@ -1281,12 +1290,17 @@ class LimitedReader:
 def video_drive_name(task: dict | None, original: str, mime: str) -> str:
     root = project_root(task)
     raw_mime = str(mime or "").split(";")[0].strip().lower()
-    ext = VIDEO_MIME.get(raw_mime) or DOC_MIME.get(raw_mime, "")
+    ext = VIDEO_MIME.get(raw_mime) or DOC_MIME.get(raw_mime) or IMAGE_EXT.get(raw_mime, "")
     if not ext:
         ext = Path(str(original or "")).suffix.lstrip(".").lower()
-    allowed = set(VIDEO_MIME.values()) | set(DOC_MIME.values())
+    allowed = set(VIDEO_MIME.values()) | set(DOC_MIME.values()) | set(IMAGE_EXT.values())
     if ext not in allowed:
-        ext = "mp4" if raw_mime in VIDEO_MIME else "pdf"
+        if raw_mime in VIDEO_MIME:
+            ext = "mp4"
+        elif raw_mime in IMAGE_EXT or str(raw_mime).startswith("image/"):
+            ext = "jpg"
+        else:
+            ext = "pdf"
     stem = Path(str(original or "file")).stem
     stem = VIDEO_NAME_SAFE.sub("_", stem).strip("._")[:80] or "file"
     return f"{root}_{stem}.{ext}"
@@ -1300,6 +1314,8 @@ def guess_video_mime(name: str, mime: str) -> str:
 def guess_card_file(name: str, mime: str) -> tuple[str, str]:
     raw = str(mime or "").split(";")[0].strip().lower()
     suffix = Path(str(name or "")).suffix.lower()
+    if raw in IMAGE_EXT or IMAGE_NAME_MIME.get(suffix, "") in IMAGE_EXT:
+        return "image", raw if raw in IMAGE_EXT else IMAGE_NAME_MIME[suffix]
     if raw in VIDEO_MIME or VIDEO_NAME_MIME.get(suffix, "") in VIDEO_MIME:
         return "video", raw if raw in VIDEO_MIME else VIDEO_NAME_MIME[suffix]
     if raw in DOC_MIME or DOC_NAME_MIME.get(suffix, "") in DOC_MIME:
@@ -1362,7 +1378,12 @@ def attach_card_video(
     db.setdefault("meta", {})["videoSeq"] = seq
     vid = f"v-{seq}"
     drive_id = str((uploaded or {}).get("id") or "")
-    file_kind = "file" if kind == "file" else "video"
+    if kind == "file":
+        file_kind = "file"
+    elif kind == "image":
+        file_kind = "image"
+    else:
+        file_kind = "video"
     row = {
         "id": vid,
         "kind": file_kind,
@@ -1370,9 +1391,9 @@ def attach_card_video(
         "driveId": drive_id,
         "driveUrl": str((uploaded or {}).get("url") or "") or drive_io.file_url(drive_id),
         "folderUrl": str(task.get("folderUrl") or ""),
-        "posterUrl": ""
-        if file_kind == "file"
-        else store_video_poster(str(task.get("id") or ""), vid, poster_blob or b"", poster_mime),
+        "posterUrl": store_video_poster(str(task.get("id") or ""), vid, poster_blob or b"", poster_mime)
+        if file_kind == "video"
+        else "",
         "mime": mime,
         "size": int(size or 0),
         "at": utc_now(),
