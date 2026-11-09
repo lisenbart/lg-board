@@ -2363,43 +2363,46 @@ function pinHtml(t) {
       ${actions}
     </article>`;
 }
-function videosHtml(t) {
+function isDriveVideo(v) {
+  if (!v || v.kind === "file") return false;
+  return String(v.mime || "").startsWith("video") || /\.(mp4|mov|webm|m4v)$/i.test(v.name || "");
+}
+function notesFilesHtml(t) {
   const rows = Array.isArray(t?.videos) ? t.videos : [];
-  const canEdit = canOps();
-  if (!rows.length && !canEdit) return "";
+  if (!rows.length) return "";
+  const canEdit = canWriteNotes();
   const tiles = rows
     .map((v) => {
       const href = String(v.driveUrl || "").trim();
-      const poster = String(v.posterUrl || "").trim();
-      const name = String(v.name || "video");
-      const face = poster
-        ? `<img src="${escapeHtml(poster)}" alt="">`
-        : `<span class="card-video-fallback">${escapeHtml(name)}</span>`;
-      return `<div class="card-video" data-video-id="${escapeHtml(v.id || "")}">
-        <a class="card-video-play" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">
-          ${face}
-          <span class="card-video-icon" aria-hidden="true">▶</span>
+      const name = String(v.name || "file");
+      const del = canEdit
+        ? `<button type="button" class="card-video-del" data-del-video="${escapeHtml(v.id || "")}" aria-label="Remove file">×</button>`
+        : "";
+      if (isDriveVideo(v)) {
+        const poster = String(v.posterUrl || "").trim();
+        const face = poster
+          ? `<img src="${escapeHtml(poster)}" alt="">`
+          : `<span class="card-video-fallback">${escapeHtml(name)}</span>`;
+        return `<div class="card-video" data-video-id="${escapeHtml(v.id || "")}">
+          <a class="card-video-play" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">
+            ${face}
+            <span class="card-video-icon" aria-hidden="true">▶</span>
+          </a>
+          ${del}
+          <p class="card-video-name">${escapeHtml(name)}</p>
+        </div>`;
+      }
+      const ext = (name.split(".").pop() || "file").toUpperCase();
+      return `<div class="notes-file" data-video-id="${escapeHtml(v.id || "")}">
+        <a class="notes-file-link" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">
+          <span class="notes-file-ext">${escapeHtml(ext.slice(0, 4))}</span>
+          <span class="notes-file-name">${escapeHtml(name)}</span>
         </a>
-        ${
-          canEdit
-            ? `<button type="button" class="card-video-del" data-del-video="${escapeHtml(v.id || "")}" aria-label="Remove video">×</button>`
-            : ""
-        }
-        <p class="card-video-name">${escapeHtml(name)}</p>
+        ${del}
       </div>`;
     })
     .join("");
-  const add = canEdit
-    ? `<label class="card-video-add" id="stVideoAdd">
-        <input id="stVideoFile" type="file" accept="video/mp4,video/quicktime,video/webm,video/x-m4v,.mp4,.mov,.webm,.m4v" hidden />
-        Add video
-      </label>`
-    : "";
-  return `<section class="card-videos">
-      <header class="card-videos-head">Videos</header>
-      <div class="card-video-grid">${tiles}${add}</div>
-      <p class="status-hint" id="stVideoHint" hidden></p>
-    </section>`;
+  return `<div class="notes-files">${tiles}</div>`;
 }
 function driveFileId(url) {
   const text = String(url || "");
@@ -2613,12 +2616,12 @@ function videoPoster(file) {
 }
 function videoError(err) {
   const text = String(err || "");
-  if (/over 500/i.test(text)) return "Video is over 500 MB.";
-  if (/mp4, mov, or webm|use mp4/i.test(text)) return "Use MP4, MOV, or WebM.";
-  if (/expired/i.test(text)) return "Upload expired. Add the video again.";
-  if (/Drive is not connected|no Drive folder/i.test(text)) return "Drive folder is missing. Create it, then add the video.";
-  if (/timed out/i.test(text)) return "Video took too long to send. Try again.";
-  return text || "Could not add video";
+  if (/over 500/i.test(text)) return "File is over 500 MB.";
+  if (/image, video, or a document|use mp4/i.test(text)) return "Use an image, video, or a document.";
+  if (/expired/i.test(text)) return "Upload expired. Attach the file again.";
+  if (/Drive is not connected|no Drive folder/i.test(text)) return "Drive folder is missing. Create it, then attach the file.";
+  if (/timed out/i.test(text)) return "File took too long to send. Try again.";
+  return text || "Could not add file";
 }
 function noteError(err) {
   const text = String(err || "");
@@ -2791,8 +2794,9 @@ function bindNoteShots(t) {
 }
 function notesHtml(t) {
   const rows = clientComments(t);
+  const files = notesFilesHtml(t);
   const canWrite = canWriteNotes();
-  if (!rows.length && !canWrite) return "";
+  if (!rows.length && !files && !canWrite) return "";
   const items = rows
     .map(
       (row) => `<article class="notes-item" data-id="${escapeHtml(row.id || "")}">
@@ -2812,19 +2816,24 @@ function notesHtml(t) {
     .join("");
   const composer = canWrite
     ? `<div class="notes-compose" id="stCommentBox">
-        <textarea id="stComment" rows="3" placeholder="Paste client text, or paste / drop a screenshot"></textarea>
+        <textarea id="stComment" rows="3" placeholder="Write the client note here"></textarea>
         <div class="notes-shots" id="stCommentShots"></div>
-        <p class="io-hint">Brief stays as is. Paste a screenshot (Ctrl+V) or attach a file. Links still work.</p>
+        <p class="io-hint">Add note sends this box. Save is the card (brief, hours) and does not send the note.</p>
+        <p class="status-hint" id="stNoteHint" hidden></p>
         <div class="notes-compose-actions">
-          <label class="btn ghost" for="stCommentFiles">Attach screenshot</label>
-          <input id="stCommentFiles" type="file" accept="image/*" multiple hidden />
+          <label class="btn ghost notes-attach" for="stCommentFiles" title="Attach a screenshot, video, or file">
+            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M21.4 11.6 12 21a6 6 0 1 1-8.5-8.5l9.9-9.9a4 4 0 0 1 5.7 5.7l-9.9 9.9a2 2 0 1 1-2.8-2.8l8.5-8.5"/></svg>
+            Attach
+          </label>
+          <input id="stCommentFiles" type="file" accept="image/*,video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.txt,.csv,.rtf" multiple hidden />
           <button class="btn" type="button" id="addNote" disabled>Add note</button>
         </div>
       </div>`
     : "";
-  return `<section class="notes${rows.length ? "" : " is-empty"}">
+  const empty = !items && !files && canWrite ? `<p class="notes-empty">No client notes yet</p>` : "";
+  return `<section class="notes${rows.length || files ? "" : " is-empty"}">
       <header class="notes-head">Client notes</header>
-      ${items || (canWrite ? `<p class="notes-empty">No client notes yet</p>` : "")}
+      ${items}${files}${empty}
       ${composer}
     </section>`;
 }
@@ -6414,7 +6423,6 @@ function openTask(id) {
     </div>
     ${heroAssign}
     ${pinHtml(t)}
-    ${videosHtml(t)}
     ${notesHtml(t)}
     ${sourceBlock || resultBlock ? `<div class="io-stack">${sourceBlock}${resultBlock}</div>` : ""}
     ${whoBlock}
@@ -6441,18 +6449,19 @@ function openTask(id) {
     const d = $("drawer");
     if (!d) return "";
     const vals = [...d.querySelectorAll("input, textarea, select")]
-      .filter((el) => el.type !== "file")
+      .filter((el) => el.type !== "file" && el.id !== "stComment")
       .map((el) => `${el.id || el.className}=${el.value}`);
     return JSON.stringify({
       vals,
-      shots: pendingShots.length,
       splits: d.querySelectorAll(".help-row, .play-split-row").length,
     });
   }
   let cardBaseline = "";
+  function noteDraft() {
+    return Boolean(String($("stComment")?.value || "").trim() || pendingShots.length);
+  }
   function refreshAddNote() {
-    const ready = Boolean(String($("stComment")?.value || "").trim() || pendingShots.length);
-    setIdleEnabled($("addNote"), ready);
+    setIdleEnabled($("addNote"), noteDraft());
   }
   function refreshCardSave() {
     const on = cardFingerprint() !== cardBaseline;
@@ -6464,7 +6473,9 @@ function openTask(id) {
     refreshAddNote();
     refreshCardSave();
   }
-  state.cardDirty = () => Boolean($("saveTask") || $("addNote")) && cardFingerprint() !== cardBaseline;
+  state.noteDraft = noteDraft;
+  state.cardChanged = () => Boolean($("saveTask")) && cardFingerprint() !== cardBaseline;
+  state.cardDirty = () => Boolean(state.cardChanged?.() || noteDraft());
   function renderPendingShots() {
     const box = $("stCommentShots");
     if (!box) return;
@@ -6485,12 +6496,24 @@ function openTask(id) {
   }
   async function addPendingFiles(files) {
     for (const file of files || []) {
-      if (pendingShots.length >= 8) {
-        toast("Up to 8 screenshots on one note");
-        break;
+      const type = String(file.type || "");
+      const name = String(file.name || "");
+      const image = type.startsWith("image/") || /\.(png|jpe?g|gif|webp|bmp)$/i.test(name);
+      const video = type.startsWith("video/") || /\.(mp4|mov|webm|m4v)$/i.test(name);
+      if (image) {
+        if (pendingShots.length >= 8) {
+          toast("Up to 8 screenshots on one note");
+          break;
+        }
+        const shot = await fileToShot(file);
+        if (shot) pendingShots.push(shot);
+        continue;
       }
-      const shot = await fileToShot(file);
-      if (shot) pendingShots.push(shot);
+      if (video || /\.(pdf|docx?|xlsx?|pptx?|zip|txt|csv|rtf|odt)$/i.test(name)) {
+        await addCardDriveFile(file);
+        continue;
+      }
+      toast("Use an image, video, or a document");
     }
     renderPendingShots();
   }
@@ -6538,10 +6561,10 @@ function openTask(id) {
     await addPendingFiles([...e.target.files]);
     e.target.value = "";
   });
-  function setVideoBusy(on, text) {
-    const add = $("stVideoAdd");
-    const hint = $("stVideoHint");
-    const input = $("stVideoFile");
+  function setAttachBusy(on, text) {
+    const add = $("stCommentBox")?.querySelector(".notes-attach");
+    const hint = $("stNoteHint");
+    const input = $("stCommentFiles");
     add?.classList.toggle("is-busy", Boolean(on));
     if (input) input.disabled = Boolean(on);
     if (hint) {
@@ -6549,19 +6572,20 @@ function openTask(id) {
       hint.textContent = text || "";
     }
   }
-  async function addCardVideo(file) {
-    if (!file || !canOps()) return;
+  async function addCardDriveFile(file) {
+    if (!file || !canWriteNotes()) return;
     if (file.size > 500 * 1024 * 1024) {
-      toast("Video is over 500 MB");
+      toast("File is over 500 MB");
       return;
     }
     const rows = Array.isArray(t.videos) ? t.videos : [];
     if (rows.length >= 8) {
-      toast("Up to 8 videos on one card");
+      toast("Up to 8 files on one card");
       return;
     }
-    setVideoBusy(true, "Preparing…");
-    const poster = await videoPoster(file);
+    setAttachBusy(true, "Preparing…");
+    const video = String(file.type || "").startsWith("video/") || /\.(mp4|mov|webm|m4v)$/i.test(file.name || "");
+    const poster = video ? await videoPoster(file) : null;
     const start = await xhrSend("/api/tasks/video/start", {
       json: {
         id: t.id,
@@ -6575,31 +6599,31 @@ function openTask(id) {
       timeout: 60000,
     });
     if (start.error || !start.uploadId) {
-      setVideoBusy(false, "");
+      setAttachBusy(false, "");
       toast(videoError(start.error), 5000);
       return;
     }
-    setVideoBusy(true, "Uploading 0%");
+    setAttachBusy(true, "Uploading 0%");
     const out = await xhrSend(`/api/tasks/video/bytes?uploadId=${encodeURIComponent(start.uploadId)}`, {
       body: file,
       timeout: 600000,
       onProgress: (loaded, total) => {
         const pct = total ? Math.min(99, Math.round((loaded / total) * 100)) : 0;
-        setVideoBusy(true, `Uploading ${pct}%`);
+        setAttachBusy(true, `Uploading ${pct}%`);
       },
     });
     if (out.error || !out.state) {
-      setVideoBusy(false, "");
+      setAttachBusy(false, "");
       toast(videoError(out.error), 5000);
       return;
     }
     applyState(out.state, { render: false });
-    toast("Video added");
+    toast(video ? "Video added" : "File added");
     openTask(t.id);
   }
   async function deleteCardVideo(videoId) {
-    if (!canOps() || !videoId) return;
-    if (!confirm("Remove this video from the card? It goes to Drive trash.")) return;
+    if (!canWriteNotes() || !videoId) return;
+    if (!confirm("Remove this file from the card? It goes to Drive trash.")) return;
     const out = await api("/api/tasks/video/delete", {
       id: t.id,
       videoId,
@@ -6607,18 +6631,13 @@ function openTask(id) {
       role: me().role,
     });
     if (out.error || !out.state) {
-      toast(out.error || "Could not remove video", 5000);
+      toast(out.error || "Could not remove file", 5000);
       return;
     }
     applyState(out.state, { render: false });
-    toast("Video removed");
+    toast("File removed");
     openTask(t.id);
   }
-  $("stVideoFile")?.addEventListener("change", async (e) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    await addCardVideo(file);
-  });
   $("drawer")
     ?.querySelectorAll("[data-del-video]")
     .forEach((btn) => {
@@ -6822,12 +6841,6 @@ function openTask(id) {
       actionBtns().forEach((btn) => setBusy(btn, false));
     };
     try {
-    if (canWriteNotes() && (String($("stComment")?.value || "").trim() || pendingShots.length)) {
-      const n = pendingShots.length;
-      startBusy(n ? `Saving ${n} screenshot${n === 1 ? "" : "s"}…` : "Saving…");
-      const ok = await postClientNote({ reopen: false });
-      if (!ok) return;
-    }
     const resultUrl = ($("stResult")?.value || t.resultUrl || "").trim();
     const studioStatus = opts.status || $("stStatus")?.value || t.studioStatus;
     if (studioStatus !== t.studioStatus && !canSetStatus(studioStatus, t)) {
@@ -6997,7 +7010,9 @@ function openTask(id) {
             ? `${me().name} pasted the result`
             : `${me().name} updated status`;
     startBusy("Saving…");
-      await updateTask(t.id, { ...patch, note }, { close: !fromChip });
+      const keepNote = noteDraft();
+      await updateTask(t.id, { ...patch, note }, { close: !fromChip && !keepNote });
+      if (!fromChip && keepNote) toast("Card saved. Add note still needs a tap.");
     } catch (err) {
       toast(err?.message || "Could not save", 5000);
     } finally {
@@ -7073,21 +7088,24 @@ function closeDrawer(opts = {}) {
     hideCardSaveModal();
     return false;
   }
-  if (
-    !opts.force &&
-    $("drawerBg")?.classList.contains("show") &&
-    typeof state.cardDirty === "function" &&
-    state.cardDirty()
-  ) {
-    $("cardSaveModal")?.classList.add("show");
-    $("cardSaveKeep")?.focus();
-    return false;
+  if (!opts.force && $("drawerBg")?.classList.contains("show")) {
+    if (typeof state.noteDraft === "function" && state.noteDraft()) {
+      toast("Add the note first, or clear the box.");
+      return false;
+    }
+    if (typeof state.cardChanged === "function" ? state.cardChanged() : typeof state.cardDirty === "function" && state.cardDirty()) {
+      $("cardSaveModal")?.classList.add("show");
+      $("cardSaveKeep")?.focus();
+      return false;
+    }
   }
   hideCardSaveModal();
   $("drawerBg").classList.remove("show");
   stopCardPresence();
   state.openId = null;
   state.cardDirty = null;
+  state.cardChanged = null;
+  state.noteDraft = null;
   state.commitCard = null;
   state.cardOpenedStamp = "";
   state.cardStale = false;

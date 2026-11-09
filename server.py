@@ -33,7 +33,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-11-09a"
+BUILD = "2026-11-09b"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -979,6 +979,20 @@ VIDEO_MIME = {
     "video/x-m4v": "m4v",
     "video/mpeg": "mpg",
 }
+DOC_MIME = {
+    "application/pdf": "pdf",
+    "application/msword": "doc",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+    "application/vnd.ms-excel": "xls",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+    "application/vnd.ms-powerpoint": "ppt",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation": "pptx",
+    "application/zip": "zip",
+    "text/plain": "txt",
+    "text/csv": "csv",
+    "application/rtf": "rtf",
+    "application/vnd.oasis.opendocument.text": "odt",
+}
 VIDEO_NAME_SAFE = re.compile(r"[^A-Za-z0-9._-]+")
 _VIDEO_PENDING: dict[str, dict] = {}
 _VIDEO_PENDING_LOCK = threading.Lock()
@@ -1234,6 +1248,20 @@ VIDEO_NAME_MIME = {
     ".mpg": "video/mpeg",
     ".mpeg": "video/mpeg",
 }
+DOC_NAME_MIME = {
+    ".pdf": "application/pdf",
+    ".doc": "application/msword",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".xls": "application/vnd.ms-excel",
+    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ".ppt": "application/vnd.ms-powerpoint",
+    ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    ".zip": "application/zip",
+    ".txt": "text/plain",
+    ".csv": "text/csv",
+    ".rtf": "application/rtf",
+    ".odt": "application/vnd.oasis.opendocument.text",
+}
 
 
 class LimitedReader:
@@ -1252,21 +1280,31 @@ class LimitedReader:
 
 def video_drive_name(task: dict | None, original: str, mime: str) -> str:
     root = project_root(task)
-    ext = VIDEO_MIME.get(str(mime or "").split(";")[0].strip().lower(), "")
+    raw_mime = str(mime or "").split(";")[0].strip().lower()
+    ext = VIDEO_MIME.get(raw_mime) or DOC_MIME.get(raw_mime, "")
     if not ext:
         ext = Path(str(original or "")).suffix.lstrip(".").lower()
-    if ext not in {"mp4", "mov", "webm", "m4v", "mpg", "mpeg"}:
-        ext = "mp4"
-    stem = Path(str(original or "clip")).stem
-    stem = VIDEO_NAME_SAFE.sub("_", stem).strip("._")[:80] or "clip"
+    allowed = set(VIDEO_MIME.values()) | set(DOC_MIME.values())
+    if ext not in allowed:
+        ext = "mp4" if raw_mime in VIDEO_MIME else "pdf"
+    stem = Path(str(original or "file")).stem
+    stem = VIDEO_NAME_SAFE.sub("_", stem).strip("._")[:80] or "file"
     return f"{root}_{stem}.{ext}"
 
 
 def guess_video_mime(name: str, mime: str) -> str:
+    kind, raw = guess_card_file(name, mime)
+    return raw if kind == "video" else ""
+
+
+def guess_card_file(name: str, mime: str) -> tuple[str, str]:
     raw = str(mime or "").split(";")[0].strip().lower()
-    if raw in VIDEO_MIME:
-        return raw
-    return VIDEO_NAME_MIME.get(Path(str(name or "")).suffix.lower(), "")
+    suffix = Path(str(name or "")).suffix.lower()
+    if raw in VIDEO_MIME or VIDEO_NAME_MIME.get(suffix, "") in VIDEO_MIME:
+        return "video", raw if raw in VIDEO_MIME else VIDEO_NAME_MIME[suffix]
+    if raw in DOC_MIME or DOC_NAME_MIME.get(suffix, "") in DOC_MIME:
+        return "file", raw if raw in DOC_MIME else DOC_NAME_MIME[suffix]
+    return "", ""
 
 
 def decode_video_poster(item: dict | None) -> tuple[str, bytes] | None:
@@ -1318,18 +1356,23 @@ def attach_card_video(
     actor_id: str,
     poster_blob: bytes | None = None,
     poster_mime: str = "image/jpeg",
+    kind: str = "video",
 ) -> dict:
     seq = int((db.get("meta") or {}).get("videoSeq") or 0) + 1
     db.setdefault("meta", {})["videoSeq"] = seq
     vid = f"v-{seq}"
     drive_id = str((uploaded or {}).get("id") or "")
+    file_kind = "file" if kind == "file" else "video"
     row = {
         "id": vid,
+        "kind": file_kind,
         "name": str((uploaded or {}).get("name") or "clip.mp4"),
         "driveId": drive_id,
         "driveUrl": str((uploaded or {}).get("url") or "") or drive_io.file_url(drive_id),
         "folderUrl": str(task.get("folderUrl") or ""),
-        "posterUrl": store_video_poster(str(task.get("id") or ""), vid, poster_blob or b"", poster_mime),
+        "posterUrl": ""
+        if file_kind == "file"
+        else store_video_poster(str(task.get("id") or ""), vid, poster_blob or b"", poster_mime),
         "mime": mime,
         "size": int(size or 0),
         "at": utc_now(),
@@ -1860,8 +1903,8 @@ class Handler(SimpleHTTPRequestHandler):
         if not sess:
             self._json(401, {"error": "sign in"})
             return
-        if auth_io.is_client_session(sess) or str(sess.get("role") or "") not in OPS_ROLES:
-            self._json(403, {"error": "only DL or LP can add video"})
+        if auth_io.is_client_session(sess) or str(sess.get("role") or "") not in COMMENT_ROLES:
+            self._json(403, {"error": "only LP, DL or TL can add a file"})
             return
         qs = parse_qs(urlparse(self.path).query)
         upload_id = str((qs.get("uploadId") or [""])[0] or "")
@@ -1911,7 +1954,7 @@ class Handler(SimpleHTTPRequestHandler):
                     drive_io.trash_card_video(str(uploaded.get("id") or ""))
                 except drive_io.DriveError:
                     pass
-                self._json(400, {"error": "up to 8 videos on one card"})
+                self._json(400, {"error": "up to 8 files on one card"})
                 return
             row = attach_card_video(
                 db,
@@ -1922,6 +1965,7 @@ class Handler(SimpleHTTPRequestHandler):
                 actor_id=str(pending.get("actorId") or sess.get("personId") or ""),
                 poster_blob=poster_blob,
                 poster_mime=poster_mime,
+                kind=str(pending.get("kind") or "video"),
             )
             save_db(db)
         self._json(200, {"ok": True, "video": row, "task": task, "state": db})
@@ -2165,12 +2209,12 @@ class Handler(SimpleHTTPRequestHandler):
             self._json(200, {**out, "state": db, "task": task})
             return
         if path == "/api/tasks/video/start":
-            if data.get("role") not in OPS_ROLES:
-                self._json(403, {"error": "only DL or LP can add video"})
+            if data.get("role") not in COMMENT_ROLES:
+                self._json(403, {"error": "only LP, DL or TL can add a file"})
                 return
-            mime = guess_video_mime(str(data.get("name") or ""), str(data.get("mime") or ""))
+            kind, mime = guess_card_file(str(data.get("name") or ""), str(data.get("mime") or ""))
             if not mime:
-                self._json(400, {"error": "use mp4, mov, or webm"})
+                self._json(400, {"error": "use an image, video, or a document"})
                 return
             try:
                 size = int(data.get("size") or 0)
@@ -2180,9 +2224,13 @@ class Handler(SimpleHTTPRequestHandler):
                 self._json(400, {"error": "video is empty"})
                 return
             if size > MAX_VIDEO_BYTES:
-                self._json(400, {"error": "video is over 500 MB"})
+                self._json(400, {"error": "file is over 500 MB"})
                 return
-            poster = decode_video_poster(data.get("poster") if isinstance(data.get("poster"), dict) else None)
+            poster = (
+                decode_video_poster(data.get("poster") if isinstance(data.get("poster"), dict) else None)
+                if kind == "video"
+                else None
+            )
             with LOCK:
                 db = peek_db()
                 task = next((t for t in db["tasks"] if t["id"] == data.get("id")), None)
@@ -2190,7 +2238,7 @@ class Handler(SimpleHTTPRequestHandler):
                     self._json(404, {"error": "not found"})
                     return
                 if len(task.get("videos") or []) >= MAX_CARD_VIDEOS:
-                    self._json(400, {"error": "up to 8 videos on one card"})
+                    self._json(400, {"error": "up to 8 files on one card"})
                     return
                 snap = _clone(task)
                 ym = data.get("month") or task.get("month") or db.get("meta", {}).get("month") or "2026-10"
@@ -2220,6 +2268,7 @@ class Handler(SimpleHTTPRequestHandler):
                     "taskId": snap.get("id"),
                     "name": video_drive_name(snap, str(data.get("name") or "clip.mp4"), mime),
                     "mime": mime,
+                    "kind": kind,
                     "size": size,
                     "folderId": folder_id,
                     "folderUrl": snap.get("folderUrl") or "",
@@ -2239,8 +2288,8 @@ class Handler(SimpleHTTPRequestHandler):
             )
             return
         if path == "/api/tasks/video/delete":
-            if data.get("role") not in OPS_ROLES:
-                self._json(403, {"error": "only DL or LP can remove video"})
+            if data.get("role") not in COMMENT_ROLES:
+                self._json(403, {"error": "only LP, DL or TL can remove a file"})
                 return
             drive_id = ""
             with LOCK:

@@ -1977,13 +1977,18 @@ def test_lp_can_close_without_send() -> None:
         and "writeAssign" in js,
     )
     check(
-        "Save compresses screenshots and waits for the note",
-        "function canvasShot" in js
+        "Save does not send Client notes",
+        'el.id !== "stComment"' in js
+        and "Add note still needs a tap" in js
+        and "Saving ${n} screenshot" not in js
+        and "Add the note first, or clear the box." in js,
+    )
+    check(
+        "Add note sends the note box",
+        "function postClientNote" in js
+        and 'id="addNote"' in js
         and "MAX_NOTE_BYTES" in js
-        and "timeout: 90000" in js
-        and "noteError" in js
-        and "Saving ${n} screenshot" in js
-        and "applyState(out.state, { render: reopen !== false })" in js,
+        and "timeout: 90000" in js,
     )
     check(
         "card shows who set the status and when",
@@ -2143,10 +2148,16 @@ def test_card_videos() -> None:
     check("do_POST does not JSON-parse video bytes", 'path == "/api/tasks/video/bytes"' in src.split("def do_POST")[1].split("def _handle_video_bytes")[0])
     check("Drive resumable upload for card video", "def upload_card_video" in drive and "uploadType=resumable" in drive)
     check("poster filename is allowed", bool(server.COMMENT_FILE_NAME.match("v-1.jpg")))
-    check("card shows play tile", "function videosHtml" in js and "card-video-play" in js and "Add video" in js)
+    check("card shows play tile", "function notesFilesHtml" in js and "card-video-play" in js)
+    check("one Attach control in Client notes", "notes-attach" in js and "Add video" not in js and "Attach screenshot" not in js)
+    check("LP DL TL may attach Drive files", "COMMENT_ROLES" in src.split("/api/tasks/video/start")[1].split("/api/excel/import")[0])
     check("card delete sends video to Drive trash", "data-del-video" in js and "/api/tasks/video/delete" in js)
     check("click opens Drive view", "v.driveUrl" in js)
     check("video tile CSS", ".card-video-icon" in css and ".card-video-del" in css)
+    check(
+        "Client notes actions sit in the center",
+        "justify-content: center" in css.split(".notes-compose-actions")[1].split("}")[0],
+    )
     orig = server.COMMENT_FILES
     tmp = Path(tempfile.mkdtemp())
     server.COMMENT_FILES = tmp
@@ -2946,6 +2957,16 @@ def test_http(base: str) -> str | None:
             str(payload.get("error") or tl_sess),
         )
         tl_ck = tl_cookie.split(";", 1)[0] if tl_cookie else ""
+        code, payload, _ = _http(
+            f"{base}/api/tasks/video/start",
+            {"id": bounce_id, "name": "clip.mp4", "mime": "video/mp4", "size": 12},
+            cookie=tl_ck,
+        )
+        check(
+            "TL may add card video",
+            code != 403,
+            str(payload.get("error") if isinstance(payload, dict) else payload),
+        )
         code, payload, _ = _http(
             f"{base}/api/tasks/update",
             {
