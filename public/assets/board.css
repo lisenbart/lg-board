@@ -1365,12 +1365,6 @@ body.col-resizing * { cursor: col-resize !important; }
   background: #f6f7fb;
   border-bottom-color: #d5d9e6;
 }
-.notes-empty {
-  margin: 0;
-  padding: 10px 14px;
-  font-size: 12px;
-  color: #c5c7d0;
-}
 .notes-item {
   padding: 10px 14px 12px;
   border-bottom: 1px solid #f0d6dc;
@@ -1854,6 +1848,7 @@ body.col-resizing * { cursor: col-resize !important; }
 }
 .io-hint, .io-empty { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
 .io-empty { color: #c5c7d0; }
+.io-hint:empty, .status-hint:empty { display: none; }
 .file-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .file-chip {
   font-size: 11px; background: #fff4d6; color: #9a6700;

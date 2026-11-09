@@ -2344,21 +2344,17 @@ function linkifyBrief(text) {
 function pinHtml(t) {
   const raw = String(t?.brief || "").trim();
   const body = canOps()
-    ? `<textarea id="stBrief" class="pin-edit" rows="8" placeholder="Paste the brief here, then Save. It also writes the Google Doc.">${escapeHtml(raw)}</textarea>`
+    ? `<textarea id="stBrief" class="pin-edit" rows="8">${escapeHtml(raw)}</textarea>`
     : raw
     ? `<div class="pin-body">${linkifyBrief(raw)}</div>`
-    : `<div class="pin-body is-empty">No brief yet</div>`;
+    : "";
   const pack = packFolderButtons(t);
   const retry = canOps() && t.source === "portal" && !pack.task
     ? `<button type="button" class="btn" id="ensureDrive">Create Drive folder</button>`
     : "";
   const actions = `<footer class="pin-actions">${pack.brief}${pack.taskBtn}${pack.workBtn}${retry}</footer>`;
-  const warn = canOps() && t.source === "portal" && !pack.task
-    ? `<p class="drive-warn">No Drive folder yet. Click Create Drive folder.</p>`
-    : "";
   return `<article class="pin">
       <header class="pin-head">Brief</header>
-      ${warn}
       ${body}
       ${actions}
     </article>`;
@@ -2815,7 +2811,6 @@ function notesHtml(t) {
     ? `<div class="notes-compose" id="stCommentBox">
         <textarea id="stComment" rows="3" placeholder="Write a client note"></textarea>
         <div class="notes-shots" id="stCommentShots"></div>
-        <p class="io-hint">OK or Enter sends the note. Attach shows a preview while it uploads. Save is the rest of the card.</p>
         <div class="notes-compose-actions">
           <label class="btn ghost notes-attach" for="stCommentFiles" title="Attach a screenshot, video, or file">
             <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M21.4 11.6 12 21a6 6 0 1 1-8.5-8.5l9.9-9.9a4 4 0 0 1 5.7 5.7l-9.9 9.9a2 2 0 1 1-2.8-2.8l8.5-8.5"/></svg>
@@ -2826,10 +2821,9 @@ function notesHtml(t) {
         </div>
       </div>`
     : "";
-  const empty = !items && !files && canWrite ? `<p class="notes-empty">No client notes yet</p>` : "";
   return `<section class="notes${rows.length || files ? "" : " is-empty"}">
       <header class="notes-head">Client notes</header>
-      ${items}${files}${empty}
+      ${items}${files}
       ${composer}
     </section>`;
 }
@@ -2853,16 +2847,8 @@ function resultHtml(t, performer, canPaste) {
   const html = play && playableInHtml(t);
   const title = !play ? "Result" : html ? "HTML" : "Storyboard";
   const placeholder = !play ? "Paste finished file link" : html ? "Paste HTML / playable link" : "Paste storyboard / board link";
-  const hint = !play
-    ? performer
-      ? "The file, not the folder."
-      : "Needed before Send to client."
-    : html
-      ? "Done needs this HTML link."
-      : "Paste the board when it is ready. LP sends this link.";
   const body = canPaste
-    ? `<input id="stResult" value="${escapeHtml(t.resultUrl || "")}" placeholder="${placeholder}" />
-        <p class="io-hint">${hint}</p>`
+    ? `<input id="stResult" value="${escapeHtml(t.resultUrl || "")}" placeholder="${placeholder}" />`
     : t.resultUrl
       ? `<a class="pin-link" href="${escapeHtml(t.resultUrl)}" target="_blank" rel="noreferrer">${html ? "Open HTML" : "Open storyboard"}</a>`
       : `<p class="io-empty">Waiting for ${escapeHtml(person(html ? t.programmerId : t.assigneeId)?.name || "designer")}</p>`;
@@ -5806,7 +5792,6 @@ function slotomaniaMoneyHtml(t) {
         <label for="stPoNumber">PO</label>
         <input id="stPoNumber" type="text" spellcheck="false" placeholder="PO12020151" value="${po}" />
       </div>
-      <p class="status-hint">PO comes from Playtika after they push the quote. Put it here, then the invoice can go to Accounting@playtika.com.</p>
     </section>`;
 }
 function playableOwnerHtml(id, empty) {
@@ -6846,52 +6831,7 @@ function openTask(id) {
         });
       }
     });
-    if (hint) {
-      const playSt = playableStatusKey(t);
-      if (isPlayables(t)) {
-        if (isProgrammer() && !hasResult && (playSt === "wip" || playSt === "revision" || playSt === "artready")) {
-          hint.textContent = "Paste the HTML link, then Done.";
-        } else if (isArtDirector() && playSt === "new") {
-          hint.textContent = "WIP when you start. Paste the storyboard link, then Check.";
-        } else if (isArtDirector() && playSt === "wip") {
-          hint.textContent = "Paste the storyboard link, then Check so LP can send it.";
-        } else if (isArtDirector() && playSt === "revision") {
-          hint.textContent = "Fix, set WIP, then Check.";
-        } else if (isArtDirector() && playSt === "finalart") {
-          hint.textContent = "Art ready when DEV can start HTML.";
-        } else if (isProgrammer() && playSt === "done") {
-          hint.textContent = "LP sends this. Need Fixing if the HTML needs another pass.";
-        } else if (canOps() && playSt === "check") {
-          hint.textContent = "Send to client — that sets Sent. Only LP talks to SuperPlay.";
-        } else if (canOps() && playSt === "done") {
-          hint.textContent = "Send to client, or Mark Closed if they already accepted.";
-        } else if (canOps() && playSt === "approve") {
-          hint.textContent = "Client accepted → Closed. Bounced → Need Fixing for DEV.";
-        } else if (canOps() && playSt === "clientart") {
-          hint.textContent = "Need Fixing if they bounce it. Final art when they approve the board.";
-        } else if (canOps() && playSt === "artready" && !t.programmerId) {
-          hint.textContent = "Assign DEV if they are not on the card yet.";
-        } else {
-          hint.textContent = "";
-        }
-      } else if (performer && t.studioStatus === "tlcheck") {
-        hint.textContent = "Waiting for TL. Need Fixing comes from TL or LP — not WIP.";
-      } else if (performer && !hasResult && !["tlcheck", "done", "approve", "closed"].includes(t.studioStatus)) {
-        hint.textContent = "Paste the result link, then TL Check. The chip writes at once.";
-      } else if (isTeamLead() && t.studioStatus === "tlcheck") {
-        hint.textContent = "Need Fixing if it needs another pass. Done if you accept it. LP sends after Done.";
-      } else if (canOps() && t.studioStatus === "done") {
-        hint.textContent = "Send to client, or Mark Closed if they already accepted.";
-      } else if (canOps() && t.studioStatus === "approve") {
-        hint.textContent = "Client accepted → Closed. Need Fixing if they bounce it.";
-      } else if (canOps() && t.studioStatus === "closed") {
-        hint.textContent = "Closed. Need Fixing only if the client reopens.";
-      } else if (canOps() && t.studioStatus === "tlcheck") {
-        hint.textContent = "Waiting for TL Check. Send only after Done.";
-      } else {
-        hint.textContent = "";
-      }
-    }
+    if (hint) hint.textContent = "";
   };
   $("stResult")?.addEventListener("input", syncDoneOption);
   $("stResult")?.addEventListener("change", syncDoneOption);

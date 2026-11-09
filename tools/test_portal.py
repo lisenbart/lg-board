@@ -1992,6 +1992,14 @@ def test_lp_can_close_without_send() -> None:
         and 'e.key !== "Enter"' in js,
     )
     check(
+        "empty notes do not show a filler line",
+        "No client notes yet" not in js
+        and "No brief yet" not in js
+        and "No Drive folder yet" not in js
+        and "OK or Enter sends the note" not in js
+        and "notes-empty" not in js,
+    )
+    check(
         "video attach shows upload progress",
         "function startUploadTile" in js
         and "notes-upload-bar" in js
