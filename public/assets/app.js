@@ -1460,6 +1460,39 @@ async function api(path, payload, opts = {}) {
   }
 }
 
+function xhrSend(path, { json, body, timeout, onProgress } = {}) {
+  return new Promise((resolve) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", path);
+    xhr.timeout = timeout || 600000;
+    xhr.withCredentials = true;
+    xhr.responseType = "text";
+    if (onProgress && xhr.upload) {
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) onProgress(e.loaded, e.total);
+      };
+    }
+    xhr.onload = () => {
+      let data = {};
+      try {
+        data = JSON.parse(xhr.responseText || "{}");
+      } catch {
+        data = { error: "desk did not answer" };
+      }
+      if (xhr.status >= 400 && !data.error) data.error = `HTTP ${xhr.status}`;
+      resolve(data);
+    };
+    xhr.onerror = () => resolve({ error: "desk did not answer" });
+    xhr.ontimeout = () => resolve({ error: "desk timed out" });
+    if (json !== undefined) {
+      xhr.setRequestHeader("Content-Type", "application/json");
+      xhr.send(JSON.stringify(json));
+    } else {
+      xhr.send(body);
+    }
+  });
+}
+
 function calendarMonth() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -2330,6 +2363,44 @@ function pinHtml(t) {
       ${actions}
     </article>`;
 }
+function videosHtml(t) {
+  const rows = Array.isArray(t?.videos) ? t.videos : [];
+  const canEdit = canOps();
+  if (!rows.length && !canEdit) return "";
+  const tiles = rows
+    .map((v) => {
+      const href = String(v.driveUrl || "").trim();
+      const poster = String(v.posterUrl || "").trim();
+      const name = String(v.name || "video");
+      const face = poster
+        ? `<img src="${escapeHtml(poster)}" alt="">`
+        : `<span class="card-video-fallback">${escapeHtml(name)}</span>`;
+      return `<div class="card-video" data-video-id="${escapeHtml(v.id || "")}">
+        <a class="card-video-play" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">
+          ${face}
+          <span class="card-video-icon" aria-hidden="true">▶</span>
+        </a>
+        ${
+          canEdit
+            ? `<button type="button" class="card-video-del" data-del-video="${escapeHtml(v.id || "")}" aria-label="Remove video">×</button>`
+            : ""
+        }
+        <p class="card-video-name">${escapeHtml(name)}</p>
+      </div>`;
+    })
+    .join("");
+  const add = canEdit
+    ? `<label class="card-video-add" id="stVideoAdd">
+        <input id="stVideoFile" type="file" accept="video/mp4,video/quicktime,video/webm,video/x-m4v,.mp4,.mov,.webm,.m4v" hidden />
+        Add video
+      </label>`
+    : "";
+  return `<section class="card-videos">
+      <header class="card-videos-head">Videos</header>
+      <div class="card-video-grid">${tiles}${add}</div>
+      <p class="status-hint" id="stVideoHint" hidden></p>
+    </section>`;
+}
 function driveFileId(url) {
   const text = String(url || "");
   const file = text.match(/\/file\/d\/([a-zA-Z0-9_-]+)/i);
@@ -2488,6 +2559,66 @@ async function fileToShot(file) {
   } finally {
     URL.revokeObjectURL(url);
   }
+}
+function videoPoster(file) {
+  return new Promise((resolve) => {
+    if (!file) {
+      resolve(null);
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    const video = document.createElement("video");
+    let settled = false;
+    const done = (shot) => {
+      if (settled) return;
+      settled = true;
+      URL.revokeObjectURL(url);
+      resolve(shot);
+    };
+    const grab = () => {
+      try {
+        const w = video.videoWidth || 0;
+        const h = video.videoHeight || 0;
+        if (!w || !h) {
+          done(null);
+          return;
+        }
+        const scale = Math.min(1, 640 / Math.max(w, h));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(w * scale));
+        canvas.height = Math.max(1, Math.round(h * scale));
+        canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+        done({ mime: "image/jpeg", data: canvas.toDataURL("image/jpeg", 0.72) });
+      } catch {
+        done(null);
+      }
+    };
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = "auto";
+    video.onloadeddata = () => {
+      try {
+        const t = Math.min(0.2, (video.duration || 1) * 0.04);
+        if (Number.isFinite(t) && t > 0) video.currentTime = t;
+        else grab();
+      } catch {
+        grab();
+      }
+    };
+    video.onseeked = grab;
+    video.onerror = () => done(null);
+    setTimeout(() => done(null), 4000);
+    video.src = url;
+  });
+}
+function videoError(err) {
+  const text = String(err || "");
+  if (/over 500/i.test(text)) return "Video is over 500 MB.";
+  if (/mp4, mov, or webm|use mp4/i.test(text)) return "Use MP4, MOV, or WebM.";
+  if (/expired/i.test(text)) return "Upload expired. Add the video again.";
+  if (/Drive is not connected|no Drive folder/i.test(text)) return "Drive folder is missing. Create it, then add the video.";
+  if (/timed out/i.test(text)) return "Video took too long to send. Try again.";
+  return text || "Could not add video";
 }
 function noteError(err) {
   const text = String(err || "");
@@ -6283,6 +6414,7 @@ function openTask(id) {
     </div>
     ${heroAssign}
     ${pinHtml(t)}
+    ${videosHtml(t)}
     ${notesHtml(t)}
     ${sourceBlock || resultBlock ? `<div class="io-stack">${sourceBlock}${resultBlock}</div>` : ""}
     ${whoBlock}
@@ -6406,6 +6538,96 @@ function openTask(id) {
     await addPendingFiles([...e.target.files]);
     e.target.value = "";
   });
+  function setVideoBusy(on, text) {
+    const add = $("stVideoAdd");
+    const hint = $("stVideoHint");
+    const input = $("stVideoFile");
+    add?.classList.toggle("is-busy", Boolean(on));
+    if (input) input.disabled = Boolean(on);
+    if (hint) {
+      hint.hidden = !text;
+      hint.textContent = text || "";
+    }
+  }
+  async function addCardVideo(file) {
+    if (!file || !canOps()) return;
+    if (file.size > 500 * 1024 * 1024) {
+      toast("Video is over 500 MB");
+      return;
+    }
+    const rows = Array.isArray(t.videos) ? t.videos : [];
+    if (rows.length >= 8) {
+      toast("Up to 8 videos on one card");
+      return;
+    }
+    setVideoBusy(true, "Preparing…");
+    const poster = await videoPoster(file);
+    const start = await xhrSend("/api/tasks/video/start", {
+      json: {
+        id: t.id,
+        name: file.name,
+        mime: file.type || "",
+        size: file.size,
+        poster,
+        actorId: me().id,
+        role: me().role,
+      },
+      timeout: 60000,
+    });
+    if (start.error || !start.uploadId) {
+      setVideoBusy(false, "");
+      toast(videoError(start.error), 5000);
+      return;
+    }
+    setVideoBusy(true, "Uploading 0%");
+    const out = await xhrSend(`/api/tasks/video/bytes?uploadId=${encodeURIComponent(start.uploadId)}`, {
+      body: file,
+      timeout: 600000,
+      onProgress: (loaded, total) => {
+        const pct = total ? Math.min(99, Math.round((loaded / total) * 100)) : 0;
+        setVideoBusy(true, `Uploading ${pct}%`);
+      },
+    });
+    if (out.error || !out.state) {
+      setVideoBusy(false, "");
+      toast(videoError(out.error), 5000);
+      return;
+    }
+    applyState(out.state, { render: false });
+    toast("Video added");
+    openTask(t.id);
+  }
+  async function deleteCardVideo(videoId) {
+    if (!canOps() || !videoId) return;
+    if (!confirm("Remove this video from the card? It goes to Drive trash.")) return;
+    const out = await api("/api/tasks/video/delete", {
+      id: t.id,
+      videoId,
+      actorId: me().id,
+      role: me().role,
+    });
+    if (out.error || !out.state) {
+      toast(out.error || "Could not remove video", 5000);
+      return;
+    }
+    applyState(out.state, { render: false });
+    toast("Video removed");
+    openTask(t.id);
+  }
+  $("stVideoFile")?.addEventListener("change", async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    await addCardVideo(file);
+  });
+  $("drawer")
+    ?.querySelectorAll("[data-del-video]")
+    .forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        deleteCardVideo(btn.getAttribute("data-del-video") || "");
+      });
+    });
   $("stComment")?.addEventListener("paste", async (e) => {
     const files = [];
     for (const item of e.clipboardData?.items || []) {

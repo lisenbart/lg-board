@@ -2132,6 +2132,93 @@ def test_comment_shots() -> None:
     )
 
 
+def test_card_videos() -> None:
+    src = (ROOT / "server.py").read_text(encoding="utf-8")
+    js = (ROOT / "public" / "assets" / "app.js").read_text(encoding="utf-8")
+    css = (ROOT / "public" / "assets" / "board.css").read_text(encoding="utf-8")
+    drive = (ROOT / "drive_io.py").read_text(encoding="utf-8")
+    check("card video start path", "/api/tasks/video/start" in src)
+    check("card video bytes path", "/api/tasks/video/bytes" in src and "def _handle_video_bytes" in src)
+    check("card video delete path", "/api/tasks/video/delete" in src)
+    check("do_POST does not JSON-parse video bytes", 'path == "/api/tasks/video/bytes"' in src.split("def do_POST")[1].split("def _handle_video_bytes")[0])
+    check("Drive resumable upload for card video", "def upload_card_video" in drive and "uploadType=resumable" in drive)
+    check("poster filename is allowed", bool(server.COMMENT_FILE_NAME.match("v-1.jpg")))
+    check("card shows play tile", "function videosHtml" in js and "card-video-play" in js and "Add video" in js)
+    check("card delete sends video to Drive trash", "data-del-video" in js and "/api/tasks/video/delete" in js)
+    check("click opens Drive view", "v.driveUrl" in js)
+    check("video tile CSS", ".card-video-icon" in css and ".card-video-del" in css)
+    orig = server.COMMENT_FILES
+    tmp = Path(tempfile.mkdtemp())
+    server.COMMENT_FILES = tmp
+    try:
+        db = {"meta": {"videoSeq": 0}, "people": [{"id": "manager", "name": "A"}]}
+        task = {
+            "id": "t-vid",
+            "name": "DD-P-001 Sugar",
+            "folderUrl": "https://drive.google.com/drive/folders/abc123",
+            "videos": [],
+        }
+        name = server.video_drive_name(task, "My Clip!!.MOV", "video/quicktime")
+        check(
+            "Drive video name prefixes the project",
+            name.startswith("DD-P-001_") and name.endswith(".mov") and " " not in name,
+            name,
+        )
+        png = (
+            b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+            b"\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00\x05"
+            b"\x18\xd8N\x00\x00\x00\x00IEND\xaeB`\x82"
+        )
+        row = server.attach_card_video(
+            db,
+            task,
+            uploaded={
+                "id": "fid9",
+                "name": name,
+                "url": "https://drive.google.com/file/d/fid9/view",
+            },
+            mime="video/quicktime",
+            size=12,
+            actor_id="manager",
+            poster_blob=png,
+            poster_mime="image/png",
+        )
+        check(
+            "video row lands on the task",
+            row.get("id") == "v-1"
+            and task["videos"][0]["driveId"] == "fid9"
+            and task["videos"][0]["driveUrl"].endswith("/fid9/view"),
+            str(row),
+        )
+        check("poster file is stored", (tmp / "t-vid" / "v-1.png").is_file())
+        gone = server.remove_card_video(task, "v-1")
+        check(
+            "delete drops the row and the poster",
+            gone and gone.get("driveId") == "fid9" and not task.get("videos") and not (tmp / "t-vid" / "v-1.png").exists(),
+            str(gone),
+        )
+    finally:
+        server.COMMENT_FILES = orig
+        shutil.rmtree(tmp, ignore_errors=True)
+    leaked = auth_io.client_state(
+        {
+            "meta": {},
+            "people": [],
+            "tasks": [
+                {
+                    "id": "t-1",
+                    "name": "DD-X-1",
+                    "clientId": client_io.SUPERPLAY,
+                    "videos": [{"id": "v-1", "driveUrl": "secret"}],
+                }
+            ],
+        },
+        {"role": "client", "clientId": client_io.SUPERPLAY},
+    )
+    first = (leaked.get("tasks") or [{}])[0]
+    check("client state has no videos", "videos" not in first, str(first))
+
+
 def test_sync_files_releases_lock() -> None:
     original = server.sync_excel
     during = {"locked": None}
@@ -2474,6 +2561,53 @@ def test_http(base: str) -> str | None:
             and comment.get("body") == "logo left"
             and any((a.get("kind") == "image") for a in comment.get("attachments") or []),
             str(payload.get("error") or comment) if isinstance(payload, dict) else str(payload),
+        )
+        code, payload, headers = _http(
+            f"{base}/api/login",
+            {"door": "studio", "role": "designer", "pin": "1726"},
+        )
+        if payload.get("needSeat"):
+            seat_id = ((payload.get("seats") or [{}])[0] or {}).get("id")
+            code, payload, headers = _http(
+                f"{base}/api/login",
+                {"door": "studio", "role": "designer", "pin": "1726", "seatId": seat_id},
+            )
+        md_sess = payload.get("session") or {}
+        md_cookie = headers.get("Set-Cookie") if hasattr(headers, "get") else None
+        md_ck = md_cookie.split(";", 1)[0] if md_cookie else ""
+        check(
+            "MD login for video gate",
+            code == 200 and md_sess.get("role") == "designer" and bool(md_ck),
+            str(payload.get("error") or md_sess),
+        )
+        code, payload, _ = _http(
+            f"{base}/api/tasks/video/start",
+            {"id": play_id, "name": "clip.mp4", "mime": "video/mp4", "size": 12},
+            cookie=md_ck,
+        )
+        check(
+            "MD cannot add card video",
+            code == 403,
+            str(payload.get("error") if isinstance(payload, dict) else payload),
+        )
+        code, payload, _ = _http(
+            f"{base}/api/tasks/video/start",
+            {"id": play_id, "name": "clip.mp4", "mime": "video/mp4", "size": 12},
+        )
+        check(
+            "card video start needs sign-in",
+            code == 401,
+            str(payload.get("error") if isinstance(payload, dict) else payload),
+        )
+        code, payload, _ = _http(
+            f"{base}/api/tasks/video/delete",
+            {"id": play_id, "videoId": "v-1"},
+            cookie=md_ck,
+        )
+        check(
+            "MD cannot delete card video",
+            code == 403,
+            str(payload.get("error") if isinstance(payload, dict) else payload),
         )
         code, payload, _ = _http(
             f"{base}/api/tasks/update",
@@ -3364,6 +3498,7 @@ def main() -> int:
         test_lp_can_close_without_send,
         test_status_receipt,
         test_comment_shots,
+        test_card_videos,
         test_finance_reads_board_not_xlsx,
     ):
         try:

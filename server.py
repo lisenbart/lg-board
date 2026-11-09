@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import json
 import re
+import secrets
 import shutil
 import threading
 import tempfile
@@ -32,7 +33,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-10-29aa"
+BUILD = "2026-11-09a"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -955,7 +956,7 @@ URL_IN_TEXT = re.compile(r"https?://[^\s<>\"')\]]+", re.I)
 IMAGE_URL = re.compile(r"\.(?:png|jpe?g|gif|webp|bmp)(?:\?|$)", re.I)
 COMMENT_TASK_ID = re.compile(r"^[A-Za-z0-9_-]+$")
 COMMENT_FILE_NAME = re.compile(
-    r"^(?:c-\d+-\d+|[A-Z0-9]+(?:-[A-Z0-9]+)*(?:_\d{2})?)\.(png|jpg|jpeg|gif|webp)$",
+    r"^(?:c-\d+-\d+|v-\d+|[A-Z0-9]+(?:-[A-Z0-9]+)*(?:_\d{2})?)\.(png|jpg|jpeg|gif|webp)$",
     re.I,
 )
 PROJECT_ROOT = re.compile(r"^([A-Z]{2}-[A-Z0-9]+-\d+(?:-\d+)?)", re.I)
@@ -968,6 +969,19 @@ IMAGE_EXT = {
 }
 MAX_SHOT_BYTES = 6 * 1024 * 1024
 MAX_SHOTS = 8
+MAX_VIDEO_BYTES = 500 * 1024 * 1024
+MAX_CARD_VIDEOS = 8
+MAX_POSTER_BYTES = 1 * 1024 * 1024
+VIDEO_MIME = {
+    "video/mp4": "mp4",
+    "video/quicktime": "mov",
+    "video/webm": "webm",
+    "video/x-m4v": "m4v",
+    "video/mpeg": "mpg",
+}
+VIDEO_NAME_SAFE = re.compile(r"[^A-Za-z0-9._-]+")
+_VIDEO_PENDING: dict[str, dict] = {}
+_VIDEO_PENDING_LOCK = threading.Lock()
 
 
 def comment_attachments(text: str, extra: list | None = None) -> list[dict]:
@@ -1210,6 +1224,152 @@ def parse_email(text: str) -> list[dict]:
         by_name[name] = row
         found.append(row)
     return found
+
+
+VIDEO_NAME_MIME = {
+    ".mp4": "video/mp4",
+    ".mov": "video/quicktime",
+    ".webm": "video/webm",
+    ".m4v": "video/x-m4v",
+    ".mpg": "video/mpeg",
+    ".mpeg": "video/mpeg",
+}
+
+
+class LimitedReader:
+    def __init__(self, rfile, total: int):
+        self._r = rfile
+        self._left = max(0, int(total))
+
+    def read(self, n: int = -1) -> bytes:
+        if self._left <= 0:
+            return b""
+        want = self._left if n < 0 else min(int(n), self._left)
+        blob = self._r.read(want)
+        self._left -= len(blob)
+        return blob
+
+
+def video_drive_name(task: dict | None, original: str, mime: str) -> str:
+    root = project_root(task)
+    ext = VIDEO_MIME.get(str(mime or "").split(";")[0].strip().lower(), "")
+    if not ext:
+        ext = Path(str(original or "")).suffix.lstrip(".").lower()
+    if ext not in {"mp4", "mov", "webm", "m4v", "mpg", "mpeg"}:
+        ext = "mp4"
+    stem = Path(str(original or "clip")).stem
+    stem = VIDEO_NAME_SAFE.sub("_", stem).strip("._")[:80] or "clip"
+    return f"{root}_{stem}.{ext}"
+
+
+def guess_video_mime(name: str, mime: str) -> str:
+    raw = str(mime or "").split(";")[0].strip().lower()
+    if raw in VIDEO_MIME:
+        return raw
+    return VIDEO_NAME_MIME.get(Path(str(name or "")).suffix.lower(), "")
+
+
+def decode_video_poster(item: dict | None) -> tuple[str, bytes] | None:
+    if not isinstance(item, dict) or not item.get("data"):
+        return None
+    got = decode_data_image(item)
+    if not got:
+        return None
+    mime, blob = got
+    if not blob or len(blob) > MAX_POSTER_BYTES:
+        return None
+    return mime, blob
+
+
+def store_video_poster(task_id: str, video_id: str, blob: bytes, mime: str = "image/jpeg") -> str:
+    tid = str(task_id or "")
+    vid = str(video_id or "")
+    if not blob or not COMMENT_TASK_ID.match(tid) or not re.match(r"^v-\d+$", vid):
+        return ""
+    ext = IMAGE_EXT.get(mime, "jpg")
+    folder = COMMENT_FILES / tid
+    folder.mkdir(parents=True, exist_ok=True)
+    name = f"{vid}.{ext}"
+    (folder / name).write_bytes(blob)
+    return comment_file_url(tid, name)
+
+
+def delete_video_poster(task_id: str, video_id: str) -> None:
+    tid = str(task_id or "")
+    vid = str(video_id or "")
+    if not COMMENT_TASK_ID.match(tid) or not vid:
+        return
+    for ext in ("jpg", "jpeg", "png", "webp", "gif"):
+        path = COMMENT_FILES / tid / f"{vid}.{ext}"
+        if path.is_file():
+            try:
+                path.unlink()
+            except OSError:
+                pass
+
+
+def attach_card_video(
+    db: dict,
+    task: dict,
+    *,
+    uploaded: dict,
+    mime: str,
+    size: int,
+    actor_id: str,
+    poster_blob: bytes | None = None,
+    poster_mime: str = "image/jpeg",
+) -> dict:
+    seq = int((db.get("meta") or {}).get("videoSeq") or 0) + 1
+    db.setdefault("meta", {})["videoSeq"] = seq
+    vid = f"v-{seq}"
+    drive_id = str((uploaded or {}).get("id") or "")
+    row = {
+        "id": vid,
+        "name": str((uploaded or {}).get("name") or "clip.mp4"),
+        "driveId": drive_id,
+        "driveUrl": str((uploaded or {}).get("url") or "") or drive_io.file_url(drive_id),
+        "folderUrl": str(task.get("folderUrl") or ""),
+        "posterUrl": store_video_poster(str(task.get("id") or ""), vid, poster_blob or b"", poster_mime),
+        "mime": mime,
+        "size": int(size or 0),
+        "at": utc_now(),
+        "authorId": actor_id or "",
+    }
+    task.setdefault("videos", []).append(row)
+    return row
+
+
+def remove_card_video(task: dict, video_id: str) -> dict | None:
+    vid = str(video_id or "").strip()
+    rows = list(task.get("videos") or [])
+    found = next((row for row in rows if str(row.get("id") or "") == vid), None)
+    if not found:
+        return None
+    task["videos"] = [row for row in rows if str(row.get("id") or "") != vid]
+    delete_video_poster(str(task.get("id") or ""), str(found.get("id") or ""))
+    return found
+
+
+def purge_video_pending(now: float | None = None) -> None:
+    stamp = time.time() if now is None else now
+    with _VIDEO_PENDING_LOCK:
+        dead = [key for key, row in _VIDEO_PENDING.items() if stamp - float(row.get("at") or 0) > 20 * 60]
+        for key in dead:
+            _VIDEO_PENDING.pop(key, None)
+
+
+def put_video_pending(row: dict) -> str:
+    purge_video_pending()
+    upload_id = f"u-{secrets.token_hex(8)}"
+    with _VIDEO_PENDING_LOCK:
+        _VIDEO_PENDING[upload_id] = row
+    return upload_id
+
+
+def take_video_pending(upload_id: str) -> dict | None:
+    purge_video_pending()
+    with _VIDEO_PENDING_LOCK:
+        return _VIDEO_PENDING.pop(str(upload_id or ""), None)
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -1689,7 +1849,82 @@ class Handler(SimpleHTTPRequestHandler):
         return SimpleHTTPRequestHandler.do_GET(self)
 
     def do_POST(self) -> None:
+        path = urlparse(self.path).path
+        if path == "/api/tasks/video/bytes":
+            self._guard(self._handle_video_bytes)
+            return
         self._guard(self._handle_post)
+
+    def _handle_video_bytes(self) -> None:
+        sess = self._session()
+        if not sess:
+            self._json(401, {"error": "sign in"})
+            return
+        if auth_io.is_client_session(sess) or str(sess.get("role") or "") not in OPS_ROLES:
+            self._json(403, {"error": "only DL or LP can add video"})
+            return
+        qs = parse_qs(urlparse(self.path).query)
+        upload_id = str((qs.get("uploadId") or [""])[0] or "")
+        pending = take_video_pending(upload_id)
+        if not pending:
+            self._json(404, {"error": "upload expired — add the video again"})
+            return
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except (TypeError, ValueError):
+            length = 0
+        size = int(pending.get("size") or 0)
+        if length != size or size <= 0:
+            self._json(400, {"error": "video size does not match"})
+            return
+        try:
+            self.connection.settimeout(600)
+        except Exception:
+            pass
+        poster = pending.get("poster")
+        poster_blob = poster[1] if isinstance(poster, tuple) and len(poster) == 2 else None
+        poster_mime = poster[0] if isinstance(poster, tuple) and len(poster) == 2 else "image/jpeg"
+        try:
+            uploaded = drive_io.upload_card_video(
+                str(pending.get("folderId") or ""),
+                str(pending.get("name") or "clip.mp4"),
+                str(pending.get("mime") or "video/mp4"),
+                size,
+                LimitedReader(self.rfile, size),
+            )
+        except drive_io.DriveError as e:
+            print(f"[drive] video upload failed: {e}", flush=True)
+            self._json(409, {"error": str(e)})
+            return
+        with LOCK:
+            db = load_db()
+            task = next((t for t in db.get("tasks") or [] if t.get("id") == pending.get("taskId")), None)
+            if not task:
+                try:
+                    drive_io.trash_card_video(str(uploaded.get("id") or ""))
+                except drive_io.DriveError:
+                    pass
+                self._json(404, {"error": "not found"})
+                return
+            if len(task.get("videos") or []) >= MAX_CARD_VIDEOS:
+                try:
+                    drive_io.trash_card_video(str(uploaded.get("id") or ""))
+                except drive_io.DriveError:
+                    pass
+                self._json(400, {"error": "up to 8 videos on one card"})
+                return
+            row = attach_card_video(
+                db,
+                task,
+                uploaded=uploaded,
+                mime=str(pending.get("mime") or "video/mp4"),
+                size=size,
+                actor_id=str(pending.get("actorId") or sess.get("personId") or ""),
+                poster_blob=poster_blob,
+                poster_mime=poster_mime,
+            )
+            save_db(db)
+        self._json(200, {"ok": True, "video": row, "task": task, "state": db})
 
     def _handle_post(self) -> None:
         path = urlparse(self.path).path
@@ -1928,6 +2163,103 @@ class Handler(SimpleHTTPRequestHandler):
                     task["docUrl"] = out.get("docUrl") or snap.get("docUrl") or task.get("docUrl") or ""
                     save_db(db)
             self._json(200, {**out, "state": db, "task": task})
+            return
+        if path == "/api/tasks/video/start":
+            if data.get("role") not in OPS_ROLES:
+                self._json(403, {"error": "only DL or LP can add video"})
+                return
+            mime = guess_video_mime(str(data.get("name") or ""), str(data.get("mime") or ""))
+            if not mime:
+                self._json(400, {"error": "use mp4, mov, or webm"})
+                return
+            try:
+                size = int(data.get("size") or 0)
+            except (TypeError, ValueError):
+                size = 0
+            if size <= 0:
+                self._json(400, {"error": "video is empty"})
+                return
+            if size > MAX_VIDEO_BYTES:
+                self._json(400, {"error": "video is over 500 MB"})
+                return
+            poster = decode_video_poster(data.get("poster") if isinstance(data.get("poster"), dict) else None)
+            with LOCK:
+                db = peek_db()
+                task = next((t for t in db["tasks"] if t["id"] == data.get("id")), None)
+                if not task:
+                    self._json(404, {"error": "not found"})
+                    return
+                if len(task.get("videos") or []) >= MAX_CARD_VIDEOS:
+                    self._json(400, {"error": "up to 8 videos on one card"})
+                    return
+                snap = _clone(task)
+                ym = data.get("month") or task.get("month") or db.get("meta", {}).get("month") or "2026-10"
+            if not drive_io.folder_id_from_url(str(snap.get("folderUrl") or "")):
+                try:
+                    out = drive_io.ensure_live_pack({"meta": {"month": ym}}, snap, ym)
+                except drive_io.DriveError as e:
+                    print(f"[drive] video folder failed for {snap.get('name')}: {e}", flush=True)
+                    self._json(409, {"ok": False, "error": str(e)})
+                    return
+                with LOCK:
+                    db = load_db()
+                    task = next((t for t in db.get("tasks") or [] if t.get("id") == data.get("id")), None)
+                    if not task:
+                        self._json(404, {"error": "not found"})
+                        return
+                    task["folderUrl"] = out.get("folderUrl") or snap.get("folderUrl") or task.get("folderUrl") or ""
+                    task["docUrl"] = out.get("docUrl") or snap.get("docUrl") or task.get("docUrl") or ""
+                    save_db(db)
+                    snap = _clone(task)
+            folder_id = drive_io.folder_id_from_url(str(snap.get("folderUrl") or ""))
+            if not folder_id:
+                self._json(409, {"error": "task has no Drive folder"})
+                return
+            upload_id = put_video_pending(
+                {
+                    "taskId": snap.get("id"),
+                    "name": video_drive_name(snap, str(data.get("name") or "clip.mp4"), mime),
+                    "mime": mime,
+                    "size": size,
+                    "folderId": folder_id,
+                    "folderUrl": snap.get("folderUrl") or "",
+                    "actorId": str(data.get("actorId") or ""),
+                    "poster": poster,
+                    "at": time.time(),
+                }
+            )
+            self._json(
+                200,
+                {
+                    "ok": True,
+                    "uploadId": upload_id,
+                    "name": video_drive_name(snap, str(data.get("name") or "clip.mp4"), mime),
+                    "folderUrl": snap.get("folderUrl") or "",
+                },
+            )
+            return
+        if path == "/api/tasks/video/delete":
+            if data.get("role") not in OPS_ROLES:
+                self._json(403, {"error": "only DL or LP can remove video"})
+                return
+            drive_id = ""
+            with LOCK:
+                db = load_db()
+                task = next((t for t in db["tasks"] if t["id"] == data.get("id")), None)
+                if not task:
+                    self._json(404, {"error": "not found"})
+                    return
+                found = remove_card_video(task, str(data.get("videoId") or ""))
+                if not found:
+                    self._json(404, {"error": "video not found"})
+                    return
+                drive_id = str(found.get("driveId") or "")
+                save_db(db)
+            try:
+                drive_io.trash_card_video(drive_id)
+            except drive_io.DriveError as e:
+                print(f"[drive] trash video {drive_id}: {e}", flush=True)
+            self._json(200, {"ok": True, "task": task, "state": db})
             return
         if path == "/api/excel/import":
             month = data.get("month") or peek_db().get("meta", {}).get("month") or "2026-10"

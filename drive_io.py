@@ -6,6 +6,7 @@ import json
 import os
 import re
 import threading
+import time
 import urllib.parse
 from datetime import datetime
 from pathlib import Path
@@ -323,6 +324,133 @@ def _http_upload(method: str, path: str, headers: dict, body: bytes) -> tuple[in
             conn.close()
         except OSError:
             pass
+
+
+VIDEO_CHUNK = 8 * 1024 * 1024  # Drive resumable chunks must be a multiple of 256 KiB.
+
+
+def unique_child_name(token: str, parent_id: str, name: str) -> str:
+    """Keep the original name when free; otherwise stem_02.ext in that folder."""
+    raw = str(name or "clip.mp4").strip() or "clip.mp4"
+    if not _find_child(token, parent_id, raw):
+        return raw
+    stem, ext = os.path.splitext(raw)
+    stem = stem or "clip"
+    ext = ext or ".mp4"
+    for i in range(2, 80):
+        cand = f"{stem}_{i:02d}{ext}"
+        if not _find_child(token, parent_id, cand):
+            return cand
+    return f"{stem}_{int(time.time())}{ext}"
+
+
+def _start_resumable(token: str, parent_id: str, name: str, mime: str, size: int) -> str:
+    meta = json.dumps({"name": name, "parents": [parent_id]}).encode("utf-8")
+    path = (
+        "/upload/drive/v3/files?uploadType=resumable&supportsAllDrives=true"
+        "&fields=id,name,webViewLink"
+    )
+    headers = _headers(
+        token,
+        {
+            "Content-Type": "application/json; charset=UTF-8",
+            "Content-Length": str(len(meta)),
+            "X-Upload-Content-Type": mime or "video/mp4",
+            "X-Upload-Content-Length": str(int(size)),
+        },
+    )
+    conn = http.client.HTTPSConnection(DRIVE_HOST, timeout=60)
+    try:
+        conn.request("POST", path, body=meta, headers=headers)
+        res = conn.getresponse()
+        raw = res.read().decode("utf-8", errors="replace")
+        if res.status >= 400:
+            raise DriveError(f"Drive API {res.status}: {raw[:300]}")
+        loc = res.getheader("Location") or ""
+        if not loc:
+            raise DriveError("Drive did not start a resumable upload")
+        return loc
+    except (http.client.HTTPException, OSError, TimeoutError) as e:
+        raise DriveError(f"Drive upload failed: {e}") from e
+    finally:
+        try:
+            conn.close()
+        except OSError:
+            pass
+
+
+def _put_resumable_chunk(session_url: str, token: str, blob: bytes, start: int, total: int) -> tuple[int, str]:
+    parsed = urllib.parse.urlparse(session_url)
+    end = start + len(blob) - 1
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Length": str(len(blob)),
+        "Content-Range": f"bytes {start}-{end}/{int(total)}",
+        "Content-Type": "application/octet-stream",
+    }
+    host = parsed.hostname or DRIVE_HOST
+    path = parsed.path + (f"?{parsed.query}" if parsed.query else "")
+    conn = http.client.HTTPSConnection(host, timeout=180)
+    try:
+        conn.request("PUT", path, body=blob, headers=headers)
+        res = conn.getresponse()
+        raw = res.read().decode("utf-8", errors="replace")
+        return res.status, raw
+    except (http.client.HTTPException, OSError, TimeoutError) as e:
+        raise DriveError(f"Drive upload failed: {e}") from e
+    finally:
+        try:
+            conn.close()
+        except OSError:
+            pass
+
+
+def upload_card_video(parent_id: str, name: str, mime: str, size: int, reader) -> dict:
+    """Stream a video into the task folder. The board does not keep the file."""
+    token = drive_token()
+    if not token:
+        raise DriveError("Drive is not connected on this server")
+    parent_id = str(parent_id or "").strip()
+    if not parent_id:
+        raise DriveError("task has no Drive folder")
+    size = int(size or 0)
+    if size <= 0:
+        raise DriveError("video is empty")
+    final_name = unique_child_name(token, parent_id, name)
+    session = _start_resumable(token, parent_id, final_name, mime or "video/mp4", size)
+    sent = 0
+    last = {}
+    while sent < size:
+        want = min(VIDEO_CHUNK, size - sent)
+        chunk = reader.read(want)
+        if not chunk:
+            raise DriveError("upload ended before the file finished")
+        status, raw = _put_resumable_chunk(session, token, chunk, sent, size)
+        sent += len(chunk)
+        if status in {200, 201}:
+            try:
+                last = json.loads(raw) if raw else {}
+            except json.JSONDecodeError:
+                last = {}
+            break
+        if status != 308:
+            raise DriveError(f"Drive API {status}: {raw[:300]}")
+    fid = str(last.get("id") or "")
+    if not fid:
+        raise DriveError("Drive did not return a file id")
+    return {
+        "id": fid,
+        "name": last.get("name") or final_name,
+        "url": last.get("webViewLink") or file_url(fid),
+    }
+
+
+def trash_card_video(file_id: str) -> None:
+    token = drive_token()
+    fid = str(file_id or "").strip()
+    if not token or not fid:
+        return
+    _trash_file(token, fid)
 
 
 def _upload_file(token: str, parent_id: str, name: str, blob: bytes, mime: str) -> dict:
