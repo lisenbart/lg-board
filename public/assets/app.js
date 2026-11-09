@@ -6462,12 +6462,12 @@ function openTask(id) {
     setIdleEnabled($("sendNote"), noteDraft());
   }
   function refreshCardSave() {
-    const on = cardFingerprint() !== cardBaseline;
+    const dirty = cardFingerprint() !== cardBaseline;
     const btn = $("saveTask");
     const cancel = $("cancelTask");
-    setIdleEnabled(btn, on);
-    setIdleEnabled(cancel, on);
-    btn?.classList.toggle("is-ready", on);
+    setIdleEnabled(btn, dirty);
+    setIdleEnabled(cancel, dirty || noteDraft() || uploadsBusy());
+    btn?.classList.toggle("is-ready", dirty);
   }
   function refreshCardActions() {
     refreshSendNote();
@@ -6629,6 +6629,7 @@ function openTask(id) {
         <p class="notes-file-name">Waiting · ${label}</p>`;
     }
     grid.appendChild(el);
+    refreshCardActions();
     const bar = el.querySelector(".notes-upload-bar");
     const fill = bar?.querySelector("span");
     const status = el.querySelector(".card-video-name, .notes-file-name");
@@ -6679,6 +6680,7 @@ function openTask(id) {
         el.classList.add("is-error");
         el.classList.remove("is-uploading");
         if (status) status.textContent = msg || "Upload failed";
+        refreshCardActions();
       },
       finish(row) {
         const html = driveFileTileHtml(row);
@@ -6692,6 +6694,7 @@ function openTask(id) {
           e.stopPropagation();
           deleteCardVideo(next.getAttribute("data-video-id") || "");
         });
+        refreshCardActions();
       },
     };
   }
@@ -7223,17 +7226,17 @@ function openTask(id) {
 async function closeDrawer(opts = {}) {
   closeShot();
   if (!opts.force && $("drawerBg")?.classList.contains("show")) {
-    if ($("drawer")?.querySelector(".is-uploading")) {
-      toast("Wait — the file is still uploading.");
-      return false;
-    }
-    if (typeof state.noteDraft === "function" && state.noteDraft()) {
-      toast("OK sends the note, or clear the box.");
-      return false;
-    }
-    if (typeof state.cardChanged === "function" ? state.cardChanged() : typeof state.cardDirty === "function" && state.cardDirty()) {
-      toast("Save or Cancel");
-      return false;
+    const uploading = Boolean($("drawer")?.querySelector(".is-uploading"));
+    const unsaved =
+      (typeof state.noteDraft === "function" && state.noteDraft()) ||
+      (typeof state.cardChanged === "function"
+        ? state.cardChanged()
+        : typeof state.cardDirty === "function" && state.cardDirty());
+    if (uploading || unsaved) {
+      const ok = confirm(
+        uploading ? "A file is still uploading. Close anyway?" : "Close without saving?",
+      );
+      if (!ok) return false;
     }
   }
   $("drawerBg").classList.remove("show");

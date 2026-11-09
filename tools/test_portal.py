@@ -1968,9 +1968,9 @@ def test_lp_can_close_without_send() -> None:
     check(
         "close asks Save not discard",
         'id="cancelTask"' in js
-        and "Save or Cancel" in js
-        and "Don’t save" not in (ROOT / "public" / "index.html").read_text(encoding="utf-8")
-        and "Discard unsaved changes?" not in js,
+        and "Close without saving?" in js
+        and "OK sends the note, or clear the box." not in js
+        and "Save or Cancel" not in js,
     )
     check(
         "Who works this writes at once",
