@@ -2174,6 +2174,14 @@ def test_card_videos() -> None:
     drive = (ROOT / "drive_io.py").read_text(encoding="utf-8")
     check("card video start path", "/api/tasks/video/start" in src)
     check("card video bytes path", "/api/tasks/video/bytes" in src and "def _handle_video_bytes" in src)
+    check(
+        "upload percent follows Drive progress",
+        "/api/tasks/video/progress" in src
+        and "def set_video_sent" in src
+        and "function watchDriveProgress" in js
+        and "notes-upload-bar is-wait" in js
+        and "notes-bar-slide" in css,
+    )
     check("card video delete path", "/api/tasks/video/delete" in src)
     check("do_POST does not JSON-parse video bytes", 'path == "/api/tasks/video/bytes"' in src.split("def do_POST")[1].split("def _handle_video_bytes")[0])
     check("Drive resumable upload for card video", "def upload_card_video" in drive and "uploadType=resumable" in drive)
@@ -2197,6 +2205,13 @@ def test_card_videos() -> None:
         "justify-content: center" in css.split(".notes-compose-actions")[1].split("}")[0],
     )
     check("upload progress bar CSS", ".notes-upload-bar" in css and "notes-upload-spin" in css)
+    uid = server.put_video_pending({"size": 100, "at": time.time(), "status": "ready"})
+    check("begin upload is once", server.begin_video_pending(uid) is not None)
+    check("second begin is blocked", server.begin_video_pending(uid) is None)
+    server.set_video_sent(uid, 40)
+    pack = server.video_pending_progress(uid)
+    check("progress reports sent bytes", pack and pack.get("sent") == 40 and pack.get("size") == 100)
+    server.drop_video_pending(uid)
     orig = server.COMMENT_FILES
     tmp = Path(tempfile.mkdtemp())
     server.COMMENT_FILES = tmp

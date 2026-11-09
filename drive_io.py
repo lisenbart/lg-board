@@ -405,7 +405,7 @@ def _put_resumable_chunk(session_url: str, token: str, blob: bytes, start: int, 
             pass
 
 
-def upload_card_video(parent_id: str, name: str, mime: str, size: int, reader) -> dict:
+def upload_card_video(parent_id: str, name: str, mime: str, size: int, reader, on_progress=None) -> dict:
     """Stream a video into the task folder. The board does not keep the file."""
     token = drive_token()
     if not token:
@@ -425,8 +425,12 @@ def upload_card_video(parent_id: str, name: str, mime: str, size: int, reader) -
         chunk = reader.read(want)
         if not chunk:
             raise DriveError("upload ended before the file finished")
+        if on_progress:
+            on_progress(sent + len(chunk), size)
         status, raw = _put_resumable_chunk(session, token, chunk, sent, size)
         sent += len(chunk)
+        if on_progress:
+            on_progress(sent, size)
         if status in {200, 201}:
             try:
                 last = json.loads(raw) if raw else {}

@@ -33,7 +33,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-11-09j"
+BUILD = "2026-11-09k"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -1415,6 +1415,45 @@ def take_video_pending(upload_id: str) -> dict | None:
         return _VIDEO_PENDING.pop(str(upload_id or ""), None)
 
 
+def begin_video_pending(upload_id: str) -> dict | None:
+    purge_video_pending()
+    key = str(upload_id or "")
+    with _VIDEO_PENDING_LOCK:
+        row = _VIDEO_PENDING.get(key)
+        if not row or row.get("status") == "uploading":
+            return None
+        row["status"] = "uploading"
+        row["sent"] = 0
+        row["at"] = time.time()
+        return dict(row)
+
+
+def set_video_sent(upload_id: str, sent: int) -> None:
+    with _VIDEO_PENDING_LOCK:
+        row = _VIDEO_PENDING.get(str(upload_id or ""))
+        if not row:
+            return
+        row["sent"] = max(0, int(sent or 0))
+        row["at"] = time.time()
+
+
+def drop_video_pending(upload_id: str) -> None:
+    with _VIDEO_PENDING_LOCK:
+        _VIDEO_PENDING.pop(str(upload_id or ""), None)
+
+
+def video_pending_progress(upload_id: str) -> dict | None:
+    with _VIDEO_PENDING_LOCK:
+        row = _VIDEO_PENDING.get(str(upload_id or ""))
+        if not row:
+            return None
+        return {
+            "sent": int(row.get("sent") or 0),
+            "size": int(row.get("size") or 0),
+            "status": str(row.get("status") or ""),
+        }
+
+
 class Handler(SimpleHTTPRequestHandler):
     timeout = 45
     extensions_map = {
@@ -1602,6 +1641,21 @@ class Handler(SimpleHTTPRequestHandler):
             return
         if path == "/api/version":
             self._json(200, combat_status())
+            return
+        if path == "/api/tasks/video/progress":
+            sess = self._session()
+            if not sess:
+                self._json(401, {"error": "sign in"})
+                return
+            if auth_io.is_client_session(sess) or str(sess.get("role") or "") not in COMMENT_ROLES:
+                self._json(403, {"error": "only LP, DL or TL can add a file"})
+                return
+            qs = parse_qs(urlparse(self.path).query)
+            pack = video_pending_progress(str((qs.get("uploadId") or [""])[0] or ""))
+            if not pack:
+                self._json(200, {"ok": True, "sent": 0, "size": 0, "status": ""})
+                return
+            self._json(200, {"ok": True, **pack})
             return
         if path == "/api/roster":
             self._json(200, auth_io.studio_roster([]))
@@ -1908,7 +1962,7 @@ class Handler(SimpleHTTPRequestHandler):
             return
         qs = parse_qs(urlparse(self.path).query)
         upload_id = str((qs.get("uploadId") or [""])[0] or "")
-        pending = take_video_pending(upload_id)
+        pending = begin_video_pending(upload_id)
         if not pending:
             self._json(404, {"error": "upload expired — add the video again"})
             return
@@ -1918,6 +1972,7 @@ class Handler(SimpleHTTPRequestHandler):
             length = 0
         size = int(pending.get("size") or 0)
         if length != size or size <= 0:
+            drop_video_pending(upload_id)
             self._json(400, {"error": "video size does not match"})
             return
         try:
@@ -1934,11 +1989,14 @@ class Handler(SimpleHTTPRequestHandler):
                 str(pending.get("mime") or "video/mp4"),
                 size,
                 LimitedReader(self.rfile, size),
+                on_progress=lambda sent, _total: set_video_sent(upload_id, sent),
             )
         except drive_io.DriveError as e:
             print(f"[drive] video upload failed: {e}", flush=True)
+            drop_video_pending(upload_id)
             self._json(409, {"error": str(e)})
             return
+        drop_video_pending(upload_id)
         with LOCK:
             db = load_db()
             task = next((t for t in db.get("tasks") or [] if t.get("id") == pending.get("taskId")), None)

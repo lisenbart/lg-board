@@ -6612,9 +6612,9 @@ function openTask(id) {
       el.innerHTML = `<div class="card-video-play">
           ${face}
           <span class="card-video-icon notes-upload-spin" aria-hidden="true"></span>
-          <span class="notes-upload-pct">0%</span>
+          <span class="notes-upload-pct"></span>
         </div>
-        <div class="notes-upload-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span></span></div>
+        <div class="notes-upload-bar is-wait" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span></span></div>
         <p class="card-video-name">Waiting · ${label}</p>`;
     } else {
       const ext = escapeHtml(fileExtOf(name).slice(0, 4));
@@ -6622,10 +6622,10 @@ function openTask(id) {
           <span class="notes-file-face">
             <span class="notes-file-ext">${ext}</span>
             <span class="card-video-icon notes-upload-spin" aria-hidden="true"></span>
-            <span class="notes-upload-pct">0%</span>
+            <span class="notes-upload-pct"></span>
           </span>
         </div>
-        <div class="notes-upload-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span></span></div>
+        <div class="notes-upload-bar is-wait" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span></span></div>
         <p class="notes-file-name">Waiting · ${label}</p>`;
     }
     grid.appendChild(el);
@@ -6647,16 +6647,32 @@ function openTask(id) {
           play.insertAdjacentHTML("afterbegin", `<img src="${shot.data}" alt="">`);
         }
       },
+      setBusy(labelText) {
+        bar?.classList.add("is-wait");
+        if (fill) fill.style.width = "40%";
+        if (bar) bar.setAttribute("aria-valuenow", "0");
+        if (pctLabel) {
+          pctLabel.textContent = "";
+          pctLabel.classList.remove("is-on");
+        }
+        spin?.classList.remove("is-off");
+        if (status) status.textContent = labelText || `Uploading · ${name}`;
+      },
       setProgress(pct, labelText) {
         const n = Math.max(0, Math.min(100, Math.round(pct || 0)));
         const shown = Math.min(99, n);
+        if (shown <= 0) {
+          this.setBusy(labelText);
+          return;
+        }
+        bar?.classList.remove("is-wait");
         if (fill) fill.style.width = `${shown}%`;
         if (bar) bar.setAttribute("aria-valuenow", String(shown));
         if (pctLabel) {
           pctLabel.textContent = `${shown}%`;
           pctLabel.classList.add("is-on");
         }
-        if (spin && n > 0) spin.classList.add("is-off");
+        spin?.classList.add("is-off");
         if (status) status.textContent = labelText || `Uploading ${shown}% · ${name}`;
       },
       setError(msg) {
@@ -6691,9 +6707,30 @@ function openTask(id) {
       }),
     );
   }
+  async function watchDriveProgress(uploadId, tile, size) {
+    const tick = { stop: false };
+    const loop = (async () => {
+      while (!tick.stop) {
+        const out = await api(`/api/tasks/video/progress?uploadId=${encodeURIComponent(uploadId)}`);
+        if (tick.stop) break;
+        const total = Number(out?.size) || size || 0;
+        const sent = Number(out?.sent) || 0;
+        if (total && sent > 0) {
+          tile.setProgress(Math.min(99, Math.round((sent / total) * 100)));
+        }
+        await new Promise((resolve) => setTimeout(resolve, 280));
+      }
+    })();
+    return {
+      stop() {
+        tick.stop = true;
+      },
+      done: loop,
+    };
+  }
   async function addCardDriveFile(job) {
     const { file, video, tile } = job;
-    tile.setProgress(0, video ? `Uploading 0% · ${file.name}` : "Uploading 0%");
+    tile.setBusy(`Uploading · ${file.name}`);
     const start = await xhrSend("/api/tasks/video/start", {
       json: {
         id: t.id,
@@ -6711,16 +6748,18 @@ function openTask(id) {
       return false;
     }
     const size = Number(file.size) || 0;
-    tile.setProgress(0, `Uploading 0% · ${file.name}`);
+    tile.setBusy(`Uploading · ${file.name}`);
+    const watch = await watchDriveProgress(start.uploadId, tile, size);
     const out = await xhrSend(`/api/tasks/video/bytes?uploadId=${encodeURIComponent(start.uploadId)}`, {
       body: file,
       timeout: 600000,
       onProgress: (loaded, total) => {
         const max = total || size;
         const pct = max ? Math.min(99, Math.round((loaded / max) * 100)) : 0;
-        tile.setProgress(loaded > 0 ? Math.max(pct, 1) : pct);
+        if (loaded > 0 && pct > 0) tile.setProgress(Math.max(pct, 1));
       },
     });
+    watch.stop();
     if (out.error || !out.state) {
       tile.setError(videoError(out.error));
       return false;
