@@ -2183,6 +2183,14 @@ def test_card_videos() -> None:
     check("click opens Drive view", "v?.driveUrl" in js and "function driveFileTileHtml" in js)
     check("video tile CSS", ".card-video-icon" in css and ".card-video-del" in css)
     check(
+        "file tiles show a strong type face",
+        "kind-pdf" in css
+        and "notes-file-face" in css
+        and "function fileKindClass" in js
+        and "notes-pending-x" in js
+        and "max-height: 420px" not in css,
+    )
+    check(
         "Client notes actions sit in the center",
         "justify-content: center" in css.split(".notes-compose-actions")[1].split("}")[0],
     )

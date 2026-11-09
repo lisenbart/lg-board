@@ -2364,6 +2364,19 @@ function isDriveVideo(v) {
   if (!v || v.kind === "file") return false;
   return String(v.mime || "").startsWith("video") || /\.(mp4|mov|webm|m4v)$/i.test(v.name || "");
 }
+function fileExtOf(name) {
+  return (String(name || "").split(".").pop() || "FILE").toUpperCase();
+}
+function fileKindClass(name) {
+  const ext = fileExtOf(name).toLowerCase();
+  if (ext === "pdf") return "kind-pdf";
+  if (/^xlsx?$/.test(ext) || ext === "csv") return "kind-xls";
+  if (/^docx?$/.test(ext) || ext === "odt" || ext === "rtf") return "kind-doc";
+  if (/^pptx?$/.test(ext)) return "kind-ppt";
+  if (ext === "zip") return "kind-zip";
+  if (/^(txt|md)$/.test(ext)) return "kind-txt";
+  return "kind-file";
+}
 function driveFileTileHtml(v) {
   const href = String(v?.driveUrl || "").trim();
   const name = String(v?.name || "file");
@@ -2384,10 +2397,10 @@ function driveFileTileHtml(v) {
       <p class="card-video-name">${escapeHtml(name)}</p>
     </div>`;
   }
-  const ext = (name.split(".").pop() || "file").toUpperCase();
-  return `<div class="notes-file" data-video-id="${escapeHtml(v.id || "")}">
+  const ext = escapeHtml(fileExtOf(name).slice(0, 4));
+  return `<div class="notes-file ${fileKindClass(name)}" data-video-id="${escapeHtml(v.id || "")}">
     <a class="notes-file-link" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">
-      <span class="notes-file-ext">${escapeHtml(ext.slice(0, 4))}</span>
+      <span class="notes-file-face"><span class="notes-file-ext">${ext}</span></span>
       <span class="notes-file-name">${escapeHtml(name)}</span>
     </a>
     ${del}
@@ -2810,8 +2823,8 @@ function notesHtml(t) {
     .join("");
   const composer = canWrite
     ? `<div class="notes-compose" id="stCommentBox">
+        <div class="notes-draft" id="stCommentShots"></div>
         <textarea id="stComment" rows="3" placeholder="Write a client note"></textarea>
-        <div class="notes-shots" id="stCommentShots"></div>
         <div class="notes-compose-actions">
           <label class="btn ghost notes-attach" for="stCommentFiles" title="Attach a screenshot, video, or file">
             <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M21.4 11.6 12 21a6 6 0 1 1-8.5-8.5l9.9-9.9a4 4 0 0 1 5.7 5.7l-9.9 9.9a2 2 0 1 1-2.8-2.8l8.5-8.5"/></svg>
@@ -6466,6 +6479,7 @@ function openTask(id) {
       .map(
         (s, i) => `<button type="button" class="notes-pending" data-i="${i}" aria-label="Remove screenshot">
           <img src="${s.data}" alt="" />
+          <span class="notes-pending-x" aria-hidden="true">×</span>
         </button>`
       )
       .join("");
@@ -6586,7 +6600,7 @@ function openTask(id) {
     const grid = ensureNotesFilesGrid();
     const el = document.createElement("div");
     const label = escapeHtml(name || "file");
-    el.className = video ? "card-video is-uploading" : "notes-file is-uploading";
+    el.className = video ? "card-video is-uploading" : `notes-file ${fileKindClass(name)} is-uploading`;
     if (video) {
       const face = poster?.data
         ? `<img src="${poster.data}" alt="">`
@@ -6598,18 +6612,20 @@ function openTask(id) {
         <div class="notes-upload-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span></span></div>
         <p class="card-video-name">Waiting · ${label}</p>`;
     } else {
-      const ext = escapeHtml(((name || "file").split(".").pop() || "file").slice(0, 4).toUpperCase());
+      const ext = escapeHtml(fileExtOf(name).slice(0, 4));
       el.innerHTML = `<div class="notes-file-link">
-          <span class="notes-file-ext">${ext}</span>
-          <span class="notes-file-name">${label}</span>
+          <span class="notes-file-face">
+            <span class="notes-file-ext">${ext}</span>
+            <span class="card-video-icon notes-upload-spin" aria-hidden="true"></span>
+          </span>
         </div>
         <div class="notes-upload-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span></span></div>
-        <p class="notes-file-status">Waiting</p>`;
+        <p class="notes-file-name">Waiting · ${label}</p>`;
     }
     grid.appendChild(el);
     const bar = el.querySelector(".notes-upload-bar");
     const fill = bar?.querySelector("span");
-    const status = el.querySelector(".card-video-name, .notes-file-status");
+    const status = el.querySelector(".card-video-name, .notes-file-name");
     return {
       el,
       setPoster(shot) {
@@ -6627,7 +6643,7 @@ function openTask(id) {
         const n = Math.max(0, Math.min(100, Math.round(pct || 0)));
         if (fill) fill.style.width = `${Math.min(99, n)}%`;
         if (bar) bar.setAttribute("aria-valuenow", String(Math.min(99, n)));
-        if (status) status.textContent = labelText || (video ? `Uploading ${n}% · ${name}` : `Uploading ${n}%`);
+        if (status) status.textContent = labelText || `Uploading ${n}% · ${name}`;
       },
       setError(msg) {
         el.classList.add("is-error");
