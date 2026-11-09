@@ -2816,16 +2816,16 @@ function notesHtml(t) {
     .join("");
   const composer = canWrite
     ? `<div class="notes-compose" id="stCommentBox">
-        <textarea id="stComment" rows="3" placeholder="Write a note — it saves when you click away"></textarea>
+        <textarea id="stComment" rows="3" placeholder="Write a client note"></textarea>
         <div class="notes-shots" id="stCommentShots"></div>
-        <p class="io-hint">Attach lands at once. Save is the rest of the card (brief, hours).</p>
-        <p class="status-hint" id="stNoteHint" hidden></p>
+        <p class="io-hint">OK or Enter sends the note. Attach shows a preview while it uploads. Save is the rest of the card.</p>
         <div class="notes-compose-actions">
           <label class="btn ghost notes-attach" for="stCommentFiles" title="Attach a screenshot, video, or file">
             <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M21.4 11.6 12 21a6 6 0 1 1-8.5-8.5l9.9-9.9a4 4 0 0 1 5.7 5.7l-9.9 9.9a2 2 0 1 1-2.8-2.8l8.5-8.5"/></svg>
             Attach
           </label>
           <input id="stCommentFiles" type="file" accept="image/*,video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.txt,.csv,.rtf" multiple hidden />
+          <button class="btn primary" type="button" id="sendNote" disabled>OK</button>
         </div>
       </div>`
     : "";
@@ -6459,6 +6459,12 @@ function openTask(id) {
   function noteDraft() {
     return Boolean(String($("stComment")?.value || "").trim() || pendingShots.length);
   }
+  function uploadsBusy() {
+    return Boolean($("drawer")?.querySelector(".is-uploading"));
+  }
+  function refreshSendNote() {
+    setIdleEnabled($("sendNote"), noteDraft());
+  }
   function refreshCardSave() {
     const on = cardFingerprint() !== cardBaseline;
     const btn = $("saveTask");
@@ -6466,6 +6472,7 @@ function openTask(id) {
     btn?.classList.toggle("is-ready", on);
   }
   function refreshCardActions() {
+    refreshSendNote();
     refreshCardSave();
   }
   state.noteDraft = noteDraft;
@@ -6511,11 +6518,9 @@ function openTask(id) {
       toast("Use an image, video, or a document");
     }
     renderPendingShots();
-    if (pendingShots.length) await flushNote({ reopen: true });
   }
   let noteBusy = false;
-  let holdNote = false;
-  async function postClientNote({ reopen, silent } = { reopen: true }) {
+  async function postClientNote({ reopen } = { reopen: true }) {
     const body = String($("stComment")?.value || "").trim();
     if (!body && !pendingShots.length) return true;
     const rawBytes = pendingShots.reduce((n, s) => n + String(s.data || "").length, 0);
@@ -6540,7 +6545,7 @@ function openTask(id) {
     }
     pendingShots.length = 0;
     applyState(out.state, { render: reopen !== false });
-    if (!silent) toast("Note added");
+    toast("Note added");
     if (reopen) openTask(t.id);
     else {
       if ($("stComment")) $("stComment").value = "";
@@ -6553,44 +6558,75 @@ function openTask(id) {
     if (!noteDraft()) return true;
     noteBusy = true;
     try {
-      return await postClientNote({ reopen: true, silent: true, ...opts });
+      return await postClientNote({ reopen: true, ...opts });
     } finally {
       noteBusy = false;
     }
   }
   state.flushNote = flushNote;
-  $("stCommentBox")?.querySelector(".notes-attach")?.addEventListener("mousedown", () => {
-    holdNote = true;
+  $("sendNote")?.addEventListener("click", () => {
+    if ($("sendNote")?.disabled) return;
+    flushNote();
   });
   $("stComment")?.addEventListener("keydown", (e) => {
     if (e.key !== "Enter" || e.shiftKey) return;
     e.preventDefault();
-    flushNote({ reopen: true, silent: true });
-  });
-  $("stComment")?.addEventListener("blur", () => {
-    setTimeout(() => {
-      if (holdNote) {
-        holdNote = false;
-        return;
-      }
-      if ($("stCommentBox")?.contains(document.activeElement)) return;
-      flushNote({ reopen: true, silent: true });
-    }, 0);
+    if (noteDraft()) flushNote();
   });
   $("stCommentFiles")?.addEventListener("change", async (e) => {
     await addPendingFiles([...e.target.files]);
     e.target.value = "";
   });
-  function setAttachBusy(on, text) {
-    const add = $("stCommentBox")?.querySelector(".notes-attach");
-    const hint = $("stNoteHint");
-    const input = $("stCommentFiles");
-    add?.classList.toggle("is-busy", Boolean(on));
-    if (input) input.disabled = Boolean(on);
-    if (hint) {
-      hint.hidden = !text;
-      hint.textContent = text || "";
+  function ensureNotesFilesGrid() {
+    let grid = $("drawer")?.querySelector(".notes-files");
+    if (grid) return grid;
+    const notes = $("drawer")?.querySelector(".notes");
+    grid = document.createElement("div");
+    grid.className = "notes-files";
+    notes?.insertBefore(grid, $("stCommentBox"));
+    return grid;
+  }
+  function startUploadTile({ name, poster, video }) {
+    const grid = ensureNotesFilesGrid();
+    const el = document.createElement("div");
+    const label = escapeHtml(name || "file");
+    el.className = video ? "card-video is-uploading" : "notes-file is-uploading";
+    if (video) {
+      const face = poster?.data
+        ? `<img src="${poster.data}" alt="">`
+        : `<span class="card-video-fallback">${label}</span>`;
+      el.innerHTML = `<div class="card-video-play">
+          ${face}
+          <span class="card-video-icon notes-upload-spin" aria-hidden="true"></span>
+        </div>
+        <div class="notes-upload-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span></span></div>
+        <p class="card-video-name">Preparing · ${label}</p>`;
+    } else {
+      const ext = escapeHtml(((name || "file").split(".").pop() || "file").slice(0, 4).toUpperCase());
+      el.innerHTML = `<div class="notes-file-link">
+          <span class="notes-file-ext">${ext}</span>
+          <span class="notes-file-name">${label}</span>
+        </div>
+        <div class="notes-upload-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span></span></div>
+        <p class="notes-file-status">Preparing</p>`;
     }
+    grid.appendChild(el);
+    const bar = el.querySelector(".notes-upload-bar");
+    const fill = bar?.querySelector("span");
+    const status = el.querySelector(".card-video-name, .notes-file-status");
+    return {
+      el,
+      setProgress(pct) {
+        const n = Math.max(0, Math.min(99, Math.round(pct || 0)));
+        if (fill) fill.style.width = `${n}%`;
+        if (bar) bar.setAttribute("aria-valuenow", String(n));
+        if (status) status.textContent = video ? `Uploading ${n}% · ${name}` : `Uploading ${n}%`;
+      },
+      setError(msg) {
+        el.classList.add("is-error");
+        if (status) status.textContent = msg || "Upload failed";
+      },
+    };
   }
   async function addCardDriveFile(file) {
     if (!file || !canWriteNotes()) return;
@@ -6603,9 +6639,10 @@ function openTask(id) {
       toast("Up to 8 files on one card");
       return;
     }
-    setAttachBusy(true, "Preparing…");
     const video = String(file.type || "").startsWith("video/") || /\.(mp4|mov|webm|m4v)$/i.test(file.name || "");
     const poster = video ? await videoPoster(file) : null;
+    const tile = startUploadTile({ name: file.name, poster, video });
+    tile.setProgress(0);
     const start = await xhrSend("/api/tasks/video/start", {
       json: {
         id: t.id,
@@ -6619,21 +6656,20 @@ function openTask(id) {
       timeout: 60000,
     });
     if (start.error || !start.uploadId) {
-      setAttachBusy(false, "");
+      tile.setError(videoError(start.error));
       toast(videoError(start.error), 5000);
       return;
     }
-    setAttachBusy(true, "Uploading 0%");
     const out = await xhrSend(`/api/tasks/video/bytes?uploadId=${encodeURIComponent(start.uploadId)}`, {
       body: file,
       timeout: 600000,
       onProgress: (loaded, total) => {
         const pct = total ? Math.min(99, Math.round((loaded / total) * 100)) : 0;
-        setAttachBusy(true, `Uploading ${pct}%`);
+        tile.setProgress(pct);
       },
     });
     if (out.error || !out.state) {
-      setAttachBusy(false, "");
+      tile.setError(videoError(out.error));
       toast(videoError(out.error), 5000);
       return;
     }
@@ -7030,8 +7066,8 @@ function openTask(id) {
             ? `${me().name} pasted the result`
             : `${me().name} updated status`;
     startBusy("Saving…");
-      if (noteDraft()) await flushNote({ reopen: false, silent: true });
-      await updateTask(t.id, { ...patch, note }, { close: !fromChip });
+      await updateTask(t.id, { ...patch, note }, { close: !fromChip && !noteDraft() });
+      if (!fromChip && noteDraft()) toast("Card saved. OK still sends the note.");
     } catch (err) {
       toast(err?.message || "Could not save", 5000);
     } finally {
@@ -7108,9 +7144,13 @@ async function closeDrawer(opts = {}) {
     return false;
   }
   if (!opts.force && $("drawerBg")?.classList.contains("show")) {
-    if (typeof state.flushNote === "function" && typeof state.noteDraft === "function" && state.noteDraft()) {
-      const ok = await state.flushNote({ reopen: false, silent: true });
-      if (!ok) return false;
+    if ($("drawer")?.querySelector(".is-uploading")) {
+      toast("Wait — the file is still uploading.");
+      return false;
+    }
+    if (typeof state.noteDraft === "function" && state.noteDraft()) {
+      toast("OK sends the note, or clear the box.");
+      return false;
     }
     if (typeof state.cardChanged === "function" ? state.cardChanged() : typeof state.cardDirty === "function" && state.cardDirty()) {
       $("cardSaveModal")?.classList.add("show");

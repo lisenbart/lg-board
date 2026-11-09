@@ -1980,16 +1980,22 @@ def test_lp_can_close_without_send() -> None:
         "Save does not send Client notes",
         'el.id !== "stComment"' in js
         and "Saving ${n} screenshot" not in js
-        and "function flushNote" in js,
+        and "OK still sends the note" in js,
     )
     check(
-        "Client notes save live without Add note",
+        "Client notes send with OK or Enter",
         "function postClientNote" in js
+        and 'id="sendNote"' in js
+        and ">OK</button>" in js
         and 'id="addNote"' not in js
-        and "Add note" not in js
         and "MAX_NOTE_BYTES" in js
-        and "timeout: 90000" in js
         and 'e.key !== "Enter"' in js,
+    )
+    check(
+        "video attach shows upload progress",
+        "function startUploadTile" in js
+        and "notes-upload-bar" in js
+        and "Uploading ${n}%" in js,
     )
     check(
         "card shows who set the status and when",
@@ -2159,6 +2165,7 @@ def test_card_videos() -> None:
         "Client notes actions sit in the center",
         "justify-content: center" in css.split(".notes-compose-actions")[1].split("}")[0],
     )
+    check("upload progress bar CSS", ".notes-upload-bar" in css and "notes-upload-spin" in css)
     orig = server.COMMENT_FILES
     tmp = Path(tempfile.mkdtemp())
     server.COMMENT_FILES = tmp

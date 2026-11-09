@@ -1553,6 +1553,43 @@ body.col-resizing * { cursor: col-resize !important; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.notes-file-status {
+  margin: 0;
+  padding: 4px 10px 8px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.notes-upload-bar {
+  height: 3px;
+  background: #2a2e3d;
+}
+.notes-file .notes-upload-bar { background: #d0d4e4; }
+.notes-upload-bar > span {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: #0a84ff;
+  transition: width 0.15s linear;
+}
+.card-video.is-uploading .card-video-play,
+.notes-file.is-uploading .notes-file-link {
+  pointer-events: none;
+}
+.card-video.is-error .card-video-name,
+.notes-file.is-error .notes-file-status {
+  color: #9b2245;
+}
+.card-video-icon.notes-upload-spin {
+  padding: 0;
+  font-size: 0;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  background: rgba(12, 14, 22, 0.5);
+  animation: notes-spin 0.8s linear infinite;
+}
+@keyframes notes-spin {
+  to { transform: translate(-50%, -50%) rotate(360deg); }
+}
 .notes-compose.is-drop { outline: 2px dashed #e39aab; background: #fff7f9; }
 .notes-pending {
   border: 0;
