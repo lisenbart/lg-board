@@ -2146,6 +2146,23 @@ async function copyClientPage() {
   toast(ok ? `${label} link copied` : "Copy failed");
 }
 
+function refreshCreateMonthHint() {
+  const land = String($("createTaskMonth")?.value || "");
+  const hint = $("createTaskMonthHint");
+  const more = $("createTaskMonthMore");
+  const now = calendarMonth();
+  if (!hint || !land) return;
+  if (land === now) {
+    hint.textContent = `New work lands in ${monthLabel(land)}. Change month only if this project belongs to another book.`;
+    hint.classList.remove("is-warn");
+    if (more) more.open = false;
+  } else {
+    hint.textContent = `${monthLabel(land)} is not this month (${monthLabel(now)}). Hours stay in that month’s Excel.`;
+    hint.classList.add("is-warn");
+    if (more) more.open = true;
+  }
+}
+
 function openCreateTask() {
   if (!canOps()) return;
   $("createTaskErr").textContent = "";
@@ -2154,14 +2171,8 @@ function openCreateTask() {
   const lead = $("createTaskLead");
   const name = $("createTaskName");
   const now = calendarMonth();
-  const land = fillMonthSelect($("createTaskMonth"), state.month < now ? now : state.month);
-  const hint = $("createTaskMonthHint");
-  if (hint) {
-    hint.textContent =
-      land !== state.month
-        ? `The board is on ${monthLabel(state.month)}. New cards go to ${monthLabel(land)} unless you change it.`
-        : `Card and Drive folder land in ${monthLabel(land)}.`;
-  }
+  fillMonthSelect($("createTaskMonth"), now);
+  refreshCreateMonthHint();
   if (lead) {
     lead.textContent = sl
       ? "Project name as the game (Coin Cruiser, Battle Sheep). Card lands on Slotomania Playables. Quote and PO sit on the card after the client approves hours."
@@ -2241,11 +2252,11 @@ async function submitCreateTask() {
   }
   const go = $("createTaskGo");
   if (go?.classList.contains("is-busy")) return;
-  const ym = String($("createTaskMonth")?.value || preferredBoardMonth());
+  const ym = String($("createTaskMonth")?.value || calendarMonth());
   const now = calendarMonth();
   if (ym < now) {
     const ok = confirm(
-      `Create this project in ${monthLabel(ym)}? Today is ${monthLabel(now)}. Cancel and pick ${monthLabel(now)} if this is new work.`,
+      `Create this project in ${monthLabel(ym)}? This month is ${monthLabel(now)}. Cancel unless the hours really belong in ${monthLabel(ym)}.`,
     );
     if (!ok) return;
   }
@@ -6551,13 +6562,14 @@ function openTask(id) {
       </div>`
     : "";
   const monthPick = canOps()
-    ? `<div class="ops-item"><label>Board month</label>
+    ? `<div class="ops-item ops-fix-month"><label>Wrong month</label>
         <select id="stMonth">${nearbyMonths()
           .map(
             (ym) =>
               `<option value="${escapeHtml(ym)}"${taskMonth(t) === ym ? " selected" : ""}>${escapeHtml(monthLabel(ym))}</option>`,
           )
-          .join("")}</select></div>`
+          .join("")}</select>
+        <p class="status-hint">Only to fix a card created in the wrong month.</p></div>`
     : "";
   const opsTime = canEditTime() && !play
     ? `<div class="ops-item"><label>Shifts</label>
@@ -7091,7 +7103,9 @@ function openTask(id) {
     const ym = String(e.target.value || "");
     const cur = taskMonth(t);
     if (!ym || ym === cur) return;
-    const ok = confirm(`Move this project to ${monthLabel(ym)}? The Drive folder moves with it.`);
+    const ok = confirm(
+      `Move this project to ${monthLabel(ym)}?\n\nUse this only if the card was created in the wrong month. Excel, Drive, and hours follow. Do not use it to roll live work into the next month.`,
+    );
     if (!ok) {
       e.target.value = cur;
       return;
@@ -8383,15 +8397,7 @@ $("taskDelModal")?.addEventListener("click", (e) => {
 });
 $("createTaskCancel")?.addEventListener("click", closeCreateTask);
 $("createTaskName")?.addEventListener("input", refreshCreateGo);
-$("createTaskMonth")?.addEventListener("change", () => {
-  const land = String($("createTaskMonth")?.value || "");
-  const hint = $("createTaskMonthHint");
-  if (!hint || !land) return;
-  hint.textContent =
-    land !== state.month
-      ? `The board is on ${monthLabel(state.month)}. New cards go to ${monthLabel(land)} unless you change it.`
-      : `Card and Drive folder land in ${monthLabel(land)}.`;
-});
+$("createTaskMonth")?.addEventListener("change", refreshCreateMonthHint);
 $("createTaskForm")?.addEventListener("submit", (e) => {
   e.preventDefault();
   submitCreateTask();

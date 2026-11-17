@@ -278,7 +278,7 @@ a { color: var(--blue); }
   display: flex;
   flex-direction: column;
   gap: 6px;
-  margin: 10px 0 0;
+  margin: 8px 0 0;
   font-size: 12px;
   font-weight: 600;
   color: var(--muted);
@@ -293,9 +293,27 @@ a { color: var(--blue); }
   background: #fff;
 }
 .create-month-hint {
-  margin: 6px 0 0;
+  margin: 8px 0 0;
   font-size: 12px;
   color: #676879;
+}
+.create-month-hint.is-warn {
+  color: #9a3412;
+}
+.create-month-more {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.create-month-more summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.ops-fix-month {
+  min-width: 11rem;
+}
+.ops-fix-month .status-hint {
+  margin-top: 4px;
 }
 #createTaskName {
   width: 100%;
