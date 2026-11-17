@@ -33,7 +33,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-11-17b"
+BUILD = "2026-11-17c"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -458,9 +458,13 @@ def _sync_files_bg(ym: str | None, calculator: bool = False) -> None:
 
 
 def _trash_then_excel(tasks: list, ym: str | None) -> None:
+    with LOCK:
+        db = _read_db_file()
     for task in tasks or []:
         try:
-            drive_io.trash_live_pack(task, None)
+            out = drive_io.trash_live_pack(task, db)
+            if out.get("skipped"):
+                print(f"[drive] skip trash {task.get('name')}: {out.get('skipped')}", flush=True)
         except Exception as e:
             print(f"[drive] trash {task.get('name')}: {e}", flush=True)
     _sync_files_bg(ym, calculator=True)
@@ -728,6 +732,7 @@ def fill_missing_packs(specs: list[dict], ym: str) -> dict:
     with LOCK:
         db = load_db()
         meta_db = {"meta": dict(db.get("meta") or {})}
+        by_id = {t.get("id"): t for t in db.get("tasks") or []}
     created = 0
     errors = []
     attached = []
@@ -736,7 +741,13 @@ def fill_missing_packs(specs: list[dict], ym: str) -> dict:
         if not name:
             continue
         try:
-            pack = drive_io.create_live_pack(meta_db, name, ym, spec.get("line") or "DD")
+            pack = drive_io.create_live_pack(
+                meta_db,
+                name,
+                str(spec.get("month") or ym),
+                spec.get("line") or "DD",
+                task=by_id.get(spec.get("id")),
+            )
             attached.append((spec.get("id"), pack))
             created += 1
         except drive_io.DriveError as e:
@@ -3791,20 +3802,32 @@ class Handler(SimpleHTTPRequestHandler):
 
 
 def _missing_playable_pack_specs(db: dict, ym: str) -> list[dict]:
+    now = datetime.now(timezone.utc).strftime("%Y-%m")
     specs = []
     for task in db.get("tasks") or []:
         if not direction_io.is_playables(task):
             continue
         if client_io.is_slotomania(task):
             continue
-        if (task.get("month") or ym) != ym:
-            continue
+        month = str(task.get("month") or ym)
         if direction_io.playable_norm_status(task.get("studioStatus")) == "closed":
             continue
         name = str(task.get("name") or "").strip()
-        if not name or str(task.get("folderUrl") or "").strip():
+        if not name:
             continue
-        specs.append({"id": task.get("id"), "name": name, "line": task.get("line") or drive_io.line_from_name(name)})
+        has_folder = bool(str(task.get("folderUrl") or "").strip())
+        if month not in {ym, now}:
+            continue
+        if has_folder and month != now:
+            continue
+        specs.append(
+            {
+                "id": task.get("id"),
+                "name": name,
+                "line": task.get("line") or drive_io.line_from_name(name),
+                "month": month,
+            }
+        )
     return specs
 
 
@@ -3818,7 +3841,7 @@ def main() -> None:
     auth_io.ensure_pins()
     start_excel_watch()
     if missing_packs:
-        _spawn(fill_missing_packs, missing_packs, ym)
+        _spawn(fill_missing_packs, missing_packs, datetime.now(timezone.utc).strftime("%Y-%m"))
     ThreadingHTTPServer.allow_reuse_address = True
     httpd = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
     httpd.daemon_threads = True

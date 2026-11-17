@@ -174,6 +174,7 @@ def cached_pack(name: str) -> dict | None:
 
 def attach_cached_packs(db: dict) -> bool:
     """Fill empty folder/doc URLs from the local Drive cache (e.g. after a git pull)."""
+    token = drive_token()
     changed = False
     for task in db.get("tasks") or []:
         if task.get("folderUrl") and task.get("docUrl"):
@@ -181,6 +182,11 @@ def attach_cached_packs(db: dict) -> bool:
         hit = cached_pack(str(task.get("name") or "").strip())
         if not hit:
             continue
+        fid = str(hit.get("folderId") or "") or folder_id_from_url(str(hit.get("folderUrl") or ""))
+        if token and fid:
+            meta = _file_state(token, fid)
+            if not meta.get("id") or meta.get("trashed"):
+                continue
         task["folderUrl"] = hit["folderUrl"]
         task["docUrl"] = hit["docUrl"]
         changed = True
@@ -263,6 +269,67 @@ def _find_child(token: str, parent_id: str, title: str, mime: str | None = None)
     )
     files = out.get("files") or []
     return files[0] if files else None
+
+
+def _prev_ym(ym: str) -> str:
+    try:
+        y, m = [int(x) for x in str(ym).split("-")[:2]]
+    except (TypeError, ValueError):
+        return ""
+    m -= 1
+    if m == 0:
+        y -= 1
+        m = 12
+    return f"{y:04d}-{m:02d}"
+
+
+def _file_state(token: str, fid: str) -> dict:
+    if not fid:
+        return {}
+    try:
+        return _api(
+            token,
+            "GET",
+            f"files/{fid}",
+            query={"fields": "id,name,trashed,parents,webViewLink"},
+        )
+    except DriveError:
+        return {}
+
+
+def _place_folder(token: str, fid: str, new_parent: str) -> dict:
+    """Untrash if needed and put the folder under new_parent. Same Drive id, so card links keep working."""
+    meta = _file_state(token, fid)
+    if not meta.get("id"):
+        return {}
+    body = {}
+    if meta.get("trashed"):
+        body["trashed"] = False
+    query: dict[str, str] = {}
+    parents = [str(p) for p in (meta.get("parents") or [])]
+    if new_parent and new_parent not in parents:
+        query["addParents"] = new_parent
+        drop = parents[0] if parents else ""
+        if drop and drop != new_parent:
+            query["removeParents"] = drop
+    if body or query:
+        _api(token, "PATCH", f"files/{fid}", query=query or None, body=body or {})
+        meta = _file_state(token, fid)
+    if meta.get("trashed"):
+        return {}
+    return meta
+
+
+def _task_folder_candidates(name: str, task: dict | None = None) -> list[str]:
+    ids: list[str] = []
+    for fid in (
+        _folder_id_from_pack(name),
+        studio_pack_folder_id(task or {"name": name}),
+        folder_id_from_url(str((task or {}).get("folderUrl") or "")),
+    ):
+        if fid and fid not in ids:
+            ids.append(fid)
+    return ids
 
 
 def _ensure_folder(token: str, parent_id: str, title: str) -> tuple[str, bool]:
@@ -650,28 +717,24 @@ def ensure_live_pack(db: dict, task: dict, ym: str | None = None) -> dict:
     if not name:
         return {"ok": False, "error": "task has no name"}
     apply_work_folder(task)
-    if task.get("folderUrl") and task.get("docUrl"):
-        return {
-            "ok": True,
-            "created": False,
-            "folderUrl": task["folderUrl"],
-            "docUrl": task["docUrl"],
-        }
     ym = str(ym or task.get("month") or (db.get("meta") or {}).get("month") or "2026-10")
     line = task.get("line") or line_from_name(name)
-    pack = create_live_pack(db, name, ym, line)
-    missing = not (task.get("folderUrl") and task.get("docUrl"))
+    before = str(task.get("folderUrl") or "").strip()
+    pack = create_live_pack(db, name, ym, line, task=task)
+    missing = not before
+    moved = before and pack.get("folderUrl") and pack.get("folderUrl") != before
+    restored = bool(pack.get("restored") or pack.get("moved"))
     task["folderUrl"] = pack.get("folderUrl") or task.get("folderUrl") or ""
-    task["docUrl"] = pack.get("docUrl") or ""
+    task["docUrl"] = pack.get("docUrl") or task.get("docUrl") or ""
     apply_work_folder(task)
-    if missing:
+    if missing or restored:
         task.setdefault("activity", []).append(
             {
                 "at": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
                 "text": f"Drive folder + brief Doc in {line}",
             }
         )
-    return {"ok": True, "created": missing, **pack}
+    return {"ok": True, "created": missing, "moved": bool(moved or restored), **pack}
 
 
 def ensure_live_packs(db: dict, tasks: list[dict], ym: str | None = None) -> dict:
@@ -694,31 +757,76 @@ def ensure_live_packs(db: dict, tasks: list[dict], ym: str | None = None) -> dic
     return {"created": created, "linked": skipped, "ready": ready, "errors": errors}
 
 
-def create_live_pack(db: dict, name: str, ym: str, line: str) -> dict:
-    """Create the project folder + empty brief Doc in the live month line folder."""
+def create_live_pack(db: dict, name: str, ym: str, line: str, task: dict | None = None) -> dict:
+    """Create the project folder + empty brief Doc in the live month line folder.
+
+    Never reuse a trashed Drive id. If a live folder exists in the previous month
+    (or in Trash with the same id), move/restore it into this month instead.
+    """
     name = (name or "").strip()
     if not name:
         raise DriveError("task has no name")
     with _pack_lock(name):
-        hit = cached_pack(name)
-        if hit:
-            remember_live_folder(name, hit["folderUrl"])
-            return hit
         token = drive_token()
         if not token:
+            hit = cached_pack(name)
+            if hit:
+                remember_live_folder(name, hit["folderUrl"])
+                return hit
             raise DriveError(
                 "Drive is not connected on this server. Put Google service-account JSON in "
                 "data/secrets/google_service.json and share October DD/DX with that account."
             )
         import direction_io
 
-        parent = live_line_parent_id(
-            db, ym, line, token, playable=direction_io.of_name(name) == direction_io.PLAYABLES
+        playable = direction_io.of_name(name) == direction_io.PLAYABLES or (
+            direction_io.is_playables(task) if task else False
         )
+        parent = live_line_parent_id(db, ym, line, token, playable=playable)
+        hit = cached_pack(name) or {}
+        candidates = _task_folder_candidates(name, task)
+        found = _find_child(token, parent, name, FOLDER_MIME)
+        if found and str(found.get("id") or "") not in candidates:
+            candidates.insert(0, str(found["id"]))
+        prev = _prev_ym(ym)
+        if prev:
+            try:
+                old_parent = live_line_parent_id(db, prev, line, token, playable=playable)
+            except DriveError:
+                old_parent = ""
+            if old_parent:
+                old = _find_child(token, old_parent, name, FOLDER_MIME)
+                if old and str(old.get("id") or "") not in candidates:
+                    candidates.append(str(old["id"]))
+        placed = {}
+        restored = False
+        moved = False
+        for fid in candidates:
+            before = _file_state(token, fid)
+            if not before.get("id"):
+                continue
+            placed = _place_folder(token, fid, parent)
+            if not placed.get("id"):
+                continue
+            restored = restored or bool(before.get("trashed"))
+            moved = moved or parent not in [str(p) for p in (before.get("parents") or [])]
+            folder_id = str(placed["id"])
+            doc_id = _doc_id_from_url(str((task or {}).get("docUrl") or "")) or str(hit.get("docId") or "")
+            if not doc_id:
+                doc_id = _create_doc(token, folder_id, name)
+            pack = remember(name, folder_id, doc_id)
+            remember_live_folder(name, pack["folderUrl"])
+            pack["restored"] = restored
+            pack["moved"] = moved
+            pack["created"] = False
+            return pack
         folder_id, is_new = _ensure_folder(token, parent, name)
         doc_id = _create_doc(token, folder_id, name, skip_find=is_new)
         pack = remember(name, folder_id, doc_id)
         remember_live_folder(name, pack["folderUrl"])
+        pack["restored"] = False
+        pack["moved"] = False
+        pack["created"] = is_new
         return pack
 
 
@@ -835,38 +943,17 @@ def move_live_pack_month(db: dict, task: dict, new_ym: str) -> dict:
         return {"ok": True, "moved": False}
     if old_ym == new_ym:
         return {"ok": True, "moved": False, "month": new_ym}
-    token = drive_token()
-    if not token:
-        raise DriveError("Drive is not connected on this server")
-    import direction_io
-
     line = str(task.get("line") or line_from_name(name) or "DD")
-    playable = direction_io.is_playables(task) or direction_io.of_name(name) == direction_io.PLAYABLES
-    fid = studio_pack_folder_id(task)
-    if not fid:
-        pack = create_live_pack(db, name, new_ym, line)
-        return {"ok": True, "moved": False, "created": True, "month": new_ym, **pack}
-    new_parent = live_line_parent_id(db, new_ym, line, token, playable=playable)
-    meta = _api(token, "GET", f"files/{fid}", query={"fields": "parents"})
-    parents = [str(p) for p in (meta.get("parents") or [])]
-    query = {}
-    if new_parent and new_parent not in parents:
-        query["addParents"] = new_parent
-        old_parent = ""
-        if old_ym:
-            old_parent = live_line_parent_id(db, old_ym, line, token, playable=playable)
-        drop = old_parent if old_parent in parents else (parents[0] if parents else "")
-        if drop and drop != new_parent:
-            query["removeParents"] = drop
-        _api(token, "PATCH", f"files/{fid}", query=query, body={})
+    pack = create_live_pack(db, name, new_ym, line, task=task)
     return {
         "ok": True,
-        "moved": bool(query),
-        "created": False,
-        "folderId": fid,
-        "folderUrl": folder_url(fid) if fid else "",
+        "moved": bool(pack.get("moved")),
+        "created": bool(pack.get("created")),
+        "restored": bool(pack.get("restored")),
+        "folderId": str(pack.get("folderId") or "") or folder_id_from_url(str(pack.get("folderUrl") or "")),
+        "folderUrl": pack.get("folderUrl") or "",
+        "docUrl": pack.get("docUrl") or "",
         "month": new_ym,
-        "parentId": new_parent,
     }
 
 
@@ -961,6 +1048,19 @@ def resolve_live_folder_id(task: dict, db: dict | None = None) -> str:
 def trash_live_pack(task: dict, db: dict | None = None) -> dict:
     """Move the test folder (and the brief Doc inside it) to Drive trash."""
     name = str((task or {}).get("name") or "").strip()
+    if db is not None:
+        import excel_io
+
+        gone_id = str((task or {}).get("id") or "")
+        key = excel_io._id_key(name)
+        for row in db.get("tasks") or []:
+            if gone_id and str(row.get("id") or "") == gone_id:
+                continue
+            other = str(row.get("name") or "").strip()
+            if not other:
+                continue
+            if other == name or (key and excel_io._id_key(other) == key):
+                return {"ok": True, "trashed": False, "skipped": "sibling still on the board"}
     token = drive_token()
     fid = resolve_live_folder_id(task, db)
     if not fid:

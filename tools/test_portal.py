@@ -922,12 +922,27 @@ def test_month_move_ghosts() -> None:
     src = (ROOT / "server.py").read_text(encoding="utf-8")
     chunk = drive.split("def move_live_pack_month")[1].split("def forget_live_folder")[0]
     check(
-        "Drive move creates the November folder when the card has no folder id",
-        "if not fid:" in chunk and "create_live_pack" in chunk,
+        "Drive move creates or restores the November folder",
+        "create_live_pack" in chunk and "def _place_folder" in drive,
     )
     check(
         "move-month merges same-name siblings",
         "excel_io.absorb_task" in src.split("if path == \"/api/tasks/move-month\"")[1].split("if path == \"/api/parse-email\"")[0],
+    )
+    ghost = {"id": "b", "name": "DS-P-067_MergeMania", "month": "2026-10"}
+    keep = {
+        "tasks": [{"id": "a", "name": "DS-P-067_MergeMania", "month": "2026-11"}],
+    }
+    skip = drive_io.trash_live_pack(ghost, keep)
+    check(
+        "delete does not trash Drive if the November card remains",
+        skip.get("trashed") is False and skip.get("skipped") == "sibling still on the board",
+        str(skip),
+    )
+    make = drive.split("def create_live_pack")[1].split("def _doc_id_from_url")[0]
+    check(
+        "new packs restore a trashed folder into this month instead of minting a Trash link",
+        "_place_folder" in make and "restored" in make and 'body["trashed"] = False' in drive,
     )
 
 
