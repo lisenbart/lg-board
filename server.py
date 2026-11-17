@@ -33,7 +33,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-11-09p"
+BUILD = "2026-11-17a"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -462,6 +462,33 @@ def _trash_then_excel(tasks: list, ym: str | None) -> None:
         except Exception as e:
             print(f"[drive] trash {task.get('name')}: {e}", flush=True)
     _sync_files_bg(ym, calculator=True)
+
+
+def _month_title(ym: str) -> str:
+    try:
+        y, m = [int(x) for x in str(ym).split("-")]
+        return datetime(y, m, 1).strftime("%B %Y")
+    except Exception:
+        return str(ym or "")
+
+
+def _move_month_then_excel(snapshots: list, new_ym: str) -> None:
+    olds: set[str] = set()
+    try:
+        with LOCK:
+            db = _read_db_file()
+        for snap in snapshots or []:
+            olds.add(str(snap.get("month") or ""))
+            try:
+                drive_io.move_live_pack_month(db, snap, new_ym)
+            except Exception as e:
+                print(f"[drive] move month {snap.get('name')}: {e}", flush=True)
+        for old in olds:
+            if old and old != new_ym:
+                _sync_files_bg(old, True)
+        _sync_files_bg(new_ym, True)
+    except Exception as e:
+        print(f"[drive] move month batch: {e}", flush=True)
 
 
 def _create_pack_then_excel(task_id: str, name: str, ym: str, line: str) -> None:
@@ -2776,6 +2803,53 @@ class Handler(SimpleHTTPRequestHandler):
                     },
                 )
                 _spawn(_trash_then_excel, snapshot, ym)
+                return
+            if path == "/api/tasks/move-month":
+                if data.get("role") not in OPS_ROLES:
+                    self._json(403, {"error": "only DL or LP can move a task to another month"})
+                    return
+                new_ym = str(data.get("month") or "").strip()
+                if not re.fullmatch(r"\d{4}-\d{2}", new_ym):
+                    self._json(400, {"error": "month must be YYYY-MM"})
+                    return
+                ids = [str(x) for x in (data.get("ids") or []) if x]
+                if data.get("id"):
+                    ids.append(str(data.get("id")))
+                ids = list(dict.fromkeys(ids))
+                tasks = [t for t in (db.get("tasks") or []) if str(t.get("id") or "") in set(ids)]
+                if not tasks:
+                    self._json(404, {"error": "not found"})
+                    return
+                snapshots = []
+                moved = []
+                for task in tasks:
+                    old_ym = str(task.get("month") or "")
+                    if old_ym == new_ym:
+                        continue
+                    snapshots.append(_clone(task))
+                    task["month"] = new_ym
+                    task.setdefault("activity", []).append(
+                        {
+                            "at": utc_now(),
+                            "text": f"Moved from {_month_title(old_ym)} to {_month_title(new_ym)}",
+                        }
+                    )
+                    moved.append(task)
+                if not moved:
+                    self._json(200, {"ok": True, "moved": 0, "state": db})
+                    return
+                save_db(db)
+                self._json(
+                    200,
+                    {
+                        "ok": True,
+                        "moved": len(moved),
+                        "month": new_ym,
+                        "drive": {"ok": True, "queued": True},
+                        "state": db,
+                    },
+                )
+                _spawn(_move_month_then_excel, snapshots, new_ym)
                 return
             if path == "/api/parse-email":
                 if data.get("role") not in OPS_ROLES:

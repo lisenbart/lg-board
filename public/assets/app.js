@@ -1627,6 +1627,45 @@ function renderMonth() {
   $("monthLabel").parentElement.classList.toggle("this-month", here);
 }
 
+function nearbyMonths() {
+  const now = calendarMonth();
+  const [y, m] = String(now || "2026-11").split("-").map(Number);
+  const out = new Set();
+  for (let i = -2; i <= 1; i += 1) {
+    const d = new Date(y, m - 1 + i, 1);
+    out.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+  }
+  (state.db?.tasks || []).forEach((row) => {
+    const ym = taskMonth(row);
+    if (ym) out.add(ym);
+  });
+  if (state.month) out.add(state.month);
+  return [...out].sort();
+}
+function preferredBoardMonth() {
+  const now = calendarMonth();
+  const stored = localStorage.getItem(MONTH_KEY) || "";
+  if (!stored || stored < now) return now;
+  return stored;
+}
+function fillMonthSelect(sel, picked) {
+  if (!sel) return picked;
+  const value = picked || preferredBoardMonth();
+  sel.innerHTML = nearbyMonths()
+    .map(
+      (ym) =>
+        `<option value="${escapeHtml(ym)}"${ym === value ? " selected" : ""}>${escapeHtml(monthLabel(ym))}</option>`,
+    )
+    .join("");
+  if (value && ![...sel.options].some((opt) => opt.value === value)) {
+    sel.insertAdjacentHTML(
+      "afterbegin",
+      `<option value="${escapeHtml(value)}" selected>${escapeHtml(monthLabel(value))}</option>`,
+    );
+  }
+  sel.value = value;
+  return value;
+}
 function setMonth(ym) {
   state.month = ym;
   state.selected.clear();
@@ -2114,6 +2153,15 @@ function openCreateTask() {
   const sl = activeClientId() === "slotomania";
   const lead = $("createTaskLead");
   const name = $("createTaskName");
+  const now = calendarMonth();
+  const land = fillMonthSelect($("createTaskMonth"), state.month < now ? now : state.month);
+  const hint = $("createTaskMonthHint");
+  if (hint) {
+    hint.textContent =
+      land !== state.month
+        ? `The board is on ${monthLabel(state.month)}. New cards go to ${monthLabel(land)} unless you change it.`
+        : `Card and Drive folder land in ${monthLabel(land)}.`;
+  }
   if (lead) {
     lead.textContent = sl
       ? "Project name as the game (Coin Cruiser, Battle Sheep). Card lands on Slotomania Playables. Quote and PO sit on the card after the client approves hours."
@@ -2193,6 +2241,14 @@ async function submitCreateTask() {
   }
   const go = $("createTaskGo");
   if (go?.classList.contains("is-busy")) return;
+  const ym = String($("createTaskMonth")?.value || preferredBoardMonth());
+  const now = calendarMonth();
+  if (ym < now) {
+    const ok = confirm(
+      `Create this project in ${monthLabel(ym)}? Today is ${monthLabel(now)}. Cancel and pick ${monthLabel(now)} if this is new work.`,
+    );
+    if (!ok) return;
+  }
   if (err) err.textContent = "";
   const wait = $("createTaskWait");
   if (wait) wait.hidden = false;
@@ -2201,7 +2257,7 @@ async function submitCreateTask() {
   if (cancel) cancel.disabled = true;
   let payload = {
     name,
-    month: state.month,
+    month: ym,
     role: me().role,
     actorId: me().id,
     direction: activeClientId() === "slotomania" ? "playables" : state.direction,
@@ -2221,7 +2277,8 @@ async function submitCreateTask() {
   }
   applyState(out.state);
   closeCreateTask();
-  toast("Task on the board. Drive folder and Excel catch up in the background.");
+  if (ym && ym !== state.month) setMonth(ym);
+  toast(`Task on ${monthLabel(ym)}. Drive folder and Excel catch up in the background.`);
   if (out.task?.id) {
     if (out.drive?.queued) state.driveQueued[out.task.id] = true;
     openTask(out.task.id);
@@ -2343,10 +2400,17 @@ function linkifyBrief(text) {
     '<a class="pin-link" href="$1" target="_blank" rel="noreferrer">$1</a>'
   );
 }
+function attachChipHtml(inputId) {
+  return `<label class="btn ghost notes-attach" for="${escapeHtml(inputId)}" title="Attach a screenshot, video, or file">
+            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M21.4 11.6 12 21a6 6 0 1 1-8.5-8.5l9.9-9.9a4 4 0 0 1 5.7 5.7l-9.9 9.9a2 2 0 1 1-2.8-2.8l8.5-8.5"/></svg>
+            Attach
+          </label>
+          <input id="${escapeHtml(inputId)}" type="file" accept="image/*,video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.txt,.csv,.rtf" multiple hidden />`;
+}
 function pinHtml(t) {
   const raw = String(t?.brief || "").trim();
   const body = canOps()
-    ? `<textarea id="stBrief" class="pin-edit" rows="8">${escapeHtml(raw)}</textarea>`
+    ? `<div class="pin-body"><textarea id="stBrief" class="pin-edit" rows="8">${escapeHtml(raw)}</textarea></div>`
     : raw
     ? `<div class="pin-body">${linkifyBrief(raw)}</div>`
     : "";
@@ -2355,11 +2419,21 @@ function pinHtml(t) {
     ? `<button type="button" class="btn" id="ensureDrive">Create Drive folder</button>`
     : "";
   const actions = `<footer class="pin-actions">${pack.brief}${pack.taskBtn}${pack.workBtn}${retry}</footer>`;
-  return `<article class="pin brief-thread">
+  const files = notesFilesHtml(t);
+  const composer = canWriteNotes()
+    ? `<div class="notes-compose pin-compose" id="stBriefBox">
+        <div class="notes-compose-actions">
+          ${attachChipHtml("stBriefFiles")}
+          ${canOps() ? `<button class="btn primary" type="button" id="sendBrief" disabled>OK</button>` : ""}
+        </div>
+      </div>`
+    : "";
+  return `<article class="pin">
       <header class="pin-head">Brief</header>
       ${body}
       ${actions}
-      ${notesHtml(t)}
+      ${files}
+      ${composer}
     </article>`;
 }
 function isDriveVideo(v) {
@@ -2439,6 +2513,11 @@ function ensureNotesFilesGrid() {
   if (grid) return grid;
   grid = document.createElement("div");
   grid.className = "notes-files";
+  const briefBox = $("stBriefBox");
+  if (briefBox) {
+    briefBox.parentElement?.insertBefore(grid, briefBox);
+    return grid;
+  }
   const notes = $("drawer")?.querySelector(".notes");
   const box = $("stCommentBox");
   if (box) notes?.insertBefore(grid, box);
@@ -2898,9 +2977,8 @@ function bindNoteShots(t) {
 }
 function notesHtml(t) {
   const rows = clientComments(t);
-  const files = notesFilesHtml(t);
   const canWrite = canWriteNotes();
-  if (!rows.length && !files && !canWrite) return "";
+  if (!rows.length && !canWrite) return "";
   const items = rows
     .map(
       (row) => `<article class="notes-item" data-id="${escapeHtml(row.id || "")}">
@@ -2924,17 +3002,14 @@ function notesHtml(t) {
         <div class="notes-draft" id="stCommentShots"></div>
         <textarea id="stComment" rows="3" placeholder="Write a client note"></textarea>
         <div class="notes-compose-actions">
-          <label class="btn ghost notes-attach" for="stCommentFiles" title="Attach a screenshot, video, or file">
-            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M21.4 11.6 12 21a6 6 0 1 1-8.5-8.5l9.9-9.9a4 4 0 0 1 5.7 5.7l-9.9 9.9a2 2 0 1 1-2.8-2.8l8.5-8.5"/></svg>
-            Attach
-          </label>
-          <input id="stCommentFiles" type="file" accept="image/*,video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.txt,.csv,.rtf" multiple hidden />
+          ${attachChipHtml("stCommentFiles")}
           <button class="btn primary" type="button" id="sendNote" disabled>OK</button>
         </div>
       </div>`
     : "";
-  return `<div class="notes${rows.length || files ? "" : " is-empty"}">
-      ${items}${files}
+  return `<div class="notes${rows.length ? "" : " is-empty"}">
+      <header class="notes-head">Client notes</header>
+      ${items}
       ${composer}
     </div>`;
 }
@@ -3179,7 +3254,7 @@ function fillDrivePackIfMissing(t) {
   // made a twin folder with the same name.
   if (state.driveQueued[t.id]) return;
   state.driveTried[t.id] = true;
-  api("/api/drive/ensure", { id: t.id, month: state.month, role: me().role }).then((out) => {
+  api("/api/drive/ensure", { id: t.id, month: taskMonth(t), role: me().role }).then((out) => {
     const hadDoc = hasDriveDoc(t);
     if (out.state) applyState(out.state, { render: uploadsBusy() ? false : undefined });
     if (out.ok && state.openId === t.id) {
@@ -3193,7 +3268,7 @@ function fillDrivePackIfMissing(t) {
 async function retryDrivePack(t) {
   state.driveTried[t.id] = false;
   state.driveQueued[t.id] = false;
-  let out = await api("/api/drive/ensure", { id: t.id, month: state.month, role: me().role });
+  let out = await api("/api/drive/ensure", { id: t.id, month: taskMonth(t), role: me().role });
   if (out.error || !out.ok) {
     toast(out.error || "Drive folder was not created");
     if (state.openId === t.id && !uploadsBusy()) openTask(t.id);
@@ -6365,6 +6440,7 @@ function cardRemoteStamp(t) {
     programmerHelp: t.programmerHelp || [],
     resultUrl: t.resultUrl || "",
     deadline: t.deadline || "",
+    month: t.month || "",
     urgent: Boolean(t.urgent),
     brief: t.brief || "",
   });
@@ -6474,18 +6550,27 @@ function openTask(id) {
         <input type="hidden" id="stUrgent" value="${isUrgent(t) ? "1" : "0"}" />
       </div>`
     : "";
+  const monthPick = canOps()
+    ? `<div class="ops-item"><label>Board month</label>
+        <select id="stMonth">${nearbyMonths()
+          .map(
+            (ym) =>
+              `<option value="${escapeHtml(ym)}"${taskMonth(t) === ym ? " selected" : ""}>${escapeHtml(monthLabel(ym))}</option>`,
+          )
+          .join("")}</select></div>`
+    : "";
   const opsTime = canEditTime() && !play
     ? `<div class="ops-item"><label>Shifts</label>
         <input id="stShifts" type="number" min="0" step="0.1" value="${t.shifts ?? ""}" />
         <p class="status-hint" id="stHoursHint">${hoursFromShifts(t.shifts || 0)} h</p></div>
        <div class="ops-item"><label>Dead Line</label>
         <input id="stDeadline" type="date" value="${parseDeadlineIso(t.deadline)}" />
-        </div>${opsUrgent}`
+        </div>${monthPick}${opsUrgent}`
     : canEditTime() && play
       ? `<div class="ops-item"><label>Dead Line</label>
         <input id="stDeadline" type="date" value="${parseDeadlineIso(t.deadline)}" />
-        </div>${opsUrgent}`
-      : opsUrgent;
+        </div>${monthPick}${opsUrgent}`
+      : `${monthPick}${opsUrgent}`;
   const statusKeys = statusActions(t);
   const statusReceipt = statusLogHtml(t);
   const statusChrome = statusKeys.length
@@ -6527,6 +6612,7 @@ function openTask(id) {
     </div>
     ${heroAssign}
     ${pinHtml(t)}
+    ${notesHtml(t)}
     ${sourceBlock || resultBlock ? `<div class="io-stack">${sourceBlock}${resultBlock}</div>` : ""}
     ${whoBlock}
     ${play ? playableHoursHtml(t, canEditPlayableCrew()) : helpSplitHtml(t, canEditHelp())}
@@ -6564,7 +6650,7 @@ function openTask(id) {
     const d = $("drawer");
     if (!d) return "";
     const vals = [...d.querySelectorAll("input, textarea, select")]
-      .filter((el) => el.type !== "file" && el.id !== "stComment")
+      .filter((el) => el.type !== "file" && el.id !== "stComment" && el.id !== "stMonth")
       .map((el) => `${el.id || el.className}=${el.value}`);
     return JSON.stringify({
       vals,
@@ -6575,8 +6661,14 @@ function openTask(id) {
   function noteDraft() {
     return Boolean(String($("stComment")?.value || "").trim() || pendingShots.length);
   }
+  function briefDraft() {
+    return canOps() && String($("stBrief")?.value ?? "") !== String(t.brief || "");
+  }
   function refreshSendNote() {
     setIdleEnabled($("sendNote"), noteDraft());
+  }
+  function refreshSendBrief() {
+    setIdleEnabled($("sendBrief"), briefDraft());
   }
   function refreshCardSave() {
     const dirty = cardFingerprint() !== cardBaseline;
@@ -6588,6 +6680,7 @@ function openTask(id) {
   }
   function refreshCardActions() {
     refreshSendNote();
+    refreshSendBrief();
     refreshCardSave();
   }
   state.noteDraft = noteDraft;
@@ -6687,14 +6780,22 @@ function openTask(id) {
     if ($("sendNote")?.disabled) return;
     flushNote();
   });
+  $("sendBrief")?.addEventListener("click", async () => {
+    if ($("sendBrief")?.disabled || !briefDraft()) return;
+    const brief = $("stBrief")?.value ?? "";
+    const ok = await updateTask(t.id, { brief, role: me().role }, { quiet: true });
+    if (ok) toast("Brief saved");
+  });
   $("stComment")?.addEventListener("keydown", (e) => {
     if (e.key !== "Enter" || e.shiftKey) return;
     e.preventDefault();
     if (noteDraft()) flushNote();
   });
-  $("stCommentFiles")?.addEventListener("change", async (e) => {
-    await addPendingFiles([...e.target.files]);
-    e.target.value = "";
+  ["stCommentFiles", "stBriefFiles"].forEach((id) => {
+    $(id)?.addEventListener("change", async (e) => {
+      await addPendingFiles([...e.target.files]);
+      e.target.value = "";
+    });
   });
   function startUploadTile({ name, poster, video, image }) {
     const grid = ensureNotesFilesGrid();
@@ -6972,8 +7073,9 @@ function openTask(id) {
     }
     await addPendingFiles(files);
   });
-  const dropBox = $("stCommentBox");
-  if (dropBox) {
+  ["stCommentBox", "stBriefBox"].forEach((id) => {
+    const dropBox = $(id);
+    if (!dropBox) return;
     dropBox.addEventListener("dragover", (e) => {
       e.preventDefault();
       dropBox.classList.add("is-drop");
@@ -6984,7 +7086,32 @@ function openTask(id) {
       dropBox.classList.remove("is-drop");
       await addPendingFiles([...(e.dataTransfer?.files || [])]);
     });
-  }
+  });
+  $("stMonth")?.addEventListener("change", async (e) => {
+    const ym = String(e.target.value || "");
+    const cur = taskMonth(t);
+    if (!ym || ym === cur) return;
+    const ok = confirm(`Move this project to ${monthLabel(ym)}? The Drive folder moves with it.`);
+    if (!ok) {
+      e.target.value = cur;
+      return;
+    }
+    const out = await api("/api/tasks/move-month", {
+      id: t.id,
+      month: ym,
+      role: me().role,
+      actorId: me().id,
+    });
+    if (out.error || !out.state) {
+      e.target.value = cur;
+      toast(out.error || "Could not move the project", 5000);
+      return;
+    }
+    applyState(out.state);
+    if (ym !== state.month) setMonth(ym);
+    toast(`Moved to ${monthLabel(ym)}. Drive folder catches up in the background.`);
+    openTask(t.id);
+  });
   $("drawer")?.querySelectorAll(".notes-del").forEach((btn) => {
     btn.addEventListener("click", async (e) => {
       e.preventDefault();
@@ -8256,6 +8383,15 @@ $("taskDelModal")?.addEventListener("click", (e) => {
 });
 $("createTaskCancel")?.addEventListener("click", closeCreateTask);
 $("createTaskName")?.addEventListener("input", refreshCreateGo);
+$("createTaskMonth")?.addEventListener("change", () => {
+  const land = String($("createTaskMonth")?.value || "");
+  const hint = $("createTaskMonthHint");
+  if (!hint || !land) return;
+  hint.textContent =
+    land !== state.month
+      ? `The board is on ${monthLabel(state.month)}. New cards go to ${monthLabel(land)} unless you change it.`
+      : `Card and Drive folder land in ${monthLabel(land)}.`;
+});
 $("createTaskForm")?.addEventListener("submit", (e) => {
   e.preventDefault();
   submitCreateTask();
@@ -8275,6 +8411,13 @@ $("emailApply").onclick = async () => {
   if (!text.trim()) {
     if (err) err.textContent = "Paste NAME 0.3 shift, one per line";
     return;
+  }
+  const now = calendarMonth();
+  if (state.month < now) {
+    const ok = confirm(
+      `The board is on ${monthLabel(state.month)}. Add these projects there, or cancel and switch to ${monthLabel(now)}?`,
+    );
+    if (!ok) return;
   }
   if (wait) wait.hidden = false;
   setBusy(go, true, "Adding…");
@@ -8341,7 +8484,7 @@ probeStudioApi()
       return;
     }
     applyState(meOut.state, { render: false });
-    state.month = localStorage.getItem(MONTH_KEY) || calendarMonth() || meOut.state?.meta?.month || "2026-10";
+    state.month = preferredBoardMonth() || meOut.state?.meta?.month || calendarMonth() || "2026-11";
     if (!applySession(meOut.session)) {
       showLogin();
       return;

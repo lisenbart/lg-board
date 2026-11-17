@@ -2001,10 +2001,21 @@ def test_lp_can_close_without_send() -> None:
         and "notes-empty" not in js,
     )
     check(
-        "brief and notes share one panel",
-        "brief-thread" in js
-        and "${notesHtml(t)}" in js.split("function pinHtml")[1].split("function isDriveVideo")[0]
-        and "<header class=\"notes-head\">Client notes</header>" not in js,
+        "brief and notes are separate panels",
+        "brief-thread" not in js
+        and "${notesHtml(t)}" not in js.split("function pinHtml")[1].split("function isDriveVideo")[0]
+        and '<header class="notes-head">Client notes</header>' in js
+        and 'id="sendBrief"' in js
+        and 'attachChipHtml("stBriefFiles")' in js
+        and 'attachChipHtml("stCommentFiles")' in js,
+    )
+    check(
+        "new tasks default to the calendar month",
+        "function preferredBoardMonth" in js
+        and "createTaskMonth" in js
+        and 'id="stMonth"' in js
+        and "/api/tasks/move-month" in js
+        and "stored < now" in js,
     )
     check(
         "video attach shows upload progress",
@@ -2201,7 +2212,21 @@ def test_card_videos() -> None:
     check("Drive resumable upload for card video", "def upload_card_video" in drive and "uploadType=resumable" in drive)
     check("poster filename is allowed", bool(server.COMMENT_FILE_NAME.match("v-1.jpg")))
     check("card shows play tile", "function notesFilesHtml" in js and "card-video-play" in js)
-    check("one Attach control in Client notes", "notes-attach" in js and "Add video" not in js and "Attach screenshot" not in js)
+    check(
+        "Attach sits on brief and client notes",
+        js.count("function attachChipHtml") >= 1
+        and         "stBriefFiles" in js
+        and "stCommentFiles" in js
+        and "Add video" not in js
+        and "Attach screenshot" not in js,
+    )
+    check("November Drive folder is 11_November", __import__("drive_io").month_folder_name("2026-11") == "11_November")
+    check(
+        "LP can move a card to another month",
+        "/api/tasks/move-month" in src
+        and "def move_live_pack_month" in drive
+        and "def _move_month_then_excel" in src,
+    )
     check(
         "images go to Drive like other files",
         'return "image"' in src

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-build="2026-11-09p">
+<html lang="en" data-build="2026-11-17a">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -17,7 +17,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@300;400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/board.css?v=190" />
+  <link rel="stylesheet" href="assets/board.css?v=191" />
   <script>
     (function () {
       const host = location.hostname;
@@ -151,6 +151,10 @@
         <h3>Create task</h3>
         <p id="createTaskLead" style="color:#676879;font-size:13px">Paste the full project name (DD- / DX- / DS- / DS-P-). This creates the card, the month line folder if it is missing, the project folder, an empty brief Doc, and a row in the live Excel for that board. Save on the card writes the brief into that Doc.</p>
         <input id="createTaskName" type="text" autocomplete="off" spellcheck="false" placeholder="DS-P-060_MergeSolitaire" />
+        <label class="create-month">Board month
+          <select id="createTaskMonth"></select>
+        </label>
+        <p class="create-month-hint" id="createTaskMonthHint"></p>
         <p class="login-err" id="createTaskErr"></p>
         <p class="create-wait" id="createTaskWait" hidden>Writing Drive folder, brief Doc, and Excel row…</p>
         <div class="modal-actions">
@@ -216,6 +220,6 @@
 
   <div class="toast" id="toast"></div>
   <script src="assets/notices.js?v=5"></script>
-  <script src="assets/app.js?v=251"></script>
+  <script src="assets/app.js?v=252"></script>
 </body>
 </html>

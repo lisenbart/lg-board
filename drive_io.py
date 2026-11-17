@@ -824,6 +824,49 @@ def rename_live_pack(db: dict, task: dict, new_name: str) -> dict:
     return {"ok": True, "renamed": True, "folderId": fid, "docId": did, "line": new_line}
 
 
+def move_live_pack_month(db: dict, task: dict, new_ym: str) -> dict:
+    """Move the studio folder from one month line (10_October) into another (11_November)."""
+    name = str((task or {}).get("name") or "").strip()
+    old_ym = str((task or {}).get("month") or (db.get("meta") or {}).get("month") or "")
+    new_ym = str(new_ym or "").strip()
+    if not re.fullmatch(r"\d{4}-\d{2}", new_ym):
+        raise DriveError("month must be YYYY-MM")
+    if not name:
+        return {"ok": True, "moved": False}
+    if old_ym == new_ym:
+        return {"ok": True, "moved": False, "month": new_ym}
+    token = drive_token()
+    fid = studio_pack_folder_id(task)
+    if not fid:
+        return {"ok": True, "moved": False, "month": new_ym}
+    if not token:
+        raise DriveError("Drive is not connected on this server")
+    import direction_io
+
+    line = str(task.get("line") or line_from_name(name) or "DD")
+    playable = direction_io.is_playables(task) or direction_io.of_name(name) == direction_io.PLAYABLES
+    new_parent = live_line_parent_id(db, new_ym, line, token, playable=playable)
+    meta = _api(token, "GET", f"files/{fid}", query={"fields": "parents"})
+    parents = [str(p) for p in (meta.get("parents") or [])]
+    query = {}
+    if new_parent and new_parent not in parents:
+        query["addParents"] = new_parent
+        old_parent = ""
+        if old_ym:
+            old_parent = live_line_parent_id(db, old_ym, line, token, playable=playable)
+        drop = old_parent if old_parent in parents else (parents[0] if parents else "")
+        if drop and drop != new_parent:
+            query["removeParents"] = drop
+        _api(token, "PATCH", f"files/{fid}", query=query, body={})
+    return {
+        "ok": True,
+        "moved": bool(query),
+        "folderId": fid,
+        "month": new_ym,
+        "parentId": new_parent,
+    }
+
+
 def forget_live_folder(name: str) -> None:
     import excel_io
     import mirror_io
