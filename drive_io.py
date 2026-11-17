@@ -836,15 +836,16 @@ def move_live_pack_month(db: dict, task: dict, new_ym: str) -> dict:
     if old_ym == new_ym:
         return {"ok": True, "moved": False, "month": new_ym}
     token = drive_token()
-    fid = studio_pack_folder_id(task)
-    if not fid:
-        return {"ok": True, "moved": False, "month": new_ym}
     if not token:
         raise DriveError("Drive is not connected on this server")
     import direction_io
 
     line = str(task.get("line") or line_from_name(name) or "DD")
     playable = direction_io.is_playables(task) or direction_io.of_name(name) == direction_io.PLAYABLES
+    fid = studio_pack_folder_id(task)
+    if not fid:
+        pack = create_live_pack(db, name, new_ym, line)
+        return {"ok": True, "moved": False, "created": True, "month": new_ym, **pack}
     new_parent = live_line_parent_id(db, new_ym, line, token, playable=playable)
     meta = _api(token, "GET", f"files/{fid}", query={"fields": "parents"})
     parents = [str(p) for p in (meta.get("parents") or [])]
@@ -861,7 +862,9 @@ def move_live_pack_month(db: dict, task: dict, new_ym: str) -> dict:
     return {
         "ok": True,
         "moved": bool(query),
+        "created": False,
         "folderId": fid,
+        "folderUrl": folder_url(fid) if fid else "",
         "month": new_ym,
         "parentId": new_parent,
     }

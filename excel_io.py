@@ -610,6 +610,81 @@ def _help_from_row(row: dict, people: list[dict], by_name: dict, assignee_id: st
     return [s for s in _resolved_shares(row, people, by_name) if s["id"] != assignee_id]
 
 
+def dropped_sets(db: dict) -> tuple[set[str], set[str]]:
+    names = {str(n).strip() for n in (db.get("droppedNames") or []) if str(n).strip()}
+    keys = {_id_key(n) for n in names if _id_key(n)}
+    return names, keys
+
+
+def is_dropped_name(name: str, dropped: set[str], dropped_keys: set[str]) -> bool:
+    title = str(name or "").strip()
+    key = _id_key(title)
+    return title in dropped or bool(key and key in dropped_keys)
+
+
+def absorb_task(winner: dict, loser: dict) -> None:
+    for field in ("folderUrl", "docUrl", "brief", "resultUrl", "storyboardUrl"):
+        if not str(winner.get(field) or "").strip() and str((loser or {}).get(field) or "").strip():
+            winner[field] = loser[field]
+    if len((loser or {}).get("comments") or []) > len(winner.get("comments") or []):
+        winner["comments"] = loser["comments"]
+    if len((loser or {}).get("videos") or []) > len(winner.get("videos") or []):
+        winner["videos"] = loser["videos"]
+
+
+def name_lives_in_other_month(db: dict, name: str, ym: str) -> bool:
+    """True when a live card with this project name already sits in another month."""
+    title = str(name or "").strip()
+    key = _id_key(title)
+    for task in db.get("tasks") or []:
+        other = str(task.get("name") or "").strip()
+        if not other:
+            continue
+        if other != title and (not key or _id_key(other) != key):
+            continue
+        if str(task.get("month") or ym) != ym:
+            return True
+    return False
+
+
+def _task_keep_score(task: dict) -> tuple:
+    return (
+        str(task.get("month") or ""),
+        1 if str(task.get("folderUrl") or "").strip() else 0,
+        1 if str(task.get("source") or "") == "portal" else 0,
+        len(task.get("comments") or []),
+        len(task.get("videos") or []),
+        str(task.get("id") or ""),
+    )
+
+
+def collapse_duplicate_tasks(db: dict) -> int:
+    """One live card per project name. Keep the richest copy and fold links into it."""
+    buckets: dict[str, dict] = {}
+    for task in db.get("tasks") or []:
+        name = str(task.get("name") or "").strip()
+        if not name:
+            continue
+        key = _id_key(name) or name
+        prev = buckets.get(key)
+        if not prev:
+            buckets[key] = task
+            continue
+        if _task_keep_score(task) >= _task_keep_score(prev):
+            absorb_task(task, prev)
+            buckets[key] = task
+        else:
+            absorb_task(prev, task)
+    keep = {id(task) for task in buckets.values()}
+    before = len(db.get("tasks") or [])
+    db["tasks"] = [
+        task
+        for task in (db.get("tasks") or [])
+        if id(task) in keep or not str(task.get("name") or "").strip()
+    ]
+    return before - len(db.get("tasks") or [])
+
+
 def _next_task_id(db: dict, prefix: str = "t-xl") -> str:
     used = {str(t.get("id") or "") for t in db.get("tasks") or []}
     n = len(used) + 1
@@ -633,20 +708,28 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
         key = _id_key(task.get("name") or "")
         if key and key not in by_key:
             by_key[key] = task
+    worldwide = {}
+    worldwide_key = {}
+    for task in db.get("tasks") or []:
+        title = str(task.get("name") or "").strip()
+        if not title:
+            continue
+        worldwide[title] = task
+        kid = _id_key(title)
+        if kid:
+            worldwide_key[kid] = task
     added = 0
     updated = 0
-    parsed_names = {str(row.get("name") or "").strip() for row in parsed.get("rows") or []}
-    parsed_keys = {_id_key(n) for n in parsed_names if _id_key(n)}
-    db["droppedNames"] = [
-        n
-        for n in (db.get("droppedNames") or [])
-        if str(n).strip() not in parsed_names and _id_key(n) not in parsed_keys
-    ]
+    dropped, dropped_keys = dropped_sets(db)
     seen_names: set[str] = set()
     seen_keys: set[str] = set()
     for row in parsed.get("rows") or []:
         name = row["name"]
         key = _id_key(name)
+        if is_dropped_name(name, dropped, dropped_keys):
+            continue
+        if name_lives_in_other_month(db, name, ym):
+            continue
         if name in seen_names or (key and key in seen_keys):
             continue
         seen_names.add(name)
@@ -661,6 +744,10 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
                 assignee_id = person["id"]
         shares = _resolved_shares(row, people, by_name)
         task = existing.get(name) or (by_key.get(key) if key else None)
+        if not task:
+            other = worldwide.get(name) or (worldwide_key.get(key) if key else None)
+            if other:
+                continue
         keep = (task.get("assigneeId") or "") if task else ""
         people_ids = {p["id"] for p in people}
         if keep and keep in people_ids:
@@ -722,6 +809,7 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
             if key:
                 by_key[key] = task
             added += 1
+    collapse_duplicate_tasks(db)
     return {
         "added": added,
         "updated": updated,
@@ -965,6 +1053,32 @@ def _delete_sheet_row(ws, scan: dict, row: int) -> None:
     scan["last_used"] = max((scan.get("last_used") or 1) - 1, 1)
 
 
+def _prune_moved_rows(ws, scan: dict, db: dict, ym: str) -> None:
+    """Drop sheet rows whose live card now sits in another month."""
+    moved = set()
+    moved_keys = set()
+    for task in db.get("tasks") or []:
+        name = str(task.get("name") or "").strip()
+        if not name:
+            continue
+        if str(task.get("month") or ym) == ym:
+            continue
+        moved.add(name)
+        key = _id_key(name)
+        if key:
+            moved_keys.add(key)
+    if not moved and not moved_keys:
+        return
+    victims = []
+    for item in list((scan.get("rows") or {}).values()):
+        name = str(item.get("name") or "").strip()
+        key = _id_key(name)
+        if name in moved or (key and key in moved_keys):
+            victims.append(item["row"])
+    for row in sorted(set(victims), reverse=True):
+        _delete_sheet_row(ws, scan, row)
+
+
 def _drop_dropped_rows(ws, scan: dict, db: dict) -> None:
     dropped = {str(n).strip() for n in (db.get("droppedNames") or []) if n}
     dropped_keys = {_id_key(n) for n in dropped if _id_key(n)}
@@ -1117,6 +1231,7 @@ def _write_month_body(db: dict, ym: str, path: Path, wb) -> Path:
         scan["rows"][key] = rec
         if kid:
             id_index[kid] = rec
+    _prune_moved_rows(ws, scan, db, ym)
     _refresh_total(ws, scan, columns)
     _atomic_save(wb, path)
     return path

@@ -308,10 +308,30 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
             and client_io.is_superplay(t)
         )
     }
+    by_key = {}
+    for task in existing.values():
+        key = excel_io._id_key(task.get("name") or "")
+        if key and key not in by_key:
+            by_key[key] = task
+    worldwide = {}
+    worldwide_key = {}
+    for task in db.get("tasks") or []:
+        title = str(task.get("name") or "").strip()
+        if not title:
+            continue
+        worldwide[title] = task
+        kid = excel_io._id_key(title)
+        if kid:
+            worldwide_key[kid] = task
+    dropped, dropped_keys = excel_io.dropped_sets(db)
     added = 0
     updated = 0
     for row in parsed.get("rows") or []:
         name = row["name"]
+        if excel_io.is_dropped_name(name, dropped, dropped_keys):
+            continue
+        if excel_io.name_lives_in_other_month(db, name, ym):
+            continue
         assignee_id = _resolve_id(
             {"id": row.get("assigneeId"), "name": row.get("assigneeName")},
             people,
@@ -343,7 +363,12 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
         # billed leftover is studio buffer, not a fake AD on the programmer.
         excel_ad = assignee_id if assignee_id and assignee_id != programmer_id else ""
         excel_status = row.get("excelStatus") or ""
-        task = existing.get(name)
+        key = excel_io._id_key(name)
+        task = existing.get(name) or (by_key.get(key) if key else None)
+        if not task:
+            other = worldwide.get(name) or (worldwide_key.get(key) if key else None)
+            if other:
+                continue
         if not task and any(
             client_io.is_slotomania(t) and str(t.get("name") or "").strip() == name
             for t in db.get("tasks") or []
@@ -414,6 +439,7 @@ def apply_to_db(db: dict, parsed: dict, ym: str) -> dict:
         updated += 1
     if attach_studio_buffers(db):
         updated += 1
+    excel_io.collapse_duplicate_tasks(db)
     return {
         "added": added,
         "updated": updated,
@@ -599,6 +625,7 @@ def write_month(db: dict, ym: str, path: Path | None = None) -> Path | None:
             scan["rows"][key] = rec
             if kid:
                 id_index[kid] = rec
+        excel_io._prune_moved_rows(ws, scan, db, ym)
         _refresh_total(ws, scan, columns)
         excel_io._atomic_save(wb, path)
         return path

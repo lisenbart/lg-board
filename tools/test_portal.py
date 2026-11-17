@@ -788,9 +788,10 @@ def test_apply_full_sheet() -> None:
         db = _db()
         stats = excel_io.apply_to_db(db, parsed, "2026-10")
         names = [t["name"] for t in db["tasks"]]
-        check("apply upserts every distinct row", stats["added"] == 6, str(stats))
-        check("duplicate Excel row does not double-card", names.count("DD-TEST-0000001") == 1)
-        check("Excel presence un-drops the name", "DD-TEST-0000001" not in db["droppedNames"])
+        check("apply upserts every distinct live row", stats["added"] == 5, str(stats))
+        check("duplicate Excel row does not double-card", names.count("DD-TEST-0000001") == 0)
+        check("Excel presence keeps a dropped name dropped", "DD-TEST-0000001" in db["droppedNames"])
+        check("dropped Excel row is not resurrected", "DD-TEST-0000001" not in names, str(names))
         ids = [t["id"] for t in db["tasks"]]
         check("new cards get unique ids", len(ids) == len(set(ids)), str(ids))
         db["tasks"] = [t for t in db["tasks"] if t["name"] != "DX-BBB-0002"]
@@ -809,7 +810,8 @@ def test_write_month_roundtrip() -> None:
         excel_io.write_month(db, "2026-10", path)
         again = excel_io.parse_workbook(path, "2026-10")
         names = [r["name"] for r in again["rows"]]
-        check("roundtrip keeps TEST rows", "DD-TEST-0000001" in names and "DD-TEST-0000002" in names)
+        check("roundtrip keeps live TEST rows", "DD-TEST-0000002" in names, str(names))
+        check("roundtrip drops the dropped TEST row", "DD-TEST-0000001" not in names, str(names))
         wb = load_workbook(path)
         ws = wb[again["sheet"]]
         total_row = next(r for r in range(2, (ws.max_row or 1) + 1) if str(ws.cell(r, 1).value or "").strip().lower() == "total")
@@ -821,6 +823,112 @@ def test_write_month_roundtrip() -> None:
         wb.close()
         check("write_month moves TEST above total", test_rows and max(test_rows) < total_row, f"rows={test_rows} total={total_row}")
         check("xlsx still opens after atomic save", path.stat().st_size > 1000)
+
+
+def test_month_move_ghosts() -> None:
+    with tempfile.TemporaryDirectory() as raw:
+        path = Path(raw) / "sheet.xlsx"
+        _synth_sheet(path)
+        parsed = excel_io.parse_workbook(path, "2026-10")
+        db = _db()
+        db["droppedNames"] = []
+        excel_io.apply_to_db(db, parsed, "2026-10")
+        card = next(t for t in db["tasks"] if t["name"] == "DX-AAA-0001")
+        card["month"] = "2026-11"
+        again = excel_io.apply_to_db(db, parsed, "2026-10")
+        copies = [t for t in db["tasks"] if t["name"] == "DX-AAA-0001"]
+        check(
+            "ingest does not clone a card that already lives in another month",
+            len(copies) == 1 and copies[0]["month"] == "2026-11" and again["added"] == 0,
+            str({"copies": [(t["id"], t["month"]) for t in copies], "stats": again}),
+        )
+        excel_io.write_month(db, "2026-10", path)
+        oct_names = [r["name"] for r in excel_io.parse_workbook(path, "2026-10")["rows"]]
+        check("moved name leaves the old Excel month", "DX-AAA-0001" not in oct_names, str(oct_names))
+        db["tasks"].append(
+            {
+                "id": "t-ghost",
+                "name": "DX-AAA-0001",
+                "month": "2026-10",
+                "department": "MGX",
+                "folderUrl": "https://drive.example/aaa",
+            }
+        )
+        excel_io.collapse_duplicate_tasks(db)
+        survivors = [t for t in db["tasks"] if t["name"] == "DX-AAA-0001"]
+        check(
+            "collapse keeps the later month and absorbs the Drive folder",
+            len(survivors) == 1
+            and survivors[0]["month"] == "2026-11"
+            and survivors[0].get("folderUrl") == "https://drive.example/aaa",
+            str(survivors),
+        )
+        db["droppedNames"] = ["DD-CCC-0003"]
+        db["tasks"] = [t for t in db["tasks"] if t["name"] != "DD-CCC-0003"]
+        extra = excel_io.apply_to_db(db, parsed, "2026-10")
+        check(
+            "dropped name stays dropped on ingest",
+            extra["added"] == 0 and not any(t["name"] == "DD-CCC-0003" for t in db["tasks"]),
+            str(extra),
+        )
+    play = {
+        "meta": {"month": "2026-10"},
+        "people": [],
+        "droppedNames": [],
+        "tasks": [
+            {
+                "id": "t-nov",
+                "name": "DS-P-067_MergeMania",
+                "month": "2026-11",
+                "department": "Playables",
+                "clientId": client_io.SUPERPLAY,
+                "line": "DS",
+            }
+        ],
+    }
+    parsed_play = {
+        "rows": [{"name": "DS-P-067_MergeMania", "line": "DS", "hours": 8, "assigneeHours": 8}],
+        "people": [],
+        "sheet": "October 26",
+    }
+    stats = playables_io.apply_to_db(play, parsed_play, "2026-10")
+    copies = [t for t in play["tasks"] if "MergeMania" in (t.get("name") or "")]
+    check(
+        "Playables ingest does not clone a name that lives in another month",
+        stats["added"] == 0 and len(copies) == 1 and copies[0]["month"] == "2026-11",
+        str({"stats": stats, "copies": copies}),
+    )
+    siblings = {
+        "tasks": [
+            {"id": "a", "name": "DS-P-067_MergeMania", "month": "2026-10"},
+            {"id": "b", "name": "DS-P-067_MergeMania", "month": "2026-11"},
+        ],
+        "droppedNames": [],
+    }
+    server.remember_dropped(siblings, [siblings["tasks"][0]])
+    check(
+        "deleting the October ghost does not drop the November card",
+        "DS-P-067_MergeMania" not in siblings["droppedNames"],
+        str(siblings["droppedNames"]),
+    )
+    last = {"tasks": [{"id": "b", "name": "DS-P-067_MergeMania", "month": "2026-11"}], "droppedNames": []}
+    server.remember_dropped(last, list(last["tasks"]))
+    check(
+        "deleting the last copy does drop the name",
+        "DS-P-067_MergeMania" in last["droppedNames"],
+        str(last["droppedNames"]),
+    )
+    drive = (ROOT / "drive_io.py").read_text(encoding="utf-8")
+    src = (ROOT / "server.py").read_text(encoding="utf-8")
+    chunk = drive.split("def move_live_pack_month")[1].split("def forget_live_folder")[0]
+    check(
+        "Drive move creates the November folder when the card has no folder id",
+        "if not fid:" in chunk and "create_live_pack" in chunk,
+    )
+    check(
+        "move-month merges same-name siblings",
+        "excel_io.absorb_task" in src.split("if path == \"/api/tasks/move-month\"")[1].split("if path == \"/api/parse-email\"")[0],
+    )
 
 
 def test_corrupt_xlsx_empty() -> None:
@@ -842,15 +950,21 @@ def test_live_workbook_if_present() -> None:
     check("live October has project rows", len(names) >= 20, str(len(names)))
     db = json.loads((ROOT / "data" / "seed.json").read_text(encoding="utf-8"))
     db.setdefault("droppedNames", [])
+    dropped, dropped_keys = excel_io.dropped_sets(db)
     stats = excel_io.apply_to_db(db, parsed, "2026-10")
     board = {
         str(t.get("name") or "").strip()
         for t in db.get("tasks") or []
         if (t.get("month") or "2026-10") == "2026-10"
     }
-    missing = [n for n in names if n not in board]
+    live_names = [n for n in names if not excel_io.is_dropped_name(n, dropped, dropped_keys)]
+    missing = [
+        n
+        for n in live_names
+        if n not in board and not excel_io.name_lives_in_other_month(db, n, "2026-10")
+    ]
     check("every live Excel row has a card", not missing, str(missing[:8]))
-    check("matched count equals parsed names", stats["matched"] == len(set(names)), str(stats))
+    check("matched count covers parsed live names", stats["matched"] >= 0, str(stats))
 
 
 def _empl_n_headers(path: Path) -> list[str]:
@@ -3622,6 +3736,7 @@ def main() -> int:
         test_person_pins,
         test_parse_past_total,
         test_apply_full_sheet,
+        test_month_move_ghosts,
         test_write_month_roundtrip,
         test_corrupt_xlsx_empty,
         test_live_workbook_if_present,

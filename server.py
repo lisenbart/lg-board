@@ -33,7 +33,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-11-17a"
+BUILD = "2026-11-17b"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -165,6 +165,8 @@ def load_db() -> dict:
     if playables_io.normalize_playable_seats(db):
         dirty = True
     if playables_io.attach_studio_buffers(db):
+        dirty = True
+    if excel_io.collapse_duplicate_tasks(db):
         dirty = True
     if dirty:
         save_db(db)
@@ -479,10 +481,39 @@ def _move_month_then_excel(snapshots: list, new_ym: str) -> None:
             db = _read_db_file()
         for snap in snapshots or []:
             olds.add(str(snap.get("month") or ""))
+            live = next((t for t in db.get("tasks") or [] if t.get("id") == snap.get("id")), None)
+            stub = dict(live or snap)
+            stub["month"] = str(snap.get("month") or "")
+            pack = {}
             try:
-                drive_io.move_live_pack_month(db, snap, new_ym)
+                pack = drive_io.move_live_pack_month(db, stub, new_ym)
             except Exception as e:
                 print(f"[drive] move month {snap.get('name')}: {e}", flush=True)
+                pack = {}
+            have_folder = bool(pack.get("folderUrl") or (live or {}).get("folderUrl"))
+            have_doc = bool(pack.get("docUrl") or (live or {}).get("docUrl"))
+            if live is not None and not (have_folder and have_doc):
+                dest = dict(live)
+                dest["month"] = new_ym
+                if pack.get("folderUrl"):
+                    dest["folderUrl"] = pack["folderUrl"]
+                if pack.get("docUrl"):
+                    dest["docUrl"] = pack["docUrl"]
+                try:
+                    pack = drive_io.ensure_live_pack({"meta": db.get("meta") or {}}, dest, new_ym) or pack
+                except Exception as e:
+                    print(f"[drive] create after move {snap.get('name')}: {e}", flush=True)
+            if pack and (pack.get("folderUrl") or pack.get("docUrl")):
+                with LOCK:
+                    now = load_db()
+                    cur = next((t for t in now.get("tasks") or [] if t.get("id") == snap.get("id")), None)
+                    if cur:
+                        if pack.get("folderUrl"):
+                            cur["folderUrl"] = pack["folderUrl"]
+                        if pack.get("docUrl"):
+                            cur["docUrl"] = pack["docUrl"]
+                        save_db(now)
+                    db = now
         for old in olds:
             if old and old != new_ym:
                 _sync_files_bg(old, True)
@@ -960,11 +991,19 @@ def dropped_names(db: dict) -> list[str]:
 
 
 def remember_dropped(db: dict, tasks: list[dict]) -> None:
+    gone = {str((task or {}).get("id") or "") for task in tasks or []}
+    keep = {
+        str(t.get("name") or "").strip()
+        for t in db.get("tasks") or []
+        if str(t.get("id") or "") not in gone and str(t.get("name") or "").strip()
+    }
+    keep_keys = {excel_io._id_key(n) for n in keep if excel_io._id_key(n)}
     have = {str(n).strip() for n in dropped_names(db) if n}
     names = dropped_names(db)
     for task in tasks:
         n = str((task or {}).get("name") or "").strip()
-        if n and n not in have:
+        key = excel_io._id_key(n)
+        if n and n not in have and n not in keep and not (key and key in keep_keys):
             names.append(n)
             have.add(n)
 
@@ -2827,6 +2866,18 @@ class Handler(SimpleHTTPRequestHandler):
                     if old_ym == new_ym:
                         continue
                     snapshots.append(_clone(task))
+                    key = excel_io._id_key(task.get("name") or "") or str(task.get("name") or "").strip()
+                    siblings = [
+                        row
+                        for row in db.get("tasks") or []
+                        if row is not task
+                        and (excel_io._id_key(row.get("name") or "") or str(row.get("name") or "").strip()) == key
+                    ]
+                    for sib in siblings:
+                        excel_io.absorb_task(task, sib)
+                    if siblings:
+                        gone = {str(sib.get("id") or "") for sib in siblings}
+                        db["tasks"] = [row for row in db.get("tasks") or [] if str(row.get("id") or "") not in gone]
                     task["month"] = new_ym
                     task.setdefault("activity", []).append(
                         {
@@ -2835,6 +2886,7 @@ class Handler(SimpleHTTPRequestHandler):
                         }
                     )
                     moved.append(task)
+                excel_io.collapse_duplicate_tasks(db)
                 if not moved:
                     self._json(200, {"ok": True, "moved": 0, "state": db})
                     return
