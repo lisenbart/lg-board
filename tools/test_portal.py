@@ -2144,8 +2144,11 @@ def test_lp_can_close_without_send() -> None:
         and "createTaskMonth" in js
         and 'id="stMonth"' in js
         and "/api/tasks/move-month" in js
-        and "stored < now" in js
+        and "function preferredBoardMonth() {\n  return calendarMonth();\n}" in js
+        and "state.month = calendarMonth();" in js
+        and js.count("state.month = calendarMonth();") >= 2
         and 'fillMonthSelect($("createTaskMonth"), now)' in js
+        and 'localStorage.getItem(MONTH_KEY)' not in js
         and "Wrong month" in js
         and "Only to fix a card created in the wrong month." in js,
     )

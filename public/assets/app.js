@@ -145,7 +145,7 @@ const state = {
   presence: {},
   cardOpenedStamp: "",
   cardStale: false,
-  month: "2026-10",
+  month: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`,
   teamDrafts: {},
   teamPins: {},
   cardDirty: null,
@@ -597,6 +597,7 @@ async function submitDoorLogin(seatId) {
   }
   const sess = out.session || {};
   applyState(out.state, { render: false });
+  state.month = calendarMonth();
   if (!applySession(sess)) {
     if (door === "studio" && state.loginRole) {
       showStudioPin(state.loginRole, "Could not open this seat");
@@ -1643,10 +1644,7 @@ function nearbyMonths() {
   return [...out].sort();
 }
 function preferredBoardMonth() {
-  const now = calendarMonth();
-  const stored = localStorage.getItem(MONTH_KEY) || "";
-  if (!stored || stored < now) return now;
-  return stored;
+  return calendarMonth();
 }
 function fillMonthSelect(sel, picked) {
   if (!sel) return picked;
@@ -8490,7 +8488,7 @@ probeStudioApi()
       return;
     }
     applyState(meOut.state, { render: false });
-    state.month = preferredBoardMonth() || meOut.state?.meta?.month || calendarMonth() || "2026-11";
+    state.month = calendarMonth();
     if (!applySession(meOut.session)) {
       showLogin();
       return;
