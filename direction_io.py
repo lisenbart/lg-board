@@ -171,6 +171,15 @@ def is_playables(task: dict | None) -> bool:
     return of_task(task) == PLAYABLES
 
 
+def pack_direction(task: dict | None = None, name: str = "") -> str:
+    """Drive tree follows the board the card sits on. The name is only a fallback."""
+    if task and (task.get("department") or task.get("direction")):
+        return of_task(task)
+    if name:
+        return of_name(name)
+    return of_task(task)
+
+
 PLAY_STATUS_KEYS = set(PLAY_STATUS)
 _LEGACY_PLAYABLE = {
     "quote": "new",

@@ -1171,6 +1171,26 @@ def test_playables_desk() -> None:
         "task=snap" in create_fn and "direction_io.of_name" in create_fn,
         create_fn[:500],
     )
+    check(
+        "Playables board Drive pack ignores an MGX-looking name",
+        direction_io.pack_direction({"department": "Playables"}, "DD-AIV-202-004_SettAI") == direction_io.PLAYABLES,
+    )
+    check(
+        "MGX board Drive pack ignores a Playables-looking name",
+        direction_io.pack_direction({"department": "MGX"}, "DS-P-067_MergeMania") == direction_io.MGX,
+    )
+    check(
+        "name is only the Drive fallback when the card has no board",
+        direction_io.pack_direction(None, "DM-P-004-001_MemoryMatch") == direction_io.PLAYABLES
+        and direction_io.pack_direction({}, "DD-AIV-202-004_SettAI") == direction_io.MGX,
+    )
+    make = (ROOT / "drive_io.py").read_text(encoding="utf-8").split("def create_live_pack")[1].split("def _doc_id_from_url")[0]
+    check(
+        "create_live_pack follows the board direction",
+        "pack_direction(task, name)" in make
+        and "of_name(name) == direction_io.PLAYABLES or" not in make,
+        make[:400],
+    )
     purple = {"people": [{"id": "manager", "name": "Анастасія", "role": "manager", "color": "#9d50dd", "rateUsd": 5}]}
     direction_io.ensure_crew(purple)
     lp = next(p for p in purple["people"] if p["id"] == "manager")

@@ -729,10 +729,13 @@ def ensure_live_pack(db: dict, task: dict, ym: str | None = None) -> dict:
     task["docUrl"] = pack.get("docUrl") or task.get("docUrl") or ""
     apply_work_folder(task)
     if missing or restored:
+        import direction_io
+
+        root = "Playable" if direction_io.pack_direction(task, name) == direction_io.PLAYABLES else "Projects"
         task.setdefault("activity", []).append(
             {
                 "at": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
-                "text": f"Drive folder + brief Doc in {line}",
+                "text": f"Drive folder + brief Doc in {root}/{line}",
             }
         )
     return {"ok": True, "created": missing, "moved": bool(moved or restored), **pack}
@@ -781,9 +784,7 @@ def create_live_pack(db: dict, name: str, ym: str, line: str, task: dict | None 
         import direction_io
 
         line = direction_io.line_from_name(name, default=(line or "DD"))
-        playable = direction_io.of_name(name) == direction_io.PLAYABLES or (
-            direction_io.is_playables(task) if task else False
-        )
+        playable = direction_io.pack_direction(task, name) == direction_io.PLAYABLES
         parent = live_line_parent_id(db, ym, line, token, playable=playable)
         hit = cached_pack(name) or {}
         candidates = _task_folder_candidates(name, task)
@@ -891,12 +892,11 @@ def rename_live_pack(db: dict, task: dict, new_name: str) -> dict:
         if new_line != old_line:
             import direction_io
 
-            new_playable = direction_io.of_name(new_name) == direction_io.PLAYABLES
-            old_playable = direction_io.of_name(old_name) == direction_io.PLAYABLES
-            new_parent = live_line_parent_id(db, ym, new_line, token, playable=new_playable)
+            playable = direction_io.pack_direction(task, new_name) == direction_io.PLAYABLES
+            new_parent = live_line_parent_id(db, ym, new_line, token, playable=playable)
             meta = _api(token, "GET", f"files/{fid}", query={"fields": "parents"})
             parents = [str(p) for p in (meta.get("parents") or [])]
-            old_parent = live_line_parent_id(db, ym, old_line, token, playable=old_playable)
+            old_parent = live_line_parent_id(db, ym, old_line, token, playable=playable)
             if new_parent and new_parent not in parents:
                 query["addParents"] = new_parent
                 drop = old_parent if old_parent in parents else (parents[0] if parents else "")
@@ -1030,12 +1030,15 @@ def resolve_live_folder_id(task: dict, db: dict | None = None) -> str:
         return ""
     parents: list[str] = []
     if db is not None:
+        import direction_io
+
         ym = str(task.get("month") or (db.get("meta") or {}).get("month") or "2026-10")
         line = str(task.get("line") or line_from_name(name) or "DD")
+        playable = direction_io.pack_direction(task, name) == direction_io.PLAYABLES
         other = "DX" if line == "DD" else "DD"
         for cand in (line, other):
             try:
-                pid = live_line_parent_id(db, ym, cand, token)
+                pid = live_line_parent_id(db, ym, cand, token, playable=playable)
             except DriveError:
                 continue
             if pid and pid not in parents:

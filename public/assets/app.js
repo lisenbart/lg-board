@@ -2177,7 +2177,7 @@ function openCreateTask() {
   if (lead) {
     lead.textContent = sl
       ? "Project name as the game (Coin Cruiser, Battle Sheep). Card lands on Slotomania Playables. Quote and PO sit on the card after the client approves hours."
-      : "Paste the full project name (DD-P- / DS-P- / DX-P- / DM-P- for Playables). This creates the card, the month line folder if it is missing, the project folder, an empty brief Doc, and a row in the live Excel for that board. Save on the card writes the brief into that Doc.";
+      : "Paste the full project name (DD-P- / DS-P- / DX-P- / DM-P- on Playables, DD- / DX- on MGX). The Drive folder lands in this board — Playable or Projects — then the month and the line folder. Save on the card writes the brief into that Doc.";
   }
   if (name) name.placeholder = sl ? "Coin Cruiser" : "DS-P-060_MergeSolitaire";
   $("createTaskModal").classList.add("show");

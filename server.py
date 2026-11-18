@@ -33,7 +33,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-11-18a"
+BUILD = "2026-11-18b"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -548,11 +548,12 @@ def _create_pack_then_excel(task_id: str, name: str, ym: str, line: str) -> None
                 if derived:
                     task["line"] = derived
                 shown = derived or line
+                root = "Playable" if direction_io.is_playables(task) else "Projects"
                 task["folderUrl"] = pack.get("folderUrl") or task.get("folderUrl") or ""
                 task["docUrl"] = pack.get("docUrl") or task.get("docUrl") or ""
                 if pack.get("folderUrl"):
                     task.setdefault("activity", []).append(
-                        {"at": utc_now(), "text": f"Drive folder + brief Doc in {shown}"}
+                        {"at": utc_now(), "text": f"Drive folder + brief Doc in {root}/{shown}"}
                     )
                 save_db(db)
     except Exception as e:
@@ -784,10 +785,11 @@ def fill_missing_packs(specs: list[dict], ym: str) -> dict:
             task["docUrl"] = pack.get("docUrl") or ""
             drive_io.apply_work_folder(task)
             if missing:
+                root = "Playable" if direction_io.is_playables(task) else "Projects"
                 task.setdefault("activity", []).append(
                     {
                         "at": utc_now(),
-                        "text": f"Drive folder + brief Doc in {task.get('line') or 'DD'}",
+                        "text": f"Drive folder + brief Doc in {root}/{task.get('line') or 'DD'}",
                     }
                 )
                 notice_io.on_landed(db, task, "")
