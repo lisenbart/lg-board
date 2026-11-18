@@ -1306,7 +1306,7 @@ def local_stamp(now: datetime | None = None, tz_name: str = "UTC") -> str:
 
 
 def hours_direction(task: dict) -> str:
-    """MGX vs Playable for the client hours sheet. DS-P-/DD-P-/DX-P- names are Playable even without department."""
+    """MGX vs Playable for the client hours sheet. LINE-P- names are Playable even without department."""
     import direction_io
 
     if direction_io.of_name(str(task.get("name") or "")) == direction_io.PLAYABLES:
@@ -1357,8 +1357,10 @@ def client_hours_bytes(
             lines.extend(extra)
         else:
             lines = ["DX", "DD"]
-            if any(str(t.get("line") or "") == "DS" for t in bucket):
-                lines.append("DS")
+            extra = sorted(
+                {client_io.line_of(t) for t in bucket if client_io.line_of(t) not in lines}
+            )
+            lines.extend(extra)
         for line in lines:
             rows = [t for t in bucket if client_io.line_of(t) == line]
             if not rows:

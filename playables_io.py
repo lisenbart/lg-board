@@ -26,7 +26,7 @@ THIN = Border(
     bottom=Side(style="hair", color="B4B4B4"),
 )
 HEADER_FILL = PatternFill("solid", fgColor="D8D8D8")
-LINE_MARKS = {"DX", "DD", "DS"}
+LINE_MARKS = set(direction_io.PLAYABLE_LINES)
 ROW_LABELS = {"playableads", "plads", "hours", "producer", "project name", "d.line"}
 
 
@@ -612,8 +612,8 @@ def write_month(db: dict, ym: str, path: Path | None = None) -> Path | None:
             if found:
                 _write_task_row(ws, found["row"], task, columns)
                 continue
-            line = (task.get("line") or "DD").upper()
-            if line not in {"DX", "DD", "DS"}:
+            line = direction_io.line_from_name(str(task.get("name") or ""), default=(task.get("line") or "DD").upper())
+            if line not in LINE_MARKS:
                 line = "DD"
             if line not in scan["headers"]:
                 _ensure_line_header(ws, scan, line, last_header, labels)

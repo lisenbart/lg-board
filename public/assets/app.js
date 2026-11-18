@@ -67,7 +67,7 @@ const PLAY_STATUS_BY_ROLE = {
   finance: PLAY_OPS_STATUSES.slice(),
   client: [],
 };
-const LINES = ["DD", "DX", "DS"];
+const LINES = ["DD", "DX", "DS", "DM"];
 const STUDIO_ROLES = [
   { role: "finance", label: "DL", blurb: "" },
   { role: "manager", label: "LP", blurb: "Line Producer" },
@@ -218,7 +218,10 @@ function boardLines(tasks) {
     return lines;
   }
   const lines = ["DX", "DD"];
-  if (rows.some((t) => t.line === "DS")) lines.push("DS");
+  for (const t of rows) {
+    const line = taskLine(t);
+    if (line && !lines.includes(line)) lines.push(line);
+  }
   return lines;
 }
 function studioMonthTasks() {
@@ -2174,7 +2177,7 @@ function openCreateTask() {
   if (lead) {
     lead.textContent = sl
       ? "Project name as the game (Coin Cruiser, Battle Sheep). Card lands on Slotomania Playables. Quote and PO sit on the card after the client approves hours."
-      : "Paste the full project name (DD- / DX- / DS- / DS-P-). This creates the card, the month line folder if it is missing, the project folder, an empty brief Doc, and a row in the live Excel for that board. Save on the card writes the brief into that Doc.";
+      : "Paste the full project name (DD-P- / DS-P- / DX-P- / DM-P- for Playables). This creates the card, the month line folder if it is missing, the project folder, an empty brief Doc, and a row in the live Excel for that board. Save on the card writes the brief into that Doc.";
   }
   if (name) name.placeholder = sl ? "Coin Cruiser" : "DS-P-060_MergeSolitaire";
   $("createTaskModal").classList.add("show");
@@ -3422,7 +3425,7 @@ function projectShort(name) {
     .map((s) => s.trim())
     .filter(Boolean);
   const skip = (p) =>
-    /^(DD|DX|DS)[-]/i.test(p) ||
+    /^(DD|DX|DS|DM)[-]/i.test(p) ||
     /^(EN|JA|IT|DE|FR|UA|LOC|HC|MGX|Comp|Resize)$/i.test(p) ||
     /^\d+s$/i.test(p) ||
     /SettAI/i.test(p);

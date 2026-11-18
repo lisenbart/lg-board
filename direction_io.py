@@ -14,6 +14,11 @@ SLOTOMANIA_LABEL = "SLOTOMANIA Playables"
 SHORT = {MGX: "MGX", PLAYABLES: "Playables"}
 DEPT = {MGX: "MGX", PLAYABLES: "Playables"}
 CLIENT_RATE = {MGX: 35.0, PLAYABLES: 40.0}
+MGX_LINES = ("DX", "DD")
+PLAYABLE_LINES = ("DX", "DD", "DS", "DM")
+KNOWN_LINES = ("DX", "DD", "DS", "DM")
+LINE_PREFIX_RE = re.compile(r"^\s*([A-Za-z]{2})-", re.I)
+PLAYABLE_NAME_RE = re.compile(r"^\s*[A-Za-z]{2}-P-", re.I)
 
 # Positions are seats. People sit in them and can change.
 POSITIONS = (
@@ -128,11 +133,31 @@ def board_label(direction: str, client_id: str = "") -> str:
     return LABELS.get(norm_dir(direction), LABELS[MGX])
 
 
+def line_from_name(name: str, default: str = "DD") -> str:
+    """First two letters before a hyphen: DM-P-004 → DM, DD-AIV-202 → DD."""
+    m = LINE_PREFIX_RE.match(name or "")
+    return m.group(1).upper() if m else default
+
+
 def of_name(name: str) -> str:
+    """Playables codes are LINE-P-… (DD-P, DS-P, DX-P, DM-P). Anything else is MGX."""
     text = str(name or "").strip()
-    if re.match(r"^(DD|DX|DS)-P-", text, re.I):
+    if PLAYABLE_NAME_RE.match(text):
         return PLAYABLES
     return MGX
+
+
+def repair_task_lines(db: dict) -> bool:
+    """Keep the board line in sync with the project code. DM-P- must not sit as DD."""
+    changed = False
+    for task in db.get("tasks") or []:
+        if client_io.is_slotomania(task):
+            continue
+        derived = line_from_name(str(task.get("name") or ""), default="")
+        if derived and str(task.get("line") or "").upper() != derived:
+            task["line"] = derived
+            changed = True
+    return changed
 
 
 def of_task(task: dict | None) -> str:

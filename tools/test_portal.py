@@ -1141,6 +1141,36 @@ def test_playables_desk() -> None:
     check("Google Sheets theme 8 is WIP blue", excel_io.status_from_line_fill(theme_hex) == "wip", theme_hex)
     check("DS-P name is Playables", direction_io.of_name("DS-P-060_MergeSolitaire") == direction_io.PLAYABLES)
     check("DD-AIV name is MGX", direction_io.of_name("DD-AIV-202-004_SettAI") == direction_io.MGX)
+    check("DM-P name is Playables", direction_io.of_name("DM-P-004-001_MemoryMatch") == direction_io.PLAYABLES)
+    check("DM-P line is DM", direction_io.line_from_name("DM-P-004-001_MemoryMatch") == "DM")
+    check("DM-P is not collapsed to DD", direction_io.line_from_name("DM-P-004-001_MemoryMatch") != "DD")
+    check("Drive line_from_name keeps DM", drive_io.line_from_name("DM-P-004-001_MemoryMatch") == "DM")
+    repaired = {
+        "tasks": [
+            {
+                "name": "DM-P-004-001_MemoryMatch",
+                "line": "DD",
+                "department": "Playables",
+                "clientId": "superplay",
+            }
+        ]
+    }
+    check("repair_task_lines turns stored DD into DM", direction_io.repair_task_lines(repaired) and repaired["tasks"][0]["line"] == "DM")
+    check("client line_of reads DM from the name", client_io.line_of(repaired["tasks"][0]) == "DM")
+    drive_src = (ROOT / "drive_io.py").read_text(encoding="utf-8")
+    parent_fn = drive_src.split("def live_line_parent_id")[1].split("def remember_live_folder")[0]
+    check(
+        "Playable DM is not forced into Projects/DD",
+        "if not playable and line not in" in parent_fn
+        and 'line = "DD"' in parent_fn,
+        parent_fn[:400],
+    )
+    create_fn = (ROOT / "server.py").read_text(encoding="utf-8").split("def _create_pack_then_excel")[1].split("def _rename_then_excel")[0]
+    check(
+        "new Drive packs see the Playables task, not only the name",
+        "task=snap" in create_fn and "direction_io.of_name" in create_fn,
+        create_fn[:500],
+    )
     purple = {"people": [{"id": "manager", "name": "Анастасія", "role": "manager", "color": "#9d50dd", "rateUsd": 5}]}
     direction_io.ensure_crew(purple)
     lp = next(p for p in purple["people"] if p["id"] == "manager")

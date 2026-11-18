@@ -364,7 +364,7 @@ def snapshot(db: dict, month: str, nbu: dict | None = None) -> dict:
     buckets = {}
     for dir_key, dir_label in ((direction_io.MGX, "MGX"), (direction_io.PLAYABLES, "Playable")):
         rate = direction_io.client_rate(dir_key, meta)
-        for line in ("DX", "DD", "DS"):
+        for line in direction_io.KNOWN_LINES:
             buckets[(dir_key, line)] = {
                 "direction": dir_key,
                 "label": f"{dir_label} {line}",
@@ -379,10 +379,21 @@ def snapshot(db: dict, month: str, nbu: dict | None = None) -> dict:
     mgr_projects = {direction_io.MGX: 0, direction_io.PLAYABLES: 0, client_io.SLOTOMANIA: 0}
     for t in tasks:
         direction = direction_io.of_task(t)
-        line = t.get("line") if t.get("line") in {"DD", "DX", "DS"} else "DD"
+        line = client_io.line_of(t)
+        rate = direction_io.client_rate(direction, meta)
+        if (direction, line) not in buckets:
+            buckets[(direction, line)] = {
+                "direction": direction,
+                "label": f"{'Playable' if direction == direction_io.PLAYABLES else 'MGX'} {line}",
+                "line": line,
+                "projects": 0,
+                "shifts": 0.0,
+                "hours": 0.0,
+                "bill": 0.0,
+                "rate": rate,
+            }
         h = hours_of(t, shift_hours)
         sh = float(t.get("shifts") or 0)
-        rate = direction_io.client_rate(direction, meta)
         bucket = buckets[(direction, line)]
         bucket["projects"] += 1
         bucket["shifts"] += sh
@@ -497,7 +508,8 @@ def snapshot(db: dict, month: str, nbu: dict | None = None) -> dict:
         row["hoursSl"] = round(row.get("hoursSl") or 0, 1)
         row["shifts"] = round(row["shifts"], 2)
     for key in ((direction_io.MGX, "DX"), (direction_io.MGX, "DD"), (direction_io.MGX, "DS"),
-                (direction_io.PLAYABLES, "DX"), (direction_io.PLAYABLES, "DD"), (direction_io.PLAYABLES, "DS")):
+                (direction_io.PLAYABLES, "DX"), (direction_io.PLAYABLES, "DD"), (direction_io.PLAYABLES, "DS"),
+                (direction_io.PLAYABLES, "DM")):
         row = buckets[key]
         row["hours"] = round(row["hours"], 1)
         row["shifts"] = round(row["shifts"], 2)
@@ -1092,6 +1104,7 @@ LINE_FILL = {
     "DD": PatternFill("solid", fgColor="BFBFBF"),
     "DS": PatternFill("solid", fgColor="C6B19B"),
     "SL": PatternFill("solid", fgColor="B4A7D6"),
+    "DM": PatternFill("solid", fgColor="E8B4D4"),
 }
 _SEAT_HEAD = ("EMPL", "LP ", "TL ", "MD ", "ARTD", "DEV ")
 
@@ -1105,7 +1118,7 @@ def _relabel_calculator_seats(wb, crew: list[dict], skip_title: str, board: str)
         for r in range(1, min((ws.max_row or 1), 80) + 1):
             a = str(ws.cell(r, 1).value or "").strip().upper()
             head = str(ws.cell(r, empl_start).value or "").strip().upper()
-            if a not in {"DX", "DD", "DS"}:
+            if a not in {"DX", "DD", "DS", "DM"}:
                 continue
             if not head.startswith(_SEAT_HEAD):
                 continue
@@ -1193,13 +1206,15 @@ def _write_playable_month_body(db, ym, path, wb, nbu_rate) -> Path:
         and direction_io.is_playables(t)
         and client_io.is_superplay(t)
     ]
-    by_line = {k: [] for k in ("DX", "DD", "DS")}
+    by_line = {k: [] for k in direction_io.PLAYABLE_LINES}
     for t in tasks:
-        line = t.get("line") if t.get("line") in by_line else "DD"
+        line = client_io.line_of(t)
+        if line not in by_line:
+            by_line[line] = []
         by_line[line].append(t)
     for key in by_line:
         by_line[key].sort(key=lambda t: str(t.get("name") or ""))
-    active_lines = [k for k in ("DX", "DD", "DS") if by_line[k] or k != "DS"]
+    active_lines = [k for k in by_line if by_line[k] or k in {"DX", "DD"}]
 
     name = sheet_name_for(ym)
     if name in wb.sheetnames:

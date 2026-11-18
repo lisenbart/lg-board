@@ -33,7 +33,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-11-17e"
+BUILD = "2026-11-18a"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -51,7 +51,7 @@ _EXCEL_WATCH: dict = {"at": "", "added": 0, "parsed": 0, "error": "", "fromDrive
 # Name has no spaces. Hours sit at the end after a space, dash, or pipe:
 #   NAME 0.3 shift   /   NAME- 0.3 SHFT   /   NAME - 0.3   /   NAME | 0.3 shifts
 EMAIL_LINE = re.compile(
-    r"((?:DD|DX|DS)-[A-Za-z0-9._-]*[A-Za-z0-9._])"
+    r"((?:DD|DX|DS|DM)-[A-Za-z0-9._-]*[A-Za-z0-9._])"
     r"(?:\s*[|-]?\s+|\s*[|]\s*)"
     r"(\d+(?:[.,]\d+)?)"
     r"\s*(?:sh[if]*ts?)?\s*$",
@@ -167,6 +167,8 @@ def load_db() -> dict:
     if playables_io.attach_studio_buffers(db):
         dirty = True
     if excel_io.collapse_duplicate_tasks(db):
+        dirty = True
+    if direction_io.repair_task_lines(db):
         dirty = True
     if dirty:
         save_db(db)
@@ -528,16 +530,29 @@ def _move_month_then_excel(snapshots: list, new_ym: str) -> None:
 
 def _create_pack_then_excel(task_id: str, name: str, ym: str, line: str) -> None:
     try:
-        pack = drive_io.create_live_pack({"meta": {"month": ym}}, name, ym, line)
+        with LOCK:
+            db = load_db()
+            live = next((t for t in db.get("tasks") or [] if t.get("id") == task_id), None)
+            snap = dict(live) if live else {
+                "name": name,
+                "line": line,
+                "month": ym,
+                "department": direction_io.DEPT[direction_io.of_name(name)],
+            }
+        pack = drive_io.create_live_pack({"meta": {"month": ym}}, name, ym, line, task=snap)
         with LOCK:
             db = load_db()
             task = next((t for t in db.get("tasks") or [] if t.get("id") == task_id), None)
             if task:
+                derived = direction_io.line_from_name(name)
+                if derived:
+                    task["line"] = derived
+                shown = derived or line
                 task["folderUrl"] = pack.get("folderUrl") or task.get("folderUrl") or ""
                 task["docUrl"] = pack.get("docUrl") or task.get("docUrl") or ""
                 if pack.get("folderUrl"):
                     task.setdefault("activity", []).append(
-                        {"at": utc_now(), "text": f"Drive folder + brief Doc in {line}"}
+                        {"at": utc_now(), "text": f"Drive folder + brief Doc in {shown}"}
                     )
                 save_db(db)
     except Exception as e:
@@ -762,6 +777,9 @@ def fill_missing_packs(specs: list[dict], ym: str) -> dict:
             if not task or not pack:
                 continue
             missing = not (task.get("folderUrl") and task.get("docUrl"))
+            derived = drive_io.line_from_name(str(task.get("name") or pack.get("name") or ""))
+            if derived:
+                task["line"] = derived
             task["folderUrl"] = pack.get("folderUrl") or task.get("folderUrl") or ""
             task["docUrl"] = pack.get("docUrl") or ""
             drive_io.apply_work_folder(task)
@@ -1288,8 +1306,7 @@ def task_month(data: dict, db: dict) -> str:
 
 
 def line_from_name(name: str) -> str:
-    prefix = name.split("-", 1)[0].upper()
-    return prefix if prefix in {"DD", "DX", "DS"} else "DD"
+    return direction_io.line_from_name(name)
 
 
 def parse_email(text: str) -> list[dict]:
@@ -3824,7 +3841,7 @@ def _missing_playable_pack_specs(db: dict, ym: str) -> list[dict]:
             {
                 "id": task.get("id"),
                 "name": name,
-                "line": task.get("line") or drive_io.line_from_name(name),
+                "line": drive_io.line_from_name(name) or task.get("line"),
                 "month": month,
             }
         )

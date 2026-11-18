@@ -27,7 +27,7 @@ SPECS = {
         "label": "SuperPlay",
         "boardLabel": {"mgx": "SUPERPLAY MGX", "playables": "SUPERPLAY Playables"},
         "directions": ("mgx", "playables"),
-        "lines": {"mgx": ("DX", "DD"), "playables": ("DX", "DD", "DS")},
+        "lines": {"mgx": ("DX", "DD"), "playables": ("DX", "DD", "DS", "DM")},
         "rates": {"mgx": 35.0, "playables": 40.0},
         "money": "month_end",
         "lineDefault": {"mgx": "DD", "playables": "DS"},
@@ -269,11 +269,16 @@ def boards() -> list[dict]:
 
 
 def line_of(task: dict | None) -> str:
+    import direction_io
+
     cid = of_task(task)
     raw = str((task or {}).get("line") or "").strip().upper()
+    derived = direction_io.line_from_name(str((task or {}).get("name") or ""), default="")
     if cid == SLOTOMANIA:
         return "SL" if raw in {"", "PL", "SL"} else raw
-    if raw in {"DX", "DD", "DS"}:
+    if derived:
+        return derived
+    if raw:
         return raw
     return "DD"
 

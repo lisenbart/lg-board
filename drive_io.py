@@ -635,8 +635,9 @@ def _create_doc(token: str, parent_id: str, title: str, brief: str = "", *, skip
 
 
 def line_from_name(name: str) -> str:
-    m = re.match(r"^\s*(DD|DX|DS)\b", name or "", re.I)
-    return m.group(1).upper() if m else "DD"
+    import direction_io
+
+    return direction_io.line_from_name(name)
 
 
 def is_test_task_name(task: dict) -> bool:
@@ -666,9 +667,9 @@ def remember_line_parent(db: dict, line: str, fid: str) -> None:
 
 
 def live_line_parent_id(db: dict, ym: str, line: str, token: str, *, playable: bool = False) -> str:
-    """Month / DD|DX|DS folder on the live Projects drive."""
+    """Month / line folder: Playable/11_November/DM or Projects/11_November/DD."""
     line = (line or "DD").upper()
-    if line not in {"DD", "DX", "DS"}:
+    if not playable and line not in {"DD", "DX", "DS"}:
         line = "DD"
     meta = db.get("meta") or {}
     import drive_sync
@@ -680,8 +681,8 @@ def live_line_parent_id(db: dict, ym: str, line: str, token: str, *, playable: b
             month_id = _mkdir(token, projects, month_folder_name(ym))
             fid, _ = _ensure_folder(token, month_id, line)
             return fid
-    url = meta.get(LIVE_LINE_META[line]) or ""
-    fid = folder_id_from_url(url) or str(cfg.get(LIVE_LINE_CFG[line]) or "")
+    url = meta.get(LIVE_LINE_META[line]) or "" if line in LIVE_LINE_META else ""
+    fid = folder_id_from_url(url) or str(cfg.get(LIVE_LINE_CFG[line]) or "") if line in LIVE_LINE_CFG else ""
     if fid and ym == "2026-10":
         return fid
     oct_id = folder_id_from_url(meta.get("driveLiveOctober") or "") or str(cfg.get("october") or "")
@@ -712,7 +713,7 @@ def remember_live_folder(name: str, url: str) -> None:
 
 
 def ensure_live_pack(db: dict, task: dict, ym: str | None = None) -> dict:
-    """Idempotent live folder + brief Doc. Never writes outside Projects / month / DD|DX|DS."""
+    """Idempotent live folder + brief Doc under Playable or Projects / month / line."""
     name = (task.get("name") or "").strip()
     if not name:
         return {"ok": False, "error": "task has no name"}
@@ -779,6 +780,7 @@ def create_live_pack(db: dict, name: str, ym: str, line: str, task: dict | None 
             )
         import direction_io
 
+        line = direction_io.line_from_name(name, default=(line or "DD"))
         playable = direction_io.of_name(name) == direction_io.PLAYABLES or (
             direction_io.is_playables(task) if task else False
         )
@@ -1081,7 +1083,7 @@ def sync_task_brief(db: dict, task: dict) -> dict:
     ym = str(task.get("month") or (db.get("meta") or {}).get("month") or "2026-10")
     line = task.get("line") or line_from_name(name)
     if not task.get("folderUrl") or not task.get("docUrl"):
-        pack = create_live_pack(db, name, ym, line)
+        pack = create_live_pack(db, name, ym, line, task=task)
         task["folderUrl"] = pack.get("folderUrl") or ""
         task["docUrl"] = pack.get("docUrl") or ""
     write_brief_doc(task.get("docUrl") or "", task.get("brief") or "")
