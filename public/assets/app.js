@@ -659,6 +659,142 @@ function escapeHtml(s) {
     .replaceAll('"', "&quot;");
 }
 
+function hrefOf(url) {
+  const raw = String(url || "").trim();
+  if (!raw) return "";
+  if (/^(javascript|data|vbscript|file):/i.test(raw)) return "";
+  let href = raw;
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(href)) {
+    if (href.startsWith("//")) href = "https:" + href;
+    else if (/^(www\.)?[\w.-]+\.[a-z]{2,}([/:?#].*)?$/i.test(href)) href = "https://" + href;
+    else return "";
+  }
+  try {
+    const parsed = new URL(href);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return "";
+    return parsed.href;
+  } catch {
+    return "";
+  }
+}
+
+function firstUrl(text) {
+  const raw = String(text || "");
+  const found = raw.match(/https?:\/\/[^\s<>"'`]+/i);
+  if (found) return found[0].replace(/[).,;]+$/, "");
+  const trimmed = raw.trim().split(/\s+/)[0] || "";
+  return hrefOf(trimmed) ? trimmed : "";
+}
+
+function linkHostLabel(url) {
+  let host = "";
+  try {
+    const href = hrefOf(url);
+    if (href) host = new URL(href).hostname.replace(/^www\./, "");
+  } catch {
+    host = "";
+  }
+  if (!host) return "";
+  if (host === "miro.com" || host.endsWith(".miro.com")) return "Miro";
+  if (host === "figma.com" || host.endsWith(".figma.com")) return "Figma";
+  if (host === "drive.google.com" || host === "docs.google.com") return "Google Drive";
+  if (host.endsWith(".google.com")) return "Google";
+  return host;
+}
+
+function linkRowHtml({ id, value, placeholder, canPaste, emptyText }) {
+  const raw = String(value || "").trim();
+  const href = hrefOf(raw);
+  const host = linkHostLabel(raw);
+  const off = href ? "" : "disabled";
+  const openOff = href ? "" : `aria-disabled="true" tabindex="-1"`;
+  const field = canPaste
+    ? `<input id="${escapeHtml(id)}" class="link-row-input" value="${escapeHtml(raw)}" placeholder="${escapeHtml(placeholder || "")}" inputmode="url" autocomplete="off" spellcheck="false" />`
+    : raw
+      ? `<input class="link-row-input is-ro" value="${escapeHtml(raw)}" readonly tabindex="0" aria-label="Link" />`
+      : "";
+  if (!canPaste && !raw) return `<p class="io-empty">${emptyText || ""}</p>`;
+  return `<div class="link-row" data-link-row="${escapeHtml(id)}">
+      ${field}
+      <div class="link-row-actions">
+        <button type="button" class="btn link-copy" data-link-for="${escapeHtml(id)}" ${off} title="Copy link">Copy</button>
+        <a class="btn pack-brief link-open" data-link-for="${escapeHtml(id)}" href="${escapeHtml(href || "#")}" target="_blank" rel="noreferrer" ${openOff} title="Open in a new tab">Open</a>
+      </div>
+      <small class="link-host"${host ? "" : " hidden"}>${escapeHtml(host)}</small>
+    </div>`;
+}
+
+function syncLinkRow(row) {
+  if (!row) return "";
+  const raw = String(row.querySelector("input")?.value || "").trim();
+  const href = hrefOf(raw);
+  const host = linkHostLabel(raw);
+  const copy = row.querySelector(".link-copy");
+  const open = row.querySelector(".link-open");
+  const chip = row.querySelector(".link-host");
+  if (copy) copy.disabled = !href;
+  if (open) {
+    if (href) {
+      open.href = href;
+      open.removeAttribute("aria-disabled");
+      open.removeAttribute("tabindex");
+    } else {
+      open.href = "#";
+      open.setAttribute("aria-disabled", "true");
+      open.tabIndex = -1;
+    }
+  }
+  if (chip) {
+    chip.textContent = host;
+    chip.hidden = !host;
+  }
+  return raw;
+}
+
+function bindLinkRows(root, onMainInput) {
+  (root || document).querySelectorAll(".link-row").forEach((row) => {
+    const input = row.querySelector("input");
+    const copy = row.querySelector(".link-copy");
+    const open = row.querySelector(".link-open");
+    const isMain = row.getAttribute("data-link-row") === "stResult";
+    const onChange = () => {
+      syncLinkRow(row);
+      if (isMain && onMainInput) onMainInput();
+    };
+    input?.addEventListener("input", onChange);
+    input?.addEventListener("change", onChange);
+    input?.addEventListener("paste", (e) => {
+      const clipped = firstUrl(e.clipboardData?.getData("text/plain") || "");
+      if (!clipped || !input) return;
+      e.preventDefault();
+      input.value = clipped;
+      onChange();
+    });
+    if (input?.readOnly) {
+      input.addEventListener("focus", () => input.select());
+    }
+    copy?.addEventListener("click", async () => {
+      const raw = syncLinkRow(row);
+      const href = hrefOf(raw);
+      const ok = await copyText(href || raw);
+      toast(ok ? "Copied" : "Could not copy");
+      if (ok) {
+        copy.textContent = "Copied";
+        setTimeout(() => {
+          if (copy.textContent === "Copied") copy.textContent = "Copy";
+        }, 1200);
+      }
+    });
+    open?.addEventListener("click", (e) => {
+      const href = hrefOf(syncLinkRow(row));
+      if (!href) {
+        e.preventDefault();
+        toast("Paste a link first");
+      }
+    });
+  });
+}
+
 async function copyText(text) {
   const value = String(text || "");
   try {
@@ -3045,19 +3181,25 @@ function resultHtml(t, performer, canPaste) {
   const html = play && playableInHtml(t);
   const title = !play ? "Result" : html ? "HTML" : "Storyboard";
   const placeholder = !play ? "Paste finished file link" : html ? "Paste HTML / playable link" : "Paste storyboard / board link";
-  const body = canPaste
-    ? `<input id="stResult" value="${escapeHtml(t.resultUrl || "")}" placeholder="${placeholder}" />`
-    : t.resultUrl
-      ? `<a class="pin-link" href="${escapeHtml(t.resultUrl)}" target="_blank" rel="noreferrer">${html ? "Open HTML" : "Open storyboard"}</a>`
-      : `<p class="io-empty">Waiting for ${escapeHtml(person(html ? t.programmerId : t.assigneeId)?.name || "designer")}</p>`;
+  const waiting = `Waiting for ${escapeHtml(person(html ? t.programmerId : t.assigneeId)?.name || "designer")}`;
+  const body = linkRowHtml({
+    id: "stResult",
+    value: t.resultUrl || "",
+    placeholder,
+    canPaste,
+    emptyText: waiting,
+  });
   const board = play ? String(t.storyboardUrl || "").trim() : "";
-  const boardLink = html && board
-    ? `<p class="io-hint"><a class="pin-link" href="${escapeHtml(board)}" target="_blank" rel="noreferrer">Open storyboard</a></p>`
+  const boardRow = html && board
+    ? `<div class="link-sub">
+        <h4>Storyboard</h4>
+        ${linkRowHtml({ id: "stStoryboard", value: board, placeholder: "", canPaste: false, emptyText: "" })}
+      </div>`
     : "";
   return `<section class="io io-result${performer ? " is-focus" : ""}">
       <h3>${title}</h3>
       ${body}
-      ${boardLink}
+      ${boardRow}
     </section>`;
 }
 function hasDriveDoc(t) {
@@ -4014,14 +4156,14 @@ function renderGuide() {
       </div>
       <div class="guide-grid">
         ${card("art_director", "AD", "Art Director", "Анна, Юля. Лише свої playable.", [
-          `Ready → ${ui("WIP")}. Вставляєш лінк на сторіборд, потім ${ui("Check")}.`,
+          `Ready → ${ui("WIP")}. Вставляєш лінк на сторіборд, потім ${ui("Check")}. ${ui("Copy")} / ${ui("Open")} — праворуч від поля, без нової вкладки вручну.`,
           `Після відбою: ${ui("WIP")} знову, потім ${ui("Check")}.`,
           `${ui("Final art")} → ${ui("Art ready")}. HTML лінк не твій — його вставляє DEV.`,
           `${ui("Send to client")} у AD немає.`,
         ])}
         ${card("programmer", "DEV", "Programmer", "Богдан. Лише свої playable.", [
           `LP може посадити тебе DEV з Ready. HTML починаєш після ${ui("Art ready")}.`,
-          `${ui("WIP")}, лінк, ${ui("Done")}. Без лінка Done не ставиться.`,
+          `${ui("WIP")}, лінк, ${ui("Done")}. Без лінка Done не ставиться. ${ui("Copy")} / ${ui("Open")} біля HTML; сторіборд лишається окремим рядком.`,
           `Код-онлі (немає AD) — ${ui("WIP")} одразу з Ready.`,
           `Відбій HTML — ${ui("Need Fixing")} → ${ui("WIP")} → ${ui("Done")}.`,
         ])}
@@ -4031,7 +4173,7 @@ function renderGuide() {
         ])}
         ${card("manager", "LP", "Line Producer", "Анастасія. Обидві дошки.", [
           `${ui("Create task")} після апруву годин у Telegram. AD і DEV садить одразу, години — на людей. DEV починає HTML після ${ui("Art ready")}.`,
-          `${ui("Send to client")} з ${ui("Check")} (борд) і з ${ui("Done")} (HTML + лінк).`,
+          `${ui("Send to client")} з ${ui("Check")} (борд) і з ${ui("Done")} (HTML + лінк). ${ui("Copy")} / ${ui("Open")} біля лінка — не треба копіювати з рядка в нову вкладку.`,
           `Sent: відбій → ${ui("Need Fixing")}. Апрув борду → ${ui("Final art")}.`,
           `${ui("Mark Closed")} можна без Send, як у MGX. Hours split — студійна оплата. Billed buffer лише DL.`,
           `Closed → Ready знову відкриває арт для AD (сторіборд + Check). ${ui("Art ready")} → ${ui("WIP")} лишається HTML для DEV.`,
@@ -7251,9 +7393,7 @@ function openTask(id) {
     });
     if (hint) hint.textContent = "";
   };
-  $("stResult")?.addEventListener("input", syncDoneOption);
-  $("stResult")?.addEventListener("change", syncDoneOption);
-  $("stResult")?.addEventListener("paste", () => setTimeout(syncDoneOption, 0));
+  bindLinkRows($("drawer"), syncDoneOption);
   $("drawer")?.querySelectorAll(".status-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       const key = btn.dataset.status;
