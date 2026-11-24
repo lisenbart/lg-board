@@ -58,9 +58,9 @@
     "task.artready": {
       label: "Art ready",
       title: "{name}",
-      detail: "Art ready · assign DEV",
+      detail: "Art ready · paste HTML on the card",
       mark: "done",
-      audience: { roles: ["manager"] },
+      audience: { assignee: true, roles: ["manager"] },
       skipActor: true,
       channels: ["portal"],
     },

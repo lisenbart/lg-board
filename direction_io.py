@@ -331,6 +331,26 @@ def playable_next_statuses(role: str, task: dict | None) -> list[str]:
     return []
 
 
+def playable_handoff_status(role: str, task: dict | None) -> str:
+    """Paste the link and hand it to LP — the Telegram-shaped action."""
+    task = task or {}
+    st = playable_norm_status(task.get("studioStatus"))
+    html = playable_in_html(task)
+    if role == "art_director":
+        if html:
+            return ""
+        if st in {"new", "wip", "revision"}:
+            return "check"
+        return ""
+    if role == "programmer":
+        if st in {"artready", "wip", "revision"} and html:
+            return "done"
+        if not playable_has_ad(task) and st in {"new", "wip", "revision"}:
+            return "done"
+        return ""
+    return ""
+
+
 def playable_can_set(role: str, task: dict | None, nxt: str, *, actor_id: str = "") -> tuple[bool, str]:
     task = task or {}
     cur = playable_norm_status(task.get("studioStatus"))
@@ -354,7 +374,7 @@ def playable_can_set(role: str, task: dict | None, nxt: str, *, actor_id: str = 
         return False, "Only the AD on the card sets art status"
     if role == "programmer" and actor_id and str(task.get("programmerId") or "") != str(actor_id):
         return False, "Only the DEV on the card sets HTML status"
-    if nxt not in playable_next_statuses(role, task):
+    if nxt not in playable_next_statuses(role, task) and playable_handoff_status(role, task) != nxt:
         return False, f"{role} cannot set {nxt}"
     return True, ""
 

@@ -28,6 +28,7 @@ import direction_io
 import drive_io
 import excel_io
 import finance_io
+import notice_io
 import playables_io
 import server
 
@@ -1812,6 +1813,11 @@ def test_playable_card_pipeline() -> None:
 
     ad = {"studioStatus": "new", "assigneeId": "artdir1"}
     check("AD Ready only offers WIP", direction_io.playable_next_statuses("art_director", ad) == ["wip"])
+    check(
+        "AD can Hand Check from Ready",
+        direction_io.playable_can_set("art_director", ad, "check", actor_id="artdir1")[0],
+    )
+    check("AD handoff from Ready is Check", direction_io.playable_handoff_status("art_director", ad) == "check")
     check("DEV work still waits before Art ready", not direction_io.playable_may_assign_dev(ad))
     check("LP may assign DEV on Ready", direction_io.playable_may_assign_dev(ad, "manager"))
     check("DL may assign DEV on Ready", direction_io.playable_may_assign_dev(ad, "finance"))
@@ -1861,6 +1867,14 @@ def test_playable_card_pipeline() -> None:
     check("DEV assign unlocks on Art ready", direction_io.playable_may_assign_dev(ad))
     check("DEV on Art ready offers WIP", direction_io.playable_next_statuses("programmer", {**ad, "programmerId": "programmer1"}) == ["wip"])
     check("AD is done at Art ready", direction_io.playable_next_statuses("art_director", ad) == [])
+    check(
+        "DEV can Hand Done from Art ready",
+        direction_io.playable_can_set("programmer", {**ad, "programmerId": "programmer1"}, "done", actor_id="programmer1")[0],
+    )
+    check(
+        "DEV cannot Hand Done during art WIP",
+        not direction_io.playable_can_set("programmer", art_wip, "done", actor_id="programmer1")[0],
+    )
 
     html = {
         "studioStatus": "wip",
@@ -1909,6 +1923,15 @@ def test_playable_card_pipeline() -> None:
     )
     check("DEV HTML paste is owner-only", "isProgrammer() && String(t.programmerId || \"\") === String(me().id) && playableInHtml(t)" in js)
     check("AD can paste a storyboard link", "isArtDirector() && playableAdId(t) === me().id && !playableInHtml(t)" in js)
+    check("Hand to LP sits on the paste block", 'id="handOff"' in js and "Hand to LP" in js)
+    check("DEV sees HTML slot before Art ready", "Paste the playable link here after Art ready" in js)
+    check("Art ready pings seated DEV", notice_io.KINDS["task.artready"]["audience"].get("assignee") is True)
+    notices_js = (ROOT / "public" / "assets" / "notices.js").read_text(encoding="utf-8")
+    check(
+        "card Art ready pings DEV",
+        "paste HTML on the card" in notices_js
+        and "assignee: true" in notices_js.split("task.artready")[1].split("task.ready")[0],
+    )
     check("storyboard row has Copy and Open", 'class="link-row"' in js and "link-copy" in js and "link-open" in js)
     check("Copy/Open sit on the paste row", "link-row-actions" in js and "function bindLinkRows" in js)
     check("Open uses the typed link", "function hrefOf" in js and "function syncLinkRow" in js)

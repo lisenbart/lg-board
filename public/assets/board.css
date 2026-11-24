@@ -2063,6 +2063,14 @@ a.link-open[aria-disabled="true"] {
   text-transform: uppercase;
   color: var(--muted);
 }
+.link-hand {
+  width: 100%;
+  margin-top: 8px;
+  justify-content: center;
+  font-weight: 600;
+  min-height: 40px;
+}
+.link-hand:disabled { opacity: 0.38; }
 .io-hint, .io-empty { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
 .io-empty { color: #c5c7d0; }
 .io-hint:empty, .status-hint:empty { display: none; }
@@ -3341,6 +3349,7 @@ html:not(.phone-ui):not(.standalone-app) .push-hint { display: none !important; 
     min-height: 44px;
     font-size: 14px;
   }
+  html:not(.hours-host) .link-hand { min-height: 44px; font-size: 15px; }
   html:not(.hours-host) .fin-tabs { width: 100%; }
   html:not(.hours-host) .fin-tab {
     flex: 1;
