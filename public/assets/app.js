@@ -3981,7 +3981,7 @@ function renderGuide() {
     <section class="guide">
       <div class="guide-intro">
         <h2>Як працює Playables</h2>
-        <p>Прорахунок лишається в Telegram. На дошці робота вже після апруву годин. Два кола: арт / сторіборд, потім HTML. DEV можна посадити з Ready — HTML він починає лише після ${ui("Art ready")}.</p>
+        <p>Прорахунок лишається в Telegram. На дошці робота вже після апруву годин. Два кола: арт / сторіборд, потім HTML. DEV можна посадити з Ready — HTML він починає лише після ${ui("Art ready")}. Якщо картку закрили і знову відкрили в Ready — AD знову малює сторіборд, не HTML.</p>
       </div>
       <div class="guide-block">
         <h3>Статуси</h3>
@@ -4034,6 +4034,7 @@ function renderGuide() {
           `${ui("Send to client")} з ${ui("Check")} (борд) і з ${ui("Done")} (HTML + лінк).`,
           `Sent: відбій → ${ui("Need Fixing")}. Апрув борду → ${ui("Final art")}.`,
           `${ui("Mark Closed")} можна без Send, як у MGX. Hours split — студійна оплата. Billed buffer лише DL.`,
+          `Closed → Ready знову відкриває арт для AD (сторіборд + Check). ${ui("Art ready")} → ${ui("WIP")} лишається HTML для DEV.`,
         ])}
       </div>
     </section>`;
@@ -4430,9 +4431,26 @@ function playableStatusKey(t) {
   if (st === "build") return "artready";
   return "new";
 }
+function playableStatusFrom(t) {
+  const st = playableStatusKey(t);
+  const log = [...(t?.statusLog || [])].reverse();
+  for (const row of log) {
+    if (!row || !row.to) continue;
+    if (playableStatusKey({ studioStatus: row.to }) === st) {
+      return playableStatusKey({ studioStatus: row.from || "new" });
+    }
+  }
+  return "";
+}
 function playableInHtml(t) {
   const st = playableStatusKey(t);
+  if (["new", "check", "clientart", "finalart"].includes(st)) return false;
   if (["artready", "done", "approve", "closed"].includes(st)) return true;
+  if (st === "wip" || st === "revision") {
+    const prev = playableStatusFrom(t);
+    if (["new", "check", "clientart", "finalart", "closed"].includes(prev)) return false;
+    if (["artready", "done", "approve"].includes(prev)) return true;
+  }
   if (t?.playableHtml) return true;
   if (!playableAdId(t) && String(t?.programmerId || "").trim()) return true;
   return false;

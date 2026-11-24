@@ -221,12 +221,33 @@ def on_playable_seat(task: dict | None, actor_id: str) -> bool:
     return False
 
 
+ART_LOOP = {"new", "check", "clientart", "finalart"}
+HTML_HANDOFF = {"artready", "done", "approve"}
+
+
+def _status_before(task: dict, st: str) -> str:
+    for item in reversed(task.get("statusLog") or []):
+        if not isinstance(item, dict):
+            continue
+        if playable_norm_status(item.get("to")) == st:
+            return playable_norm_status(item.get("from"))
+    return ""
+
+
 def playable_in_html(task: dict | None) -> bool:
     """HTML loop starts at Art ready (or a DEV-only card). Seating DEV on Ready is still art."""
     task = task or {}
     st = playable_norm_status(task.get("studioStatus"))
-    if st in {"artready", "done", "approve", "closed"}:
+    if st in ART_LOOP:
+        return False
+    if st in HTML_HANDOFF or st == "closed":
         return True
+    if st in {"wip", "revision"}:
+        prev = _status_before(task, st)
+        if prev in ART_LOOP or prev == "closed":
+            return False
+        if prev in HTML_HANDOFF:
+            return True
     if task.get("playableHtml"):
         return True
     if not playable_has_ad(task) and str(task.get("programmerId") or "").strip():
@@ -234,16 +255,37 @@ def playable_in_html(task: dict | None) -> bool:
     return False
 
 
-def touch_playable_html(task: dict | None) -> None:
-    """Lock the HTML loop once art is handed off, so later WIP is DEV not AD."""
+def touch_playable_html(task: dict | None, prev: str | None = None) -> None:
+    """Lock HTML after Art ready. Closed → Ready / WIP returns the card to AD."""
     if not task:
+        return
+    st = playable_norm_status(task.get("studioStatus"))
+    if st in ART_LOOP or st == "closed":
+        if task.get("playableHtml"):
+            task["playableHtml"] = False
+        return
+    if st == "artready":
+        task["playableHtml"] = True
+        board = str(task.get("resultUrl") or "").strip()
+        if board and not str(task.get("storyboardUrl") or "").strip():
+            task["storyboardUrl"] = board
+        return
+    if st in {"done", "approve"}:
+        task["playableHtml"] = True
+        return
+    if st in {"wip", "revision"}:
+        prev_st = playable_norm_status(prev) if prev else _status_before(task, st)
+        if prev_st in ART_LOOP or prev_st == "closed":
+            task["playableHtml"] = False
+            return
+        if prev_st in HTML_HANDOFF:
+            task["playableHtml"] = True
+            return
+        if playable_in_html(task):
+            task["playableHtml"] = True
         return
     if playable_in_html(task):
         task["playableHtml"] = True
-        st = playable_norm_status(task.get("studioStatus"))
-        board = str(task.get("resultUrl") or "").strip()
-        if st == "artready" and board and not str(task.get("storyboardUrl") or "").strip():
-            task["storyboardUrl"] = board
 
 
 def playable_may_assign_dev(task: dict | None, role: str | None = None) -> bool:
@@ -510,7 +552,8 @@ def ensure_crew(db: dict) -> bool:
             task["studioStatus"] = nxt
             task["mondayStatus"] = PLAY_STATUS.get(nxt, task.get("mondayStatus"))
             dirty = True
-        if playable_in_html(task) and not task.get("playableHtml"):
-            touch_playable_html(task)
+        before_html = bool(task.get("playableHtml"))
+        touch_playable_html(task)
+        if bool(task.get("playableHtml")) != before_html:
             dirty = True
     return dirty

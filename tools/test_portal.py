@@ -1928,6 +1928,57 @@ def test_playable_card_pipeline() -> None:
     direction_io.touch_playable_html(art)
     check("Art ready locks the HTML loop", art.get("playableHtml") is True)
     check("Art ready keeps the storyboard URL", art.get("storyboardUrl") == "https://board.example/story")
+    html_wip = {
+        "studioStatus": "wip",
+        "assigneeId": "artdir1",
+        "programmerId": "programmer1",
+        "playableHtml": True,
+        "statusLog": [{"from": "artready", "to": "wip"}],
+    }
+    direction_io.touch_playable_html(html_wip)
+    check("Art ready → WIP stays in the HTML loop", html_wip.get("playableHtml") is True)
+    check("AD still cannot drive HTML WIP", direction_io.playable_next_statuses("art_director", html_wip) == [])
+    reopened = {
+        "studioStatus": "wip",
+        "assigneeId": "artdir1",
+        "programmerId": "programmer1",
+        "playableHtml": True,
+        "statusLog": [
+            {"from": "closed", "to": "new", "label": "Ready to Start"},
+            {"from": "new", "to": "wip", "label": "WIP"},
+        ],
+    }
+    direction_io.touch_playable_html(reopened)
+    check("Closed → Ready → WIP returns the card to AD", reopened.get("playableHtml") is False)
+    check("AD can Check after reopen", direction_io.playable_next_statuses("art_director", reopened) == ["check"])
+    check("reopened WIP is not the HTML loop", direction_io.playable_in_html(reopened) is False)
+    closed = {"studioStatus": "closed", "assigneeId": "artdir1", "playableHtml": True}
+    direction_io.touch_playable_html(closed)
+    check("Closed does not keep the HTML lock flag", closed.get("playableHtml") is False)
+    stuck = {
+        "id": "t-fireworks",
+        "name": "DM-P-002-001_FireworksShow",
+        "department": "Playables",
+        "studioStatus": "wip",
+        "assigneeId": "artdir1",
+        "programmerId": "programmer1",
+        "playableHtml": True,
+        "statusLog": [
+            {"from": "closed", "to": "new"},
+            {"from": "new", "to": "wip"},
+        ],
+    }
+    direction_io.ensure_crew({"people": [], "tasks": [stuck], "meta": {}})
+    check("load heals Closed → Ready → WIP for AD", stuck.get("playableHtml") is False)
+    js_html = (ROOT / "public" / "assets" / "app.js").read_text(encoding="utf-8")
+    check(
+        "card HTML loop follows statusLog, not a stuck flag",
+        "function playableStatusFrom" in js_html and 'prev === "closed"' not in js_html.split("function playableInHtml")[0],
+    )
+    check(
+        "AD storyboard unlocks after Closed → WIP",
+        '["new", "check", "clientart", "finalart", "closed"].includes(prev)' in js_html,
+    )
 
 
 def test_card_presence() -> None:

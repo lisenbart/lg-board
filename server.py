@@ -33,7 +33,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-11-18b"
+BUILD = "2026-11-24a"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -3411,7 +3411,7 @@ class Handler(SimpleHTTPRequestHandler):
                     task["studioStatus"] = st
                     if st in direction_io.PLAY_STATUS:
                         task["mondayStatus"] = direction_io.PLAY_STATUS[st]
-                    direction_io.touch_playable_html(task)
+                    direction_io.touch_playable_html(task, prev=before.get("studioStatus"))
                 elif task.get("studioStatus") == "closed":
                     task["mondayStatus"] = "Closed"
                 elif nxt == "revision":
