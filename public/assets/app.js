@@ -1396,7 +1396,8 @@ function statusText(key, t) {
     const playKey = playableStatusKey({ studioStatus: key, department: t.department, direction: t.direction });
     if (playKey === "new") return "Ready";
     if (playKey === "approve") return "Send";
-    if (playKey === "revision") return "Need Fixing";
+    if (playKey === "wip") return playableInHtml(t) ? "WIP · HTML" : "WIP · Art";
+    if (playKey === "revision") return playableInHtml(t) ? "Need Fixing · HTML" : "Need Fixing · Art";
     if (playKey === "clientart") return "Sent";
     return STATUS[playKey]?.label || STATUS[key]?.label || key;
   }
@@ -1959,7 +1960,7 @@ function phoneCardHtml(t) {
   const hours = phoneHoursLine(t);
   const who = phoneWhoLine(t);
   const flag = urgentMark(t);
-  return `<button type="button" class="phone-card tone-${escapeHtml(isPlayables(t) ? playableStatusKey(t) : t.studioStatus || "new")}${isUrgent(t) ? " is-urgent" : ""}" data-id="${escapeHtml(t.id)}">
+  return `<button type="button" class="phone-card tone-${escapeHtml(isPlayables(t) ? playableStatusKey(t) : t.studioStatus || "new")}${isUrgent(t) ? " is-urgent" : ""}${turnClass(t)}" data-id="${escapeHtml(t.id)}">
     <span class="notice-chip notice-${spec.cls}">${spec.label}</span>
     <span class="phone-card-name">${flag}${escapeHtml(t.name)}</span>
     <span class="phone-card-hrs">${escapeHtml(hours)}</span>
@@ -3529,10 +3530,13 @@ function isUrgent(t) {
 
 function sortedTasks(list) {
   return list.slice().sort((a, b) => {
-    const d = statusRank(a) - statusRank(b);
-    if (d) return d;
+    const aa = Number(isActiveForMe(a));
+    const bb = Number(isActiveForMe(b));
+    if (aa !== bb) return bb - aa;
     const u = Number(isUrgent(b)) - Number(isUrgent(a));
     if (u) return u;
+    const d = statusRank(a) - statusRank(b);
+    if (d) return d;
     return String(a.name).localeCompare(String(b.name));
   });
 }
@@ -4185,12 +4189,12 @@ function renderGuide() {
         <p class="guide-lead">Один наступний крок на картці. WIP / Check / Done — ті самі слова, що в MGX.</p>
         <div class="guide-status-grid">
           ${statusCard("ready", "Ready", "Ready", "Хто: LP створила, назначила AD / DEV", "Картка в роботі. AD ставить WIP і вставляє сторіборд. DEV уже може сидіти, HTML починає після Art ready.")}
-          ${statusCard("wip", "WIP", "WIP", "Хто: хто в колонці Who", "AD малює сторіборд, або DEV збирає HTML після Art ready.")}
+          ${statusCard("wip", "WIP", "WIP · Art / WIP · HTML", "Хто: чий хід по чіпу", "WIP · Art — Юля малює. WIP · HTML — Богдан збирає. Один чіп, різні лейбли як у Monday.")}
           ${statusCard("check", "Check", "Check", "Хто: AD здав борд, далі LP", "Сторіборд готовий, лінк у картці. Тільки LP шле клієнту — це стає Sent.")}
           ${statusCard("fix", "Fix", "Need Fixing", "Хто: відбій клієнта", "Сторіборд — AD править, знову Check. HTML — DEV править, знову Done.")}
           ${statusCard("sent", "Sent", "Sent", "Хто: чекаємо клієнта по борду", "LP відправила сторіборд. Відбили → Need Fixing. Прийняли → LP ставить Final art.")}
           ${statusCard("final", "Final", "Final art", "Хто: AD", "Клієнт прийняв борд. AD фіналізує арт і ставить Art ready.")}
-          ${statusCard("artok", "Art OK", "Art ready", "Хто: AD здав, далі DEV", "Арт готовий. DEV ставить WIP. LP могла посадити DEV ще на Ready.")}
+          ${statusCard("artok", "Art OK", "Art ready", "Хто: AD здав, далі DEV", "Арт прийнято. Картка стає активною для DEV. Людей LP садить одразу, активність — з цього чіпа.")}
           ${statusCard("done", "Done", "Done", "Хто: DEV здав HTML, далі LP", "Лінк у картці. LP шле клієнту або одразу Closed.")}
           ${statusCard("send", "Send", "Send", "Хто: чекаємо клієнта по HTML", "LP натиснула Send to client. Відбили → Need Fixing. Прийняли → Closed.")}
           ${statusCard("closed", "Closed", "Closed", "Хто: LP", "Клієнт прийняв. Години лишаються.")}
@@ -4204,7 +4208,7 @@ function renderGuide() {
           ${pipeStep("2", "AD", "Art Director", "Сторіборд", `${ui("WIP")} → лінк на борд → ${ui("Check")}.`, "check", "Check")}
           ${pipeStep("3", "LP", "Line Producer", "Шле борд", `${ui("Send to client")} з ${ui("Check")}. Статус стає ${ui("Sent")}. Відбій → ${ui("Need Fixing")}. Апрув → ${ui("Final art")}.`, "sent", "Sent")}
           ${pipeStep("4", "AD", "Art Director", "Фінальний арт", `Доробляє арт → ${ui("Art ready")}. DEV уже може бути на картці.`, "artok", "Art OK")}
-          ${pipeStep("5", "DEV", "Programmer", "Бере HTML", `На ${ui("Art ready")} ставить ${ui("WIP")}. LP могла посадити його ще на Ready.`, "wip", "WIP")}
+          ${pipeStep("5", "DEV", "Programmer", "Бере HTML", `На ${ui("Art ready")} картка стає активною. DEV ставить ${ui("WIP · HTML")}. Садити можна з Ready — до Art ready картка пасивна.`, "wip", "WIP")}
           ${pipeStep("6", "DEV", "Programmer", "Збирає HTML", `Лінк у ${ui("HTML")}, потім ${ui("Done")}. Без лінка кнопка не жива.`, "done", "Done")}
           ${pipeStep("7", "LP", "Line Producer", "Шле HTML", `${ui("Send to client")} з ${ui("Done")} + лінк, або одразу ${ui("Closed")}. Відбій HTML → ${ui("Need Fixing")} для DEV.`, "send", "Send")}
         </ol>
@@ -4217,7 +4221,7 @@ function renderGuide() {
           `${ui("Send to client")} у AD немає.`,
         ])}
         ${card("programmer", "DEV", "Programmer", "Богдан. Лише свої playable.", [
-          `LP може посадити тебе DEV з Ready. HTML починаєш після ${ui("Art ready")}.`,
+          `LP садить тебе з Ready для годин. Картка активна після ${ui("Art ready")} — тоді ${ui("Hand to LP")}.`,
           `Після ${ui("Art ready")} вставляєш HTML і ${ui("Hand to LP")} — не в Telegram. Поки арт іде, на картці вже є слот HTML, щоб було куди нести лінк.`,
           `Код-онлі (немає AD) — ${ui("WIP")} одразу з Ready.`,
           `Відбій HTML — ${ui("Need Fixing")} → ${ui("WIP")} → ${ui("Done")}.`,
@@ -4541,13 +4545,14 @@ function bindTimeEdits() {
 
 function statusMark(t) {
   const key = isPlayables(t) ? playableStatusKey(t) : t.studioStatus || "new";
-  const title = (STATUS[key] || STATUS.new).label;
+  const html = isPlayables(t) && playableInHtml(t);
+  const title = statusText(key, t);
   return (
     {
       quote: { cls: "quote", label: "Quote", title },
       new: { cls: "ready", label: "Ready", title },
-      wip: { cls: "wip", label: "WIP", title },
-      revision: { cls: "fix", label: "Fix", title },
+      wip: { cls: html ? "htmlwip" : "wip", label: isPlayables(t) ? (html ? "WIP · HTML" : "WIP · Art") : "WIP", title },
+      revision: { cls: html ? "htmlfix" : "fix", label: isPlayables(t) ? (html ? "Fix · HTML" : "Fix · Art") : "Fix", title },
       tlcheck: { cls: "tlcheck", label: "TL chk", title },
       check: { cls: "check", label: "Check", title },
       done: { cls: "done", label: "Done", title },
@@ -4568,6 +4573,12 @@ function excelStatus(t) {
 function statusChip(t) {
   const spec = statusMark(t);
   return `<span class="notice-chip notice-${spec.cls}">${spec.label}</span>`;
+}
+function statusPillClass(t) {
+  const key = isPlayables(t) ? playableStatusKey(t) : t.studioStatus || "new";
+  if (isPlayables(t) && playableInHtml(t) && key === "wip") return "status-htmlwip";
+  if (isPlayables(t) && playableInHtml(t) && key === "revision") return "status-htmlfix";
+  return (STATUS[key] || STATUS.new).cls;
 }
 function rowHtml(t, mode, gap) {
   const st = STATUS[t.studioStatus] || STATUS.new;
@@ -4603,11 +4614,11 @@ function rowHtml(t, mode, gap) {
           <div class="cell name" title="${nameTitle}">${chip}${flag}<span class="name-text">${escapeHtml(t.name)}</span></div>
         </div>`;
   return `
-    <div class="row ${mode} tone-${escapeHtml(isPlayables(t) ? playableStatusKey(t) : t.studioStatus || "new")}${gapCls}${isUrgent(t) ? " is-urgent" : ""} ${checked ? "selected" : ""}" data-id="${t.id}">
+    <div class="row ${mode} tone-${escapeHtml(isPlayables(t) ? playableStatusKey(t) : t.studioStatus || "new")}${gapCls}${isUrgent(t) ? " is-urgent" : ""}${turnClass(t)}${checked ? " selected" : ""}" data-id="${t.id}">
       ${frozen}
       <div class="meta">
         <div class="cell">${timeCell(t)}</div>
-        <div class="cell"><span class="pill ${st.cls}">${statusText(t.studioStatus || "new", t)}</span>${moneyChipHtml(t)}</div>
+        <div class="cell"><span class="pill ${statusPillClass(t)}">${statusText(t.studioStatus || "new", t)}</span>${moneyChipHtml(t)}</div>
         <div class="cell">${brief}</div>
         <div class="cell">${result}</div>
         <div class="cell">${whoCell(t)}</div>
@@ -4646,11 +4657,59 @@ function playableInHtml(t) {
   if (st === "wip" || st === "revision") {
     const prev = playableStatusFrom(t);
     if (["new", "check", "clientart", "finalart", "closed"].includes(prev)) return false;
+    if (t?.playableHtml === false) return false;
     if (["artready", "done", "approve"].includes(prev)) return true;
   }
   if (t?.playableHtml) return true;
   if (!playableAdId(t) && String(t?.programmerId || "").trim()) return true;
   return false;
+}
+function playableTurnRole(t) {
+  if (!isPlayables(t)) return "";
+  const st = playableStatusKey(t);
+  const html = playableInHtml(t);
+  const ad = playableAdId(t);
+  const dev = String(t.programmerId || "").trim();
+  if (st === "closed" || st === "approve" || st === "clientart") return "";
+  if (html) {
+    if (st === "artready" || st === "wip" || st === "revision") return dev ? "programmer" : "manager";
+    if (st === "done") return "manager";
+    return "";
+  }
+  if (!ad && dev) {
+    if (["new", "wip", "revision"].includes(st)) return "programmer";
+    if (st === "done" || st === "check") return "manager";
+    return "";
+  }
+  if (st === "new" || st === "wip" || st === "revision" || st === "finalart") return ad ? "art_director" : "manager";
+  if (st === "check") return "manager";
+  return "";
+}
+function isActiveForMe(t) {
+  if (!t || isClient()) return false;
+  const role = me().role;
+  if (isPlayables(t)) {
+    const turn = playableTurnRole(t);
+    if (role === "manager" || role === "finance") return turn === "manager";
+    if (role === "art_director") return turn === "art_director" && playableAdId(t) === me().id;
+    if (role === "programmer") return turn === "programmer" && String(t.programmerId || "") === String(me().id);
+    return false;
+  }
+  const mine = String(t.assigneeId || "") === String(me().id);
+  const st = t.studioStatus || "new";
+  if (st === "closed" || st === "approve") return false;
+  if (role === "designer") return mine && ["new", "wip", "revision"].includes(st);
+  if (role === "teamlead") {
+    if (st === "tlcheck") return true;
+    return mine && ["new", "wip", "revision"].includes(st);
+  }
+  if (role === "manager" || role === "finance") {
+    return st === "tlcheck" || st === "done" || (!t.assigneeId && st === "new");
+  }
+  return false;
+}
+function turnClass(t) {
+  return isActiveForMe(t) ? " is-turn" : " is-wait";
 }
 function playableDevUnlocked(t) {
   const st = playableStatusKey(t);
@@ -4756,13 +4815,26 @@ function statusButtonsHtml(t, canEdit, lockedStatus) {
     return `<input type="hidden" id="stStatus" value="${escapeHtml(current)}" />
     <p class="status-hint" id="stDoneHint"></p>`;
   }
-  const buttons = keys.map((key) => {
-    const mark = statusMark({ studioStatus: key, department: t.department, direction: t.direction });
-    const on = current === key;
-    const disabled = statusButtonDisabled(t, key, opts);
-    const label = statusText(key, t);
-    return `<button type="button" class="status-btn st-${mark.cls} ${on ? "is-on" : "is-off"}" data-status="${key}" aria-pressed="${on ? "true" : "false"}" ${disabled ? "disabled" : ""} title="${escapeHtml(label)}">${escapeHtml(label)}</button>`;
-  }).join("");
+  const htmlLoop = isPlayables(t) && playableInHtml(t);
+  const paintBtn = (key, label, { artBounce = false, on = false } = {}) => {
+    const mark = statusMark({ ...t, studioStatus: key });
+    const disabled = on || (!artBounce && statusButtonDisabled(t, key, opts));
+    const bounce = artBounce ? ` data-art-bounce="1"` : "";
+    return `<button type="button" class="status-btn st-${mark.cls} ${on ? "is-on" : "is-off"}" data-status="${key}"${bounce} aria-pressed="${on ? "true" : "false"}" ${disabled ? "disabled" : ""} title="${escapeHtml(label)}">${escapeHtml(label)}</button>`;
+  };
+  const buttons = keys
+    .map((key) => {
+      if (key === "revision" && isPlayables(t) && canOps() && htmlLoop) {
+        const curRev = current === "revision";
+        return (
+          paintBtn("revision", "Need Fixing · HTML", { on: curRev && htmlLoop }) +
+          paintBtn("revision", "Need Fixing · Art", { artBounce: true, on: curRev && !htmlLoop })
+        );
+      }
+      const on = current === key;
+      return paintBtn(key, statusText(key, t), { on });
+    })
+    .join("");
   return `<div class="status-btns" role="group" aria-label="Status">${buttons}</div>
     <input type="hidden" id="stStatus" value="${escapeHtml(current)}" />
     <p class="status-hint" id="stDoneHint"></p>`;
@@ -6844,14 +6916,15 @@ function openTask(id) {
       }
       <button type="button" class="drawer-x" id="closeCard" aria-label="Close">×</button>
     </div>
-    <div class="meta"><span class="pill line-${t.line}">${t.line}</span> ${isUrgent(t) ? `<span class="urgent-flag">${urgentMark(t)} URGENT</span>` : ""} ${play ? (playableCardMeta(t) ? `${playableCardMeta(t)} · ` : "") : `${t.shifts || 0} shift · ${t.hours || 0} h · `}<span id="stMetaStatus" class="pill ${st.cls}">${statusText(t.studioStatus || "new", t)}</span>${moneyChipHtml(t)}</div>
+    <div class="meta"><span class="pill line-${t.line}">${t.line}</span> ${isUrgent(t) ? `<span class="urgent-flag">${urgentMark(t)} URGENT</span>` : ""} ${play ? (playableCardMeta(t) ? `${playableCardMeta(t)} · ` : "") : `${t.shifts || 0} shift · ${t.hours || 0} h · `}<span id="stMetaStatus" class="pill ${statusPillClass(t)}">${statusText(t.studioStatus || "new", t)}</span>${moneyChipHtml(t)}</div>
     <p class="card-watch" id="cardWatch" hidden></p>
     <div class="drawer-body">
-    <div class="card-job tone-${job.tone}">
+    <div class="card-job tone-${job.tone}${isActiveForMe(t) ? " is-turn" : " is-wait"}">
       ${jobBadgeHtml(me())}
       <div>
         <strong>${escapeHtml(job.title)}</strong>
         <p>${escapeHtml(job.body)}</p>
+        <small class="turn-flag">${isActiveForMe(t) ? "Your turn" : "Waiting"}</small>
       </div>
     </div>
     ${heroAssign}
@@ -7509,7 +7582,7 @@ function openTask(id) {
         toast("This role cannot set " + (STATUS[key]?.label || key));
         return;
       }
-      commitCard({ fromChip: true, status: key });
+      commitCard({ fromChip: true, status: key, artBounce: btn.dataset.artBounce === "1" });
     });
   });
   syncDoneOption();
@@ -7591,6 +7664,7 @@ function openTask(id) {
     const mayAssign = isPlayables(t) ? canAssignPlayable() : canAssign();
     let assigneeId = mayAssign && $("stPerson") ? $("stPerson").value : isPlayables(t) ? playableAdId(t) : t.assigneeId;
     const patch = { studioStatus, role: me().role };
+    if (opts.artBounce) patch.artBounce = true;
     if (isPlayables(t) && mayAssign && $("stProgrammer")) patch.programmerId = $("stProgrammer").value;
     if (isPlayables(t) && isFinance() && $("stStudioBuffer")) {
       const buf = parseShifts($("stStudioBuffer").value);

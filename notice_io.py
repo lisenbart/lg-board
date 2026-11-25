@@ -199,7 +199,7 @@ def fill(template: str, payload: dict | None = None) -> str:
 ON_EMIT = None
 
 
-def emit(db: dict, kind: str, *, actor_id: str = "", task: dict | None = None, payload: dict | None = None, at: str | None = None, push: bool = True):
+def emit(db: dict, kind: str, *, actor_id: str = "", task: dict | None = None, payload: dict | None = None, at: str | None = None, push: bool = True, audience_ids: list[str] | None = None):
     spec = KINDS.get(kind)
     if not spec:
         return None
@@ -209,7 +209,19 @@ def emit(db: dict, kind: str, *, actor_id: str = "", task: dict | None = None, p
     body.setdefault("name", task.get("name") or "")
     body.setdefault("line", task.get("line") or "")
     body.setdefault("actorName", person_name(db, actor_id))
-    audience = resolve_audience(db, spec, task, actor_id)
+    if audience_ids is not None:
+        seen: set[str] = set()
+        audience = []
+        for pid in audience_ids:
+            pid = str(pid or "").strip()
+            if not pid or pid in seen:
+                continue
+            seen.add(pid)
+            audience.append(pid)
+        if spec.get("skip_actor"):
+            audience = [pid for pid in audience if pid != actor_id]
+    else:
+        audience = resolve_audience(db, spec, task, actor_id)
     if not audience:
         return None
     seq = int(db.get("meta", {}).get("noticeSeq") or 0) + 1
@@ -342,10 +354,23 @@ def on_task_change(db: dict, task: dict, before: dict | None, actor_id: str = ""
             task=task,
             payload={"from": old_prog, "to": new_prog},
         )
+    bounced_art = (
+        new_status == "revision"
+        and task.get("playableHtml") is False
+        and before.get("playableHtml") is True
+    )
     if new_status and new_status != old_status:
         stamp_status(db, task, old_status, new_status, actor_id)
         if new_status == "revision":
-            emit(db, "task.revision", actor_id=actor_id, task=task)
+            import direction_io
+            ping_ids = None
+            if direction_io.is_playables(task):
+                if direction_io.playable_in_html(task):
+                    ping_ids = [str(task.get("programmerId") or "").strip()]
+                else:
+                    ping_ids = [str(task.get("assigneeId") or "").strip()]
+                ping_ids = [pid for pid in ping_ids if pid]
+            emit(db, "task.revision", actor_id=actor_id, task=task, audience_ids=ping_ids or None)
         elif new_status == "tlcheck":
             emit(db, "task.tlcheck", actor_id=actor_id, task=task)
         elif new_status == "check":
@@ -363,6 +388,12 @@ def on_task_change(db: dict, task: dict, before: dict | None, actor_id: str = ""
             ack(db, actor_id, task_id=task.get("id"), kinds=["task.sent", "task.ready"])
         elif new_status == "wip" and old_status in WIP_REVERT_FROM:
             emit(db, "task.wip", actor_id=actor_id, task=task)
+    elif bounced_art:
+        import direction_io
+        if direction_io.is_playables(task):
+            ping_ids = [str(task.get("assigneeId") or "").strip()]
+            ping_ids = [pid for pid in ping_ids if pid]
+            emit(db, "task.revision", actor_id=actor_id, task=task, audience_ids=ping_ids or None)
 
 
 def bootstrap(db: dict) -> int:

@@ -1894,6 +1894,60 @@ def test_playable_card_pipeline() -> None:
         "playableHtml": True,
     }
     check("LP HTML bounce is Need Fixing", "revision" in direction_io.playable_next_statuses("manager", html_bounce))
+    art_bounce = {
+        "studioStatus": "revision",
+        "assigneeId": "artdir1",
+        "programmerId": "programmer1",
+        "playableHtml": True,
+        "storyboardUrl": "https://miro.com/app/board/art",
+        "resultUrl": "https://play.example/html",
+        "statusLog": [{"from": "approve", "to": "revision"}],
+    }
+    direction_io.touch_playable_html(art_bounce, prev="approve", force_art=True)
+    check("Need Fixing · Art clears the HTML loop", art_bounce.get("playableHtml") is False)
+    check("Need Fixing · Art is AD's again", direction_io.playable_in_html(art_bounce) is False)
+    check("Need Fixing · Art restores the storyboard URL", art_bounce.get("resultUrl") == "https://miro.com/app/board/art")
+    check("AD can WIP after art bounce", direction_io.playable_next_statuses("art_director", art_bounce) == ["wip"])
+    check("DEV does not take art bounce", direction_io.playable_next_statuses("programmer", art_bounce) == [])
+    bounce_db = {
+        "people": [
+            {"id": "manager", "role": "manager", "name": "LP"},
+            {"id": "artdir1", "role": "art_director", "name": "Yulia"},
+            {"id": "programmer1", "role": "programmer", "name": "Bohdan"},
+        ],
+        "notices": [],
+        "reads": {},
+    }
+    bounce_task = {
+        "id": "p-art-bounce",
+        "name": "DX-P-Bounce",
+        "department": "Playables",
+        "studioStatus": "revision",
+        "assigneeId": "artdir1",
+        "programmerId": "programmer1",
+        "playableHtml": False,
+        "storyboardUrl": "https://miro.com/app/board/art",
+        "resultUrl": "https://miro.com/app/board/art",
+    }
+    notice_io.on_task_change(
+        bounce_db,
+        bounce_task,
+        {
+            "studioStatus": "revision",
+            "assigneeId": "artdir1",
+            "programmerId": "programmer1",
+            "playableHtml": True,
+        },
+        "manager",
+    )
+    art_ping = next((n for n in bounce_db.get("notices") or [] if n.get("kind") == "task.revision"), None)
+    check(
+        "Need Fixing · Art from HTML Fix pings AD",
+        art_ping is not None
+        and "artdir1" in (art_ping.get("audience") or [])
+        and "programmer1" not in (art_ping.get("audience") or []),
+        str(art_ping),
+    )
     html_bounce["studioStatus"] = "revision"
     check("DEV HTML Fix offers WIP", direction_io.playable_next_statuses("programmer", html_bounce) == ["wip"])
     check("AD does not take HTML Fix", direction_io.playable_next_statuses("art_director", html_bounce) == [])
@@ -1924,6 +1978,9 @@ def test_playable_card_pipeline() -> None:
     check("DEV HTML paste is owner-only", "isProgrammer() && String(t.programmerId || \"\") === String(me().id) && playableInHtml(t)" in js)
     check("AD can paste a storyboard link", "isArtDirector() && playableAdId(t) === me().id && !playableInHtml(t)" in js)
     check("Hand to LP sits on the paste block", 'id="handOff"' in js and "Hand to LP" in js)
+    check("Monday chips name Art vs HTML WIP", "WIP · Art" in js and "WIP · HTML" in js)
+    check("rows mark your turn vs waiting", "function isActiveForMe" in js and "is-turn" in js and "is-wait" in js)
+    check("LP can bounce HTML Need Fixing to Art", 'data-art-bounce="1"' in js and "Need Fixing · Art" in js)
     check("DEV sees HTML slot before Art ready", "Paste the playable link here after Art ready" in js)
     check("Art ready pings seated DEV", notice_io.KINDS["task.artready"]["audience"].get("assignee") is True)
     notices_js = (ROOT / "public" / "assets" / "notices.js").read_text(encoding="utf-8")
@@ -1938,6 +1995,8 @@ def test_playable_card_pipeline() -> None:
     check("HTML loop keeps storyboard Copy/Open", 'id: "stStoryboard"' in js)
     css_link = (ROOT / "public" / "assets" / "board.css").read_text(encoding="utf-8")
     check("Copy/Open stay on the link row", ".link-row {" in css_link and ".link-row-actions" in css_link)
+    check("active Playables rows use is-turn", ".row.is-turn" in css_link and ".row.is-wait" in css_link)
+    check("HTML WIP chip is purple", ".status-htmlwip" in css_link and ".status-htmlfix" in css_link)
     check("empty Status plaque is hidden", "const statusKeys = statusActions(t)" in js and "statusKeys.length" in js)
     check("Check needs the storyboard link", '(key === "done" || key === "check")' in js)
     check("Check unlocks after the storyboard paste", '["tlcheck", "check", "done"].forEach' in js)

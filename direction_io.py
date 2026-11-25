@@ -246,6 +246,8 @@ def playable_in_html(task: dict | None) -> bool:
         prev = _status_before(task, st)
         if prev in ART_LOOP or prev == "closed":
             return False
+        if task.get("playableHtml") is False:
+            return False
         if prev in HTML_HANDOFF:
             return True
     if task.get("playableHtml"):
@@ -255,11 +257,17 @@ def playable_in_html(task: dict | None) -> bool:
     return False
 
 
-def touch_playable_html(task: dict | None, prev: str | None = None) -> None:
+def touch_playable_html(task: dict | None, prev: str | None = None, force_art: bool = False) -> None:
     """Lock HTML after Art ready. Closed → Ready / WIP returns the card to AD."""
     if not task:
         return
     st = playable_norm_status(task.get("studioStatus"))
+    if force_art and st in {"wip", "revision"}:
+        board = str(task.get("storyboardUrl") or "").strip()
+        if board:
+            task["resultUrl"] = board
+        task["playableHtml"] = False
+        return
     if st in ART_LOOP or st == "closed":
         if task.get("playableHtml"):
             task["playableHtml"] = False

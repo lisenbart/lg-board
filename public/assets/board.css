@@ -587,6 +587,8 @@ html.hours-host .who-tools {
 .notice-new { background: #e0f0ff; color: #0059b3; }
 .notice-ready { background: #fff3d6; color: #9a6700; }
 .notice-wip { background: #e0f0ff; color: #0059b3; }
+.notice-htmlwip { background: #efe6fb; color: #6b21a8; }
+.notice-htmlfix { background: #fde8ee; color: #9b2245; }
 .notice-mine { background: #e6f9ef; color: #037f4c; }
 .notice-fix { background: #fde8ee; color: #9b2245; }
 .notice-done { background: #e6f9ef; color: #037f4c; }
@@ -1102,6 +1104,16 @@ body.col-resizing * { cursor: col-resize !important; }
 .row.tone-quote:hover, .row.tone-quote:hover .frozen, .row.tone-quote:hover .meta { background: #eef0f5; }
 .row.tone-check:hover, .row.tone-check:hover .frozen, .row.tone-check:hover .meta { background: #ffefc9; }
 .row.tone-artready:hover, .row.tone-artready:hover .frozen, .row.tone-artready:hover .meta { background: #e3f7ec; }
+.row.is-turn {
+  box-shadow: inset 3px 0 0 #3b6cf0;
+}
+.row.is-wait,
+.row.is-wait .frozen,
+.row.is-wait .meta {
+  opacity: 0.72;
+}
+.row.is-wait .name-text { font-weight: 400; }
+.row.is-turn .name-text { font-weight: 600; }
 .cell { padding: 2px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 400; }
 .row .meta > .cell:first-child { overflow: visible; }
 .name { font-weight: 400; }
@@ -1198,6 +1210,8 @@ body.col-resizing * { cursor: col-resize !important; }
 }
 .drawer .meta .status-new,
 .drawer .meta .status-wip,
+.drawer .meta .status-htmlwip,
+.drawer .meta .status-htmlfix,
 .drawer .meta .status-revision,
 .drawer .meta .status-tlcheck,
 .drawer .meta .status-done,
@@ -1971,7 +1985,9 @@ body.col-resizing * { cursor: col-resize !important; }
 }
 .status-btn.is-on.st-ready { background: #fff3d6; color: #9a6700; border-color: #e0b34a; }
 .status-btn.is-on.st-wip { background: #579bfc; color: #fff; border-color: #3d7fe0; }
+.status-btn.is-on.st-htmlwip { background: #7c5cbf; color: #fff; border-color: #5b3d9a; }
 .status-btn.is-on.st-fix { background: #fde8ee; color: #9b2245; border-color: #e39aab; }
+.status-btn.is-on.st-htmlfix { background: #fde8ee; color: #9b2245; border-color: #e39aab; }
 .status-btn.is-on.st-tlcheck { background: #fff3d6; color: #9a6700; border-color: #e0b34a; }
 .status-btn.is-on.st-done { background: #e6f9ef; color: #037f4c; border-color: #7dcea0; }
 .status-btn.is-on.st-appr { background: #e7f7ff; color: #0369a1; border-color: #7ec8e8; }
@@ -2128,6 +2144,18 @@ a.pack-work:hover { background: #e2e4ec; }
 .card-job.tone-ok { background: #f1fbf6; border-color: #c6eedd; }
 .card-job.tone-ok strong { color: #037f4c; }
 .card-job.tone-wait { background: #f7f8fc; }
+.card-job .turn-flag {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.card-job.is-turn .turn-flag { color: var(--blue); }
+.phone-card.is-wait { opacity: 0.72; }
+.phone-card.is-turn { box-shadow: inset 3px 0 0 #3b6cf0; }
 .drive-missing {
   margin-top: 10px;
   padding: 10px 12px;
@@ -2266,7 +2294,9 @@ a.pack-work:hover { background: #e2e4ec; }
 
 .status-new,
 .status-wip,
+.status-htmlwip,
 .status-revision,
+.status-htmlfix,
 .status-tlcheck,
 .status-done,
 .status-approve,
@@ -2281,7 +2311,9 @@ a.pack-work:hover { background: #e2e4ec; }
 }
 .status-new { background: #fdab3d; }
 .status-wip { background: #579bfc; }
+.status-htmlwip { background: #7c5cbf; }
 .status-revision { background: #bb3354; }
+.status-htmlfix { background: #bb3354; }
 .status-tlcheck { background: #fdab3d; }
 .status-done { background: #00c875; }
 .status-approve { background: #66ccff; }
@@ -2437,7 +2469,9 @@ a.pack-work:hover { background: #e2e4ec; }
 }
 .xl-table td.xl-st.st-ready { background: #fff3d6; color: #9a6700; }
 .xl-table td.xl-st.st-wip { background: #59BBFF; color: #083358; }
+.xl-table td.xl-st.st-htmlwip { background: #d7c6f5; color: #4c1d95; }
 .xl-table td.xl-st.st-fix { background: #fde8ee; color: #9b2245; }
+.xl-table td.xl-st.st-htmlfix { background: #fde8ee; color: #9b2245; }
 .xl-table td.xl-st.st-tlcheck { background: #fff3d6; color: #9a6700; }
 .xl-table td.xl-st.st-done { background: #e6f9ef; color: #037f4c; }
 .xl-table td.xl-st.st-appr { background: #e7f7ff; color: #0369a1; }
