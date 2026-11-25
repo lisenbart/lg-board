@@ -41,7 +41,7 @@ KINDS = {
     "task.comment": {
         "label": "Client notes",
         "title": "{name}",
-        "detail": "New note under the brief",
+        "detail": "{preview}",
         "mark": "note",
         "audience": {"assignee": True},
         "skip_actor": True,
@@ -209,6 +209,7 @@ def emit(db: dict, kind: str, *, actor_id: str = "", task: dict | None = None, p
     body.setdefault("name", task.get("name") or "")
     body.setdefault("line", task.get("line") or "")
     body.setdefault("actorName", person_name(db, actor_id))
+    body.setdefault("preview", "New note under the brief")
     if audience_ids is not None:
         seen: set[str] = set()
         audience = []

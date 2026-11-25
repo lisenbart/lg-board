@@ -2271,7 +2271,7 @@ def test_lp_can_close_without_send() -> None:
     )
     check(
         "status chip writes without waiting for Save",
-        "commitCard({ fromChip: true, status: key })" in js and "close: !fromChip" in js,
+        "commitCard({ fromChip: true, status: key" in js and "close: !fromChip" in js,
     )
     check(
         "dirty Save is a green ready chip",
@@ -2318,6 +2318,9 @@ def test_lp_can_close_without_send() -> None:
         and "OK or Enter sends the note" not in js
         and "notes-empty" not in js,
     )
+    check("AD still sees Client notes", "function canSeeNotes" in js and "stays on this card" in js)
+    check("phone queue shows the client cue", "function clientCue" in js and "phone-card-note" in js)
+    check("read client notes stay in Notices", "function readClientNotices" in js and "Read · stays on the card" in js)
     check(
         "brief and notes are separate panels",
         "brief-thread" not in js

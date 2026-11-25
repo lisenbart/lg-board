@@ -33,7 +33,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-11-24d"
+BUILD = "2026-11-24e"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -2142,6 +2142,13 @@ class Handler(SimpleHTTPRequestHandler):
                 poster_mime=poster_mime,
                 kind=str(pending.get("kind") or "video"),
             )
+            notice_io.emit(
+                db,
+                "task.comment",
+                actor_id=str(pending.get("actorId") or sess.get("personId") or ""),
+                task=task,
+                payload={"preview": f"File · {row.get('name') or 'on the card'}"},
+            )
             save_db(db)
         self._json(200, {"ok": True, "video": row, "task": task, "state": db})
 
@@ -3529,11 +3536,15 @@ class Handler(SimpleHTTPRequestHandler):
                 task.setdefault("comments", []).append(comment)
                 if task.get("brief") != brief_before:
                     task["brief"] = brief_before
+                preview = " ".join(str(comment.get("body") or "").split())[:140]
+                if not preview:
+                    preview = "New note under the brief"
                 notice_io.emit(
                     db,
                     "task.comment",
                     actor_id=str(data.get("actorId") or ""),
                     task=task,
+                    payload={"preview": preview},
                 )
                 save_db(db)
                 self._json(200, {"comment": comment, "task": task, "state": db})

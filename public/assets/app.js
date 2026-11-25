@@ -919,8 +919,29 @@ function isClientCopyable(t) {
 function canWriteNotes() {
   return canOps() || isTeamLead();
 }
+function canSeeNotes(t) {
+  if (canWriteNotes()) return true;
+  if (!t) return false;
+  if (isPlayables(t)) return onMyPlayable(t);
+  return t.assigneeId === me().id || helpedOn(t, me().id);
+}
 function clientComments(t) {
   return Array.isArray(t?.comments) ? t.comments : [];
+}
+function cardFiles(t) {
+  return Array.isArray(t?.videos) ? t.videos : [];
+}
+function latestClientNote(t) {
+  const rows = clientComments(t);
+  return rows.length ? rows[rows.length - 1] : null;
+}
+function clientCue(t) {
+  const note = latestClientNote(t);
+  const files = cardFiles(t);
+  if (note?.body) return String(note.body).replace(/\s+/g, " ").trim().slice(0, 90);
+  if (files.length === 1) return files[0].name || "1 file";
+  if (files.length > 1) return `${files.length} files`;
+  return "";
 }
 function canEditTime() {
   return canOps();
@@ -1960,10 +1981,12 @@ function phoneCardHtml(t) {
   const hours = phoneHoursLine(t);
   const who = phoneWhoLine(t);
   const flag = urgentMark(t);
+  const cue = clientCue(t);
   return `<button type="button" class="phone-card tone-${escapeHtml(isPlayables(t) ? playableStatusKey(t) : t.studioStatus || "new")}${isUrgent(t) ? " is-urgent" : ""}${turnClass(t)}" data-id="${escapeHtml(t.id)}">
     <span class="notice-chip notice-${spec.cls}">${spec.label}</span>
     <span class="phone-card-name">${flag}${escapeHtml(t.name)}</span>
     <span class="phone-card-hrs">${escapeHtml(hours)}</span>
+    ${cue ? `<span class="phone-card-note">${escapeHtml(cue)}</span>` : ""}
     <span class="phone-card-meta">
       <span>${escapeHtml(who)}</span>
       ${due.label ? `<span>${escapeHtml(due.label)}</span>` : ""}
@@ -1975,24 +1998,19 @@ function phoneCardHtml(t) {
 function renderPhoneInbox() {
   const N = window.LGNotices;
   const unread = N && state.db && me()?.id ? N.forPerson(state.db, me().id, true) : [];
+  const kept = readClientNotices();
   const lead = `<div class="phone-inbox-lead">
-    <p>TL Check, Need Fixing, a new project, or a client note — when someone needs you, it lands here. Tap a row to open the card.</p>
+    <p>TL Check, Need Fixing, a new project, or a client note — tap to open the card. Client notes stay on the card after you read them.</p>
     ${unread.length ? `<button type="button" class="btn ghost" id="phoneInboxAll">Mark all read</button>` : ""}
   </div>`;
-  if (!unread.length) {
+  if (!unread.length && !kept.length) {
     $("board").innerHTML = `${lead}<p class="io-empty">Nothing for you right now.</p>`;
     return;
   }
-  $("board").innerHTML = `${lead}<div class="phone-queue">${unread
-    .map((n) => {
-      const mark = (N.KINDS[n.kind] || {}).mark || "none";
-      return `<button type="button" class="phone-card" data-id="${escapeHtml(n.id)}" data-task="${escapeHtml(n.taskId || "")}">
-      <span class="notice-chip notice-${mark}">${escapeHtml(N.labelOf(n.kind))}</span>
-      <span class="phone-card-name">${escapeHtml(N.titleOf(n))}</span>
-      <span class="phone-card-meta"><span>${escapeHtml(N.detailOf(n))}</span></span>
-    </button>`;
-    })
-    .join("")}</div>`;
+  const keptBlock = kept.length
+    ? `<p class="inbox-kind">Read · stays on the card</p>${kept.map((n) => noticeCardHtml(n, { read: true })).join("")}`
+    : "";
+  $("board").innerHTML = `${lead}<div class="phone-queue">${unread.map((n) => noticeCardHtml(n)).join("")}${keptBlock}</div>`;
   $("board").querySelectorAll(".phone-card").forEach((el) => {
     el.addEventListener("click", async () => {
       const taskId = el.dataset.task;
@@ -2030,6 +2048,23 @@ function unreadNoticeCount() {
   const N = window.LGNotices;
   if (!N || !state.db || !me()?.id) return 0;
   return N.forPerson(state.db, me().id, true).length;
+}
+function readClientNotices() {
+  const N = window.LGNotices;
+  if (!N || !state.db || !me()?.id) return [];
+  const reads = (state.db.noticeReads || {})[me().id] || {};
+  return N.forPerson(state.db, me().id, false)
+    .filter((n) => n.kind === "task.comment" && reads[n.id])
+    .slice(0, 12);
+}
+function noticeCardHtml(n, { read = false } = {}) {
+  const N = window.LGNotices;
+  const mark = (N.KINDS[n.kind] || {}).mark || "none";
+  return `<button type="button" class="phone-card${read ? " is-read" : ""}" data-id="${escapeHtml(n.id)}" data-task="${escapeHtml(n.taskId || "")}">
+      <span class="notice-chip notice-${mark}">${escapeHtml(N.labelOf(n.kind))}</span>
+      <span class="phone-card-name">${escapeHtml(N.titleOf(n))}</span>
+      <span class="phone-card-meta"><span>${escapeHtml(N.detailOf(n))}</span></span>
+    </button>`;
 }
 
 function renderPhoneBar() {
@@ -2588,7 +2623,7 @@ function pinHtml(t) {
     ? `<button type="button" class="btn" id="ensureDrive">Create Drive folder</button>`
     : "";
   const actions = `<footer class="pin-actions">${pack.brief}${pack.taskBtn}${pack.workBtn}${retry}</footer>`;
-  const files = notesFilesHtml(t);
+  const files = canWriteNotes() ? notesFilesHtml(t) : "";
   const composer = canWriteNotes()
     ? `<div class="notes-compose pin-compose" id="stBriefBox">
         <div class="notes-compose-actions">
@@ -3147,7 +3182,9 @@ function bindNoteShots(t) {
 function notesHtml(t) {
   const rows = clientComments(t);
   const canWrite = canWriteNotes();
-  if (!rows.length && !canWrite) return "";
+  const canSee = canSeeNotes(t);
+  const files = !canWrite ? notesFilesHtml(t) : "";
+  if (!canSee) return "";
   const items = rows
     .map(
       (row) => `<article class="notes-item" data-id="${escapeHtml(row.id || "")}">
@@ -3176,9 +3213,17 @@ function notesHtml(t) {
         </div>
       </div>`
     : "";
-  return `<div class="notes${rows.length ? "" : " is-empty"}">
+  const stay =
+    !rows.length && !canWrite
+      ? files
+        ? ""
+        : `<p class="notes-stay">When LP writes the client bounce, it stays on this card. Opening the ping does not remove it.</p>`
+      : "";
+  return `<div class="notes${rows.length || files ? "" : " is-empty"}">
       <header class="notes-head">Client notes</header>
       ${items}
+      ${files}
+      ${stay}
       ${composer}
     </div>`;
 }
@@ -3298,9 +3343,9 @@ function cardJob(t) {
       return {
         tone: "fix",
         title: "Need Fixing",
-        body: clientComments(t).length
-            ? "Client notes are under the brief. Fix, paste the new result link, then TL Check."
-          : "Fix the work, paste the new result link, then TL Check.",
+        body: clientCue(t)
+            ? `Client: ${clientCue(t)} — stays on this card. Fix, paste the new result link, then TL Check.`
+            : "Open Client notes on this card. Text and files stay there after you read the ping. Then fix and TL Check.",
       };
     }
     if (!hasResult) {
@@ -3386,7 +3431,16 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
     if (st === "clientart") return { tone: "wait", title: "Sent", body: "Storyboard is with the client. LP sets Need Fixing if they bounce it, or Final art when they approve." };
     if (st === "check") return { tone: "wait", title: "Waiting for LP", body: "Storyboard is ready. LP sends it. Only LP talks to the client." };
     if (st === "finalart") return { tone: "do", title: "Final art", body: "Finish art, then Art ready so DEV can start HTML." };
-    if (st === "revision") return { tone: "fix", title: "Need Fixing", body: "Fix the board, paste the new link, then Hand to LP. Don't send it in Telegram." };
+    if (st === "revision") {
+      const cue = clientCue(t);
+      return {
+        tone: "fix",
+        title: "Need Fixing",
+        body: cue
+          ? `Client: ${cue} — stays on this card. Fix the board, paste the new link, then Hand to LP.`
+          : "Open Client notes on this card. Text and files stay there after you read the ping. Then fix the board and Hand to LP.",
+      };
+    }
     if (st === "wip") return { tone: "do", title: "WIP", body: "Paste the storyboard, then Hand to LP. Don't send the link in Telegram." };
     return { tone: "do", title: "Your job", body: "Paste the storyboard, then Hand to LP. Don't send the link in Telegram." };
   }
@@ -3396,7 +3450,16 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
     if (!onDev) return { tone: "wait", title: "Not on you yet", body: "You are not on this card. LP can assign you from Ready — you start HTML after Art ready." };
     if (st === "done") return { tone: "wait", title: "Waiting for LP", body: "HTML link is in. Line Producer sends it. Need Fixing if the client bounces it." };
     if (html) {
-      if (st === "revision") return { tone: "fix", title: "Need Fixing", body: "Fix the HTML, paste the new link, then Hand to LP. Don't send it in Telegram." };
+      if (st === "revision") {
+        const cue = clientCue(t);
+        return {
+          tone: "fix",
+          title: "Need Fixing",
+          body: cue
+            ? `Client: ${cue} — stays on this card. Fix the HTML, paste the new link, then Hand to LP.`
+            : "Open Client notes on this card. Text and files stay there after you read the ping. Then fix the HTML and Hand to LP.",
+        };
+      }
       if (st === "artready") return { tone: "do", title: "Art ready", body: "Paste the HTML, then Hand to LP. Don't send the link in Telegram." };
       if (!hasResult) return { tone: "do", title: "Your job", body: "Paste the HTML, then Hand to LP. Don't send the link in Telegram." };
       return { tone: "do", title: "Hand to LP", body: "Link is in the field. Hand to LP — don't send it in Telegram." };
@@ -6924,6 +6987,7 @@ function openTask(id) {
       <div>
         <strong>${escapeHtml(job.title)}</strong>
         <p>${escapeHtml(job.body)}</p>
+        ${clientCue(t) && job.tone === "fix" ? `<p class="client-cue">${escapeHtml(clientCue(t))}</p>` : ""}
         <small class="turn-flag">${isActiveForMe(t) ? "Your turn" : "Waiting"}</small>
       </div>
     </div>
@@ -8498,12 +8562,24 @@ function renderInbox() {
   $("inboxAll").hidden = !unread.length;
   if (inboxOpen()) renderInboxList();
 }
+function inboxItemHtml(n, { read = false } = {}) {
+  const N = window.LGNotices;
+  const mark = (N.KINDS[n.kind] || {}).mark || "none";
+  return `<button type="button" class="inbox-item${read ? " is-read" : ""}" data-id="${escapeHtml(n.id)}" data-task="${escapeHtml(n.taskId || "")}">
+              <span class="notice-chip notice-${mark}">${escapeHtml(N.labelOf(n.kind))}</span>
+              <span class="inbox-item-text">
+                <strong>${escapeHtml(N.titleOf(n))}</strong>
+                <small>${escapeHtml(N.detailOf(n))}</small>
+              </span>
+            </button>`;
+}
 function renderInboxList() {
   const N = window.LGNotices;
   const list = $("inboxList");
   if (!list || !N || !state.db) return;
   const unread = N.forPerson(state.db, me().id, true);
-  if (!unread.length) {
+  const kept = readClientNotices();
+  if (!unread.length && !kept.length) {
     list.innerHTML = `<p class="inbox-empty">Nothing waiting for you.</p>`;
     return;
   }
@@ -8517,25 +8593,21 @@ function renderInboxList() {
     }
     map.get(notice.kind).items.push(notice);
   }
-  list.innerHTML = groups
+  const unreadHtml = groups
     .map((group) => {
-      const mark = (N.KINDS[group.kind] || {}).mark || "none";
       return `<div class="inbox-group">
         <div class="inbox-kind">${escapeHtml(N.labelOf(group.kind))} · ${group.items.length}</div>
-        ${group.items
-          .map(
-            (n) => `<button type="button" class="inbox-item" data-id="${escapeHtml(n.id)}" data-task="${escapeHtml(n.taskId || "")}">
-              <span class="notice-chip notice-${mark}">${escapeHtml(N.labelOf(n.kind))}</span>
-              <span class="inbox-item-text">
-                <strong>${escapeHtml(N.titleOf(n))}</strong>
-                <small>${escapeHtml(N.detailOf(n))}</small>
-              </span>
-            </button>`
-          )
-          .join("")}
+        ${group.items.map((n) => inboxItemHtml(n)).join("")}
       </div>`;
     })
     .join("");
+  const keptHtml = kept.length
+    ? `<div class="inbox-group">
+        <div class="inbox-kind">Read · stays on the card</div>
+        ${kept.map((n) => inboxItemHtml(n, { read: true })).join("")}
+      </div>`
+    : "";
+  list.innerHTML = unreadHtml + keptHtml;
   list.querySelectorAll(".inbox-item").forEach((el) => {
     el.addEventListener("click", async () => {
       const taskId = el.dataset.task;

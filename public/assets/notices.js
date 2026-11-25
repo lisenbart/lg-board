@@ -31,7 +31,7 @@
     "task.comment": {
       label: "Client notes",
       title: "{name}",
-      detail: "New note under the brief",
+      detail: "{preview}",
       mark: "note",
       audience: { assignee: true },
       skipActor: true,
@@ -152,6 +152,7 @@
     if (payload.name == null) payload.name = task.name || "";
     if (payload.line == null) payload.line = task.line || "";
     if (payload.actorName == null) payload.actorName = personName(db, opts.actorId);
+    if (payload.preview == null) payload.preview = "New note under the brief";
     const audience = resolveAudience(db, spec, task, opts.actorId || "");
     if (!audience.length) return null;
     db.meta.noticeSeq = (Number(db.meta.noticeSeq) || 0) + 1;
