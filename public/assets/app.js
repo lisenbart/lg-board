@@ -928,20 +928,25 @@ function canSeeNotes(t) {
 function clientComments(t) {
   return Array.isArray(t?.comments) ? t.comments : [];
 }
-function cardFiles(t) {
-  return Array.isArray(t?.videos) ? t.videos : [];
-}
 function latestClientNote(t) {
   const rows = clientComments(t);
   return rows.length ? rows[rows.length - 1] : null;
 }
 function clientCue(t) {
   const note = latestClientNote(t);
-  const files = cardFiles(t);
-  if (note?.body) return String(note.body).replace(/\s+/g, " ").trim().slice(0, 90);
+  if (!note) return "";
+  if (note.body) return String(note.body).replace(/\s+/g, " ").trim().slice(0, 90);
+  const files = (note.attachments || []).filter((a) => a?.url || a?.name);
   if (files.length === 1) return files[0].name || "1 file";
   if (files.length > 1) return `${files.length} files`;
   return "";
+}
+function commentsFolder(t) {
+  return String(t?.commentsFolderUrl || "").trim();
+}
+function commentIndexLabel(row) {
+  const n = Number(row?.driveIndex || 0);
+  return n > 0 ? String(n).padStart(2, "0") : "";
 }
 function canEditTime() {
   return canOps();
@@ -2583,10 +2588,14 @@ function packFolderButtons(t) {
   const taskBtn = task
     ? `<a class="btn pack-folder" href="${escapeHtml(task)}" target="_blank" rel="noreferrer">Task folder</a>`
     : "";
+  const comments = commentsFolder(t);
+  const commentsBtn = comments
+    ? `<a class="btn pack-comments" href="${escapeHtml(comments)}" target="_blank" rel="noreferrer">Comments</a>`
+    : "";
   const workBtn = work
     ? `<a class="btn pack-work" href="${escapeHtml(work)}" target="_blank" rel="noreferrer">Working folder</a>`
     : `<button type="button" class="btn pack-work" disabled title="No working folder in the brief">Working folder</button>`;
-  return { brief, taskBtn, workBtn, task, work };
+  return { brief, taskBtn, commentsBtn, workBtn, task, work, comments };
 }
 function parseBrief(t) {
   const raw = String(t?.brief || "").trim();
@@ -2622,8 +2631,8 @@ function pinHtml(t) {
   const retry = canOps() && t.source === "portal" && !pack.task
     ? `<button type="button" class="btn" id="ensureDrive">Create Drive folder</button>`
     : "";
-  const actions = `<footer class="pin-actions">${pack.brief}${pack.taskBtn}${pack.workBtn}${retry}</footer>`;
-  const files = canWriteNotes() ? notesFilesHtml(t) : "";
+  const actions = `<footer class="pin-actions">${pack.brief}${pack.taskBtn}${pack.commentsBtn}${pack.workBtn}${retry}</footer>`;
+  const files = notesFilesHtml(t);
   const composer = canWriteNotes()
     ? `<div class="notes-compose pin-compose" id="stBriefBox">
         <div class="notes-compose-actions">
@@ -3144,16 +3153,18 @@ function openShot(src, name) {
   box.hidden = false;
 }
 function notesShotsHtml(row) {
-  const files = (row.attachments || []).filter((a) => a?.url);
+  const files = (row.attachments || []).filter((a) => a?.url || a?.driveUrl);
   if (!files.length) return "";
   return `<div class="notes-shots">${files
     .map((a, i) => {
+      const href = a.driveUrl || a.url || "";
       if (isShot(a)) {
         return `<button type="button" class="notes-shot" data-comment="${escapeHtml(row.id || "")}" data-i="${i}">
           <img alt="Screenshot" />
         </button>`;
       }
-      return `<a class="pin-link" href="${escapeHtml(a.url)}" target="_blank" rel="noreferrer">Open link</a>`;
+      const label = escapeHtml(a.name || "Open file");
+      return `<a class="pin-link" href="${escapeHtml(href)}" target="_blank" rel="noreferrer">${label}</a>`;
     })
     .join("")}</div>`;
 }
@@ -3183,14 +3194,20 @@ function notesHtml(t) {
   const rows = clientComments(t);
   const canWrite = canWriteNotes();
   const canSee = canSeeNotes(t);
-  const files = !canWrite ? notesFilesHtml(t) : "";
   if (!canSee) return "";
+  const folder = commentsFolder(t);
   const items = rows
-    .map(
-      (row) => `<article class="notes-item" data-id="${escapeHtml(row.id || "")}">
+    .map((row) => {
+      const num = commentIndexLabel(row);
+      const open = row.folderUrl
+        ? `<a class="notes-open" href="${escapeHtml(row.folderUrl)}" target="_blank" rel="noreferrer">Open</a>`
+        : "";
+      return `<article class="notes-item" data-id="${escapeHtml(row.id || "")}">
         <header class="notes-meta">
+          ${num ? `<span class="notes-num">${escapeHtml(num)}</span>` : ""}
           <strong>${escapeHtml(row.authorName || person(row.authorId)?.name || "Client")}</strong>
           <span>${escapeHtml(commentWhen(row.editedAt || row.at))}${row.editedAt ? " · edited" : ""}${row.source === "monday" ? " · Monday" : ""}</span>
+          ${open}
           ${
             canWrite && row.source !== "monday" && row.id
               ? `<button type="button" class="notes-edit" data-id="${escapeHtml(row.id)}">Edit</button>
@@ -3200,8 +3217,8 @@ function notesHtml(t) {
         </header>
         <div class="notes-body">${linkifyBrief(row.body || "")}</div>
         ${notesShotsHtml(row)}
-      </article>`
-    )
+      </article>`;
+    })
     .join("");
   const composer = canWrite
     ? `<div class="notes-compose" id="stCommentBox">
@@ -3215,14 +3232,14 @@ function notesHtml(t) {
     : "";
   const stay =
     !rows.length && !canWrite
-      ? files
-        ? ""
-        : `<p class="notes-stay">When LP writes the client bounce, it stays on this card. Opening the ping does not remove it.</p>`
+      ? `<p class="notes-stay">When LP writes the client bounce, it stays on this card and in the Comments folder. Opening the ping does not remove it.</p>`
       : "";
-  return `<div class="notes${rows.length || files ? "" : " is-empty"}">
-      <header class="notes-head">Client notes</header>
+  const driveLink = folder
+    ? `<a class="notes-drive" href="${escapeHtml(folder)}" target="_blank" rel="noreferrer">Open Comments</a>`
+    : "";
+  return `<div class="notes${rows.length ? "" : " is-empty"}">
+      <header class="notes-head"><span>Client notes</span>${driveLink}</header>
       ${items}
-      ${files}
       ${stay}
       ${composer}
     </div>`;
@@ -4338,7 +4355,7 @@ function renderGuide() {
       <div class="guide-grid">
         ${card("manager", "LP", "Line Producer", "Анастасія. Бачить усе.", [
           `Новий пак: ${ui("Create task")} (тека + бриф на Drive) або ${ui("Shift email")} (NAME 0.3 shift — тире, пробіл або |).`,
-          `Бриф на картці пишеться в Google Doc. ${ui("Open brief")} — Doc. ${ui("Task folder")} — тека цього таску на Drive студії. ${ui("Working folder")} — тека клієнта з рядка Working folder у брифі; якщо рядка немає, кнопка сіра. ${ui("Client notes")} одразу під брифом.`,
+          `Бриф на картці пишеться в Google Doc. ${ui("Open brief")} — Doc. ${ui("Task folder")} — тека цього таску на Drive студії. ${ui("Comments")} — тека Client notes: 01, 02, 03…. ${ui("Working folder")} — тека клієнта з рядка Working folder у брифі; якщо рядка немає, кнопка сіра. ${ui("Client notes")} одразу під брифом. PPTX брифа — у Brief, не в коментарях.`,
           `Години: ${ui("Shifts")} у рядку або в картці. 1 shift = 9 годин. Виконавця ставить TL. ${ui("Dead Line")} — дата з Excel. ${ui("URGENT")} — червоний ${ui("!")} на імені, вмикають LP / DL / TL з картки, це не статус.`,
           `Рядок фарбується за статусом. Чіп: ${ui("Ready")} / ${ui("WIP")} / ${ui("Fix")} / ${ui("Done")} / ${ui("Appr.")} / ${ui("Closed")}. Не ${ui("Send")}.`,
           `${ui("Excel")} — години як у файлі. Чіп зліва той самий, що в пайплайні, не лише WIP/Closed. ${ui("Dead Line")} = ${ui("DEADLINE")}. ${ui("URGENT")} — маркер ${ui("!")}, не статус.`,
@@ -7027,6 +7044,7 @@ function openTask(id) {
   }
   bindCardVideoButtons();
   const pendingShots = [];
+  const MAX_COMMENT_FILE = 8 * 1024 * 1024;
   function cardFingerprint() {
     const d = $("drawer");
     if (!d) return "";
@@ -7071,12 +7089,15 @@ function openTask(id) {
     const box = $("stCommentShots");
     if (!box) return;
     box.innerHTML = pendingShots
-      .map(
-        (s, i) => `<button type="button" class="notes-pending" data-i="${i}" aria-label="Remove screenshot">
-          <img src="${s.data}" alt="" />
+      .map((s, i) => {
+        const face = s.kind === "image" && s.data
+          ? `<img src="${s.data}" alt="" />`
+          : `<span class="notes-pending-file">${escapeHtml(s.name || "file")}</span>`;
+        return `<button type="button" class="notes-pending" data-i="${i}" aria-label="Remove file">
+          ${face}
           <span class="notes-pending-x" aria-hidden="true">×</span>
-        </button>`
-      )
+        </button>`;
+      })
       .join("");
     box.querySelectorAll(".notes-pending").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -7085,6 +7106,42 @@ function openTask(id) {
       });
     });
     refreshCardActions();
+  }
+  function readCommentFile(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () =>
+        resolve({
+          name: file.name,
+          mime: file.type || "",
+          data: reader.result,
+          kind: isImageFile(file) ? "image" : "file",
+        });
+      reader.onerror = () => reject(new Error("could not read file"));
+      reader.readAsDataURL(file);
+    });
+  }
+  async function addCommentFiles(files) {
+    for (const file of files || []) {
+      if (!(isImageFile(file) || isDocFile(file) || isVideoFile(file))) {
+        toast("Use an image, video, or a document");
+        continue;
+      }
+      if (file.size > MAX_COMMENT_FILE) {
+        toast(`${file.name} is over 8 MB for a client note`);
+        continue;
+      }
+      if (pendingShots.length >= 8) {
+        toast("Up to 8 files on one note");
+        break;
+      }
+      try {
+        pendingShots.push(await readCommentFile(file));
+      } catch {
+        toast(`Could not read ${file.name}`);
+      }
+    }
+    renderPendingShots();
   }
   function isImageFile(file) {
     const type = String(file?.type || "");
@@ -7126,7 +7183,7 @@ function openTask(id) {
       {
         id: t.id,
         body,
-        attachments: pendingShots.map((s) => ({ mime: s.mime, data: s.data })),
+        attachments: pendingShots.map((s) => ({ name: s.name, mime: s.mime, data: s.data })),
         actorId: me().id,
         role: me().role,
       },
@@ -7138,7 +7195,8 @@ function openTask(id) {
     }
     pendingShots.length = 0;
     applyState(out.state, { render: reopen !== false });
-    toast("Note added");
+    if (out.drive && out.drive.ok === false) toast(`Note on the card. Drive: ${out.drive.error}`, 6000);
+    else toast("Note added · Comments folder");
     if (reopen) openTask(t.id);
     else {
       if ($("stComment")) $("stComment").value = "";
@@ -7172,11 +7230,13 @@ function openTask(id) {
     e.preventDefault();
     if (noteDraft()) flushNote();
   });
-  ["stCommentFiles", "stBriefFiles"].forEach((id) => {
-    $(id)?.addEventListener("change", async (e) => {
-      await addPendingFiles([...e.target.files]);
-      e.target.value = "";
-    });
+  $("stCommentFiles")?.addEventListener("change", async (e) => {
+    await addCommentFiles([...e.target.files]);
+    e.target.value = "";
+  });
+  $("stBriefFiles")?.addEventListener("change", async (e) => {
+    await addPendingFiles([...e.target.files]);
+    e.target.value = "";
   });
   function startUploadTile({ name, poster, video, image }) {
     const grid = ensureNotesFilesGrid();
@@ -7452,9 +7512,12 @@ function openTask(id) {
       const end = el.selectionEnd ?? start;
       el.value = el.value.slice(0, start) + text + el.value.slice(end);
     }
-    await addPendingFiles(files);
+    await addCommentFiles(files);
   });
-  ["stCommentBox", "stBriefBox"].forEach((id) => {
+  [
+    ["stCommentBox", addCommentFiles],
+    ["stBriefBox", addPendingFiles],
+  ].forEach(([id, add]) => {
     const dropBox = $(id);
     if (!dropBox) return;
     dropBox.addEventListener("dragover", (e) => {
@@ -7465,7 +7528,7 @@ function openTask(id) {
     dropBox.addEventListener("drop", async (e) => {
       e.preventDefault();
       dropBox.classList.remove("is-drop");
-      await addPendingFiles([...(e.dataTransfer?.files || [])]);
+      await add([...(e.dataTransfer?.files || [])]);
     });
   });
   $("stMonth")?.addEventListener("change", async (e) => {

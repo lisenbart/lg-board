@@ -2325,7 +2325,8 @@ def test_lp_can_close_without_send() -> None:
         "brief and notes are separate panels",
         "brief-thread" not in js
         and "${notesHtml(t)}" not in js.split("function pinHtml")[1].split("function isDriveVideo")[0]
-        and '<header class="notes-head">Client notes</header>' in js
+        and '<header class="notes-head">' in js
+        and "Client notes" in js.split("function notesHtml")[1].split("function sourceHtml")[0]
         and 'id="sendBrief"' in js
         and 'attachChipHtml("stBriefFiles")' in js
         and 'attachChipHtml("stCommentFiles")' in js,
@@ -2517,6 +2518,59 @@ def test_comment_shots() -> None:
         and "function saveNoteEdit" in js
         and "Monday notes stay until the Monday sync" in src,
     )
+    drive = (ROOT / "drive_io.py").read_text(encoding="utf-8")
+    check("Comments live in a Comments folder", 'parent, "Comments"' in drive or '", "Comments"' in drive)
+    check("each client note gets a numbered Drive slot", "def ensure_comment_slot" in drive and "def next_comment_index" in src)
+    check("first client note is 01", server.next_comment_index({"comments": []}) == 1)
+    check("next client note is 03", server.next_comment_index({"comments": [{"driveIndex": 1}, {"driveIndex": 2}]}) == 3)
+    check("Comments button opens the Drive folder", ">Comments</a>" in js and "Open Comments" in js)
+    check("comment Attach stays on Client notes", "function addCommentFiles" in js and "stCommentFiles" in js)
+    calls: list[str] = []
+
+    def fake_token():
+        return "tok"
+
+    def fake_slot(task, index):
+        return {
+            "id": f"slot{index}",
+            "url": f"https://drive.google.com/drive/folders/slot{index}",
+            "index": index,
+            "name": f"{int(index):02d}",
+        }
+
+    def fake_upload(parent, name, blob, mime):
+        calls.append(name)
+        return {"id": name, "url": f"https://drive.google.com/file/d/{name}/view"}
+
+    orig_token = drive_io.drive_token
+    orig_slot = drive_io.ensure_comment_slot
+    orig_up = drive_io.upload_bytes
+    drive_io.drive_token = fake_token
+    drive_io.ensure_comment_slot = fake_slot
+    drive_io.upload_bytes = fake_upload
+    try:
+        task = {"id": "t-note", "name": "DM-P-002-001_Fire", "comments": []}
+        comment = {"body": "fix the logo", "attachments": []}
+        comment["driveIndex"] = server.next_comment_index(task)
+        err = server.push_comment_to_drive(task, comment)
+        check(
+            "Drive writes Comments/01/01.txt",
+            err is None and "01.txt" in calls and comment.get("folderUrl"),
+            f"{err} {calls} {comment}",
+        )
+        task["comments"] = [comment]
+        second = {"body": "and the title", "attachments": []}
+        second["driveIndex"] = server.next_comment_index(task)
+        err2 = server.push_comment_to_drive(task, second)
+        check(
+            "second note is Comments/02",
+            err2 is None and second.get("driveIndex") == 2 and "02.txt" in calls,
+            f"{err2} {second} {calls}",
+        )
+    finally:
+        drive_io.drive_token = orig_token
+        drive_io.ensure_comment_slot = orig_slot
+        drive_io.upload_bytes = orig_up
 
 
 def test_card_videos() -> None:

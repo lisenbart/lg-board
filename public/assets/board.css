@@ -1427,6 +1427,49 @@ body.col-resizing * { cursor: col-resize !important; }
   color: #9b2245;
   background: #fde8ee;
   border-bottom: 1.5px solid #e39aab;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.notes-drive {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--blue);
+  text-decoration: none;
+}
+.notes-drive:hover { text-decoration: underline; }
+.notes-num {
+  display: inline-flex;
+  min-width: 22px;
+  justify-content: center;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: #fde8ee;
+  color: #9b2245;
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.notes-open {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--blue);
+  text-decoration: none;
+}
+.notes-open:hover { text-decoration: underline; }
+.notes-pending-file {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+  word-break: break-word;
 }
 .notes.is-empty .notes-head {
   color: var(--muted);

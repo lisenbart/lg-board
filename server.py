@@ -33,7 +33,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-11-24e"
+BUILD = "2026-11-24f"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -1074,6 +1074,7 @@ IMAGE_NAME_MIME = {
     ".bmp": "image/bmp",
 }
 MAX_SHOT_BYTES = 6 * 1024 * 1024
+MAX_COMMENT_FILE_BYTES = 8 * 1024 * 1024
 MAX_SHOTS = 8
 MAX_VIDEO_BYTES = 500 * 1024 * 1024
 MAX_CARD_VIDEOS = 8
@@ -1121,6 +1122,30 @@ def comment_attachments(text: str, extra: list | None = None) -> list[dict]:
         kind = "image" if (IMAGE_URL.search(url) or url.startswith("data:image") or "/file/d/" in url or "/thumbnail?" in url) else "link"
         urls.append({"url": url, "kind": kind})
     return urls
+
+
+def decode_data_blob(item: dict) -> tuple[str, str, bytes] | None:
+    """Any attached file from the comment composer (image, pdf, pptx…)."""
+    item = item or {}
+    raw = str(item.get("data") or "").strip()
+    if not raw:
+        return None
+    mime = str(item.get("mime") or "").split(";")[0].strip().lower()
+    name = str(item.get("name") or "").strip()
+    if raw.startswith("data:") and "," in raw:
+        header, raw = raw.split(",", 1)
+        if ":" in header and not mime:
+            mime = header.split(":", 1)[1].split(";")[0].strip().lower()
+    try:
+        blob = base64.b64decode(raw, validate=False)
+    except Exception:
+        return None
+    if not blob or len(blob) > MAX_COMMENT_FILE_BYTES:
+        return None
+    if not name:
+        ext = IMAGE_EXT.get(mime) or DOC_MIME.get(mime) or VIDEO_MIME.get(mime) or "bin"
+        name = f"file.{ext}"
+    return name, mime or "application/octet-stream", blob
 
 
 def decode_data_image(item: dict) -> tuple[str, bytes] | None:
@@ -1275,7 +1300,19 @@ def make_comment(
         total=total,
     )
     attachments.extend(stored)
-    if new_files and not stored:
+    extra_files = 0
+    for item in extra or []:
+        if not isinstance(item, dict) or not item.get("data"):
+            continue
+        if decode_data_image(item):
+            continue
+        blob = decode_data_blob(item)
+        if not blob:
+            continue
+        name, mime, data = blob
+        attachments.append({"kind": "file", "name": name, "mime": mime, "data": item.get("data")})
+        extra_files += 1
+    if new_files and not stored and not extra_files:
         return "could not read those screenshots"
     if not text and not attachments:
         return "paste client text or a screenshot"
@@ -1292,6 +1329,86 @@ def make_comment(
         "source": src,
         "mondayId": str(monday_id or ""),
     }
+
+
+def next_comment_index(task: dict | None) -> int:
+    rows = [row for row in ((task or {}).get("comments") or []) if isinstance(row, dict)]
+    numbered = []
+    for row in rows:
+        try:
+            numbered.append(int(row.get("driveIndex") or 0))
+        except (TypeError, ValueError):
+            numbered.append(0)
+    return max([0, *numbered, len(rows)]) + 1
+
+
+def comment_index_label(index: int) -> str:
+    return f"{int(index):02d}"
+
+
+def _blob_from_attachment(task: dict, att: dict) -> tuple[str, str, bytes] | None:
+    if not isinstance(att, dict):
+        return None
+    if att.get("data"):
+        got = decode_data_blob(att)
+        if got:
+            return got
+        img = decode_data_image(att)
+        if img:
+            mime, blob = img
+            ext = IMAGE_EXT.get(mime, "png")
+            return str(att.get("name") or f"shot.{ext}"), mime, blob
+    url = str(att.get("url") or "")
+    name = str(att.get("name") or "")
+    if is_local_shot_url(url) and name:
+        tid = str((task or {}).get("id") or "")
+        path = COMMENT_FILES / tid / name
+        if path.is_file():
+            mime = IMAGE_NAME_MIME.get(path.suffix.lower(), "image/png")
+            return name, mime, path.read_bytes()
+    return None
+
+
+def push_comment_to_drive(task: dict, comment: dict) -> str | None:
+    """Write Comments/01/01.txt and 01_01.png so the note lives on disk too."""
+    try:
+        if not drive_io.drive_token():
+            return "Drive is not connected"
+        try:
+            idx = int(comment.get("driveIndex") or 0) or next_comment_index(task)
+            slot = drive_io.ensure_comment_slot(task, idx)
+        except drive_io.DriveError as e:
+            return str(e)
+        comment["driveIndex"] = idx
+        comment["folderUrl"] = slot["url"]
+        comment["folderId"] = slot["id"]
+        label = comment_index_label(idx)
+        body = str(comment.get("body") or "").strip()
+        note = body if body else f"Client note {label}"
+        uploaded = drive_io.upload_bytes(slot["id"], f"{label}.txt", note.encode("utf-8"), "text/plain")
+        comment["noteUrl"] = uploaded.get("url")
+        n = 0
+        for att in comment.get("attachments") or []:
+            got = _blob_from_attachment(task, att)
+            if not got:
+                continue
+            name, mime, blob = got
+            n += 1
+            ext = Path(name).suffix.lstrip(".") or IMAGE_EXT.get(mime) or "bin"
+            drive_name = f"{label}_{n:02d}.{ext.lower()}"
+            up = drive_io.upload_bytes(slot["id"], drive_name, blob, mime)
+            att["name"] = drive_name
+            att["driveId"] = up.get("id")
+            att["driveUrl"] = up.get("url")
+            att["url"] = up.get("url") or att.get("url")
+            att["kind"] = "image" if mime.startswith("image/") else "file"
+        return None
+    except drive_io.DriveError as e:
+        return str(e)
+    finally:
+        for att in comment.get("attachments") or []:
+            if isinstance(att, dict):
+                att.pop("data", None)
 
 
 def is_sendable(task: dict) -> bool:
@@ -2141,13 +2258,6 @@ class Handler(SimpleHTTPRequestHandler):
                 poster_blob=poster_blob,
                 poster_mime=poster_mime,
                 kind=str(pending.get("kind") or "video"),
-            )
-            notice_io.emit(
-                db,
-                "task.comment",
-                actor_id=str(pending.get("actorId") or sess.get("personId") or ""),
-                task=task,
-                payload={"preview": f"File · {row.get('name') or 'on the card'}"},
             )
             save_db(db)
         self._json(200, {"ok": True, "video": row, "task": task, "state": db})
@@ -3518,8 +3628,14 @@ class Handler(SimpleHTTPRequestHandler):
                         return
                     found["body"] = text
                     found["editedAt"] = utc_now()
+                    drive_err = push_comment_to_drive(task, found)
+                    if drive_err:
+                        print(f"[drive] comment edit {found.get('id')}: {drive_err}", flush=True)
                     save_db(db)
-                    self._json(200, {"comment": found, "task": task, "state": db})
+                    out = {"comment": found, "task": task, "state": db}
+                    if drive_err:
+                        out["drive"] = {"ok": False, "error": drive_err}
+                    self._json(200, out)
                     return
                 comment = make_comment(
                     db,
@@ -3533,9 +3649,20 @@ class Handler(SimpleHTTPRequestHandler):
                 if isinstance(comment, str):
                     self._json(400, {"error": comment})
                     return
+                comment["driveIndex"] = next_comment_index(task)
                 task.setdefault("comments", []).append(comment)
                 if task.get("brief") != brief_before:
                     task["brief"] = brief_before
+                if not drive_io.studio_pack_folder_id(task):
+                    try:
+                        drive_io.ensure_live_pack(
+                            db, task, task.get("month") or db.get("meta", {}).get("month")
+                        )
+                    except drive_io.DriveError as e:
+                        print(f"[drive] comment pack: {e}", flush=True)
+                drive_err = push_comment_to_drive(task, comment)
+                if drive_err:
+                    print(f"[drive] comment {comment.get('id')}: {drive_err}", flush=True)
                 preview = " ".join(str(comment.get("body") or "").split())[:140]
                 if not preview:
                     preview = "New note under the brief"
@@ -3547,7 +3674,10 @@ class Handler(SimpleHTTPRequestHandler):
                     payload={"preview": preview},
                 )
                 save_db(db)
-                self._json(200, {"comment": comment, "task": task, "state": db})
+                out = {"comment": comment, "task": task, "state": db}
+                if drive_err:
+                    out["drive"] = {"ok": False, "error": drive_err}
+                self._json(200, out)
                 return
             if path == "/api/meta/update":
                 if (data.get("role") or "") != "finance":

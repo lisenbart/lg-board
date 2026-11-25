@@ -574,6 +574,41 @@ def _upload_file(token: str, parent_id: str, name: str, blob: bytes, mime: str) 
     }
 
 
+def upload_bytes(parent_id: str, name: str, blob: bytes, mime: str) -> dict:
+    """Small file into a Drive folder (comment note + shots)."""
+    token = drive_token()
+    if not token:
+        raise DriveError("Drive is not connected on this server")
+    parent_id = str(parent_id or "").strip()
+    if not parent_id:
+        raise DriveError("task has no Drive folder")
+    return _upload_file(token, parent_id, str(name or "file").strip() or "file", blob, mime or "application/octet-stream")
+
+
+def ensure_comments_folder(task: dict) -> dict:
+    """Studio task folder / Comments. Not the client working folder."""
+    parent = studio_pack_folder_id(task)
+    if not parent:
+        raise DriveError("task has no Drive folder")
+    token = drive_token()
+    if not token:
+        raise DriveError("Drive is not connected on this server")
+    fid, _ = _ensure_folder(token, parent, "Comments")
+    url = folder_url(fid)
+    task["commentsFolderId"] = fid
+    task["commentsFolderUrl"] = url
+    return {"id": fid, "url": url}
+
+
+def ensure_comment_slot(task: dict, index: int) -> dict:
+    """Comments/01, Comments/02, … one folder per client note."""
+    comments = ensure_comments_folder(task)
+    token = drive_token()
+    title = f"{int(index):02d}"
+    fid, _ = _ensure_folder(token, comments["id"], title)
+    return {"id": fid, "url": folder_url(fid), "index": int(index), "name": title}
+
+
 def ensure_invoice_month_folder(ym: str, direction: str = "mgx") -> dict:
     """LLC/docs/_clients/SUPERPLAY/invoice/MGX|Playable / 10_October."""
     token = drive_token()
