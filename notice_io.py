@@ -75,9 +75,9 @@ KINDS = {
         "channels": ["portal"],
     },
     "task.artready": {
-        "label": "Art ready",
+        "label": "to DEV",
         "title": "{name}",
-        "detail": "Art ready · paste HTML on the card",
+        "detail": "to DEV · paste HTML on the card",
         "mark": "done",
         "audience": {"assignee": True},
         "skip_actor": True,
@@ -143,7 +143,7 @@ STATUS_LABELS = {
     "check": "Check",
     "clientart": "Sent",
     "finalart": "Final art",
-    "artready": "Art ready",
+    "artready": "to DEV",
 }
 WIP_REVERT_FROM = {"tlcheck", "done", "approve", "check", "artready", "clientart", "finalart"}
 
@@ -424,7 +424,7 @@ def on_task_change(db: dict, task: dict, before: dict | None, actor_id: str = ""
         st = direction_io.playable_norm_status(task.get("studioStatus")) if direction_io.is_playables(task) else ""
         if st and st != "check":
             if st == "finalart":
-                preview = "Art is finished · set Art ready"
+                preview = "Art is finished · set to DEV"
             elif direction_io.playable_in_html(task):
                 preview = "HTML is on the card · set Done"
             else:

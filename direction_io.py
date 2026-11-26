@@ -40,7 +40,7 @@ PLAY_STATUS = {
     "revision": "Need Fixing",
     "clientart": "Client art",
     "finalart": "Final art",
-    "artready": "Art ready",
+    "artready": "to DEV",
     "done": "Done",
     "approve": "Send",
     "closed": "Closed",
@@ -811,6 +811,10 @@ def ensure_crew(db: dict) -> bool:
                 task["programmerId"] = ""
             task["studioStatus"] = nxt
             task["mondayStatus"] = PLAY_STATUS.get(nxt, task.get("mondayStatus"))
+            dirty = True
+        wanted = PLAY_STATUS.get(nxt)
+        if wanted and str(task.get("mondayStatus") or "") in {"Art ready", "Art OK", "Build"}:
+            task["mondayStatus"] = wanted
             dirty = True
         before_html = bool(task.get("playableHtml"))
         touch_playable_html(task)

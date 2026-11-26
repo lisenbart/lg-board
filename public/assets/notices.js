@@ -65,9 +65,9 @@
       channels: ["portal"],
     },
     "task.artready": {
-      label: "Art ready",
+      label: "to DEV",
       title: "{name}",
-      detail: "Art ready · paste HTML on the card",
+      detail: "to DEV · paste HTML on the card",
       mark: "done",
       audience: { assignee: true },
       skipActor: true,

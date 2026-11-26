@@ -1288,11 +1288,11 @@ CLIENT_STATUS_LABEL = {
     "closed": "Closed",
     "clientart": "Sent",
     "finalart": "Final art",
-    "artready": "Art ready",
+    "artready": "to DEV",
     "quote": "Ready",
     "storyboard": "Check",
     "htmlready": "Done",
-    "build": "Art ready",
+    "build": "to DEV",
 }
 
 

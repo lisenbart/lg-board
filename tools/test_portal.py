@@ -2050,7 +2050,7 @@ def test_playable_card_pipeline() -> None:
     check("card uses next-step Playables statuses", "function playableNextStatuses" in js and "function playableStatusActions" in js)
     check("Playables assign is LP/DL", "function canAssignPlayable" in js and "play ? canAssignPlayable() : canAssign()" in js)
     check("LP seats DEV from Ready in copy", "You can already put DEV on the card" in js)
-    check("Playables guide names the pipeline", "Done, Need Fixing і Art ready — жест LP по чіпу" in js)
+    check("Playables guide names the pipeline", "Done, Need Fixing і to DEV — жест LP по чіпу" in js)
     check(
         "Hours list is not on Playables",
         "Hours list" not in js
@@ -2149,7 +2149,7 @@ def test_playable_card_pipeline() -> None:
         and "return String(t.handedBy || \"\") === dev" in js,
     )
     check("LP can bounce HTML Need Fixing to Art", "Need Fixing · Art" in js and "Need Fixing · HTML" in js)
-    check("DEV sees HTML slot before Art ready", "The link saves itself. Send to LP after LP sets Art ready." in js)
+    check("DEV sees HTML slot before Art ready", "The link saves itself. Send to LP after LP sets to DEV." in js)
     check("DEV HTML draft uses the card Save", 'id="saveHtmlDraft"' not in js)
     check(
         "paste into a link row fires input so Save lights up",
@@ -2173,6 +2173,7 @@ def test_playable_card_pipeline() -> None:
     check("Copy/Open sit on the paste row", "link-row-actions" in js and "function bindLinkRows" in js)
     check("Open uses the typed link", "function hrefOf" in js and "function syncLinkRow" in js)
     check("HTML loop keeps storyboard Copy/Open", 'id: "stStoryboard"' in js)
+    check("to DEV is the Art ready chip", 'artready: { label: "to DEV", cls: "status-todev"' in js)
     check(
         "Playables Storyboard sits above HTML",
         js.split("function resultHtml")[1].split("function hasDriveDoc")[0].index("<h3>Storyboard</h3>")
@@ -2180,6 +2181,7 @@ def test_playable_card_pipeline() -> None:
     )
     css_link = (ROOT / "public" / "assets" / "board.css").read_text(encoding="utf-8")
     check("Copy/Open stay on the link row", ".link-row {" in css_link and ".link-row-actions" in css_link)
+    check("to DEV chip is blue not Done green", ".status-todev { background: #3b82f6; }" in css_link)
     check("active Playables rows use is-turn", ".row.is-turn" in css_link and ".row.is-wait" in css_link)
     check("HTML WIP chip is purple", ".status-htmlwip" in css_link and ".status-htmlfix" in css_link)
     check("LP status pop sits above the card", ".status-pop-bg" in css_link and "id=\"statusPopBg\"" in (ROOT / "public" / "index.html").read_text(encoding="utf-8"))

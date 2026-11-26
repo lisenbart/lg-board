@@ -10,9 +10,9 @@ const STATUS = {
   closed: { label: "Closed", cls: "status-closed", order: 10 },
   clientart: { label: "Sent", cls: "status-approve", order: 8 },
   finalart: { label: "Final art", cls: "status-revision", order: 5 },
-  artready: { label: "Art ready", cls: "status-done", order: 6 },
+  artready: { label: "to DEV", cls: "status-todev", order: 6 },
   storyboard: { label: "Check", cls: "status-tlcheck", order: 4 },
-  build: { label: "Art ready", cls: "status-done", order: 6 },
+  build: { label: "to DEV", cls: "status-todev", order: 6 },
   htmlready: { label: "Done", cls: "status-done", order: 7 },
 };
 
@@ -3311,9 +3311,9 @@ function resultHtml(t, performer, canPaste) {
           value: htmlVal,
           placeholder: "Paste HTML / playable link — not in Telegram",
           canPaste: true,
-          emptyText: "Paste the playable link here. Send to LP after Art ready.",
+          emptyText: "Paste the playable link here. Send to LP after to DEV.",
         })}
-        <p class="io-hint">The link saves itself. Send to LP after LP sets Art ready.</p>
+        <p class="io-hint">The link saves itself. Send to LP after LP sets to DEV.</p>
       </div>
     </section>`;
   }
@@ -3491,7 +3491,7 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
     }
     if (st === "closed") return { tone: "ok", title: "Closed", body: "Client accepted. This playable is finished." };
     if (st === "approve") return { tone: "ok", title: "Sent to client", body: "LP already sent the HTML. Nothing else on this card." };
-    if (st === "artready") return { tone: "wait", title: "Art ready", body: "DEV starts HTML from here. You are done with this stage." };
+    if (st === "artready") return { tone: "wait", title: "to DEV", body: "DEV starts HTML from here. You are done with this stage." };
     if (st === "done") return { tone: "wait", title: "Waiting for LP", body: "HTML is in. Line Producer sends it." };
     if (html) return { tone: "wait", title: "Waiting for DEV / LP", body: "Art is done. Programmer builds HTML. LP sends it." };
     if (st === "clientart") return { tone: "wait", title: "Sent", body: "Storyboard is with the client. LP sets Need Fixing if they bounce it, or Final art when they approve." };
@@ -3501,7 +3501,7 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
       }
       return { tone: "do", title: "Check", body: "Storyboard is with LP. They send it to the client. Tap WIP if you still need to fix the board." };
     }
-    if (st === "finalart") return { tone: "do", title: "Final art", body: "Finish art, then Send to LP. LP sets Art ready so DEV can start HTML." };
+    if (st === "finalart") return { tone: "do", title: "Final art", body: "Finish art, then Send to LP. LP taps to DEV so HTML can start." };
     if (st === "revision") {
       const cue = clientCue(t);
       return {
@@ -3518,7 +3518,7 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
   if (role === "programmer") {
     const onDev = String(t.programmerId || "") === String(me().id);
     if (st === "closed" || st === "approve") return { tone: "ok", title: st === "closed" ? "Closed" : "Sent to client", body: "Nothing else on this card." };
-    if (!onDev) return { tone: "wait", title: "Not on you yet", body: "You are not on this card. LP can assign you from Ready — you start HTML after Art ready." };
+    if (!onDev) return { tone: "wait", title: "Not on you yet", body: "You are not on this card. LP can assign you from Ready — you start HTML after LP taps to DEV." };
     if (st === "done") return { tone: "wait", title: "Waiting for LP", body: "HTML link is in. Line Producer sends it. Need Fixing if the client bounces it." };
     if (html) {
       if (st === "revision") {
@@ -3531,11 +3531,11 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
             : "Open Client notes on this card. Text and files stay there after you read the ping. Then fix the HTML and Send to LP.",
         };
       }
-      if (st === "artready") return { tone: "do", title: "Art ready", body: "Tap the chip → WIP · HTML or Send to LP. Paste the HTML first. LP sets Done or Need Fixing. Not in Telegram." };
+      if (st === "artready") return { tone: "do", title: "to DEV", body: "Tap the chip → WIP · HTML or Send to LP. Paste the HTML first. LP sets Done or Need Fixing. Not in Telegram." };
       if (!hasResult) return { tone: "do", title: "Your job", body: "Paste the HTML, then Send to LP. LP sets Done or Need Fixing. Not in Telegram." };
       return { tone: "do", title: "Send to LP", body: "Link is in the field. Send to LP — LP sets Done. Not in Telegram." };
     }
-    return { tone: "wait", title: "Art is still in progress", body: "Paste the HTML link on this card now. Send to LP after LP sets Art ready. Not in Telegram." };
+    return { tone: "wait", title: "Art is still in progress", body: "Paste the HTML link on this card now. Send to LP after LP sets to DEV. Not in Telegram." };
   }
   if (role === "designer") {
     return { tone: "ok", title: "Art help", body: `${hoursForPerson(t, me().id) || 0}h on this playable. LP owns Done and Need Fixing — you do not change status.` };
@@ -3548,7 +3548,7 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
   if (st === "closed") return { tone: "ok", title: "Closed", body: "Client accepted. Hours stay on this month." };
   if (st === "approve") return { tone: "ok", title: "Already sent", body: "HTML is with the client. Mark Closed when they accept. Need Fixing if they bounce it." };
   if (st === "done" && hasResult) return { tone: "do", title: "Your job", body: "HTML is in. Send to client, or Mark Closed if they already accepted." };
-  if (st === "check") return { tone: "do", title: "Your job", body: "Storyboard is in. Send to client, or Art ready so DEV can start HTML." };
+  if (st === "check") return { tone: "do", title: "Your job", body: "Storyboard is in. Send to client, or tap to DEV so HTML can start." };
   if (st === "clientart") return { tone: "wait", title: "Sent", body: "Waiting on the client. Need Fixing if they bounce it. Final art when they approve the board." };
   if (st === "artready") {
     if (!t.programmerId) {
@@ -3557,7 +3557,7 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
     if (playableDevDelivered(t)) {
       return { tone: "do", title: "HTML is in", body: `${progName || "Programmer"} sent the HTML. Tap the status chip for Done or Need Fixing.` };
     }
-    return { tone: "wait", title: "Art ready", body: `${progName || "Programmer"} pastes HTML and Send to LP. Then tap the status chip for Done or Need Fixing.` };
+    return { tone: "wait", title: "to DEV", body: `${progName || "Programmer"} pastes HTML and Send to LP. Then tap the status chip for Done or Need Fixing.` };
   }
   if (html && t.programmerId) {
     if (playableDevDelivered(t)) {
@@ -3569,8 +3569,8 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
     return { tone: "wait", title: "In WIP", body: `${progName || "Programmer"} is on HTML. They Send to LP — you set Done or Need Fixing.` };
   }
   if (st === "finalart") {
-    if (playableAdDelivered(t)) return { tone: "do", title: "Art is in", body: `${name || "Art Director"} sent the art. Tap the status chip → Art ready so DEV can start HTML.` };
-    return { tone: "wait", title: "Final art", body: `${name || "Art Director"} is finishing art. They Send to LP — you set Art ready.` };
+    if (playableAdDelivered(t)) return { tone: "do", title: "Art is in", body: `${name || "Art Director"} sent the art. Tap the status chip → to DEV so HTML can start.` };
+    return { tone: "wait", title: "Final art", body: `${name || "Art Director"} is finishing art. They Send to LP — you set to DEV.` };
   }
   if (st === "revision") return { tone: "wait", title: "Need Fixing", body: html ? `${progName || "Programmer"} is fixing HTML. If they are away, tap the status chip.` : `${name || "Art Director"} is fixing the storyboard. If they are away, tap the status chip.` };
   const ad = playableAdId(t);
@@ -3589,7 +3589,7 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
     return {
       tone: "wait",
       title: "Waiting for AD",
-      body: `${name || "Art Director"} pastes the storyboard and Send to LP. If they are away, tap the status chip. You can already put DEV on the card — they start HTML after Art ready.`,
+      body: `${name || "Art Director"} pastes the storyboard and Send to LP. If they are away, tap the status chip. You can already put DEV on the card — they start HTML after LP taps to DEV.`,
     };
   }
   return { tone: "wait", title: "In progress", body: `${name || "Art Director"} is on this. If they are away, set the status yourself. Send the storyboard, then HTML.` };
@@ -4378,19 +4378,19 @@ function renderGuide() {
     <section class="guide">
       <div class="guide-intro">
         <h2>Як працює Playables</h2>
-        <p>Прорахунок лишається в Telegram. На дошці робота вже після апруву годин. Два кола: арт / сторіборд, потім HTML. DEV можна посадити з Ready — HTML він починає лише після ${ui("Art ready")}. Якщо картку закрили і знову відкрили в Ready — AD знову малює сторіборд, не HTML.</p>
+        <p>Прорахунок лишається в Telegram. На дошці робота вже після апруву годин. Два кола: арт / сторіборд, потім HTML. DEV можна посадити з Ready — HTML він починає лише після ${ui("to DEV")}. Якщо картку закрили і знову відкрили в Ready — AD знову малює сторіборд, не HTML.</p>
       </div>
       <div class="guide-block">
         <h3>Статуси</h3>
         <p class="guide-lead">Один наступний крок на картці. WIP / Check / Done — ті самі слова, що в MGX.</p>
         <div class="guide-status-grid">
-          ${statusCard("ready", "Ready", "Ready", "Хто: LP створила, назначила AD / DEV", "Картка в роботі. AD вставляє сторіборд і Send to LP — без своїх чіпів. DEV уже може сидіти, HTML починає після Art ready.")}
+          ${statusCard("ready", "Ready", "Ready", "Хто: LP створила, назначила AD / DEV", "Картка в роботі. AD вставляє сторіборд і Send to LP — без своїх чіпів. DEV уже може сидіти, HTML починає після to DEV.")}
           ${statusCard("wip", "WIP", "WIP · Art / WIP · HTML", "Хто: чий хід по чіпу", "WIP · Art — Юля малює. WIP · HTML — Богдан збирає. Один чіп, різні лейбли як у Monday.")}
           ${statusCard("check", "Check", "Check", "Хто: AD здав борд, далі LP", "Сторіборд готовий, лінк у картці. Тільки LP шле клієнту — це стає Sent.")}
           ${statusCard("fix", "Fix", "Need Fixing", "Хто: відбій клієнта", "Сторіборд — AD править, знову Check. HTML — DEV править, знову Done.")}
           ${statusCard("sent", "Sent", "Sent", "Хто: чекаємо клієнта по борду", "LP відправила сторіборд. Відбили → Need Fixing. Прийняли → LP ставить Final art.")}
-          ${statusCard("final", "Final", "Final art", "Хто: AD робить, LP ставить чіп", "Клієнт прийняв борд. AD фіналізує арт і Send to LP. Лише LP ставить Art ready.")}
-          ${statusCard("artok", "Art OK", "Art ready", "Хто: LP після здачі арту, далі DEV", "LP поставила Art ready. DEV вставляє HTML і Send to LP.")}
+          ${statusCard("final", "Final", "Final art", "Хто: AD робить, LP ставить чіп", "Клієнт прийняв борд. AD фіналізує арт і Send to LP. Лише LP ставить to DEV.")}
+          ${statusCard("artok", "to DEV", "to DEV", "Хто: LP після здачі арту, далі DEV", "LP поставила to DEV. DEV вставляє HTML і Send to LP.")}
           ${statusCard("done", "Done", "Done", "Хто: лише LP", "DEV здав HTML через Send to LP. Лише LP ставить Done, Need Fixing або шле клієнту.")}
           ${statusCard("send", "Send", "Send", "Хто: чекаємо клієнта по HTML", "LP натиснула Send to client. Відбили → Need Fixing. Прийняли → Closed.")}
           ${statusCard("closed", "Closed", "Closed", "Хто: LP", "Клієнт прийняв. Години лишаються.")}
@@ -4398,28 +4398,28 @@ function renderGuide() {
       </div>
       <div class="guide-block">
         <h3>Пайплайн</h3>
-        <p class="guide-lead">Ready → WIP → Send to LP → Check → Sent → Final art → Art ready → Send to LP → Done → Send → Closed. Кожен тапає чіп статусу і бачить лише свій крок. Done, Need Fixing і Art ready — жест LP по чіпу.</p>
+        <p class="guide-lead">Ready → WIP → Send to LP → Check → Sent → Final art → to DEV → Send to LP → Done → Send → Closed. Кожен тапає чіп статусу і бачить лише свій крок. Done, Need Fixing і to DEV — жест LP по чіпу.</p>
         <ol class="guide-pipe">
           ${pipeStep("1", "LP", "Line Producer", "Картка заходить", `${ui("Create task")} після апруву годин. Ставить AD і DEV одразу, години — на людей.`, "ready", "Ready")}
           ${pipeStep("2", "AD", "Art Director", "Сторіборд", `Тап ${ui("Ready")} → ${ui("WIP")}. Лінк на борд → ${ui("Send to LP")} у футері або в чіпі. Статус стає ${ui("Check")}.`, "check", "Check")}
           ${pipeStep("3", "LP", "Line Producer", "Шле борд", `${ui("Send to client")} з ${ui("Check")}. Статус стає ${ui("Sent")}. Відбій → ${ui("Need Fixing")}. Апрув → ${ui("Final art")}.`, "sent", "Sent")}
-          ${pipeStep("4", "AD", "Art Director", "Фінальний арт", `Доробляє арт → ${ui("Send to LP")}. Лише LP ставить ${ui("Art ready")} з чіпа.`, "artok", "Art OK")}
-          ${pipeStep("5", "DEV", "Programmer", "Бере HTML", `Після ${ui("Art ready")} тап → ${ui("WIP · HTML")}, вставляє лінк. Поки арт іде — лінк уже можна зберегти.`, "wip", "WIP")}
+          ${pipeStep("4", "AD", "Art Director", "Фінальний арт", `Доробляє арт → ${ui("Send to LP")}. Лише LP ставить ${ui("to DEV")} з чіпа.`, "artok", "to DEV")}
+          ${pipeStep("5", "DEV", "Programmer", "Бере HTML", `Після ${ui("to DEV")} тап → ${ui("WIP · HTML")}, вставляє лінк. Поки арт іде — лінк уже можна зберегти.`, "wip", "WIP")}
           ${pipeStep("6", "DEV", "Programmer", "Здає HTML", `Лінк у ${ui("HTML")}, потім ${ui("Send to LP")}. Done не ставить DEV.`, "done", "Done")}
-          ${pipeStep("7", "LP", "Line Producer", "Продовжує картку", `Тап по чіпу статусу: ${ui("Done")}, ${ui("Need Fixing")}, ${ui("Art ready")}. ${ui("Send to client")} з ${ui("Done")} + лінк, або одразу ${ui("Closed")}.`, "send", "Send")}
+          ${pipeStep("7", "LP", "Line Producer", "Продовжує картку", `Тап по чіпу статусу: ${ui("Done")}, ${ui("Need Fixing")}, ${ui("to DEV")}. ${ui("Send to client")} з ${ui("Done")} + лінк, або одразу ${ui("Closed")}.`, "send", "Send")}
         </ol>
       </div>
       <div class="guide-grid">
         ${card("art_director", "AD", "Art Director", "Анна, Юля. Лише свої playable.", [
           `Тап по чіпу: ${ui("WIP")} або ${ui("Send to LP")} після лінка. Можна закрити картку і змінити статус з рядка. Не в Telegram.`,
           `Після відбою: новий лінк, потім знову ${ui("Send to LP")}.`,
-          `${ui("Final art")}: доробляєш арт і ${ui("Send to LP")}. ${ui("Art ready")}, ${ui("Done")} і ${ui("Need Fixing")} ставить лише LP.`,
+          `${ui("Final art")}: доробляєш арт і ${ui("Send to LP")}. ${ui("to DEV")}, ${ui("Done")} і ${ui("Need Fixing")} ставить лише LP.`,
           `${ui("Send to client")} у AD немає.`,
         ])}
         ${card("programmer", "DEV", "Programmer", "Богдан. Лише свої playable.", [
-          `LP садить тебе з Ready для годин. Після ${ui("Art ready")} в чіпі: ${ui("WIP · HTML")} і ${ui("Send to LP")}. Можна закрити картку після лінка.`,
+          `LP садить тебе з Ready для годин. Після ${ui("to DEV")} в чіпі: ${ui("WIP · HTML")} і ${ui("Send to LP")}. Можна закрити картку після лінка.`,
           `Вставляєш HTML і ${ui("Send to LP")} — не в Telegram. Done і Need Fixing ставить лише LP.`,
-          `Поки арт іде, на картці вже є слот HTML, щоб зберегти лінк. Send to LP — після Art ready.`,
+          `Поки арт іде, на картці вже є слот HTML, щоб зберегти лінк. Send to LP — після to DEV.`,
           `Код-онлі (немає AD) — лінк з Ready, потім ${ui("Send to LP")}.`,
         ])}
         ${card("designer", "MD", "Motion design", "Сергій на Playables. Години, не статус.", [
@@ -4427,10 +4427,10 @@ function renderGuide() {
           `Статус не чіпаєш — Done і Need Fixing ставить LP. Бриф читаєш, роботу здаєш AD.`,
         ])}
         ${card("manager", "LP", "Line Producer", "Анастасія. Обидві дошки.", [
-          `${ui("Create task")} після апруву годин у Telegram. AD і DEV садить одразу. Наступний крок — тап по чіпу статусу на рядку чи картці: ${ui("Done")}, ${ui("Need Fixing")}, ${ui("Art ready")}.`,
+          `${ui("Create task")} після апруву годин у Telegram. AD і DEV садить одразу. Наступний крок — тап по чіпу статусу на рядку чи картці: ${ui("Done")}, ${ui("Need Fixing")}, ${ui("to DEV")}.`,
           `AD і DEV здають роботу кнопкою ${ui("Send to LP")}. Свій крок (WIP) ставлять з чіпа, як у Monday. Якщо їх немає — тап по чіпу і постав сам.`,
           `${ui("Send to client")} з ${ui("Check")} (борд) і з ${ui("Done")} (HTML + лінк). ${ui("Copy")} / ${ui("Open")} біля лінка.`,
-          `Sent: відбій → ${ui("Need Fixing")}. Апрув борду → ${ui("Final art")}, потім ти ставиш ${ui("Art ready")}.`,
+          `Sent: відбій → ${ui("Need Fixing")}. Апрув борду → ${ui("Final art")}, потім ти ставиш ${ui("to DEV")}.`,
           `${ui("Mark Closed")} можна без Send. Closed → Ready знову відкриває арт для AD.`,
         ])}
       </div>
@@ -4759,9 +4759,9 @@ function statusMark(t) {
       closed: { cls: "closed", label: "Closed", title },
       clientart: { cls: "sent", label: "Sent", title },
       finalart: { cls: "final", label: "Final", title },
-      artready: { cls: "artok", label: "Art OK", title },
+      artready: { cls: "artok", label: "to DEV", title },
       storyboard: { cls: "check", label: "Check", title },
-      build: { cls: "artok", label: "Art OK", title },
+      build: { cls: "artok", label: "to DEV", title },
       htmlready: { cls: "done", label: "Done", title },
     }[key] || { cls: "ready", label: "Ready", title: STATUS.new.label }
   );
@@ -7538,7 +7538,7 @@ function openTask(id) {
       if (patch.resultUrl != null) t.resultUrl = patch.resultUrl;
       cardBaseline = cardFingerprint();
       refreshCardSave();
-      if (draft) toast("Link saved. Send to LP after Art ready.");
+      if (draft) toast("Link saved. Send to LP after to DEV.");
       return true;
     });
   };
@@ -8455,7 +8455,7 @@ function openTask(id) {
               ? "TL has the file on the card. No need to send it in Telegram."
               : "LP has the link on the card. No need to send it in Telegram."
             : savedHtmlDraft
-              ? "HTML link saved. Send to LP after Art ready."
+              ? "HTML link saved. Send to LP after to DEV."
             : savedLinkOnly
               ? toTl
                 ? "Link saved. Send to TL so TL sees it — don't send it in Telegram."
