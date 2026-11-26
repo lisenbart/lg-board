@@ -4860,8 +4860,7 @@ function playableAdDelivered(t) {
   if (!t?.handedToLp) return false;
   const ad = playableAdId(t);
   if (!ad) return true;
-  const who = String(t.handedBy || "");
-  return !who || who === ad;
+  return String(t.handedBy || "") === ad;
 }
 function playableTurnRole(t) {
   if (!isPlayables(t)) return "";
@@ -4884,7 +4883,7 @@ function playableTurnRole(t) {
     if (st === "done" || st === "check") return "manager";
     return "";
   }
-  if (st === "finalart") return handed || !ad ? "manager" : "art_director";
+  if (st === "finalart") return playableAdDelivered(t) || !ad ? "manager" : "art_director";
   if (st === "new" || st === "wip" || st === "revision") return ad ? "art_director" : "manager";
   if (st === "check") return ad && !playableAdDelivered(t) ? "art_director" : "manager";
   return "";
@@ -4897,7 +4896,7 @@ function isActiveForMe(t) {
   if (role === "manager" || role === "finance") return true;
   if (isPlayables(t)) {
     const turn = playableTurnRole(t);
-    if (role === "art_director") return turn === "art_director" && playableAdId(t) === me().id;
+    if (role === "art_director") return turn === "art_director" && playableAdId(t) === String(me().id);
     if (role === "programmer") return turn === "programmer" && String(t.programmerId || "") === String(me().id);
     return false;
   }

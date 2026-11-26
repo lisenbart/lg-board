@@ -263,15 +263,14 @@ def playable_crew_ids(task: dict | None) -> list[str]:
 
 
 def playable_ad_delivered(task: dict | None) -> bool:
-    """True after the AD on the card Send to LP. Check without that hand is still her job."""
+    """True only after the AD seated on the card Send to LP. Check from LP/another AD is still her job."""
     task = task or {}
     if not bool(task.get("handedToLp")):
         return False
     ad = str(task.get("assigneeId") or "").strip()
     if not playable_has_ad(task) or not ad:
         return True
-    who = str(task.get("handedBy") or "").strip()
-    return not who or who == ad
+    return str(task.get("handedBy") or "").strip() == ad
 
 
 def playable_turn_role(task: dict | None) -> str:
@@ -299,7 +298,7 @@ def playable_turn_role(task: dict | None) -> str:
             return "manager"
         return ""
     if st == "finalart":
-        return "manager" if handed or not has_ad else "art_director"
+        return "manager" if playable_ad_delivered(task) or not has_ad else "art_director"
     if st in {"new", "wip", "revision"}:
         return "art_director" if has_ad else "manager"
     if st == "check":

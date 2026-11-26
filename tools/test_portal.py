@@ -2079,7 +2079,12 @@ def test_playable_card_pipeline() -> None:
     check("Monday chips name Art vs HTML WIP", "WIP · Art" in js and "WIP · HTML" in js)
     check("rows mark your turn vs waiting", "function isActiveForMe" in js and "is-turn" in js and "is-wait" in js)
     check("in progress KPI is your turn", "tasks.filter((t) => isActiveForMe(t))" in js)
-    check("Check without Send to LP stays the AD", "function playableAdDelivered" in js)
+    check(
+        "Check without Send to LP stays the AD",
+        "function playableAdDelivered" in js
+        and "return String(t.handedBy || \"\") === ad" in js
+        and "return !who || who === ad" not in js,
+    )
     check(
         "board Result uses HTML if resultUrl is empty",
         "function taskLinkUrl" in js and "t.htmlUrl || t.storyboardUrl" in js,
@@ -2420,6 +2425,17 @@ def test_playable_team_scenarios() -> None:
         resultUrl="https://miro.com/app/board/zeus",
     )
     check("other AD hand does not finish Anna's card", turn(stolen) == "art_director")
+    legacy_hand = card(
+        studioStatus="check",
+        assigneeId=anna,
+        handedToLp=True,
+        resultUrl="https://miro.com/app/board/zeus",
+    )
+    check("Check Send without handedBy still Anna", turn(legacy_hand) == "art_director")
+    check(
+        "legacy Check is still Anna's open part",
+        direction_io.playable_part_open(legacy_hand, "art_director", anna),
+    )
 
     # --- Bohdan saves HTML while Anna is still on art
     board = db()
@@ -2449,6 +2465,8 @@ def test_playable_team_scenarios() -> None:
     check("Art WIP: Anna active, Bohdan waits", part(wip, "art_director", anna) and not part(wip, "programmer", bohdan))
     pending = card(studioStatus="check", assigneeId=anna, programmerId=bohdan)
     check("Check without Send: Anna still active", part(pending, "art_director", anna) and part(pending, "manager"))
+    ghost = card(studioStatus="check", assigneeId=anna, programmerId=bohdan, handedToLp=True)
+    check("Check with empty handedBy stays Anna", part(ghost, "art_director", anna) and not part(ghost, "art_director", yulia))
     handed_check = card(
         studioStatus="check",
         assigneeId=anna,
