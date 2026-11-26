@@ -2336,7 +2336,7 @@ function renderToolbar() {
     $("toolbar").innerHTML = `
       ${isFinance() ? driveStrip() : ""}
       ${canOps() && state.view === "board" ? `<button type="button" class="btn primary" id="btnCreateTask">Create task</button>` : ""}
-      ${activeClientId() === "slotomania" ? "" : `<button class="btn orange" id="btnEmail">${state.direction === "playables" ? "Hours list" : "Shift email"}</button>`}
+      ${activeClientId() === "slotomania" || state.direction === "playables" ? "" : `<button class="btn orange" id="btnEmail">Shift email</button>`}
       ${drive ? `<a class="btn" href="${escapeHtml(drive)}" target="_blank" rel="noreferrer">Open Drive</a>` : ""}
       <button class="btn green" id="btnExport" ${n ? "" : "disabled"}>Send to client (${n})</button>
       ${searchHtml()}
@@ -2346,14 +2346,12 @@ function renderToolbar() {
   bindSearch();
   $("btnCreateTask")?.addEventListener("click", openCreateTask);
   $("btnEmail")?.addEventListener("click", () => {
-    const play = state.direction === "playables";
     const title = $("emailModal")?.querySelector("h3");
     const lead = $("emailModal")?.querySelector("p");
-    if (title) title.textContent = play ? "Hours list" : "Shift list";
+    if (title) title.textContent = "Shift list";
     if (lead) {
-      lead.innerHTML = play
-        ? "One playable per line. Hours are billed hours, not shifts × 9. Example: <code>DS-P-060_MergeSolitaire 30</code>."
-        : "One project per line. Creates the card, Drive folder, empty brief, and hours. Dash, space, or <code>|</code> before the hours — <code>shift</code> / <code>SHFT</code> / <code>SHIFT</code> all work.";
+      lead.innerHTML =
+        "One project per line. Creates the card, Drive folder, empty brief, and hours. Dash, space, or <code>|</code> before the hours — <code>shift</code> / <code>SHFT</code> / <code>SHIFT</code> all work.";
     }
     $("emailModal").classList.add("show");
     refreshEmailGo();

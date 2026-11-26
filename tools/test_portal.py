@@ -2012,6 +2012,12 @@ def test_playable_card_pipeline() -> None:
     check("Playables assign is LP/DL", "function canAssignPlayable" in js and "play ? canAssignPlayable() : canAssign()" in js)
     check("LP seats DEV from Ready in copy", "You can already put DEV on the card" in js)
     check("Playables guide names the pipeline", "Done, Need Fixing і Art ready — жест LP по чіпу" in js)
+    check(
+        "Hours list is not on Playables",
+        "Hours list" not in js
+        and 'id="btnEmail"' in js
+        and '|| state.direction === "playables" ? ""' in js,
+    )
     check("MD copy says LP owns Done", "LP owns Done and Need Fixing" in js)
     check(
         "LP/DL can set any Playables work status",
