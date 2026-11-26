@@ -2002,7 +2002,7 @@ function phoneCardHtml(t) {
   const who = phoneWhoLine(t);
   const flag = urgentMark(t);
   const cue = clientCue(t);
-  const chip = canOps()
+  const chip = canUseStatusPop(t)
     ? `<button type="button" class="notice-chip notice-${spec.cls} status-pop-btn" data-id="${escapeHtml(t.id)}" data-status-pop="1">${spec.label}</button>`
     : `<span class="notice-chip notice-${spec.cls}">${spec.label}</span>`;
   return `<div class="phone-card tone-${escapeHtml(isPlayables(t) ? playableStatusKey(t) : t.studioStatus || "new")}${isUrgent(t) ? " is-urgent" : ""}${turnClass(t)}" data-id="${escapeHtml(t.id)}" role="button" tabindex="0">
@@ -3501,7 +3501,7 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
       };
     }
     if (st === "wip") return { tone: "do", title: "WIP", body: "Paste the storyboard, then Send to LP. Don't send the link in Telegram." };
-    return { tone: "do", title: "Your job", body: "Paste the storyboard, then Send to LP. Don't send the link in Telegram." };
+    return { tone: "do", title: "Your job", body: "Tap Ready → WIP. Paste the storyboard, then Send to LP. Don't send the link in Telegram." };
   }
   if (role === "programmer") {
     const onDev = String(t.programmerId || "") === String(me().id);
@@ -3519,7 +3519,7 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
             : "Open Client notes on this card. Text and files stay there after you read the ping. Then fix the HTML and Send to LP.",
         };
       }
-      if (st === "artready") return { tone: "do", title: "Art ready", body: "Paste the HTML, then Send to LP. LP sets Done or Need Fixing. Not in Telegram." };
+      if (st === "artready") return { tone: "do", title: "Art ready", body: "Tap Art ready → WIP · HTML. Paste the HTML, then Send to LP. LP sets Done or Need Fixing. Not in Telegram." };
       if (!hasResult) return { tone: "do", title: "Your job", body: "Paste the HTML, then Send to LP. LP sets Done or Need Fixing. Not in Telegram." };
       return { tone: "do", title: "Send to LP", body: "Link is in the field. Send to LP — LP sets Done. Not in Telegram." };
     }
@@ -4339,26 +4339,26 @@ function renderGuide() {
       </div>
       <div class="guide-block">
         <h3>Пайплайн</h3>
-        <p class="guide-lead">Ready → Send to LP → Check → Sent → Final art → Art ready → Send to LP → Done → Send → Closed. AD / DEV не ставлять статуси. Done, Need Fixing і Art ready — жест LP по чіпу.</p>
+        <p class="guide-lead">Ready → WIP → Send to LP → Check → Sent → Final art → Art ready → Send to LP → Done → Send → Closed. Кожен тапає чіп статусу і бачить лише свій крок. Done, Need Fixing і Art ready — жест LP по чіпу.</p>
         <ol class="guide-pipe">
           ${pipeStep("1", "LP", "Line Producer", "Картка заходить", `${ui("Create task")} після апруву годин. Ставить AD і DEV одразу, години — на людей.`, "ready", "Ready")}
-          ${pipeStep("2", "AD", "Art Director", "Сторіборд", `Лінк на борд → ${ui("Send to LP")}. Статус стає ${ui("Check")}. WIP не треба.`, "check", "Check")}
+          ${pipeStep("2", "AD", "Art Director", "Сторіборд", `Тап ${ui("Ready")} → ${ui("WIP")}. Лінк на борд → ${ui("Send to LP")}. Статус стає ${ui("Check")}.`, "check", "Check")}
           ${pipeStep("3", "LP", "Line Producer", "Шле борд", `${ui("Send to client")} з ${ui("Check")}. Статус стає ${ui("Sent")}. Відбій → ${ui("Need Fixing")}. Апрув → ${ui("Final art")}.`, "sent", "Sent")}
           ${pipeStep("4", "AD", "Art Director", "Фінальний арт", `Доробляє арт → ${ui("Send to LP")}. Лише LP ставить ${ui("Art ready")} з чіпа.`, "artok", "Art OK")}
-          ${pipeStep("5", "DEV", "Programmer", "Бере HTML", `Після ${ui("Art ready")} DEV вставляє лінк. Поки арт іде — лінк уже можна зберегти.`, "wip", "WIP")}
+          ${pipeStep("5", "DEV", "Programmer", "Бере HTML", `Після ${ui("Art ready")} тап → ${ui("WIP · HTML")}, вставляє лінк. Поки арт іде — лінк уже можна зберегти.`, "wip", "WIP")}
           ${pipeStep("6", "DEV", "Programmer", "Здає HTML", `Лінк у ${ui("HTML")}, потім ${ui("Send to LP")}. Done не ставить DEV.`, "done", "Done")}
           ${pipeStep("7", "LP", "Line Producer", "Продовжує картку", `Тап по чіпу статусу: ${ui("Done")}, ${ui("Need Fixing")}, ${ui("Art ready")}. ${ui("Send to client")} з ${ui("Done")} + лінк, або одразу ${ui("Closed")}.`, "send", "Send")}
         </ol>
       </div>
       <div class="guide-grid">
         ${card("art_director", "AD", "Art Director", "Анна, Юля. Лише свої playable.", [
-          `Вставляєш лінк на сторіборд, потім ${ui("Send to LP")} — не в Telegram і без своїх чіпів. ${ui("Copy")} / ${ui("Open")} праворуч від поля.`,
+          `Тап по чіпу ${ui("Ready")} → ${ui("WIP")}. Вставляєш лінк на сторіборд, потім ${ui("Send to LP")} — не в Telegram. ${ui("Copy")} / ${ui("Open")} праворуч від поля.`,
           `Після відбою: новий лінк, потім знову ${ui("Send to LP")}.`,
           `${ui("Final art")}: доробляєш арт і ${ui("Send to LP")}. ${ui("Art ready")}, ${ui("Done")} і ${ui("Need Fixing")} ставить лише LP.`,
           `${ui("Send to client")} у AD немає.`,
         ])}
         ${card("programmer", "DEV", "Programmer", "Богдан. Лише свої playable.", [
-          `LP садить тебе з Ready для годин. HTML здаєш після ${ui("Art ready")} через ${ui("Send to LP")}.`,
+          `LP садить тебе з Ready для годин. Після ${ui("Art ready")} тап по чіпу → ${ui("WIP · HTML")}, потім ${ui("Send to LP")}.`,
           `Вставляєш HTML і ${ui("Send to LP")} — не в Telegram. Done і Need Fixing ставить лише LP.`,
           `Поки арт іде, на картці вже є слот HTML, щоб зберегти лінк. Send to LP — після Art ready.`,
           `Код-онлі (немає AD) — лінк з Ready, потім ${ui("Send to LP")}.`,
@@ -4369,7 +4369,7 @@ function renderGuide() {
         ])}
         ${card("manager", "LP", "Line Producer", "Анастасія. Обидві дошки.", [
           `${ui("Create task")} після апруву годин у Telegram. AD і DEV садить одразу. Наступний крок — тап по чіпу статусу на рядку чи картці: ${ui("Done")}, ${ui("Need Fixing")}, ${ui("Art ready")}.`,
-          `AD і DEV здають роботу кнопкою ${ui("Send to LP")} — статуси їм не треба. Якщо їх немає — тап по чіпу і постав сам.`,
+          `AD і DEV здають роботу кнопкою ${ui("Send to LP")}. Свій крок (WIP) ставлять з чіпа, як у Monday. Якщо їх немає — тап по чіпу і постав сам.`,
           `${ui("Send to client")} з ${ui("Check")} (борд) і з ${ui("Done")} (HTML + лінк). ${ui("Copy")} / ${ui("Open")} біля лінка.`,
           `Sent: відбій → ${ui("Need Fixing")}. Апрув борду → ${ui("Final art")}, потім ти ставиш ${ui("Art ready")}.`,
           `${ui("Mark Closed")} можна без Send. Closed → Ready знову відкриває арт для AD.`,
@@ -4759,7 +4759,7 @@ function rowHtml(t, mode, gap) {
       ${frozen}
       <div class="meta">
         <div class="cell">${timeCell(t)}</div>
-        <div class="cell">${canOps() ? `<button type="button" class="pill ${statusPillClass(t)} status-pop-btn" data-id="${t.id}" data-status-pop="1">${statusText(t.studioStatus || "new", t)}</button>` : `<span class="pill ${statusPillClass(t)}">${statusText(t.studioStatus || "new", t)}</span>`}${moneyChipHtml(t)}</div>
+        <div class="cell">${canUseStatusPop(t) ? `<button type="button" class="pill ${statusPillClass(t)} status-pop-btn" data-id="${t.id}" data-status-pop="1">${statusText(t.studioStatus || "new", t)}</button>` : `<span class="pill ${statusPillClass(t)}">${statusText(t.studioStatus || "new", t)}</span>`}${moneyChipHtml(t)}</div>
         <div class="cell">${brief}</div>
         <div class="cell">${result}</div>
         <div class="cell">${whoCell(t)}</div>
@@ -4936,6 +4936,20 @@ function playableLpChoices(t) {
 function playableStatusActions(task) {
   return [];
 }
+function statusPopChoices(t) {
+  if (!t) return [];
+  if (isPlayables(t)) {
+    if (canOps()) return playableLpChoices(t);
+    const role = me().role;
+    if (role === "art_director" && playableAdId(t) !== me().id) return [];
+    if (role === "programmer" && String(t.programmerId || "") !== String(me().id)) return [];
+    return playableNextStatuses(role, t);
+  }
+  return statusActions(t).filter((key) => key !== (t.studioStatus || "new"));
+}
+function canUseStatusPop(t) {
+  return statusPopChoices(t).length > 0;
+}
 function statusActions(task) {
   const role = me().role;
   const cur = task?.studioStatus || "new";
@@ -5107,17 +5121,15 @@ async function pickStatusFromPop(t, key, artBounce) {
   );
 }
 function openStatusPop(t) {
-  if (!canOps() || !t) return;
+  if (!t || !canUseStatusPop(t)) return;
   closeWhoPop();
   const bg = $("statusPopBg");
   const grid = $("statusPopGrid");
   const now = $("statusPopNow");
   if (!bg || !grid || !now) return;
   now.textContent = "Now · " + statusText(t.studioStatus || "new", t);
-  const keys = isPlayables(t)
-    ? playableLpChoices(t)
-    : statusActions(t).filter((key) => key !== (t.studioStatus || "new"));
-  const htmlLoop = isPlayables(t) && playableInHtml(t);
+  const keys = statusPopChoices(t);
+  const htmlLoop = isPlayables(t) && playableInHtml(t) && canOps();
   grid.replaceChildren();
   const paint = (key, label, artBounce = false) => {
     const mark = statusMark({ ...t, studioStatus: key });
@@ -7241,7 +7253,7 @@ function openTask(id) {
       }
       <button type="button" class="drawer-x" id="closeCard" aria-label="Close">×</button>
     </div>
-    <div class="meta"><span class="pill line-${t.line}">${t.line}</span> ${isUrgent(t) ? `<span class="urgent-flag">${urgentMark(t)} URGENT</span>` : ""} ${play ? (playableCardMeta(t) ? `${playableCardMeta(t)} · ` : "") : `${t.shifts || 0} shift · ${t.hours || 0} h · `}${canOps() ? `<button type="button" id="stMetaStatus" class="pill ${statusPillClass(t)} status-pop-btn" data-id="${escapeHtml(t.id)}" data-status-pop="1">${statusText(t.studioStatus || "new", t)}</button>` : `<span id="stMetaStatus" class="pill ${statusPillClass(t)}">${statusText(t.studioStatus || "new", t)}</span>`}${moneyChipHtml(t)}</div>
+    <div class="meta"><span class="pill line-${t.line}">${t.line}</span> ${isUrgent(t) ? `<span class="urgent-flag">${urgentMark(t)} URGENT</span>` : ""} ${play ? (playableCardMeta(t) ? `${playableCardMeta(t)} · ` : "") : `${t.shifts || 0} shift · ${t.hours || 0} h · `}${canUseStatusPop(t) ? `<button type="button" id="stMetaStatus" class="pill ${statusPillClass(t)} status-pop-btn" data-id="${escapeHtml(t.id)}" data-status-pop="1">${statusText(t.studioStatus || "new", t)}</button>` : `<span id="stMetaStatus" class="pill ${statusPillClass(t)}">${statusText(t.studioStatus || "new", t)}</span>`}${moneyChipHtml(t)}</div>
     <p class="card-watch" id="cardWatch" hidden></p>
     <div class="drawer-body">
     <div class="card-job tone-${job.tone}${isActiveForMe(t) ? " is-turn" : " is-wait"}">

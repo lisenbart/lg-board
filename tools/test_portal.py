@@ -2029,10 +2029,16 @@ def test_playable_card_pipeline() -> None:
     check("AD can paste a storyboard link", "isArtDirector() && playableAdId(t) === me().id && !playableInHtml(t)" in js)
     check("Send to LP sits in the card footer", 'id="handOff"' in js and "Send to LP" in js)
     check(
-        "AD/DEV have no Playables status chips",
-        "return [];" in js.split("function playableStatusActions")[1].split("function statusActions")[0],
+        "AD/DEV have no Playables status chips on the card",
+        "return [];" in js.split("function playableStatusActions")[1].split("function statusPopChoices")[0],
     )
     check("LP next step is a status pop", "function openStatusPop" in js and "function playableLpChoices" in js and "data-status-pop" in js)
+    check(
+        "each seat gets its own status pop choices",
+        "function statusPopChoices" in js
+        and "function canUseStatusPop" in js
+        and "Tap Ready → WIP" in js,
+    )
     check("Monday chips name Art vs HTML WIP", "WIP · Art" in js and "WIP · HTML" in js)
     check("rows mark your turn vs waiting", "function isActiveForMe" in js and "is-turn" in js and "is-wait" in js)
     check(
