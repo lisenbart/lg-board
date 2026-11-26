@@ -2349,8 +2349,29 @@ a.pack-work:hover { background: #e2e4ec; }
 .card-job.tone-ok { background: #f1fbf6; border-color: #c6eedd; }
 .card-job.tone-ok strong { color: #037f4c; }
 .card-job.tone-wait { background: #f7f8fc; }
+.phone-card.tone-new { background: #fff8ee; }
+.phone-card.tone-wip,
+.phone-card.tone-storyboard { background: #f3f8ff; }
+.phone-card.tone-revision,
+.phone-card.tone-finalart,
+.phone-card.tone-htmlfix { background: #fdf3f6; }
+.phone-card.tone-tlcheck,
+.phone-card.tone-build { background: #fff8e8; }
+.phone-card.tone-done,
+.phone-card.tone-htmlready { background: #f1fbf6; }
+.phone-card.tone-approve,
+.phone-card.tone-clientart { background: #f2fbff; }
+.phone-card.tone-closed { background: #e3f8ec; }
+.phone-card.tone-quote { background: #f7f8fb; }
+.phone-card.tone-check,
+.phone-card.tone-htmlwip { background: #eef8ff; }
+.phone-card.tone-artready { background: #eef4ff; }
+.phone-card.tone-send,
+.phone-card.tone-sent { background: #f2fbff; }
 .phone-card.is-wait { opacity: 0.72; }
-.phone-card.is-turn { box-shadow: inset 3px 0 0 #3b6cf0; }
+.phone-card.is-turn { opacity: 1; }
+.phone-card.is-wait .phone-card-name { font-weight: 400; }
+.phone-card.is-turn .phone-card-name { font-weight: 600; }
 .drive-missing {
   margin-top: 10px;
   padding: 10px 12px;
@@ -3286,8 +3307,7 @@ html:not(.phone-ui):not(.standalone-app) .push-hint { display: none !important; 
   color: inherit;
 }
 .phone-card.is-urgent { box-shadow: inset 3px 0 0 var(--red); }
-.phone-card.has-note { box-shadow: inset 3px 0 0 #9b2245; }
-.phone-card.is-urgent.has-note { box-shadow: inset 3px 0 0 var(--red); }
+.phone-card.has-note:not(.is-urgent) { box-shadow: inset 3px 0 0 #9b2245; }
 .phone-card .phone-status,
 .phone-card .pill.phone-status {
   grid-column: 1;

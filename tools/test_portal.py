@@ -506,6 +506,14 @@ def test_phone_queue_mvp() -> None:
         and "min-height: 56px" in css.split(".phone-card {")[1].split("}")[0],
     )
     check(
+        "phone cards match desktop turn and status tint",
+        ".phone-card.tone-wip" in css
+        and ".phone-card.is-wait { opacity: 0.72; }" in css
+        and ".phone-card.is-turn { opacity: 1; }" in css
+        and ".phone-card.is-turn { box-shadow: inset 3px 0 0 #3b6cf0; }" not in css
+        and "phone-card.is-wait .phone-card-name" in css,
+    )
+    check(
         "phone who stays short",
         "split(/\\s+/)" in js.split("function phoneWhoLine")[1].split("function phoneHoursLine")[0]
         and "+${names.length - 1}" in js.split("function phoneWhoLine")[1].split("function phoneHoursLine")[0],
