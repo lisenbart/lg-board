@@ -835,7 +835,7 @@ function showPaste(title, intro, text) {
 }
 
 function mondayReply(task) {
-  const link = String(task?.resultUrl || "").trim();
+  const link = taskLinkUrl(task);
   return link ? `check it please\n${link}` : "check it please";
 }
 
@@ -882,6 +882,11 @@ function directionOf(t) {
 function isPlayables(t) {
   return directionOf(t) === "playables";
 }
+function taskLinkUrl(t) {
+  if (!t) return "";
+  if (isPlayables(t)) return hrefOf(t.resultUrl || t.htmlUrl || t.storyboardUrl || "");
+  return hrefOf(t.resultUrl || "");
+}
 function personDirections(p) {
   const raw = p?.directions;
   if (Array.isArray(raw) && raw.length) return raw.map((d) => String(d).toLowerCase());
@@ -917,7 +922,7 @@ function isDeletableTask(t) {
   return Boolean(t && t.id);
 }
 function isClientCopyable(t) {
-  return Boolean(t && t.studioStatus !== "closed" && String(t.resultUrl || "").trim());
+  return Boolean(t && t.studioStatus !== "closed" && taskLinkUrl(t));
 }
 function canWriteNotes() {
   return canOps() || isTeamLead();
@@ -1439,9 +1444,8 @@ function isSendable(t) {
   if (!t) return false;
   if (isPlayables(t)) {
     const st = playableStatusKey(t);
-    const hasLink = Boolean(String(t.resultUrl || "").trim());
-    if (st === "check") return hasLink;
-    return st === "done" && hasLink;
+    if (st === "check") return Boolean(hrefOf(t.resultUrl || t.storyboardUrl || ""));
+    return st === "done" && Boolean(hrefOf(t.resultUrl || t.htmlUrl || ""));
   }
   return t.studioStatus === "done" && Boolean(String(t.resultUrl || "").trim());
 }
@@ -3579,7 +3583,7 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
   return { tone: "wait", title: "In progress", body: `${name || "Art Director"} is on this. If they are away, set the status yourself. Send the storyboard, then HTML.` };
 }
 function showResultField(t) {
-  if (String(t.resultUrl || "").trim() || String(t.storyboardUrl || "").trim()) return true;
+  if (taskLinkUrl(t) || String(t.storyboardUrl || "").trim()) return true;
   if (isPlayables(t)) {
     if (canOps()) return true;
     if (isProgrammer() && String(t.programmerId || "") === String(me().id)) return true;
@@ -4726,8 +4730,9 @@ function rowHtml(t, mode, gap) {
     : t.brief
       ? `<span class="linkish">text</span>`
       : `<span class="empty">none</span>`;
-  const result = t.resultUrl
-    ? `<a class="linkish" href="${escapeHtml(t.resultUrl)}" target="_blank" rel="noreferrer">Link</a>`
+  const resultHref = taskLinkUrl(t);
+  const result = resultHref
+    ? `<a class="linkish" href="${escapeHtml(resultHref)}" target="_blank" rel="noreferrer">Link</a>`
     : `<span class="empty">paste</span>`;
   const pick =
     mode === "ops"
@@ -4852,6 +4857,7 @@ function isActiveForMe(t) {
   return false;
 }
 function turnClass(t) {
+  if (canOps()) return (t.studioStatus || "new") === "closed" ? " is-wait" : " is-turn";
   return isActiveForMe(t) ? " is-turn" : " is-wait";
 }
 function playableDevUnlocked(t) {

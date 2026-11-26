@@ -2035,6 +2035,14 @@ def test_playable_card_pipeline() -> None:
     check("LP next step is a status pop", "function openStatusPop" in js and "function playableLpChoices" in js and "data-status-pop" in js)
     check("Monday chips name Art vs HTML WIP", "WIP · Art" in js and "WIP · HTML" in js)
     check("rows mark your turn vs waiting", "function isActiveForMe" in js and "is-turn" in js and "is-wait" in js)
+    check(
+        "board Result uses HTML if resultUrl is empty",
+        "function taskLinkUrl" in js and "t.htmlUrl || t.storyboardUrl" in js,
+    )
+    check(
+        "LP rows stay active until Closed",
+        'canOps()) return (t.studioStatus || "new") === "closed" ? " is-wait" : " is-turn"' in js,
+    )
     check("LP can bounce HTML Need Fixing to Art", "Need Fixing · Art" in js and "Need Fixing · HTML" in js)
     check("DEV sees HTML slot before Art ready", "The link saves itself. Send to LP after LP sets Art ready." in js)
     check("DEV HTML draft uses the card Save", 'id="saveHtmlDraft"' not in js)
@@ -2077,6 +2085,9 @@ def test_playable_card_pipeline() -> None:
         "resultUrl": "",
     }
     check("Check without storyboard is not sendable", not server.is_sendable(ready_check))
+    ready_check["htmlUrl"] = "https://play.example/draft"
+    check("Check with only an HTML draft is not sendable", not server.is_sendable(ready_check))
+    ready_check["htmlUrl"] = ""
     ready_check["resultUrl"] = "https://board.example/story"
     check("Check with storyboard is sendable", server.is_sendable(ready_check))
     art = {"studioStatus": "artready", "assigneeId": "artdir1", "programmerId": "programmer1", "resultUrl": "https://board.example/story"}

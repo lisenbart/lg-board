@@ -33,7 +33,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-11-24n"
+BUILD = "2026-11-24o"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -1008,8 +1008,18 @@ STATUS_BY_ROLE = {
 }
 
 
+def task_link_url(task: dict | None) -> str:
+    task = task or {}
+    keys = ("resultUrl", "htmlUrl", "storyboardUrl") if direction_io.is_playables(task) else ("resultUrl",)
+    for key in keys:
+        raw = str(task.get(key) or "").strip()
+        if raw:
+            return raw
+    return ""
+
+
 def monday_reply(task: dict) -> str:
-    link = str(task.get("resultUrl") or "").strip()
+    link = task_link_url(task)
     return f"check it please\n{link}" if link else "check it please"
 
 
@@ -1414,9 +1424,11 @@ def push_comment_to_drive(task: dict, comment: dict) -> str | None:
 def is_sendable(task: dict) -> bool:
     status = direction_io.playable_norm_status(task.get("studioStatus")) if direction_io.is_playables(task) else task.get("studioStatus")
     if direction_io.is_playables(task):
+        story = str(task.get("resultUrl") or task.get("storyboardUrl") or "").strip()
+        html = str(task.get("resultUrl") or task.get("htmlUrl") or "").strip()
         if status == "check":
-            return bool(str(task.get("resultUrl") or "").strip())
-        return status == "done" and bool(str(task.get("resultUrl") or "").strip())
+            return bool(story)
+        return status == "done" and bool(html)
     return status == "done" and bool(str(task.get("resultUrl") or "").strip())
 
 
