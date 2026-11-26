@@ -2049,7 +2049,7 @@ def test_playable_card_pipeline() -> None:
     js = (ROOT / "public" / "assets" / "app.js").read_text(encoding="utf-8")
     check("card uses next-step Playables statuses", "function playableNextStatuses" in js and "function playableStatusActions" in js)
     check("Playables assign is LP/DL", "function canAssignPlayable" in js and "play ? canAssignPlayable() : canAssign()" in js)
-    check("LP seats DEV from Ready in copy", "You can already put DEV on the card" in js)
+    check("LP seats DEV from Ready", "function canAssignPlayable" in js and "playable_may_assign_dev" in (ROOT / "direction_io.py").read_text(encoding="utf-8"))
     check("Playables guide names the pipeline", "Done, Need Fixing і to DEV — жест LP по чіпу" in js)
     check(
         "Hours list is not on Playables",
@@ -2076,7 +2076,7 @@ def test_playable_card_pipeline() -> None:
         "each seat gets its own status pop choices",
         "function statusPopChoices" in js
         and "function canUseStatusPop" in js
-        and "Tap Ready → WIP" in js,
+        and "function playableStatusActions" in js,
     )
     check(
         "status pop also offers Send to LP",
@@ -2149,7 +2149,8 @@ def test_playable_card_pipeline() -> None:
         in js.split("function playablePartOpen")[1].split("function isActiveForMe")[0],
     )
     check("LP can bounce HTML Need Fixing to Art", "Need Fixing · Art" in js and "Need Fixing · HTML" in js)
-    check("DEV sees HTML slot before Art ready", "The link saves itself. Send to LP after LP sets to DEV." in js)
+    check("DEV sees HTML slot before Art ready", 'id: "stHtml"' in js and "function canPasteHtmlDraft" in js)
+    check("link Updated is a quiet hint", "function linkUpdatedHint" in js and "Updated " in js)
     check("DEV HTML draft uses the card Save", 'id="saveHtmlDraft"' not in js)
     check(
         "paste into a link row fires input so Save lights up",
@@ -2708,6 +2709,29 @@ def test_playable_team_scenarios() -> None:
     check("comment loop html", direction_io.comment_loop_key("html") == "html")
     check("comment loop follows the HTML card", direction_io.comment_loop_key("", card(studioStatus="artready", playableHtml=True)) == "html")
     check("comment loop follows the art card", direction_io.comment_loop_key("", card()) == "art")
+    paste = card(studioStatus="wip", resultUrl="https://miro.com/app/board/a")
+    direction_io.touch_link_stamps(paste, {"resultUrl": ""}, now="2026-11-26T17:41:00Z")
+    check("first storyboard paste stamps Updated", paste.get("storyboardUpdatedAt") == "2026-11-26T17:41:00Z")
+    same = dict(paste)
+    direction_io.touch_link_stamps(same, {"resultUrl": paste["resultUrl"], "studioStatus": "wip"}, handed=True, now="2026-11-26T18:41:00Z")
+    check("Send to LP restamps the same storyboard link", same.get("storyboardUpdatedAt") == "2026-11-26T18:41:00Z")
+    html_paste = card(studioStatus="artready", playableHtml=True, programmerId=bohdan, storyboardUrl="https://miro.com/app/board/a", htmlUrl="https://play.example/v1")
+    direction_io.touch_link_stamps(
+        html_paste,
+        {"htmlUrl": "", "storyboardUrl": "https://miro.com/app/board/a", "resultUrl": "", "studioStatus": "artready", "playableHtml": True},
+        now="2026-11-26T19:00:00Z",
+    )
+    check("HTML paste stamps HTML not Art", html_paste.get("htmlUpdatedAt") == "2026-11-26T19:00:00Z" and html_paste.get("storyboardUpdatedAt") is None)
+    art_clear = dict(html_paste)
+    art_clear["studioStatus"] = "revision"
+    art_clear["htmlUpdatedAt"] = "2026-11-26T19:00:00Z"
+    direction_io.touch_playable_html(art_clear, prev="artready", force_art=True)
+    direction_io.touch_link_stamps(
+        art_clear,
+        {"htmlUrl": "https://play.example/v1", "storyboardUrl": "https://miro.com/app/board/a", "playableHtml": True, "studioStatus": "artready"},
+        now="2026-11-26T19:10:00Z",
+    )
+    check("Need Fixing Art drops the HTML Updated stamp", art_clear.get("htmlUpdatedAt") is None)
     done_note = card(studioStatus="done", playableHtml=True)
     check("LP client note on Done is Need Fixing HTML", bounce(done_note, "manager") and direction_io.playable_in_html(done_note))
     send_html_note = card(studioStatus="approve", playableHtml=True)
@@ -3035,7 +3059,8 @@ def test_lp_can_close_without_send() -> None:
         and "OK or Enter sends the note" not in js
         and "notes-empty" not in js,
     )
-    check("AD still sees Client notes", "function canSeeNotes" in js and "stays on this card" in js)
+    check("AD still sees Client notes", "function canSeeNotes" in js)
+    check("card does not coach Telegram", "Telegram" not in js.split("function resultHtml")[1].split("function hasDriveDoc")[0])
     check(
         "Playables notes pick Art or HTML",
         'data-loop="art"' in js and 'data-loop="html"' in js and "function defaultNoteLoop" in js,

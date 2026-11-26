@@ -2267,6 +2267,13 @@ a.link-open[aria-disabled="true"] {
 .io-hint, .io-empty { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
 .io-empty { color: #c5c7d0; }
 .io-hint:empty, .status-hint:empty { display: none; }
+.link-updated {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted);
+}
 .file-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .file-chip {
   font-size: 11px; background: #fff4d6; color: #9a6700;

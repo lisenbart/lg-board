@@ -702,7 +702,11 @@ function linkHostLabel(url) {
   return host;
 }
 
-function linkRowHtml({ id, value, placeholder, canPaste, emptyText }) {
+function linkUpdatedHint(at) {
+  const when = commentWhen(at);
+  return when ? `<small class="io-hint link-updated">Updated ${escapeHtml(when)}</small>` : "";
+}
+function linkRowHtml({ id, value, placeholder, canPaste, emptyText, updatedAt }) {
   const raw = String(value || "").trim();
   const href = hrefOf(raw);
   const host = linkHostLabel(raw);
@@ -721,6 +725,7 @@ function linkRowHtml({ id, value, placeholder, canPaste, emptyText }) {
         <a class="btn pack-brief link-open" data-link-for="${escapeHtml(id)}" href="${escapeHtml(href || "#")}" target="_blank" rel="noreferrer" ${openOff} title="Open in a new tab">Open</a>
       </div>
       <small class="link-host"${host ? "" : " hidden"}>${escapeHtml(host)}</small>
+      ${raw ? linkUpdatedHint(updatedAt) : ""}
     </div>`;
 }
 
@@ -3285,24 +3290,19 @@ function notesHtml(t) {
     ? `<div class="notes-compose" id="stCommentBox">
         ${loopPick}
         <div class="notes-draft" id="stCommentShots"></div>
-        <textarea id="stComment" rows="3" placeholder="${isPlayables(t) ? "Write a client note for Art or HTML" : "Write a client note"}"></textarea>
+        <textarea id="stComment" rows="3" placeholder="Write a client note"></textarea>
         <div class="notes-compose-actions">
           ${attachChipHtml("stCommentFiles")}
           <button class="btn primary" type="button" id="sendNote" disabled>OK</button>
         </div>
       </div>`
     : "";
-  const stay =
-    !rows.length && !canWrite
-      ? `<p class="notes-stay">When LP writes the client bounce, it stays on this card and in the Comments folder. Opening the ping does not remove it.</p>`
-      : "";
   const driveLink = folder
     ? `<a class="notes-drive" href="${escapeHtml(folder)}" target="_blank" rel="noreferrer">Open Comments</a>`
     : "";
   return `<div class="notes${rows.length ? "" : " is-empty"}">
       <header class="notes-head"><span>Client notes</span>${driveLink}</header>
       ${items}
-      ${stay}
       ${composer}
     </div>`;
 }
@@ -3336,26 +3336,23 @@ function resultHtml(t, performer, canPaste) {
         placeholder: "",
         canPaste: false,
         emptyText: "Waiting for the storyboard",
+        updatedAt: t.storyboardUpdatedAt,
       })}
       <div class="link-sub">
         <h4>HTML</h4>
         ${linkRowHtml({
           id: "stHtml",
           value: htmlVal,
-          placeholder: "Paste HTML / playable link — not in Telegram",
+          placeholder: "Paste link",
           canPaste: true,
-          emptyText: "Paste the playable link here. Send to LP after to DEV.",
+          emptyText: "",
+          updatedAt: t.htmlUpdatedAt,
         })}
-        <p class="io-hint">The link saves itself. Send to LP after LP sets to DEV.</p>
       </div>
     </section>`;
   }
   const title = !play ? "Result" : html ? "HTML" : "Storyboard";
-  const placeholder = !play
-    ? "Paste finished file link"
-    : html
-      ? "Paste HTML / playable link"
-      : "Paste storyboard / board link";
+  const placeholder = "Paste link";
   const waiting = `Waiting for ${escapeHtml(person(html ? t.programmerId : t.assigneeId)?.name || "designer")}`;
   const body = linkRowHtml({
     id: "stResult",
@@ -3363,15 +3360,10 @@ function resultHtml(t, performer, canPaste) {
     placeholder,
     canPaste,
     emptyText: waiting,
+    updatedAt: play ? (html ? t.htmlUpdatedAt : t.storyboardUpdatedAt) : t.resultUpdatedAt,
   });
   const board = play ? String(t.storyboardUrl || "").trim() : "";
   const htmlDraft = play && !html ? String(t.htmlUrl || "").trim() : "";
-  const hand = canPaste ? handoffLabel(t) : "";
-  const handHint = hand === "Send to LP"
-    ? "Paste the link, then Send to LP at the bottom. Not Telegram."
-    : hand === "Send to TL"
-      ? "Paste the link, then Send to TL at the bottom. Not Telegram."
-      : "";
   if (html) {
     return `<section class="io io-result${performer ? " is-focus" : ""}">
       <h3>Storyboard</h3>
@@ -3381,24 +3373,23 @@ function resultHtml(t, performer, canPaste) {
         placeholder: "",
         canPaste: false,
         emptyText: waiting,
+        updatedAt: t.storyboardUpdatedAt,
       })}
       <div class="link-sub">
         <h4>HTML</h4>
         ${body}
-        ${handHint ? `<p class="io-hint">${escapeHtml(handHint)}</p>` : ""}
       </div>
     </section>`;
   }
   const htmlDraftRow = htmlDraft
     ? `<div class="link-sub">
         <h4>HTML</h4>
-        ${linkRowHtml({ id: "stHtmlView", value: htmlDraft, placeholder: "", canPaste: false, emptyText: "" })}
+        ${linkRowHtml({ id: "stHtmlView", value: htmlDraft, placeholder: "", canPaste: false, emptyText: "", updatedAt: t.htmlUpdatedAt })}
       </div>`
     : "";
   return `<section class="io io-result${performer ? " is-focus" : ""}">
       <h3>${title}</h3>
       ${body}
-      ${handHint ? `<p class="io-hint">${escapeHtml(handHint)}</p>` : ""}
       ${htmlDraftRow}
     </section>`;
 }
@@ -3439,22 +3430,12 @@ function cardJob(t) {
       return { tone: "wait", title: "Waiting for LP", body: "TL already checked. Line Producer sends it to the client." };
     }
     if (t.studioStatus === "revision") {
-      return {
-        tone: "fix",
-        title: "Need Fixing",
-        body: clientCue(t)
-            ? `Client: ${clientCue(t)} — stays on this card. Fix, paste the new result link, then TL Check.`
-            : "Open Client notes on this card. Text and files stay there after you read the ping. Then fix and TL Check.",
-      };
+      return { tone: "fix", title: "Need Fixing", body: "" };
     }
     if (!hasResult) {
-      return {
-        tone: "do",
-        title: "Your job",
-        body: "Paste the finished-file link, then Send to TL. Don't send it in Telegram.",
-      };
+      return { tone: "do", title: "Your job", body: "" };
     }
-    return { tone: "do", title: "Send to TL", body: "Link is in the field. Send to TL — don't send it in Telegram." };
+    return { tone: "do", title: "Send to TL", body: "" };
   }
   if (role === "teamlead") {
     if (!t.assigneeId) {
@@ -3524,52 +3505,38 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
     }
     if (st === "closed") return { tone: "ok", title: "Closed", body: "Client accepted. This playable is finished." };
     if (st === "approve") return { tone: "ok", title: "Sent to client", body: "LP already sent the HTML. Nothing else on this card." };
-    if (st === "artready") return { tone: "wait", title: "to DEV", body: "DEV starts HTML from here. You are done with this stage." };
-    if (st === "done") return { tone: "wait", title: "Waiting for LP", body: "HTML is in. Line Producer sends it." };
-    if (html) return { tone: "wait", title: "Waiting for DEV / LP", body: "Art is done. Programmer builds HTML. LP sends it." };
-    if (st === "clientart") return { tone: "wait", title: "Sent", body: "Storyboard is with the client. LP sets Need Fixing if they bounce it, or Final art when they approve." };
+    if (st === "artready") return { tone: "wait", title: "to DEV", body: "" };
+    if (st === "done") return { tone: "wait", title: "Waiting for LP", body: "" };
+    if (html) return { tone: "wait", title: "Waiting for DEV / LP", body: "" };
+    if (st === "clientart") return { tone: "wait", title: "Sent", body: "" };
     if (st === "check") {
       if (!playableAdDelivered(t)) {
-        return { tone: "do", title: "Your job", body: "This is already Check. Tap WIP if you still need to work, then Send to LP from WIP — once. Don't send the link in Telegram." };
+        return { tone: "do", title: "Your job", body: "" };
       }
-      return { tone: "do", title: "Check", body: "Storyboard is with LP. They send it to the client. Tap WIP if you still need to fix the board." };
+      return { tone: "do", title: "Check", body: "" };
     }
-    if (st === "finalart") return { tone: "do", title: "Final art", body: "Finish art, then Send to LP. LP taps to DEV so HTML can start." };
+    if (st === "finalart") return { tone: "do", title: "Final art", body: "" };
     if (st === "revision") {
-      const cue = clientCue(t);
-      return {
-        tone: "fix",
-        title: "Need Fixing",
-        body: cue
-          ? `Client: ${cue} — stays on this card. Fix the board, paste the new link, then Send to LP.`
-          : "Open Client notes on this card. Text and files stay there after you read the ping. Then fix the board and Send to LP.",
-      };
+      return { tone: "fix", title: "Need Fixing", body: "" };
     }
-    if (st === "wip")     return { tone: "do", title: "WIP", body: "Paste the storyboard, then Send to LP — footer or the status chip. Don't send the link in Telegram." };
-    return { tone: "do", title: "Your job", body: "Tap Ready → WIP, or Send to LP from the chip once the link is in. Don't send the link in Telegram." };
+    if (st === "wip") return { tone: "do", title: "WIP", body: "" };
+    return { tone: "do", title: "Your job", body: "" };
   }
   if (role === "programmer") {
     const onDev = String(t.programmerId || "") === String(me().id);
     if (st === "closed" || st === "approve") return { tone: "ok", title: st === "closed" ? "Closed" : "Sent to client", body: "Nothing else on this card." };
     if (!onDev) return { tone: "wait", title: "Not on you yet", body: "You are not on this card. LP can assign you from Ready — you start HTML after LP taps to DEV." };
-    if (st === "done") return { tone: "wait", title: "Waiting for LP", body: "HTML link is in. Line Producer sends it. Need Fixing if the client bounces it." };
+    if (st === "done") return { tone: "wait", title: "Waiting for LP", body: "" };
     if (html) {
       if (st === "revision") {
-        const cue = clientCue(t);
-        return {
-          tone: "fix",
-          title: "Need Fixing",
-          body: cue
-            ? `Client: ${cue} — stays on this card. Fix the HTML, paste the new link, then Send to LP.`
-            : "Open Client notes on this card. Text and files stay there after you read the ping. Then fix the HTML and Send to LP.",
-        };
+        return { tone: "fix", title: "Need Fixing", body: "" };
       }
-      if (playableDevDelivered(t)) return { tone: "wait", title: "Waiting for LP", body: "HTML is with LP. They set Done or Need Fixing. Tap WIP if you still need to fix it." };
-      if (st === "artready") return { tone: "do", title: "to DEV", body: "Tap the chip → WIP · HTML or Send to LP. Paste the HTML first. LP sets Done or Need Fixing. Not in Telegram." };
-      if (!hasResult) return { tone: "do", title: "Your job", body: "Paste the HTML, then Send to LP. LP sets Done or Need Fixing. Not in Telegram." };
-      return { tone: "do", title: "Send to LP", body: "Link is in the field. Send to LP — LP sets Done. Not in Telegram." };
+      if (playableDevDelivered(t)) return { tone: "wait", title: "Waiting for LP", body: "" };
+      if (st === "artready") return { tone: "do", title: "to DEV", body: "" };
+      if (!hasResult) return { tone: "do", title: "Your job", body: "" };
+      return { tone: "do", title: "Send to LP", body: "" };
     }
-    return { tone: "wait", title: "Art is still in progress", body: "Paste the HTML link on this card now. Send to LP after LP sets to DEV. Not in Telegram." };
+    return { tone: "wait", title: "Art is still in progress", body: "" };
   }
   if (role === "designer") {
     return { tone: "ok", title: "Art help", body: `${hoursForPerson(t, me().id) || 0}h on this playable. LP owns Done and Need Fixing — you do not change status.` };
@@ -3594,27 +3561,27 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
   if (st === "clientart") return { tone: "wait", title: "Sent", body: "Waiting on the client. Need Fixing if they bounce it. Final art when they approve the board." };
   if (st === "artready") {
     if (!t.programmerId) {
-      return { tone: "do", title: "Assign DEV", body: "Art is ready. Put a programmer on the card if they are not there yet. They can sit on the card from Ready." };
+      return { tone: "do", title: "Assign DEV", body: "" };
     }
     if (playableDevDelivered(t)) {
-      return { tone: "do", title: "HTML is in", body: `${progName || "Programmer"} sent the HTML. Tap the status chip for Done or Need Fixing.` };
+      return { tone: "do", title: "HTML is in", body: "" };
     }
-    return { tone: "wait", title: "to DEV", body: `${progName || "Programmer"} pastes HTML and Send to LP. Then tap the status chip for Done or Need Fixing.` };
+    return { tone: "wait", title: "to DEV", body: progName };
   }
   if (html && t.programmerId) {
     if (playableDevDelivered(t)) {
-      return { tone: "do", title: "HTML is in", body: `${progName || "Programmer"} sent the HTML. Tap the status chip for Done or Need Fixing.` };
+      return { tone: "do", title: "HTML is in", body: "" };
     }
     if (st === "new") {
-      return { tone: "wait", title: "Waiting for DEV", body: `${progName || "Programmer"} starts HTML (no AD on this card). They Send to LP — you set Done.` };
+      return { tone: "wait", title: "Waiting for DEV", body: progName };
     }
-    return { tone: "wait", title: "In WIP", body: `${progName || "Programmer"} is on HTML. They Send to LP — you set Done or Need Fixing.` };
+    return { tone: "wait", title: "In WIP", body: progName };
   }
   if (st === "finalart") {
-    if (playableAdDelivered(t)) return { tone: "do", title: "Art is in", body: `${name || "Art Director"} sent the art. Tap the status chip → to DEV so HTML can start.` };
-    return { tone: "wait", title: "Final art", body: `${name || "Art Director"} is finishing art. They Send to LP — you set to DEV.` };
+    if (playableAdDelivered(t)) return { tone: "do", title: "Art is in", body: "" };
+    return { tone: "wait", title: "Final art", body: name };
   }
-  if (st === "revision") return { tone: "wait", title: "Need Fixing", body: html ? `${progName || "Programmer"} is fixing HTML. If they are away, tap the status chip.` : `${name || "Art Director"} is fixing the storyboard. If they are away, tap the status chip.` };
+  if (st === "revision") return { tone: "wait", title: "Need Fixing", body: html ? progName : name };
   const ad = playableAdId(t);
   if (!ad && !t.programmerId) {
     return { tone: "do", title: "Assign people", body: "Put AD and DEV on the card now. Hours sit next to the person. One DEV is enough if this is code-only." };
@@ -3626,15 +3593,11 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
       body: `${progName || "Programmer"} is on this. One DEV is enough — put AD on only if art starts.`,
     };
   }
-  if (st === "wip") return { tone: "wait", title: "WIP", body: `${name || "Art Director"} is on the storyboard. You send after Check. If they are away, tap the status chip and set Check.` };
+  if (st === "wip") return { tone: "wait", title: "WIP", body: name };
   if (st === "new") {
-    return {
-      tone: "wait",
-      title: "Waiting for AD",
-      body: `${name || "Art Director"} pastes the storyboard and Send to LP. If they are away, tap the status chip. You can already put DEV on the card — they start HTML after LP taps to DEV.`,
-    };
+    return { tone: "wait", title: "Waiting for AD", body: name };
   }
-  return { tone: "wait", title: "In progress", body: `${name || "Art Director"} is on this. If they are away, set the status yourself. Send the storyboard, then HTML.` };
+  return { tone: "wait", title: "In progress", body: name };
 }
 function showResultField(t) {
   if (taskLinkUrl(t) || String(t.storyboardUrl || "").trim()) return true;
@@ -3874,11 +3837,7 @@ function urgentMark(t) {
 }
 
 function withUrgentCue(t, job) {
-  if (!isUrgent(t) || t.studioStatus === "closed") return job;
-  return {
-    ...job,
-    body: `Marked URGENT — take this before other work. ${job.body}`,
-  };
+  return job;
 }
 
 function fmtHours(n) {
@@ -5330,9 +5289,7 @@ async function pickStatusFromPop(t, key, artBounce) {
         note: toTl ? `${me().name} handed the file to TL` : `${me().name} handed the link to LP`,
       },
       {
-        toast: toTl
-          ? "TL has the file on the card. No need to send it in Telegram."
-          : "LP has the link on the card. No need to send it in Telegram.",
+        toast: toTl ? "Sent to TL" : "Sent to LP",
       },
     );
     return;
@@ -7486,7 +7443,7 @@ function openTask(id) {
       ${jobBadgeHtml(me())}
       <div>
         <strong>${escapeHtml(job.title)}</strong>
-        <p>${escapeHtml(job.body)}</p>
+        ${job.body ? `<p>${escapeHtml(job.body)}</p>` : ""}
         ${clientCue(t) && job.tone === "fix" ? `<p class="client-cue">${escapeHtml(clientCue(t))}</p>` : ""}
         <small class="turn-flag">${isActiveForMe(t) ? "Your turn" : "Waiting"}</small>
       </div>
@@ -7586,7 +7543,6 @@ function openTask(id) {
       }
     }
     if (!("htmlUrl" in patch) && !("resultUrl" in patch)) return Promise.resolve();
-    const draft = Boolean($("stHtml") && !playableInHtml(t) && patch.htmlUrl);
     return updateTask(t.id, patch, {
       quiet: true,
       stay: true,
@@ -7597,7 +7553,6 @@ function openTask(id) {
       if (patch.resultUrl != null) t.resultUrl = patch.resultUrl;
       cardBaseline = cardFingerprint();
       refreshCardSave();
-      if (draft) toast("Link saved. Send to LP after to DEV.");
       return true;
     });
   };
@@ -7706,10 +7661,6 @@ function openTask(id) {
       btn.classList.toggle("is-on", on);
       btn.setAttribute("aria-pressed", on ? "true" : "false");
     });
-    const box = $("stComment");
-    if (box && isPlayables(t)) {
-      box.placeholder = noteLoop === "html" ? "Write a client note for HTML" : "Write a client note for Art";
-    }
   }
   document.querySelectorAll(".notes-loop-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -8532,17 +8483,7 @@ function openTask(id) {
         { ...patch, note: handNote },
         {
           close: !fromChip && !noteDraft(),
-          toast: handed
-            ? toTl
-              ? "TL has the file on the card. No need to send it in Telegram."
-              : "LP has the link on the card. No need to send it in Telegram."
-            : savedHtmlDraft
-              ? "HTML link saved. Send to LP after to DEV."
-            : savedLinkOnly
-              ? toTl
-                ? "Link saved. Send to TL so TL sees it — don't send it in Telegram."
-                : "Link saved. Send to LP so LP sees it — don't send it in Telegram."
-              : "",
+          toast: handed ? (toTl ? "Sent to TL" : "Sent to LP") : "",
         },
       );
       if (!fromChip && noteDraft()) toast("Card saved. OK still sends the note.");

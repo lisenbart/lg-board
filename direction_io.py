@@ -232,6 +232,67 @@ def _same_playable_link(a, b) -> bool:
     return bool(one) and one == two
 
 
+def playable_storyboard_url(task: dict | None) -> str:
+    return str((task or {}).get("storyboardUrl") or "").strip()
+
+
+def playable_html_url(task: dict | None) -> str:
+    task = task or {}
+    board = playable_storyboard_url(task)
+    draft = str(task.get("htmlUrl") or "").strip()
+    if not playable_in_html(task):
+        return "" if _same_playable_link(draft, board) else draft
+    result = str(task.get("resultUrl") or "").strip()
+    if result and not _same_playable_link(result, board):
+        return result
+    if draft and not _same_playable_link(draft, board):
+        return draft
+    return ""
+
+
+def playable_art_url(task: dict | None) -> str:
+    task = task or {}
+    board = playable_storyboard_url(task)
+    if board:
+        return board
+    if not playable_in_html(task):
+        return str(task.get("resultUrl") or "").strip()
+    return ""
+
+
+def touch_link_stamps(task: dict | None, before: dict | None = None, *, handed: bool = False, now: str = "") -> None:
+    """Quiet Updated time on Storyboard / HTML. Same URL still stamps on Send to LP."""
+    task = task or {}
+    before = before or {}
+    now = str(now or "").strip()
+    if not now:
+        return
+    if not is_playables(task):
+        result_now = str(task.get("resultUrl") or "").strip()
+        result_was = str(before.get("resultUrl") or "").strip()
+        if not result_now:
+            task.pop("resultUpdatedAt", None)
+        elif result_now != result_was or handed:
+            task["resultUpdatedAt"] = now
+        return
+    was = dict(task)
+    for key in ("resultUrl", "htmlUrl", "storyboardUrl", "studioStatus", "playableHtml"):
+        if key in before:
+            was[key] = before[key]
+    html_now = playable_html_url(task)
+    html_was = playable_html_url(was)
+    if not html_now:
+        task.pop("htmlUpdatedAt", None)
+    elif html_now != html_was or (handed and playable_in_html(task)):
+        task["htmlUpdatedAt"] = now
+    art_now = playable_art_url(task)
+    art_was = playable_art_url(was)
+    if not art_now:
+        task.pop("storyboardUpdatedAt", None)
+    elif art_now != art_was or (handed and not playable_in_html(task)):
+        task["storyboardUpdatedAt"] = now
+
+
 def _status_before(task: dict, st: str) -> str:
     for item in reversed(task.get("statusLog") or []):
         if not isinstance(item, dict):

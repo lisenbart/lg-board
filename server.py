@@ -33,7 +33,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-11-26e"
+BUILD = "2026-11-26f"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -3274,6 +3274,9 @@ class Handler(SimpleHTTPRequestHandler):
                     "assigneeId": task.get("assigneeId"),
                     "programmerId": task.get("programmerId"),
                     "playableHtml": task.get("playableHtml"),
+                    "resultUrl": task.get("resultUrl"),
+                    "htmlUrl": task.get("htmlUrl"),
+                    "storyboardUrl": task.get("storyboardUrl"),
                 }
                 nxt = data.get("studioStatus")
                 role = data.get("role") or ""
@@ -3583,6 +3586,12 @@ class Handler(SimpleHTTPRequestHandler):
                     task["mondayStatus"] = "Done"
                 elif nxt == "new":
                     task["mondayStatus"] = "Ready to Start"
+                direction_io.touch_link_stamps(
+                    task,
+                    before,
+                    handed=bool(data.get("handed")),
+                    now=utc_now(),
+                )
                 if str(task.get("studioStatus") or "") == "closed":
                     task["urgent"] = False
                 note = data.get("note")
