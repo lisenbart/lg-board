@@ -3420,6 +3420,9 @@ def test_card_videos() -> None:
     drive = (ROOT / "drive_io.py").read_text(encoding="utf-8")
     check("card video start path", "/api/tasks/video/start" in src)
     check("card video bytes path", "/api/tasks/video/bytes" in src and "def _handle_video_bytes" in src)
+    check("brief files open a Drive session", "def start_card_session" in drive and "sessionUrl" in src)
+    check("browser PUTs the file to Drive", "function putDriveSession" in js and "/api/tasks/video/finish" in js)
+    check("finish checks the file sits in the task folder", "file is not in the task folder" in src and "def card_file_meta" in drive)
     check(
         "upload percent follows Drive progress",
         "/api/tasks/video/progress" in src

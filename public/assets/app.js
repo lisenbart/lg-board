@@ -7910,6 +7910,51 @@ function openTask(id) {
       done: loop,
     };
   }
+  function putDriveSession(url, file, onProgress) {
+    return new Promise((resolve) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("PUT", url);
+      xhr.timeout = 600000;
+      xhr.responseType = "text";
+      xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+      if (onProgress && xhr.upload) {
+        xhr.upload.onprogress = (e) => {
+          const max = e.lengthComputable ? e.total : file.size;
+          onProgress(e.loaded, max);
+        };
+      }
+      xhr.onload = () => {
+        if (xhr.status < 200 || xhr.status >= 300) {
+          resolve({ error: `Drive ${xhr.status}` });
+          return;
+        }
+        let data = {};
+        try {
+          data = JSON.parse(xhr.responseText || "{}");
+        } catch {
+          data = {};
+        }
+        resolve({ ok: true, file: data });
+      };
+      xhr.onerror = () => resolve({ error: "cors" });
+      xhr.ontimeout = () => resolve({ error: "timed out" });
+      xhr.send(file);
+    });
+  }
+  async function pipeFileThroughBoard(uploadId, file, tile, size) {
+    const watch = await watchDriveProgress(uploadId, tile, size);
+    const out = await xhrSend(`/api/tasks/video/bytes?uploadId=${encodeURIComponent(uploadId)}`, {
+      body: file,
+      timeout: 600000,
+      onProgress: (loaded, total) => {
+        const max = total || size;
+        const pct = max ? Math.min(99, Math.round((loaded / max) * 100)) : 0;
+        if (loaded > 0 && pct > 0) tile.setProgress(Math.max(pct, 1));
+      },
+    });
+    watch.stop();
+    return out;
+  }
   async function addCardDriveFile(job) {
     const { file, video, tile } = job;
     tile.setBusy(`Uploading · ${file.name}`);
@@ -7932,17 +7977,31 @@ function openTask(id) {
     }
     const size = Number(file.size) || 0;
     tile.setBusy(`Uploading · ${file.name}`);
-    const watch = await watchDriveProgress(start.uploadId, tile, size);
-    const out = await xhrSend(`/api/tasks/video/bytes?uploadId=${encodeURIComponent(start.uploadId)}`, {
-      body: file,
-      timeout: 600000,
-      onProgress: (loaded, total) => {
-        const max = total || size;
-        const pct = max ? Math.min(99, Math.round((loaded / max) * 100)) : 0;
-        if (loaded > 0 && pct > 0) tile.setProgress(Math.max(pct, 1));
-      },
-    });
-    watch.stop();
+    const mark = (loaded, total) => {
+      const max = total || size;
+      const pct = max ? Math.min(99, Math.round((loaded / max) * 100)) : 0;
+      if (loaded > 0 && pct > 0) tile.setProgress(Math.max(pct, 1));
+    };
+    let out = { error: "Drive file missing" };
+    if (start.sessionUrl) {
+      const put = await putDriveSession(start.sessionUrl, file, mark);
+      const driveId = String(put.file?.id || "").trim();
+      if (put.ok && driveId) {
+        out = await xhrSend("/api/tasks/video/finish", {
+          json: {
+            uploadId: start.uploadId,
+            driveId,
+            actorId: me().id,
+            role: me().role,
+          },
+          timeout: 60000,
+        });
+      } else if (!put.ok) {
+        out = await pipeFileThroughBoard(start.uploadId, file, tile, size);
+      }
+    } else {
+      out = await pipeFileThroughBoard(start.uploadId, file, tile, size);
+    }
     if (out.error || !out.state) {
       if (job.previewUrl) URL.revokeObjectURL(job.previewUrl);
       tile.setError(videoError(out.error));

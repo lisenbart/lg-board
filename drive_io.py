@@ -411,6 +411,37 @@ def unique_child_name(token: str, parent_id: str, name: str) -> str:
     return f"{stem}_{int(time.time())}{ext}"
 
 
+def start_card_session(parent_id: str, name: str, mime: str, size: int) -> dict:
+    """Open a Drive resumable session. The browser PUTs the bytes; the board never sees the file."""
+    token = drive_token()
+    if not token:
+        raise DriveError("Drive is not connected on this server")
+    parent_id = str(parent_id or "").strip()
+    if not parent_id:
+        raise DriveError("task has no Drive folder")
+    size = int(size or 0)
+    if size <= 0:
+        raise DriveError("file is empty")
+    final_name = unique_child_name(token, parent_id, name)
+    session = _start_resumable(token, parent_id, final_name, mime or "application/octet-stream", size)
+    return {"sessionUrl": session, "name": final_name}
+
+
+def card_file_meta(file_id: str) -> dict:
+    token = drive_token()
+    fid = str(file_id or "").strip()
+    if not token:
+        raise DriveError("Drive is not connected on this server")
+    if not fid:
+        raise DriveError("Drive file missing")
+    return _api(
+        token,
+        "GET",
+        f"files/{fid}",
+        {"fields": "id,name,webViewLink,parents,size,mimeType"},
+    )
+
+
 def _start_resumable(token: str, parent_id: str, name: str, mime: str, size: int) -> str:
     meta = json.dumps({"name": name, "parents": [parent_id]}).encode("utf-8")
     path = (

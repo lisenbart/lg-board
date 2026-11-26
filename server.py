@@ -33,7 +33,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-11-26f"
+BUILD = "2026-11-26g"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -2584,10 +2584,17 @@ class Handler(SimpleHTTPRequestHandler):
             if not folder_id:
                 self._json(409, {"error": "task has no Drive folder"})
                 return
+            drive_name = video_drive_name(snap, str(data.get("name") or "clip.mp4"), mime)
+            try:
+                session = drive_io.start_card_session(folder_id, drive_name, mime, size)
+            except drive_io.DriveError as e:
+                print(f"[drive] video session failed for {snap.get('name')}: {e}", flush=True)
+                self._json(409, {"ok": False, "error": str(e)})
+                return
             upload_id = put_video_pending(
                 {
                     "taskId": snap.get("id"),
-                    "name": video_drive_name(snap, str(data.get("name") or "clip.mp4"), mime),
+                    "name": session.get("name") or drive_name,
                     "mime": mime,
                     "kind": kind,
                     "size": size,
@@ -2603,10 +2610,76 @@ class Handler(SimpleHTTPRequestHandler):
                 {
                     "ok": True,
                     "uploadId": upload_id,
-                    "name": video_drive_name(snap, str(data.get("name") or "clip.mp4"), mime),
+                    "sessionUrl": session.get("sessionUrl") or "",
+                    "name": session.get("name") or drive_name,
                     "folderUrl": snap.get("folderUrl") or "",
                 },
             )
+            return
+        if path == "/api/tasks/video/finish":
+            if data.get("role") not in COMMENT_ROLES:
+                self._json(403, {"error": "only LP, DL or TL can add a file"})
+                return
+            pending = take_video_pending(str(data.get("uploadId") or ""))
+            if not pending:
+                self._json(404, {"error": "upload expired — add the video again"})
+                return
+            drive_id = str(data.get("driveId") or "").strip()
+            if not drive_id:
+                self._json(400, {"error": "Drive file missing"})
+                return
+            try:
+                meta = drive_io.card_file_meta(drive_id)
+            except drive_io.DriveError as e:
+                print(f"[drive] video finish failed: {e}", flush=True)
+                self._json(409, {"error": str(e)})
+                return
+            parents = [str(p or "") for p in (meta.get("parents") or [])]
+            if str(pending.get("folderId") or "") not in parents:
+                try:
+                    drive_io.trash_card_video(drive_id)
+                except drive_io.DriveError:
+                    pass
+                self._json(403, {"error": "file is not in the task folder"})
+                return
+            poster = pending.get("poster")
+            poster_blob = poster[1] if isinstance(poster, tuple) and len(poster) == 2 else None
+            poster_mime = poster[0] if isinstance(poster, tuple) and len(poster) == 2 else "image/jpeg"
+            uploaded = {
+                "id": str(meta.get("id") or drive_id),
+                "name": str(meta.get("name") or pending.get("name") or "file"),
+                "url": str(meta.get("webViewLink") or "") or drive_io.file_url(drive_id),
+            }
+            with LOCK:
+                db = load_db()
+                task = next((t for t in db.get("tasks") or [] if t.get("id") == pending.get("taskId")), None)
+                if not task:
+                    try:
+                        drive_io.trash_card_video(drive_id)
+                    except drive_io.DriveError:
+                        pass
+                    self._json(404, {"error": "not found"})
+                    return
+                if len(task.get("videos") or []) >= MAX_CARD_VIDEOS:
+                    try:
+                        drive_io.trash_card_video(drive_id)
+                    except drive_io.DriveError:
+                        pass
+                    self._json(400, {"error": "up to 8 files on one card"})
+                    return
+                row = attach_card_video(
+                    db,
+                    task,
+                    uploaded=uploaded,
+                    mime=str(pending.get("mime") or "video/mp4"),
+                    size=int(pending.get("size") or 0),
+                    actor_id=str(pending.get("actorId") or ""),
+                    poster_blob=poster_blob,
+                    poster_mime=poster_mime,
+                    kind=str(pending.get("kind") or "video"),
+                )
+                save_db(db)
+            self._json(200, {"ok": True, "video": row, "task": task, "state": db})
             return
         if path == "/api/tasks/video/delete":
             if data.get("role") not in COMMENT_ROLES:
