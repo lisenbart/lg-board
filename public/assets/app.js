@@ -1452,6 +1452,10 @@ function canPasteResult(t) {
   }
   return t.assigneeId === me().id && (isDesigner() || isTeamLead());
 }
+function canPasteHtmlDraft(t) {
+  if (!isPlayables(t) || playableInHtml(t)) return false;
+  return isProgrammer() && String(t.programmerId || "") === String(me().id);
+}
 function handoffStatus(t) {
   if (!t) return "";
   if (isPlayables(t)) {
@@ -3262,12 +3266,20 @@ function resultHtml(t, performer, canPaste) {
   if (!showResultField(t)) return "";
   const play = isPlayables(t);
   const html = play && playableInHtml(t);
-  const seatedDevWaiting = play && isProgrammer() && String(t.programmerId || "") === String(me().id) && !html;
+  const seatedDevWaiting = canPasteHtmlDraft(t);
   if (seatedDevWaiting) {
     const board = String(t.storyboardUrl || t.resultUrl || "").trim();
-    return `<section class="io io-result">
+    const htmlVal = String(t.htmlUrl || "").trim();
+    return `<section class="io io-result is-focus">
       <h3>HTML</h3>
-      <p class="io-empty">Paste the playable link here after Art ready — not in Telegram.</p>
+      ${linkRowHtml({
+        id: "stHtml",
+        value: htmlVal,
+        placeholder: "Paste HTML / playable link — not in Telegram",
+        canPaste: true,
+        emptyText: "Paste the playable link here. Hand to LP after Art ready.",
+      })}
+      <p class="io-hint">Save the link now. Hand to LP after AD sets Art ready.</p>
       ${
         board
           ? `<div class="link-sub"><h4>Storyboard</h4>${linkRowHtml({
@@ -3302,6 +3314,13 @@ function resultHtml(t, performer, canPaste) {
         ${linkRowHtml({ id: "stStoryboard", value: board, placeholder: "", canPaste: false, emptyText: "" })}
       </div>`
     : "";
+  const htmlDraft = play && !html ? String(t.htmlUrl || "").trim() : "";
+  const htmlDraftRow = htmlDraft
+    ? `<div class="link-sub">
+        <h4>HTML</h4>
+        ${linkRowHtml({ id: "stHtmlView", value: htmlDraft, placeholder: "", canPaste: false, emptyText: "" })}
+      </div>`
+    : "";
   const hand = canPaste ? handoffLabel(t) : "";
   const handHint = hand === "Hand to LP"
     ? "This is how LP gets the link. Not Telegram."
@@ -3318,6 +3337,7 @@ function resultHtml(t, performer, canPaste) {
       ${body}
       ${handBtn}
       ${boardRow}
+      ${htmlDraftRow}
     </section>`;
 }
 function hasDriveDoc(t) {
@@ -3481,7 +3501,7 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
       if (!hasResult) return { tone: "do", title: "Your job", body: "Paste the HTML, then Hand to LP. Don't send the link in Telegram." };
       return { tone: "do", title: "Hand to LP", body: "Link is in the field. Hand to LP — don't send it in Telegram." };
     }
-    return { tone: "wait", title: "Art is still in progress", body: "When AD sets Art ready, paste HTML on this card. Not in Telegram." };
+    return { tone: "wait", title: "Art is still in progress", body: "Paste the HTML link on this card now. You hand it to LP after AD sets Art ready. Not in Telegram." };
   }
   if (role === "designer") {
     return { tone: "ok", title: "Art help", body: `${hoursForPerson(t, me().id) || 0}h on this playable. AD owns status — you do not change it.` };
@@ -7856,6 +7876,7 @@ function openTask(id) {
       patch.help = help;
     }
     if ($("stResult")) patch.resultUrl = resultUrl;
+    if ($("stHtml")) patch.htmlUrl = String($("stHtml").value || "").trim();
     if (canEditTime() && $("stShifts")) {
       const shifts = parseShifts($("stShifts").value);
       if (shifts === null) {

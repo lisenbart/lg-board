@@ -1976,12 +1976,13 @@ def test_playable_card_pipeline() -> None:
         and "If they are away, set the status yourself" in js,
     )
     check("DEV HTML paste is owner-only", "isProgrammer() && String(t.programmerId || \"\") === String(me().id) && playableInHtml(t)" in js)
+    check("DEV can paste HTML before Art ready", 'id: "stHtml"' in js and "function canPasteHtmlDraft" in js)
     check("AD can paste a storyboard link", "isArtDirector() && playableAdId(t) === me().id && !playableInHtml(t)" in js)
     check("Hand to LP sits on the paste block", 'id="handOff"' in js and "Hand to LP" in js)
     check("Monday chips name Art vs HTML WIP", "WIP · Art" in js and "WIP · HTML" in js)
     check("rows mark your turn vs waiting", "function isActiveForMe" in js and "is-turn" in js and "is-wait" in js)
     check("LP can bounce HTML Need Fixing to Art", 'data-art-bounce="1"' in js and "Need Fixing · Art" in js)
-    check("DEV sees HTML slot before Art ready", "Paste the playable link here after Art ready" in js)
+    check("DEV sees HTML slot before Art ready", "Save the link now. Hand to LP after AD sets Art ready." in js)
     check("Art ready pings seated DEV", notice_io.KINDS["task.artready"]["audience"].get("assignee") is True)
     notices_js = (ROOT / "public" / "assets" / "notices.js").read_text(encoding="utf-8")
     check(
@@ -2016,6 +2017,20 @@ def test_playable_card_pipeline() -> None:
     direction_io.touch_playable_html(art)
     check("Art ready locks the HTML loop", art.get("playableHtml") is True)
     check("Art ready keeps the storyboard URL", art.get("storyboardUrl") == "https://board.example/story")
+    drafted = {
+        "studioStatus": "artready",
+        "assigneeId": "artdir1",
+        "programmerId": "programmer1",
+        "resultUrl": "https://board.example/story",
+        "htmlUrl": "https://play.example/z",
+    }
+    direction_io.touch_playable_html(drafted)
+    check(
+        "Art ready promotes the HTML draft",
+        drafted.get("storyboardUrl") == "https://board.example/story"
+        and drafted.get("resultUrl") == "https://play.example/z",
+        str({k: drafted.get(k) for k in ("storyboardUrl", "resultUrl", "htmlUrl")}),
+    )
     html_wip = {
         "studioStatus": "wip",
         "assigneeId": "artdir1",

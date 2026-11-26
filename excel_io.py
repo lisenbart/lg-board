@@ -623,7 +623,7 @@ def is_dropped_name(name: str, dropped: set[str], dropped_keys: set[str]) -> boo
 
 
 def absorb_task(winner: dict, loser: dict) -> None:
-    for field in ("folderUrl", "docUrl", "brief", "resultUrl", "storyboardUrl"):
+    for field in ("folderUrl", "docUrl", "brief", "resultUrl", "storyboardUrl", "htmlUrl"):
         if not str(winner.get(field) or "").strip() and str((loser or {}).get(field) or "").strip():
             winner[field] = loser[field]
     if len((loser or {}).get("comments") or []) > len(winner.get("comments") or []):

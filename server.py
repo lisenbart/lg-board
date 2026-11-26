@@ -33,7 +33,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-11-24f"
+BUILD = "2026-11-24g"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -3420,6 +3420,11 @@ class Handler(SimpleHTTPRequestHandler):
                     data.pop("hours", None)
                     data.pop("playableHtml", None)
                     data.pop("storyboardUrl", None)
+                    seated_dev = role == "programmer" and str(task.get("programmerId") or "") == str(actor or "")
+                    if "htmlUrl" in data and role not in OPS_ROLES and not seated_dev:
+                        data.pop("htmlUrl", None)
+                    if role == "programmer" and not direction_io.playable_in_html(task):
+                        data.pop("resultUrl", None)
                     if role not in {"finance", "manager", "teamlead"}:
                         for key in ("assigneeHours", "programmerHours", "motionHours", "producerHours"):
                             data.pop(key, None)
@@ -3447,6 +3452,7 @@ class Handler(SimpleHTTPRequestHandler):
                     "motionId",
                     "motionHours",
                     "resultUrl",
+                    "htmlUrl",
                     "brief",
                     "folderUrl",
                     "docUrl",
