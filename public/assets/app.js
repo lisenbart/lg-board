@@ -1,19 +1,19 @@
 const STATUS = {
-  quote: { label: "Quote", cls: "status-new", order: 0 },
-  new: { label: "Ready to Start", cls: "status-new", order: 1 },
+  quote: { label: "Quote", cls: "status-new", order: 3 },
+  new: { label: "Ready to Start", cls: "status-new", order: 3 },
   wip: { label: "WIP", cls: "status-wip", order: 2 },
-  revision: { label: "Need Fixing", cls: "status-revision", order: 3 },
+  revision: { label: "Need Fixing", cls: "status-revision", order: 1 },
   tlcheck: { label: "TL Check", cls: "status-tlcheck", order: 4 },
   check: { label: "Check", cls: "status-tlcheck", order: 4 },
-  done: { label: "Done", cls: "status-done", order: 5 },
-  approve: { label: "Senior Approval", cls: "status-approve", order: 6 },
-  closed: { label: "Closed", cls: "status-closed", order: 7 },
-  clientart: { label: "Sent", cls: "status-approve", order: 3 },
-  finalart: { label: "Final art", cls: "status-revision", order: 4 },
-  artready: { label: "Art ready", cls: "status-done", order: 4.5 },
+  done: { label: "Done", cls: "status-done", order: 7 },
+  approve: { label: "Senior Approval", cls: "status-approve", order: 9 },
+  closed: { label: "Closed", cls: "status-closed", order: 10 },
+  clientart: { label: "Sent", cls: "status-approve", order: 8 },
+  finalart: { label: "Final art", cls: "status-revision", order: 5 },
+  artready: { label: "Art ready", cls: "status-done", order: 6 },
   storyboard: { label: "Check", cls: "status-tlcheck", order: 4 },
-  build: { label: "Art ready", cls: "status-done", order: 4.5 },
-  htmlready: { label: "Done", cls: "status-done", order: 5 },
+  build: { label: "Art ready", cls: "status-done", order: 6 },
+  htmlready: { label: "Done", cls: "status-done", order: 7 },
 };
 
 const ROLE_LABEL = {
@@ -3661,7 +3661,8 @@ function timeCell(t) {
 }
 
 function statusRank(t) {
-  return STATUS[t.studioStatus]?.order || 99;
+  const key = isPlayables(t) ? playableStatusKey(t) : t.studioStatus || "new";
+  return STATUS[key]?.order || 99;
 }
 
 function isUrgent(t) {

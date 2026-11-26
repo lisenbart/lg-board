@@ -2087,6 +2087,13 @@ def test_playable_card_pipeline() -> None:
         'if (st === "check" && !playableAdDelivered(t)) return "check"' not in js,
     )
     check("Monday chips name Art vs HTML WIP", "WIP · Art" in js and "WIP · HTML" in js)
+    check(
+        "board sort puts Sent after Check and Closed last",
+        'clientart: { label: "Sent", cls: "status-approve", order: 8 }' in js
+        and 'closed: { label: "Closed", cls: "status-closed", order: 10 }' in js
+        and 'check: { label: "Check", cls: "status-tlcheck", order: 4 }' in js
+        and 'revision: { label: "Need Fixing", cls: "status-revision", order: 1 }' in js,
+    )
     check("rows mark your turn vs waiting", "function isActiveForMe" in js and "is-turn" in js and "is-wait" in js)
     check("in progress KPI is your turn", "tasks.filter((t) => isActiveForMe(t))" in js)
     check(
