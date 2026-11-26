@@ -2093,7 +2093,7 @@ def test_playable_card_pipeline() -> None:
         "board sort puts Sent after Check and Closed last",
         'clientart: { label: "Sent", cls: "status-approve", order: 8 }' in js
         and 'closed: { label: "Closed", cls: "status-closed", order: 10 }' in js
-        and 'check: { label: "Check", cls: "status-tlcheck", order: 4 }' in js
+        and 'check: { label: "Check", cls: "status-check", order: 4 }' in js
         and 'revision: { label: "Need Fixing", cls: "status-revision", order: 1 }' in js,
     )
     check("rows mark your turn vs waiting", "function isActiveForMe" in js and "is-turn" in js and "is-wait" in js)
@@ -2183,6 +2183,13 @@ def test_playable_card_pipeline() -> None:
     css_link = (ROOT / "public" / "assets" / "board.css").read_text(encoding="utf-8")
     check("Copy/Open stay on the link row", ".link-row {" in css_link and ".link-row-actions" in css_link)
     check("to DEV chip is blue not Done green", ".status-todev { background: #3b82f6; }" in css_link)
+    check(
+        "Check chip is sky with diagonal stripes",
+        ".status-check {" in css_link
+        and "repeating-linear-gradient" in css_link.split(".status-check {")[1].split("}")[0]
+        and "120deg" in css_link.split(".status-check {")[1].split("}")[0]
+        and 'check: { label: "Check", cls: "status-check"' in js,
+    )
     check("active Playables rows use is-turn", ".row.is-turn" in css_link and ".row.is-wait" in css_link)
     check("HTML WIP chip is purple", ".status-htmlwip" in css_link and ".status-htmlfix" in css_link)
     check("LP status pop sits above the card", ".status-pop-bg" in css_link and "id=\"statusPopBg\"" in (ROOT / "public" / "index.html").read_text(encoding="utf-8"))
