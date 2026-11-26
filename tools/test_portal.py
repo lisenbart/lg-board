@@ -1719,7 +1719,8 @@ def test_playables_desk() -> None:
             "client KPIs are stamp plus direction chips",
             "${hoursStampKpi()}${dirKpis}${clientDoneKpi}" in js
             and 'hoursKpiHtml(totalProjects, "projects")}${dirKpis}' in js
-            and "sp-report.is-projects .sp-kpis .sp-stamp" in css
+            and "sp-report.is-projects .sp-kpis" in css
+            and "flex-wrap: nowrap" in css.split("sp-report.is-projects .sp-kpis")[1].split("}")[0]
             and 'id="kpiClientDone"' in js
             and "state.hoursDone" in js,
         )
