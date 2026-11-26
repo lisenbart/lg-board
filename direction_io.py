@@ -436,6 +436,28 @@ def touch_playable_html(task: dict | None, prev: str | None = None, force_art: b
         task["playableHtml"] = True
 
 
+def apply_client_note_bounce(task: dict | None, role: str) -> bool:
+    """LP/DL client note is a bounce. Art loop → Need Fixing · Art. HTML loop → Need Fixing · HTML. Closed stays closed."""
+    if role not in {"manager", "finance"}:
+        return False
+    task = task or {}
+    if is_playables(task):
+        st = playable_norm_status(task.get("studioStatus"))
+        if st in {"closed", "revision"}:
+            return False
+        prev = st
+        task["studioStatus"] = "revision"
+        task["mondayStatus"] = PLAY_STATUS["revision"]
+        touch_playable_html(task, prev=prev, force_art=False)
+        return True
+    st = str(task.get("studioStatus") or "new")
+    if st in {"closed", "revision"}:
+        return False
+    task["studioStatus"] = "revision"
+    task["mondayStatus"] = "Need Fixing"
+    return True
+
+
 def playable_may_assign_dev(task: dict | None, role: str | None = None) -> bool:
     """LP/DL may seat DEV at any status. DEV work still waits for Art ready when AD is on the card."""
     if role in {"manager", "finance"}:

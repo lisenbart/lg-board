@@ -2545,6 +2545,32 @@ def test_playable_team_scenarios() -> None:
         handedBy=anna,
     )
     check("Need Fixing art reopens Anna after Send", part(art_reopen, "art_director", anna) and not part(art_reopen, "programmer", bohdan))
+    bounce = direction_io.apply_client_note_bounce
+    ready_note = card()
+    check("LP client note on Ready is Need Fixing Art", bounce(ready_note, "manager") and ready_note["studioStatus"] == "revision" and not direction_io.playable_in_html(ready_note))
+    sent_note = card(studioStatus="clientart")
+    check("LP client note on Sent is Need Fixing Art", bounce(sent_note, "manager") and sent_note["studioStatus"] == "revision" and not direction_io.playable_in_html(sent_note))
+    check_note = card(studioStatus="check")
+    check("LP client note on Check is Need Fixing Art", bounce(check_note, "manager") and check_note["studioStatus"] == "revision" and not direction_io.playable_in_html(check_note))
+    html_note = card(studioStatus="artready", playableHtml=True)
+    check("LP client note on Art ready is Need Fixing HTML", bounce(html_note, "manager") and html_note["studioStatus"] == "revision" and direction_io.playable_in_html(html_note))
+    done_note = card(studioStatus="done", playableHtml=True)
+    check("LP client note on Done is Need Fixing HTML", bounce(done_note, "manager") and direction_io.playable_in_html(done_note))
+    send_html_note = card(studioStatus="approve", playableHtml=True)
+    check(
+        "LP client note on Sent HTML is Need Fixing HTML",
+        bounce(send_html_note, "manager")
+        and send_html_note["studioStatus"] == "revision"
+        and direction_io.playable_in_html(send_html_note)
+        and part(send_html_note, "programmer", bohdan),
+    )
+    closed_note = card(studioStatus="closed")
+    check("LP client note does not reopen Closed", not bounce(closed_note, "manager") and closed_note["studioStatus"] == "closed")
+    already = card(studioStatus="revision")
+    check("LP client note on Need Fixing stays", not bounce(already, "manager"))
+    check("AD client note does not bounce status", not bounce(card(), "art_director"))
+    check("TL client note does not bounce status", not bounce(card(), "teamlead"))
+    check("DL client note also bounces", bounce(card(), "finance"))
     send = card(studioStatus="approve", assigneeId=anna, programmerId=bohdan, playableHtml=True)
     check("Send: AD and DEV wait, LP stays", not part(send, "art_director", anna) and not part(send, "programmer", bohdan) and part(send, "manager"))
     code_only = card(studioStatus="new", assigneeId="", programmerId=bohdan)
@@ -2826,6 +2852,10 @@ def test_lp_can_close_without_send() -> None:
         and "notes-empty" not in js,
     )
     check("AD still sees Client notes", "function canSeeNotes" in js and "stays on this card" in js)
+    check(
+        "LP client note toasts Need Fixing",
+        "Need Fixing · Art · note on the card" in js and "Need Fixing · HTML · note on the card" in js,
+    )
     check("phone queue shows the client cue", "function clientCue" in js and "phone-card-note" in js)
     check("read client notes stay in Notices", "function readClientNotices" in js and "Read · stays on the card" in js)
     check(
@@ -3576,12 +3606,18 @@ def test_http(base: str) -> str | None:
             cookie=lp_ck,
         )
         comment = (payload or {}).get("comment") or {}
+        bounced = (payload or {}).get("task") or {}
         check(
             "LP screenshot note lands on the card",
             code == 200
             and comment.get("body") == "logo left"
             and any((a.get("kind") == "image") for a in comment.get("attachments") or []),
             str(payload.get("error") or comment) if isinstance(payload, dict) else str(payload),
+        )
+        check(
+            "LP client note on a Playables card is Need Fixing Art",
+            bounced.get("studioStatus") == "revision" and not direction_io.playable_in_html(bounced),
+            str(bounced.get("studioStatus")),
         )
         code, payload, headers = _http(
             f"{base}/api/login",

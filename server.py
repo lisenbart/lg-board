@@ -33,7 +33,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-11-24z"
+BUILD = "2026-11-25a"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -3691,6 +3691,17 @@ class Handler(SimpleHTTPRequestHandler):
                 task.setdefault("comments", []).append(comment)
                 if task.get("brief") != brief_before:
                     task["brief"] = brief_before
+                if str(comment.get("source") or "manual") != "monday":
+                    before = {
+                        "studioStatus": task.get("studioStatus"),
+                        "assigneeId": task.get("assigneeId"),
+                        "programmerId": task.get("programmerId"),
+                        "playableHtml": task.get("playableHtml"),
+                    }
+                    if direction_io.apply_client_note_bounce(task, role):
+                        notice_io.on_task_change(
+                            db, task, before, str(data.get("actorId") or "")
+                        )
                 if not drive_io.studio_pack_folder_id(task):
                     try:
                         drive_io.ensure_live_pack(

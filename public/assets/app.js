@@ -7629,7 +7629,9 @@ function openTask(id) {
     }
     pendingShots.length = 0;
     applyState(out.state, { render: reopen !== false });
+    const bounced = isPlayables(out.task) && playableStatusKey(out.task) === "revision" && playableStatusKey(t) !== "revision";
     if (out.drive && out.drive.ok === false) toast(`Note on the card. Drive: ${out.drive.error}`, 6000);
+    else if (bounced) toast(playableInHtml(out.task) ? "Need Fixing · HTML · note on the card" : "Need Fixing · Art · note on the card");
     else toast("Note added · Comments folder");
     if (reopen) openTask(t.id);
     else {
