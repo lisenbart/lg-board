@@ -3488,7 +3488,7 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
     if (st === "clientart") return { tone: "wait", title: "Sent", body: "Storyboard is with the client. LP sets Need Fixing if they bounce it, or Final art when they approve." };
     if (st === "check") {
       if (!playableAdDelivered(t)) {
-        return { tone: "do", title: "Your job", body: "Paste the storyboard, then Send to LP — footer or the status chip. Don't send the link in Telegram." };
+        return { tone: "do", title: "Your job", body: "This is already Check. Tap WIP if you still need to work, then Send to LP from WIP — once. Don't send the link in Telegram." };
       }
       return { tone: "wait", title: "Waiting for LP", body: "Storyboard is ready. LP sends it. Only LP talks to the client." };
     }
@@ -4935,12 +4935,13 @@ function playableHandoffStatus(role, t) {
   const html = playableInHtml(t);
   if (role === "art_director") {
     if (html) return "";
+    if (playableAdDelivered(t)) return "";
     if (["new", "wip", "revision"].includes(st)) return "check";
-    if (st === "check" && !playableAdDelivered(t)) return "check";
     if (st === "finalart") return "notify";
     return "";
   }
   if (role === "programmer") {
+    if (playableDevDelivered(t)) return "";
     if (["artready", "wip", "revision"].includes(st) && html) return "notify";
     if (!playableAdId(t) && ["new", "wip", "revision"].includes(st)) return "notify";
     return "";
@@ -5015,7 +5016,8 @@ function statusPopChoices(t) {
     if (role === "art_director" && playableAdId(t) !== me().id) return [];
     if (role === "programmer" && String(t.programmerId || "") !== String(me().id)) return [];
     playableNextStatuses(role, t).forEach(add);
-    add(playableHandoffStatus(role, t));
+    const hand = playableHandoffStatus(role, t);
+    if (hand && (hand === "notify" || hand !== playableStatusKey(t))) add(hand);
     return keys;
   }
   statusActions(t)
@@ -5196,6 +5198,11 @@ function bindWhoPop(root) {
 function closeStatusPop() {
   $("statusPopBg")?.classList.remove("show");
 }
+function handoffLeavesStatus(t, key) {
+  if (!key || key === "notify") return true;
+  const cur = isPlayables(t) ? playableStatusKey(t) : t.studioStatus || "new";
+  return key === cur;
+}
 async function pickStatusFromPop(t, key, artBounce) {
   closeStatusPop();
   const hand = handoffStatus(t);
@@ -5205,7 +5212,7 @@ async function pickStatusFromPop(t, key, artBounce) {
     return;
   }
   if (state.openId === t.id && typeof state.commitCard === "function") {
-    if (key === "notify") {
+    if (isHand && handoffLeavesStatus(t, key)) {
       state.commitCard({ fromChip: true, handed: true, notifyLp: true });
       return;
     }
@@ -5219,7 +5226,7 @@ async function pickStatusFromPop(t, key, artBounce) {
   if (isHand) {
     const toTl = handoffLabel(t) === "Send to TL";
     const patch = { role: me().role, handed: true };
-    if (key !== "notify") patch.studioStatus = key;
+    if (!handoffLeavesStatus(t, key)) patch.studioStatus = key;
     await updateTask(
       t.id,
       {
@@ -8097,7 +8104,7 @@ function openTask(id) {
       toast("Paste the link, then Send to LP");
       return;
     }
-    if (key === "notify") {
+    if (handoffLeavesStatus(t, key)) {
       commitCard({ fromChip: true, handed: true, notifyLp: true });
       return;
     }

@@ -1873,7 +1873,11 @@ def test_playable_card_pipeline() -> None:
         "Check without Send to LP stays AD work",
         direction_io.playable_turn_role(ad) == "art_director"
         and direction_io.playable_next_statuses("art_director", ad) == ["wip"]
-        and direction_io.playable_handoff_status("art_director", ad) == "check",
+        and direction_io.playable_handoff_status("art_director", ad) == "",
+    )
+    check(
+        "Send to LP is not offered again on Check",
+        direction_io.playable_handoff_status("art_director", ad) == "",
     )
     ad["handedToLp"] = True
     ad["handedBy"] = "artdir1"
@@ -1902,6 +1906,8 @@ def test_playable_card_pipeline() -> None:
     check("DEV stays off storyboard Fix", direction_io.playable_next_statuses("programmer", bounced) == [])
 
     ad["studioStatus"] = "finalart"
+    ad["handedToLp"] = False
+    ad["handedBy"] = ""
     check("AD Final art has no Art ready chip", direction_io.playable_next_statuses("art_director", ad) == [])
     check("AD Final art hands to LP", direction_io.playable_handoff_status("art_director", ad) == "notify")
     helper_ok, helper_err = direction_io.playable_can_set("art_director", ad, "artready", actor_id="artdir2")
@@ -2073,8 +2079,12 @@ def test_playable_card_pipeline() -> None:
     check(
         "status pop also offers Send to LP",
         "function statusPopLabel" in js
-        and 'key === "notify"' in js.split("function pickStatusFromPop")[1].split("function openStatusPop")[0]
-        and "add(playableHandoffStatus(role, t))" in js,
+        and "function handoffLeavesStatus" in js
+        and "playableHandoffStatus(role, t)" in js,
+    )
+    check(
+        "Send to LP is not offered again on Check",
+        'if (st === "check" && !playableAdDelivered(t)) return "check"' not in js,
     )
     check("Monday chips name Art vs HTML WIP", "WIP · Art" in js and "WIP · HTML" in js)
     check("rows mark your turn vs waiting", "function isActiveForMe" in js and "is-turn" in js and "is-wait" in js)
@@ -2485,6 +2495,10 @@ def test_playable_team_scenarios() -> None:
         "After Anna Send to LP: her part is done",
         not part(handed_check, "art_director", anna) and part(handed_check, "manager"),
     )
+    check(
+        "After Anna Send to LP: no second Send",
+        direction_io.playable_handoff_status("art_director", handed_check) == "",
+    )
     sent = card(studioStatus="clientart", assigneeId=anna, programmerId=bohdan)
     check("Sent: AD and DEV wait, LP stays", not part(sent, "art_director", anna) and not part(sent, "programmer", bohdan) and part(sent, "manager"))
     final = card(studioStatus="finalart", assigneeId=anna, programmerId=bohdan)
@@ -2495,6 +2509,7 @@ def test_playable_team_scenarios() -> None:
     check("HTML WIP: Bohdan active", part(html, "programmer", bohdan) and not part(html, "art_director", anna))
     html_in = card(studioStatus="wip", assigneeId=anna, programmerId=bohdan, playableHtml=True, handedToLp=True, handedBy=bohdan)
     check("After Bohdan Send to LP: his part is done", not part(html_in, "programmer", bohdan) and part(html_in, "manager"))
+    check("After Bohdan Send to LP: no second Send", direction_io.playable_handoff_status("programmer", html_in) == "")
     html_ghost = card(studioStatus="artready", assigneeId=anna, programmerId=bohdan, playableHtml=True, handedToLp=True)
     check("HTML Send without handedBy still Bohdan", part(html_ghost, "programmer", bohdan) and not part(html_ghost, "art_director", anna))
     html_fix = card(studioStatus="revision", assigneeId=anna, programmerId=bohdan, playableHtml=True)

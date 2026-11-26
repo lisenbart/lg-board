@@ -478,14 +478,16 @@ def playable_handoff_status(role: str, task: dict | None) -> str:
     if role == "art_director":
         if html:
             return ""
+        if playable_ad_delivered(task):
+            return ""
         if st in {"new", "wip", "revision"}:
-            return "check"
-        if st == "check" and not playable_ad_delivered(task):
             return "check"
         if st == "finalart":
             return HANDOFF_NOTIFY
         return ""
     if role == "programmer":
+        if playable_dev_delivered(task):
+            return ""
         if st in {"artready", "wip", "revision"} and html:
             return HANDOFF_NOTIFY
         if not playable_has_ad(task) and st in {"new", "wip", "revision"}:
