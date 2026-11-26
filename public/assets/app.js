@@ -2575,11 +2575,16 @@ function personCell(id) {
   if (!p) return `<span class="empty">unassigned</span>`;
   return `<span class="person">${avatarHtml(p)}${escapeHtml(displayName(p))}${jobBadgeHtml(p)}</span>`;
 }
+function whoFaceHtml(id) {
+  const p = person(id);
+  const name = p ? displayName(p) : String(id || "?");
+  return `<span class="who-face">${avatarHtml(p, name)}</span>`;
+}
 function whoCell(t) {
   const ids = whoIds(t);
-  if (!ids.length) return personCell("");
-  if (ids.length === 1) return personCell(ids[0]);
-  return `<span class="who-stack">${ids.map(personCell).join("")}</span>`;
+  if (!ids.length) return `<span class="empty">unassigned</span>`;
+  const names = ids.map((id) => person(id)?.name || id).join(", ");
+  return `<button type="button" class="who-faces" data-who-pop="${escapeHtml(t.id)}" aria-haspopup="dialog" aria-label="${escapeHtml(names)}">${ids.map(whoFaceHtml).join("")}</button>`;
 }
 function normalizeDriveFolder(url) {
   const raw = String(url || "");
@@ -4465,6 +4470,7 @@ function renderGuide() {
 }
 
 function renderBoard() {
+  closeWhoPop();
   if (state.view === "close") {
     renderClose();
     return;
@@ -4544,6 +4550,7 @@ function renderBoard() {
     });
   });
   bindStatusPop($("board"));
+  bindWhoPop($("board"));
   $("board").querySelectorAll(".chk").forEach((el) => {
     el.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -4999,6 +5006,85 @@ function statusButtonsHtml(t, canEdit, lockedStatus) {
     <p class="status-hint" id="stDoneHint"></p>`;
 }
 
+let whoPopTimer = 0;
+let whoPopId = "";
+let whoPopPinned = false;
+function closeWhoPop() {
+  clearTimeout(whoPopTimer);
+  whoPopPinned = false;
+  whoPopId = "";
+  $("whoPop")?.classList.remove("show");
+}
+function fillWhoPop(t) {
+  const box = $("whoPopList");
+  if (!box) return;
+  box.replaceChildren();
+  whoIds(t).forEach((id) => {
+    const p = person(id);
+    const name = p ? displayName(p) : id;
+    const role = p ? jobMeta(p).title : "";
+    const row = document.createElement("div");
+    row.className = "who-pop-row";
+    row.innerHTML = `${avatarHtml(p, name)}<span class="who-pop-copy"><strong>${escapeHtml(name)}</strong>${role ? `<small>${escapeHtml(role)}</small>` : ""}</span>`;
+    box.appendChild(row);
+  });
+}
+function placeWhoPop(anchor) {
+  const pop = $("whoPop");
+  if (!pop || !anchor) return;
+  pop.classList.add("show");
+  const r = anchor.getBoundingClientRect();
+  const w = pop.offsetWidth;
+  const h = pop.offsetHeight;
+  let left = r.left;
+  let top = r.bottom + 6;
+  if (left + w > window.innerWidth - 8) left = Math.max(8, window.innerWidth - w - 8);
+  if (left < 8) left = 8;
+  if (top + h > window.innerHeight - 8) top = Math.max(8, r.top - h - 6);
+  pop.style.left = `${Math.round(left)}px`;
+  pop.style.top = `${Math.round(top)}px`;
+}
+function openWhoPop(t, anchor, pinned) {
+  if (!t || !whoIds(t).length) return;
+  closeStatusPop();
+  whoPopId = t.id;
+  whoPopPinned = Boolean(pinned);
+  fillWhoPop(t);
+  placeWhoPop(anchor);
+}
+function bindWhoPop(root) {
+  (root || document).querySelectorAll("[data-who-pop]").forEach((el) => {
+    if (el.dataset.whoBound === "1") return;
+    el.dataset.whoBound = "1";
+    const taskOf = () => state.db?.tasks?.find((row) => row.id === el.dataset.whoPop);
+    el.addEventListener("mouseenter", () => {
+      if (isPhone() || whoPopPinned) return;
+      clearTimeout(whoPopTimer);
+      whoPopTimer = setTimeout(() => {
+        const t = taskOf();
+        if (t) openWhoPop(t, el, false);
+      }, 80);
+    });
+    el.addEventListener("mouseleave", (e) => {
+      if (whoPopPinned) return;
+      if (e.relatedTarget && $("whoPop")?.contains(e.relatedTarget)) return;
+      clearTimeout(whoPopTimer);
+      whoPopTimer = setTimeout(closeWhoPop, 140);
+    });
+    el.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const t = taskOf();
+      if (!t) return;
+      if (whoPopPinned && whoPopId === t.id) {
+        closeWhoPop();
+        return;
+      }
+      openWhoPop(t, el, true);
+    });
+  });
+}
+
 function closeStatusPop() {
   $("statusPopBg")?.classList.remove("show");
 }
@@ -5018,6 +5104,7 @@ async function pickStatusFromPop(t, key, artBounce) {
 }
 function openStatusPop(t) {
   if (!canOps() || !t) return;
+  closeWhoPop();
   const bg = $("statusPopBg");
   const grid = $("statusPopGrid");
   const now = $("statusPopNow");
@@ -7048,6 +7135,7 @@ function startCardPresence(id) {
 function openTask(id) {
   if (isClient()) return;
   closeStatusPop();
+  closeWhoPop();
   const t = state.db.tasks.find((x) => x.id === id);
   if (!t) return;
   const keepFiles =
@@ -8983,10 +9071,22 @@ $("soundVol")?.addEventListener("input", () => {
   }, 120);
 });
 document.addEventListener("click", (e) => {
+  if (!e.target.closest("[data-who-pop], #whoPop")) closeWhoPop();
   if (isPhone()) return;
   if (!$("inboxWrap")?.contains(e.target)) setInboxOpen(false);
   if (!$("soundWrap")?.contains(e.target)) setSoundOpen(false);
 });
+$("whoPop")?.addEventListener("mouseenter", () => {
+  if (whoPopPinned) return;
+  clearTimeout(whoPopTimer);
+});
+$("whoPop")?.addEventListener("mouseleave", () => {
+  if (whoPopPinned) return;
+  clearTimeout(whoPopTimer);
+  whoPopTimer = setTimeout(closeWhoPop, 140);
+});
+window.addEventListener("scroll", closeWhoPop, true);
+window.addEventListener("resize", closeWhoPop);
 paintSoundCtrl();
 async function signOutNow(fromBtn) {
   const desk = $("signOut");
@@ -9172,6 +9272,10 @@ $("statusPopBg")?.addEventListener("click", (e) => {
 });
 document.addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
+  if ($("whoPop")?.classList.contains("show")) {
+    closeWhoPop();
+    return;
+  }
   if ($("statusPopBg")?.classList.contains("show")) {
     closeStatusPop();
     return;

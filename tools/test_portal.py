@@ -438,9 +438,18 @@ def test_phone_queue_mvp() -> None:
     check(
         "Who on the row lists every person, not +1",
         "function whoIds" in js
-        and "ids.map(personCell)" in js
+        and "ids.map(whoFaceHtml)" in js
+        and "data-who-pop" in js
         and "+${ads.length}" not in js
         and 'class="help-mark"' not in js,
+    )
+    check(
+        "board Who is avatar chips with a name pop",
+        "function bindWhoPop" in js
+        and "function openWhoPop" in js
+        and 'id="whoPop"' in html
+        and ".who-faces" in css
+        and ".who-face + .who-face" in css,
     )
     check("phone footer has Cancel and Save", 'id="cancelTask"' in js and 'id="saveTask"' in js)
     check(
