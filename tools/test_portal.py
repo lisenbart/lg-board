@@ -2016,7 +2016,12 @@ def test_playable_card_pipeline() -> None:
     check("Monday chips name Art vs HTML WIP", "WIP · Art" in js and "WIP · HTML" in js)
     check("rows mark your turn vs waiting", "function isActiveForMe" in js and "is-turn" in js and "is-wait" in js)
     check("LP can bounce HTML Need Fixing to Art", 'data-art-bounce="1"' in js and "Need Fixing · Art" in js)
-    check("DEV sees HTML slot before Art ready", "Save the link now. Hand to LP after LP sets Art ready." in js)
+    check("DEV sees HTML slot before Art ready", "Tap Save link after you paste. Hand to LP after LP sets Art ready." in js)
+    check("DEV HTML draft has Save link", 'id="saveHtmlDraft"' in js)
+    check(
+        "paste into a link row fires input so Save lights up",
+        'dispatchEvent(new Event("input"' in js and 'rowId === "stResult" || rowId === "stHtml"' in js,
+    )
     check("Art ready pings seated DEV", notice_io.KINDS["task.artready"]["audience"].get("assignee") is True)
     notices_js = (ROOT / "public" / "assets" / "notices.js").read_text(encoding="utf-8")
     check(
@@ -3335,6 +3340,34 @@ def test_http(base: str) -> str | None:
                 if split_reopen
                 else payload.get("error")
             ),
+        )
+        code, payload, headers = _http(
+            f"{base}/api/login",
+            {"door": "studio", "role": "programmer", "pin": "4429", "seatId": "programmer1"},
+        )
+        dev_sess = payload.get("session") or {}
+        dev_cookie = headers.get("Set-Cookie") if hasattr(headers, "get") else None
+        dev_ck = dev_cookie.split(";", 1)[0] if dev_cookie else ""
+        check(
+            "DEV login for HTML draft",
+            code == 200 and dev_sess.get("role") == "programmer" and bool(dev_ck),
+            str(payload.get("error") or dev_sess),
+        )
+        code, payload, _ = _http(
+            f"{base}/api/tasks/update",
+            {
+                "id": play_id,
+                "role": "programmer",
+                "actorId": dev_sess.get("personId") or "programmer1",
+                "htmlUrl": "https://play.example/draft-before-art-ready",
+            },
+            cookie=dev_ck,
+        )
+        drafted = (payload or {}).get("task") or {}
+        check(
+            "seated DEV can save HTML draft before Art ready",
+            code == 200 and drafted.get("htmlUrl") == "https://play.example/draft-before-art-ready",
+            str(payload.get("error") or {k: drafted.get(k) for k in ("htmlUrl", "resultUrl", "studioStatus")}),
         )
         _http(
             f"{base}/api/tasks/delete",

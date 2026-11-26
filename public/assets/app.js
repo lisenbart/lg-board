@@ -756,9 +756,14 @@ function bindLinkRows(root, onMainInput) {
     const input = row.querySelector("input");
     const copy = row.querySelector(".link-copy");
     const open = row.querySelector(".link-open");
-    const isMain = row.getAttribute("data-link-row") === "stResult";
+    const rowId = row.getAttribute("data-link-row") || "";
+    const isMain = rowId === "stResult" || rowId === "stHtml";
     const onChange = () => {
       syncLinkRow(row);
+      if (rowId === "stHtml") {
+        const saveHtml = document.getElementById("saveHtmlDraft");
+        if (saveHtml) saveHtml.disabled = !hrefOf(String(input?.value || "").trim());
+      }
       if (isMain && onMainInput) onMainInput();
     };
     input?.addEventListener("input", onChange);
@@ -769,6 +774,8 @@ function bindLinkRows(root, onMainInput) {
       e.preventDefault();
       input.value = clipped;
       onChange();
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true }));
     });
     if (input?.readOnly) {
       input.addEventListener("focus", () => input.select());
@@ -3279,7 +3286,8 @@ function resultHtml(t, performer, canPaste) {
         canPaste: true,
         emptyText: "Paste the playable link here. Hand to LP after Art ready.",
       })}
-      <p class="io-hint">Save the link now. Hand to LP after LP sets Art ready.</p>
+      <button type="button" class="btn green link-hand" id="saveHtmlDraft" ${hrefOf(htmlVal) ? "" : "disabled"}>Save link</button>
+      <p class="io-hint">Tap Save link after you paste. Hand to LP after LP sets Art ready.</p>
       ${
         board
           ? `<div class="link-sub"><h4>Storyboard</h4>${linkRowHtml({
@@ -7685,6 +7693,7 @@ function openTask(id) {
   const syncDoneOption = () => {
     const hint = $("stDoneHint");
     const typed = $("stResult")?.value || "";
+    const htmlTyped = $("stHtml")?.value || "";
     const hasResult = hasResultLink(t, typed);
     ["tlcheck", "check", "done"].forEach((key) => {
       const btn = $("drawer")?.querySelector(`.status-btn[data-status="${key}"]`);
@@ -7699,8 +7708,18 @@ function openTask(id) {
     if (hint) hint.textContent = "";
     const hand = $("handOff");
     if (hand) hand.disabled = !hrefOf(typed || t.resultUrl || "");
+    const saveHtml = $("saveHtmlDraft");
+    if (saveHtml) saveHtml.disabled = !hrefOf(htmlTyped);
   };
   bindLinkRows($("drawer"), syncDoneOption);
+  $("saveHtmlDraft")?.addEventListener("click", () => {
+    const url = String($("stHtml")?.value || "").trim();
+    if (!hrefOf(url)) {
+      toast("Paste the HTML link first");
+      return;
+    }
+    commitCard({ fromChip: true, htmlDraft: true });
+  });
   $("handOff")?.addEventListener("click", () => {
     const key = handoffStatus(t);
     if (!key) return;
@@ -7793,6 +7812,11 @@ function openTask(id) {
     };
     try {
     const resultUrl = ($("stResult")?.value || t.resultUrl || "").trim();
+    const htmlTyped = String($("stHtml")?.value || "").trim();
+    if (opts.htmlDraft && !hrefOf(htmlTyped)) {
+      toast("Paste the HTML link first");
+      return;
+    }
     const studioStatus = opts.notifyLp
       ? t.studioStatus || "new"
       : opts.status || $("stStatus")?.value || t.studioStatus;
@@ -7962,6 +7986,8 @@ function openTask(id) {
           ? patch.urgent
             ? `${me().name} marked URGENT`
             : `${me().name} cleared URGENT`
+          : htmlTyped && htmlTyped !== String(t.htmlUrl || "").trim()
+            ? `${me().name} pasted the HTML draft`
           : resultUrl && resultUrl !== t.resultUrl
             ? `${me().name} pasted the result`
             : `${me().name} updated status`;
@@ -7969,6 +7995,13 @@ function openTask(id) {
       const handed = Boolean(opts.handed);
       const handKey = handoffStatus(t);
       const toTl = handoffLabel(t) === "Hand to TL";
+      const savedHtmlDraft =
+        Boolean(opts.htmlDraft) ||
+        (!handed &&
+          Boolean($("stHtml")) &&
+          htmlTyped &&
+          htmlTyped !== String(t.htmlUrl || "").trim() &&
+          studioStatus === (t.studioStatus || "new"));
       const savedLinkOnly =
         !handed &&
         Boolean(handKey) &&
@@ -7989,6 +8022,8 @@ function openTask(id) {
             ? toTl
               ? "TL has the file on the card. No need to send it in Telegram."
               : "LP has the link on the card. No need to send it in Telegram."
+            : savedHtmlDraft
+              ? "HTML link saved. Hand to LP after Art ready."
             : savedLinkOnly
               ? toTl
                 ? "Link saved. Hand to TL so TL sees it — don't send it in Telegram."
