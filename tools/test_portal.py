@@ -534,6 +534,13 @@ def test_phone_queue_mvp() -> None:
         and "padding: 0 0 24px" in css.split("html:not(.hours-host) .phone-queue")[1].split("}")[0],
     )
     check(
+        "month uses blue only, no This month tip",
+        'textContent = here ? "This month" : ""' not in js
+        and '$("monthMeta").textContent = ""' in js
+        and ".month-now small { display: none; }" in css
+        and ".month-now.this-month strong" in css,
+    )
+    check(
         "phone cards show who faces and name pop",
         "function phoneWhoCell" in js
         and "whoCell(t)" in js.split("function phoneWhoCell")[1].split("function phoneCardHtml")[0]

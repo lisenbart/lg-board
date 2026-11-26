@@ -1859,7 +1859,7 @@ function renderWho() {
 function renderMonth() {
   const here = state.month === calendarMonth();
   $("monthLabel").textContent = monthLabel(state.month);
-  $("monthMeta").textContent = here ? "This month" : "";
+  if ($("monthMeta")) $("monthMeta").textContent = "";
   $("monthLabel").parentElement.classList.toggle("this-month", here);
 }
 
