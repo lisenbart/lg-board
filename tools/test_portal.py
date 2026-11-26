@@ -2605,7 +2605,10 @@ def test_playable_team_scenarios() -> None:
         "After Bohdan Send to LP: HTML stays his active card",
         part(html_in, "programmer", bohdan) and part(html_in, "manager"),
     )
-    check("After Bohdan Send to LP: no second Send", direction_io.playable_handoff_status("programmer", html_in) == "")
+    check(
+        "HTML WIP still offers Send to LP after a leftover hand",
+        direction_io.playable_handoff_status("programmer", html_in) == "check",
+    )
     html_ready_in = card(studioStatus="artready", assigneeId=anna, programmerId=bohdan, playableHtml=True, handedToLp=True, handedBy=bohdan)
     check("After Send from to DEV: Bohdan stays active", part(html_ready_in, "programmer", bohdan))
     html_ghost = card(studioStatus="artready", assigneeId=anna, programmerId=bohdan, playableHtml=True, handedToLp=True)
@@ -2636,6 +2639,20 @@ def test_playable_team_scenarios() -> None:
         part(html_check_in, "programmer", bohdan) and direction_io.playable_in_html(html_check_in),
     )
     check("HTML Check after Send is not a second Send", direction_io.playable_handoff_status("programmer", html_check_in) == "")
+    check("HTML Check still offers DEV WIP", direction_io.playable_next_statuses("programmer", html_check_in) == ["wip"])
+    html_check_flagless = card(
+        studioStatus="check",
+        assigneeId=anna,
+        programmerId=bohdan,
+        handedToLp=True,
+        handedBy=bohdan,
+        resultUrl="https://play.example/zeus-v1",
+    )
+    check(
+        "HTML Check without playableHtml flag is still HTML",
+        direction_io.playable_in_html(html_check_flagless)
+        and direction_io.playable_next_statuses("programmer", html_check_flagless) == ["wip"],
+    )
     cycle = card(
         studioStatus="revision",
         assigneeId=anna,

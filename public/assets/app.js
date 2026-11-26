@@ -4883,7 +4883,12 @@ function playableInHtml(t) {
   const st = playableStatusKey(t);
   const devOnly = !playableAdId(t) && String(t?.programmerId || "").trim();
   if (st === "closed") return false;
-  if (st === "check") return Boolean(t?.playableHtml) || Boolean(devOnly);
+  if (st === "check") {
+    if (t?.playableHtml || devOnly) return true;
+    const handed = String(t?.handedBy || "").trim();
+    const dev = String(t?.programmerId || "").trim();
+    return Boolean(handed && dev && handed === dev);
+  }
   if (devOnly && !["clientart", "finalart"].includes(st)) return true;
   if (["new", "clientart", "finalart"].includes(st)) return false;
   if (["artready", "done", "approve"].includes(st)) return true;
@@ -4986,13 +4991,12 @@ function playableHandoffStatus(role, t) {
   const html = playableInHtml(t);
   if (role === "art_director") {
     if (html) return "";
-    if (playableAdDelivered(t)) return "";
     if (["new", "wip", "revision"].includes(st)) return "check";
+    if (playableAdDelivered(t)) return "";
     if (st === "finalart") return "notify";
     return "";
   }
   if (role === "programmer") {
-    if (playableDevDelivered(t)) return "";
     if (["artready", "wip", "revision"].includes(st) && html) return "check";
     if (!playableAdId(t) && ["new", "wip", "revision"].includes(st)) return "check";
     return "";
@@ -5018,7 +5022,7 @@ function playableNextStatuses(role, t) {
   }
   if (role === "programmer") {
     if (st === "artready") return ["wip"];
-    if (st === "check" && (html || !hasAd)) return ["wip"];
+    if (st === "check" && (html || !hasAd || playableDevDelivered(t))) return ["wip"];
     if (!hasAd && st === "new") return ["wip"];
     if (st === "revision" && (html || !hasAd)) return ["wip"];
     return [];
