@@ -3365,11 +3365,17 @@ html:not(.phone-ui):not(.standalone-app) .push-hint { display: none !important; 
   .sp-table .sp-num { width: 4.75rem; }
   .drawer {
     width: 100%;
+    max-width: 100vw;
+    overflow: hidden;
     padding: 10px 12px 0;
   }
   .drawer-body {
     padding-right: 0;
     padding-bottom: 8px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior-x: none;
+    max-width: 100%;
   }
   .drawer-x {
     width: 44px;
@@ -3388,13 +3394,40 @@ html:not(.phone-ui):not(.standalone-app) .push-hint { display: none !important; 
     margin-bottom: 8px;
     gap: 6px;
   }
-  html:not(.hours-host) .drawer .meta .pill {
+  html:not(.hours-host) .drawer .meta .pill,
+  html:not(.hours-host) .drawer .meta .status-new,
+  html:not(.hours-host) .drawer .meta .status-wip,
+  html:not(.hours-host) .drawer .meta .status-htmlwip,
+  html:not(.hours-host) .drawer .meta .status-htmlfix,
+  html:not(.hours-host) .drawer .meta .status-revision,
+  html:not(.hours-host) .drawer .meta .status-tlcheck,
+  html:not(.hours-host) .drawer .meta .status-check,
+  html:not(.hours-host) .drawer .meta .status-done,
+  html:not(.hours-host) .drawer .meta .status-todev,
+  html:not(.hours-host) .drawer .meta .status-approve,
+  html:not(.hours-host) .drawer .meta .status-closed {
     flex: 0 1 auto;
     min-width: 0;
+    max-width: 100%;
   }
   html:not(.hours-host) .card-job {
     margin: 0 0 10px;
     padding: 8px 10px;
+  }
+  html:not(.hours-host) .drawer-body > *,
+  html:not(.hours-host) .pin,
+  html:not(.hours-host) .notes,
+  html:not(.hours-host) .io-stack,
+  html:not(.hours-host) .io-result,
+  html:not(.hours-host) .who-block,
+  html:not(.hours-host) .help-split,
+  html:not(.hours-host) .card-ops,
+  html:not(.hours-host) .notes-item,
+  html:not(.hours-host) .notes-meta,
+  html:not(.hours-host) .play-seat,
+  html:not(.hours-host) .play-seat-row {
+    max-width: 100%;
+    min-width: 0;
   }
   html:not(.hours-host) .pin-actions {
     display: grid;
@@ -3427,11 +3460,13 @@ html:not(.phone-ui):not(.standalone-app) .push-hint { display: none !important; 
     flex-direction: column;
     align-items: stretch;
     gap: 8px;
+    max-width: 100%;
   }
   html:not(.hours-host) .link-row-input,
   html:not(.hours-host) .io-result .link-row-input {
     flex: 1 1 auto;
     width: 100%;
+    max-width: 100%;
   }
   html:not(.hours-host) .link-host,
   html:not(.hours-host) .link-updated {
@@ -3445,13 +3480,13 @@ html:not(.phone-ui):not(.standalone-app) .push-hint { display: none !important; 
     margin-top: 6px;
   }
   html:not(.hours-host) .drawer-actions {
-    position: sticky;
-    bottom: 0;
-    z-index: 2;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
     margin-top: 0;
     padding: 10px 0 calc(10px + env(safe-area-inset-bottom));
     background: #fff;
-    box-shadow: 0 -8px 16px rgba(50, 51, 56, 0.06);
   }
   html:not(.hours-host) {
     --fs: 15px;
@@ -3659,20 +3694,27 @@ html:not(.phone-ui):not(.standalone-app) .push-hint { display: none !important; 
     z-index: 40;
   }
   html:not(.hours-host) .inbox-item { min-height: 52px; padding: 12px; }
-  html:not(.hours-host) .drawer-actions,
   html:not(.hours-host) .drawer-actions-main,
   html:not(.hours-host) .drawer-actions-end {
-    flex-direction: column;
-    align-items: stretch;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    width: auto;
     margin-left: 0;
-    width: 100%;
+  }
+  html:not(.hours-host) .drawer-actions-end {
+    margin-left: auto;
   }
   html:not(.hours-host) .drawer-actions .btn {
-    width: 100%;
+    width: auto;
+    flex: 0 1 auto;
   }
   html:not(.hours-host) #cancelTask,
   html:not(.hours-host) #saveTask,
-  html:not(.hours-host) #handOff { width: 100%; }
+  html:not(.hours-host) #handOff {
+    width: auto;
+    min-width: 96px;
+  }
   html:not(.hours-host) .status-btns { gap: 8px; }
   html:not(.hours-host) .status-btn {
     min-height: 44px;

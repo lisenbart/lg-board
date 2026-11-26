@@ -453,10 +453,17 @@ def test_phone_queue_mvp() -> None:
         and "tap to open the card" not in js,
     )
     check(
-        "phone card drawer stacks actions",
-        "html:not(.hours-host) .pin-actions" in css
-        and "html:not(.hours-host) .drawer-actions" in css
-        and "position: sticky" in css.split("html:not(.hours-host) .drawer-actions")[1].split("}")[0],
+        "phone card drawer locks horizontal scroll",
+        "overflow-x: hidden" in css
+        and "overscroll-behavior-x: none" in css
+        and "max-width: 100vw" in css
+        and "position: sticky" not in css.split("@media (max-width: 980px)")[-1].split("html:not(.hours-host) .drawer-actions")[1].split("}")[0],
+    )
+    check(
+        "phone card footer stays a compact row",
+        "html:not(.hours-host) .drawer-actions-end" in css
+        and "margin-left: auto" in css.split("@media (max-width: 980px)")[-1]
+        and "width: auto;\n    min-width: 96px" in css.split("@media (max-width: 980px)")[-1],
     )
     check("phone names wrap inside the card", "overflow-wrap: anywhere" in css and "word-break: break-word" in css)
     check(
