@@ -4173,9 +4173,11 @@ function renderClientReport() {
   $("board").innerHTML = `
     <section class="sp-report${hideHours ? " is-projects" : ""}">
       <div class="sp-kpis">
-        ${hoursKpiHtml(totalProjects, "projects")}
-        ${dirKpis}
-        ${hoursStampKpi()}
+        ${
+          hideHours
+            ? `${hoursStampKpi()}${dirKpis}`
+            : `${hoursKpiHtml(totalProjects, "projects")}${dirKpis}${hoursStampKpi()}`
+        }
       </div>
       <div class="sp-blocks">${sheets}</div>
       <div class="sp-download">

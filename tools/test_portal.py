@@ -1674,6 +1674,12 @@ def test_playables_desk() -> None:
             and 'hoursKpiHtml(mgxCount, "MGX", "mgx")' in js
             and 'th class="sp-num">HOURS</th>' in js,
         )
+        check(
+            "client KPIs are stamp plus direction chips",
+            "${hoursStampKpi()}${dirKpis}" in js
+            and 'hoursKpiHtml(totalProjects, "projects")}${dirKpis}' in js
+            and "sp-report.is-projects .sp-kpis .sp-stamp" in css,
+        )
         html = (ROOT / "public" / "index.html").read_text(encoding="utf-8")
         check(
             "DL SuperPlay hours stay in the cabinet",
