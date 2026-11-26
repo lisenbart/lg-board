@@ -8008,8 +8008,11 @@ function openTask(id) {
         toast(out.error || "Could not remove note");
         return;
       }
+      const wasFix = isPlayables(t) && playableStatusKey(t) === "revision";
       applyState(out.state);
+      const fresh = state.db?.tasks?.find((x) => x.id === t.id) || out.task;
       if (out.drive && out.drive.ok === false) toast(`Note off the card. Drive: ${out.drive.error}`, 6000);
+      else if (wasFix && fresh && playableStatusKey(fresh) !== "revision") toast(`${statusText(playableStatusKey(fresh), fresh)} · note gone`);
       openTask(t.id);
     });
   });

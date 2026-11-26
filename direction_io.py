@@ -458,6 +458,53 @@ def apply_client_note_bounce(task: dict | None, role: str) -> bool:
     return True
 
 
+def _open_client_notes(task: dict | None) -> list[dict]:
+    return [row for row in (task or {}).get("comments") or [] if isinstance(row, dict)]
+
+
+def undo_client_note_bounce(task: dict | None) -> bool:
+    """Last client note gone while still Need Fixing → the status before that bounce. Monday notes still count."""
+    task = task or {}
+    if _open_client_notes(task):
+        return False
+    mgx_status = {
+        "new": "Ready to Start",
+        "wip": "WIP",
+        "revision": "Need Fixing",
+        "tlcheck": "TL Check",
+        "done": "Done",
+        "approve": "Senior Approval",
+        "closed": "Closed",
+    }
+    if is_playables(task):
+        st = playable_norm_status(task.get("studioStatus"))
+        if st != "revision":
+            return False
+        html = playable_in_html(task)
+        prev = _status_before(task, "revision")
+        if not prev or prev == "revision":
+            prev = "artready" if html else "new"
+        task["studioStatus"] = prev
+        task["mondayStatus"] = PLAY_STATUS.get(prev, task.get("mondayStatus"))
+        touch_playable_html(task, prev="revision")
+        if prev == "wip":
+            task["playableHtml"] = True if html else False
+        return True
+    st = str(task.get("studioStatus") or "")
+    if st != "revision":
+        return False
+    prev = ""
+    for item in reversed(task.get("statusLog") or []):
+        if isinstance(item, dict) and str(item.get("to") or "") == "revision":
+            prev = str(item.get("from") or "")
+            break
+    if not prev or prev == "revision":
+        prev = "new"
+    task["studioStatus"] = prev
+    task["mondayStatus"] = mgx_status.get(prev, task.get("mondayStatus"))
+    return True
+
+
 def playable_may_assign_dev(task: dict | None, role: str | None = None) -> bool:
     """LP/DL may seat DEV at any status. DEV work still waits for Art ready when AD is on the card."""
     if role in {"manager", "finance"}:

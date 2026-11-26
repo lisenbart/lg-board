@@ -33,7 +33,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-11-25b"
+BUILD = "2026-11-25c"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -3650,6 +3650,16 @@ class Handler(SimpleHTTPRequestHandler):
                     drive_err = drive_io.drop_comment_from_drive(task, found)
                     if drive_err:
                         print(f"[drive] comment delete {found.get('id')}: {drive_err}", flush=True)
+                    before = {
+                        "studioStatus": task.get("studioStatus"),
+                        "assigneeId": task.get("assigneeId"),
+                        "programmerId": task.get("programmerId"),
+                        "playableHtml": task.get("playableHtml"),
+                    }
+                    if direction_io.undo_client_note_bounce(task):
+                        notice_io.on_task_change(
+                            db, task, before, str(data.get("actorId") or "")
+                        )
                     save_db(db)
                     out = {"task": task, "state": db}
                     if drive_err:

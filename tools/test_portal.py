@@ -2571,6 +2571,36 @@ def test_playable_team_scenarios() -> None:
     check("AD client note does not bounce status", not bounce(card(), "art_director"))
     check("TL client note does not bounce status", not bounce(card(), "teamlead"))
     check("DL client note also bounces", bounce(card(), "finance"))
+    undo = direction_io.undo_client_note_bounce
+
+    def bounced(st, **kw):
+        row = card(studioStatus=st, **kw)
+        bounce(row, "manager")
+        row["statusLog"] = [{"from": st, "to": "revision"}]
+        row["comments"] = []
+        return row
+
+    back_ready = bounced("new")
+    check("last note undo Ready", undo(back_ready) and back_ready["studioStatus"] == "new" and not direction_io.playable_in_html(back_ready))
+    back_sent = bounced("clientart")
+    check("last note undo Sent is Need Fixing Art off", undo(back_sent) and back_sent["studioStatus"] == "clientart" and not direction_io.playable_in_html(back_sent))
+    back_check = bounced("check")
+    check("last note undo Check", undo(back_check) and back_check["studioStatus"] == "check")
+    back_html = bounced("artready", playableHtml=True)
+    check("last note undo Art ready", undo(back_html) and back_html["studioStatus"] == "artready" and direction_io.playable_in_html(back_html))
+    back_done = bounced("done", playableHtml=True)
+    check("last note undo Done", undo(back_done) and back_done["studioStatus"] == "done" and direction_io.playable_in_html(back_done))
+    back_send_html = bounced("approve", playableHtml=True)
+    check("last note undo Sent HTML", undo(back_send_html) and back_send_html["studioStatus"] == "approve" and direction_io.playable_in_html(back_send_html))
+    still_note = bounced("new")
+    still_note["comments"] = [{"id": "c2", "source": "manual", "body": "still here"}]
+    check("other notes keep Need Fixing", not undo(still_note) and still_note["studioStatus"] == "revision")
+    monday_keep = bounced("new")
+    monday_keep["comments"] = [{"id": "m1", "source": "monday", "body": "from Monday"}]
+    check("Monday notes keep Need Fixing", not undo(monday_keep) and monday_keep["studioStatus"] == "revision")
+    already_wip = card(studioStatus="wip")
+    already_wip["comments"] = []
+    check("WIP after the bounce is not undone", not undo(already_wip) and already_wip["studioStatus"] == "wip")
     send = card(studioStatus="approve", assigneeId=anna, programmerId=bohdan, playableHtml=True)
     check("Send: AD and DEV wait, LP stays", not part(send, "art_director", anna) and not part(send, "programmer", bohdan) and part(send, "manager"))
     code_only = card(studioStatus="new", assigneeId="", programmerId=bohdan)
@@ -3056,10 +3086,12 @@ def test_comment_shots() -> None:
         and "Monday notes stay until the Monday sync" in src,
     )
     check("delete note toasts a Drive miss", "Note off the card. Drive:" in js)
+    check("last note undo toasts the restored status", "note gone" in js)
     drive = (ROOT / "drive_io.py").read_text(encoding="utf-8")
     check("Comments live in a Comments folder", 'parent, "Comments"' in drive or '", "Comments"' in drive)
     check("each client note gets a numbered Drive slot", "def ensure_comment_slot" in drive and "def next_comment_index" in src)
     check("delete note trashes Drive Comments", "def drop_comment_from_drive" in drive and "drop_comment_from_drive" in src)
+    check("delete last note undoes Need Fixing", "def undo_client_note_bounce" in (ROOT / "direction_io.py").read_text(encoding="utf-8") and "undo_client_note_bounce" in src)
     check("first client note is 01", server.next_comment_index({"comments": []}) == 1)
     check("next client note is 03", server.next_comment_index({"comments": [{"driveIndex": 1}, {"driveIndex": 2}]}) == 3)
     check("Comments button opens the Drive folder", ">Comments</a>" in js and "Open Comments" in js)
