@@ -35,7 +35,9 @@ MGX pipeline:
 
 Playables pipeline:
 
-**Ready → WIP → Check → Sent → Final art → Art ready → WIP → Done → Send → Closed**
+**Ready → WIP → Hand to LP → Check → Sent → Final art → Art ready → WIP HTML → Hand to LP → Done → Send → Closed**
+
+AD and DEV hand work to LP. Only LP sets Done, Need Fixing, Art ready, and Send.
 
 ## Access
 

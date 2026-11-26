@@ -74,6 +74,15 @@ KINDS = {
         "skip_actor": True,
         "channels": ["portal"],
     },
+    "task.handed": {
+        "label": "Hand to LP",
+        "title": "{name}",
+        "detail": "{preview}",
+        "mark": "check",
+        "audience": {"roles": ["manager"]},
+        "skip_actor": True,
+        "channels": ["portal"],
+    },
     "task.ready": {
         "label": "Ready to send",
         "title": "{name}",
@@ -123,7 +132,7 @@ STATUS_LABELS = {
     "approve": "Senior Approval",
     "closed": "Closed",
     "check": "Check",
-    "clientart": "Client art",
+    "clientart": "Sent",
     "finalart": "Final art",
     "artready": "Art ready",
 }
@@ -330,7 +339,7 @@ def stamp_status(db: dict, task: dict, prev: str, nxt: str, actor_id: str = "", 
     return row
 
 
-def on_task_change(db: dict, task: dict, before: dict | None, actor_id: str = ""):
+def on_task_change(db: dict, task: dict, before: dict | None, actor_id: str = "", handed: bool = False):
     before = before or {}
     old_assignee = before.get("assigneeId") or ""
     new_assignee = task.get("assigneeId") or ""
@@ -386,15 +395,29 @@ def on_task_change(db: dict, task: dict, before: dict | None, actor_id: str = ""
             ack(db, actor_id, task_id=task.get("id"), kinds=["task.ready", "task.check"])
         elif new_status == "closed":
             emit(db, "task.closed", actor_id=actor_id, task=task)
-            ack(db, actor_id, task_id=task.get("id"), kinds=["task.sent", "task.ready"])
+            ack(db, actor_id, task_id=task.get("id"), kinds=["task.sent", "task.ready", "task.handed"])
         elif new_status == "wip" and old_status in WIP_REVERT_FROM:
             emit(db, "task.wip", actor_id=actor_id, task=task)
+        if not handed:
+            task["handedToLp"] = False
     elif bounced_art:
         import direction_io
         if direction_io.is_playables(task):
             ping_ids = [str(task.get("assigneeId") or "").strip()]
             ping_ids = [pid for pid in ping_ids if pid]
             emit(db, "task.revision", actor_id=actor_id, task=task, audience_ids=ping_ids or None)
+    if handed:
+        import direction_io
+        task["handedToLp"] = True
+        st = direction_io.playable_norm_status(task.get("studioStatus")) if direction_io.is_playables(task) else ""
+        if st and st != "check":
+            if st == "finalart":
+                preview = "Art is finished · set Art ready"
+            elif direction_io.playable_in_html(task):
+                preview = "HTML is on the card · set Done"
+            else:
+                preview = "Work is on the card"
+            emit(db, "task.handed", actor_id=actor_id, task=task, payload={"preview": preview})
 
 
 def bootstrap(db: dict) -> int:

@@ -64,6 +64,15 @@
       skipActor: true,
       channels: ["portal"],
     },
+    "task.handed": {
+      label: "Hand to LP",
+      title: "{name}",
+      detail: "{preview}",
+      mark: "check",
+      audience: { roles: ["manager"] },
+      skipActor: true,
+      channels: ["portal"],
+    },
     "task.ready": {
       label: "Ready to send",
       title: "{name}",

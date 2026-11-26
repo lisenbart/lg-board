@@ -33,7 +33,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-11-24g"
+BUILD = "2026-11-24h"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -3296,6 +3296,9 @@ class Handler(SimpleHTTPRequestHandler):
                     if wanted and wanted != str(task.get("programmerId") or "") and not direction_io.playable_may_assign_dev(trial, role):
                         self._json(403, {"error": "Assign DEV after Art ready"})
                         return
+                if playable and str(nxt or "") == direction_io.HANDOFF_NOTIFY:
+                    data.pop("studioStatus", None)
+                    nxt = None
                 if playable and nxt and nxt != task.get("studioStatus"):
                     ok, err = direction_io.playable_can_set(role, task, nxt, actor_id=actor)
                     if not ok:
@@ -3556,7 +3559,13 @@ class Handler(SimpleHTTPRequestHandler):
                 note = data.get("note")
                 if note:
                     task.setdefault("activity", []).append({"at": utc_now(), "text": note})
-                notice_io.on_task_change(db, task, before, data.get("actorId") or "")
+                notice_io.on_task_change(
+                    db,
+                    task,
+                    before,
+                    data.get("actorId") or "",
+                    handed=bool(data.get("handed")),
+                )
                 money = any(
                     key in data
                     for key in (

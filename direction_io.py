@@ -59,14 +59,15 @@ PLAY_OPS_STATUSES = (
 )
 
 PLAY_STATUS_BY_ROLE = {
-    "art_director": {"wip", "check", "artready"},
-    "programmer": {"wip", "done"},
+    "art_director": {"wip", "check"},
+    "programmer": {"wip"},
     "designer": set(),
     "teamlead": set(),
     "manager": set(PLAY_OPS_STATUSES),
     "finance": set(PLAY_OPS_STATUSES),
     "client": set(),
 }
+HANDOFF_NOTIFY = "notify"
 
 PLAYABLE_CREW = [
     {
@@ -238,9 +239,9 @@ def playable_in_html(task: dict | None) -> bool:
     """HTML loop starts at Art ready (or a DEV-only card). Seating DEV on Ready is still art."""
     task = task or {}
     st = playable_norm_status(task.get("studioStatus"))
-    if st in ART_LOOP:
+    if st in ART_LOOP or st == "closed":
         return False
-    if st in HTML_HANDOFF or st == "closed":
+    if st in HTML_HANDOFF:
         return True
     if st in {"wip", "revision"}:
         prev = _status_before(task, st)
@@ -267,6 +268,8 @@ def touch_playable_html(task: dict | None, prev: str | None = None, force_art: b
         if board:
             task["resultUrl"] = board
         task["playableHtml"] = False
+        task["htmlUrl"] = ""
+        task["handedToLp"] = False
         return
     if st in ART_LOOP or st == "closed":
         if task.get("playableHtml"):
@@ -313,7 +316,7 @@ def playable_may_assign_dev(task: dict | None, role: str | None = None) -> bool:
 
 
 def playable_next_statuses(role: str, task: dict | None) -> list[str]:
-    """AD/DEV get the next step. LP/DL can set any work status. Send stays a footer action."""
+    """AD/DEV may start WIP. Done, Need Fixing, Art ready and the rest are LP."""
     task = task or {}
     st = playable_norm_status(task.get("studioStatus"))
     has_ad = playable_has_ad(task)
@@ -325,17 +328,13 @@ def playable_next_statuses(role: str, task: dict | None) -> list[str]:
             return []
         return {
             "new": ["wip"],
-            "wip": ["check"],
             "revision": ["wip"],
-            "finalart": ["artready"],
         }.get(st, [])
     if role == "programmer":
         if st == "artready":
             return ["wip"]
         if not has_ad and st == "new":
             return ["wip"]
-        if st == "wip" and (html or not has_ad):
-            return ["done"]
         if st == "revision" and (html or not has_ad):
             return ["wip"]
         return []
@@ -343,7 +342,7 @@ def playable_next_statuses(role: str, task: dict | None) -> list[str]:
 
 
 def playable_handoff_status(role: str, task: dict | None) -> str:
-    """Paste the link and hand it to LP — the Telegram-shaped action."""
+    """AD/DEV hand work to LP. Check is the storyboard inbox. notify does not change status."""
     task = task or {}
     st = playable_norm_status(task.get("studioStatus"))
     html = playable_in_html(task)
@@ -352,12 +351,14 @@ def playable_handoff_status(role: str, task: dict | None) -> str:
             return ""
         if st in {"new", "wip", "revision"}:
             return "check"
+        if st == "finalart":
+            return HANDOFF_NOTIFY
         return ""
     if role == "programmer":
         if st in {"artready", "wip", "revision"} and html:
-            return "done"
+            return HANDOFF_NOTIFY
         if not playable_has_ad(task) and st in {"new", "wip", "revision"}:
-            return "done"
+            return HANDOFF_NOTIFY
         return ""
     return ""
 
@@ -385,6 +386,8 @@ def playable_can_set(role: str, task: dict | None, nxt: str, *, actor_id: str = 
         return False, "Only the AD on the card sets art status"
     if role == "programmer" and actor_id and str(task.get("programmerId") or "") != str(actor_id):
         return False, "Only the DEV on the card sets HTML status"
+    if nxt in {"done", "revision", "finalart", "artready", "clientart"} and role not in {"manager", "finance"}:
+        return False, "Only LP sets Done, Need Fixing, and the next step"
     if nxt not in playable_next_statuses(role, task) and playable_handoff_status(role, task) != nxt:
         return False, f"{role} cannot set {nxt}"
     return True, ""

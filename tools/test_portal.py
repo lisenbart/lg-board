@@ -1823,12 +1823,14 @@ def test_playable_card_pipeline() -> None:
     check("DL may assign DEV on Ready", direction_io.playable_may_assign_dev(ad, "finance"))
     check("DEV with AD waits on Ready", direction_io.playable_next_statuses("programmer", {**ad, "programmerId": "programmer1"}) == [])
     ad["studioStatus"] = "wip"
-    check("AD WIP offers Check", direction_io.playable_next_statuses("art_director", ad) == ["check"])
+    check("AD WIP has no continuation chips", direction_io.playable_next_statuses("art_director", ad) == [])
+    check("AD WIP hands the board to LP", direction_io.playable_handoff_status("art_director", ad) == "check")
     art_wip = {"studioStatus": "wip", "assigneeId": "artdir1", "programmerId": "programmer1"}
     check("DEV on the card is not HTML yet", not direction_io.playable_in_html(art_wip))
     check(
-        "AD WIP with DEV still offers Check",
-        direction_io.playable_next_statuses("art_director", art_wip) == ["check"],
+        "AD WIP with DEV still hands Check to LP",
+        direction_io.playable_next_statuses("art_director", art_wip) == []
+        and direction_io.playable_handoff_status("art_director", art_wip) == "check",
     )
     check(
         "DEV on AD WIP has no HTML chips",
@@ -1860,16 +1862,25 @@ def test_playable_card_pipeline() -> None:
     check("DEV stays off storyboard Fix", direction_io.playable_next_statuses("programmer", bounced) == [])
 
     ad["studioStatus"] = "finalart"
-    check("AD Final art offers Art ready", direction_io.playable_next_statuses("art_director", ad) == ["artready"])
+    check("AD Final art has no Art ready chip", direction_io.playable_next_statuses("art_director", ad) == [])
+    check("AD Final art hands to LP", direction_io.playable_handoff_status("art_director", ad) == "notify")
     helper_ok, helper_err = direction_io.playable_can_set("art_director", ad, "artready", actor_id="artdir2")
     check("helper AD cannot set status", not helper_ok, helper_err)
+    check(
+        "AD cannot set Art ready",
+        not direction_io.playable_can_set("art_director", ad, "artready", actor_id="artdir1")[0],
+    )
     ad["studioStatus"] = "artready"
     check("DEV assign unlocks on Art ready", direction_io.playable_may_assign_dev(ad))
     check("DEV on Art ready offers WIP", direction_io.playable_next_statuses("programmer", {**ad, "programmerId": "programmer1"}) == ["wip"])
     check("AD is done at Art ready", direction_io.playable_next_statuses("art_director", ad) == [])
     check(
-        "DEV can Hand Done from Art ready",
-        direction_io.playable_can_set("programmer", {**ad, "programmerId": "programmer1"}, "done", actor_id="programmer1")[0],
+        "DEV cannot set Done from Art ready",
+        not direction_io.playable_can_set("programmer", {**ad, "programmerId": "programmer1"}, "done", actor_id="programmer1")[0],
+    )
+    check(
+        "DEV Hand to LP from Art ready does not change status",
+        direction_io.playable_handoff_status("programmer", {**ad, "programmerId": "programmer1"}) == "notify",
     )
     check(
         "DEV cannot Hand Done during art WIP",
@@ -1883,10 +1894,15 @@ def test_playable_card_pipeline() -> None:
         "playableHtml": True,
     }
     check("HTML loop starts after Art ready", direction_io.playable_in_html(html))
-    check("DEV HTML WIP offers Done", direction_io.playable_next_statuses("programmer", html) == ["done"])
+    check("DEV HTML WIP has no Done chip", direction_io.playable_next_statuses("programmer", html) == [])
+    check("DEV HTML WIP hands to LP", direction_io.playable_handoff_status("programmer", html) == "notify")
     check("AD does not drive HTML WIP", direction_io.playable_next_statuses("art_director", html) == [])
     ok_html, err_html = direction_io.playable_can_set("programmer", html, "done", actor_id="programmer1")
-    check("DEV can pick Done from HTML WIP", ok_html, err_html)
+    check("DEV cannot pick Done from HTML WIP", not ok_html, err_html)
+    ok_lp_done, err_lp_done = direction_io.playable_can_set("manager", html, "done")
+    check("Only LP sets Done", ok_lp_done, err_lp_done)
+    ok_ad_fix, err_ad_fix = direction_io.playable_can_set("art_director", html, "revision", actor_id="artdir1")
+    check("AD cannot set Need Fixing", not ok_ad_fix, err_ad_fix)
     html_bounce = {
         "studioStatus": "approve",
         "assigneeId": "artdir1",
@@ -1907,6 +1923,24 @@ def test_playable_card_pipeline() -> None:
     check("Need Fixing · Art clears the HTML loop", art_bounce.get("playableHtml") is False)
     check("Need Fixing · Art is AD's again", direction_io.playable_in_html(art_bounce) is False)
     check("Need Fixing · Art restores the storyboard URL", art_bounce.get("resultUrl") == "https://miro.com/app/board/art")
+    stale = {
+        "studioStatus": "revision",
+        "assigneeId": "artdir1",
+        "programmerId": "programmer1",
+        "playableHtml": True,
+        "storyboardUrl": "https://miro.com/app/board/art",
+        "resultUrl": "https://play.example/html-v2",
+        "htmlUrl": "https://play.example/html-v1",
+    }
+    direction_io.touch_playable_html(stale, prev="approve", force_art=True)
+    check("Need Fixing · Art drops the stale HTML draft", stale.get("htmlUrl") == "")
+    stale["studioStatus"] = "artready"
+    direction_io.touch_playable_html(stale)
+    check(
+        "second Art ready does not restore old HTML",
+        stale.get("resultUrl") == "https://miro.com/app/board/art",
+        str({k: stale.get(k) for k in ("resultUrl", "htmlUrl", "storyboardUrl")}),
+    )
     check("AD can WIP after art bounce", direction_io.playable_next_statuses("art_director", art_bounce) == ["wip"])
     check("DEV does not take art bounce", direction_io.playable_next_statuses("programmer", art_bounce) == [])
     bounce_db = {
@@ -1968,8 +2002,8 @@ def test_playable_card_pipeline() -> None:
     check("card uses next-step Playables statuses", "function playableNextStatuses" in js and "function playableStatusActions" in js)
     check("Playables assign is LP/DL", "function canAssignPlayable" in js and "play ? canAssignPlayable() : canAssign()" in js)
     check("LP seats DEV from Ready in copy", "You can already put DEV on the card" in js)
-    check("Playables guide names the pipeline", "Ready → WIP → Check → Sent → Final art → Art ready → WIP → Done → Send → Closed" in js)
-    check("AD owns Playables status copy", "AD owns status — you do not change it" in js)
+    check("Playables guide names the pipeline", "Done, Need Fixing і Art ready ставить лише LP" in js)
+    check("MD copy says LP owns Done", "LP owns Done and Need Fixing" in js)
     check(
         "LP/DL can set any Playables work status",
         'return PLAY_OPS_STATUSES.slice()' in js.split("function playableNextStatuses")[1].split("function playableStatusActions")[0]
@@ -1982,7 +2016,7 @@ def test_playable_card_pipeline() -> None:
     check("Monday chips name Art vs HTML WIP", "WIP · Art" in js and "WIP · HTML" in js)
     check("rows mark your turn vs waiting", "function isActiveForMe" in js and "is-turn" in js and "is-wait" in js)
     check("LP can bounce HTML Need Fixing to Art", 'data-art-bounce="1"' in js and "Need Fixing · Art" in js)
-    check("DEV sees HTML slot before Art ready", "Save the link now. Hand to LP after AD sets Art ready." in js)
+    check("DEV sees HTML slot before Art ready", "Save the link now. Hand to LP after LP sets Art ready." in js)
     check("Art ready pings seated DEV", notice_io.KINDS["task.artready"]["audience"].get("assignee") is True)
     notices_js = (ROOT / "public" / "assets" / "notices.js").read_text(encoding="utf-8")
     check(
@@ -2053,7 +2087,9 @@ def test_playable_card_pipeline() -> None:
     }
     direction_io.touch_playable_html(reopened)
     check("Closed → Ready → WIP returns the card to AD", reopened.get("playableHtml") is False)
-    check("AD can Check after reopen", direction_io.playable_next_statuses("art_director", reopened) == ["check"])
+    check("AD hands Check to LP after reopen", direction_io.playable_handoff_status("art_director", reopened) == "check")
+    closed_html = {"studioStatus": "closed", "assigneeId": "artdir1", "programmerId": "programmer1", "playableHtml": True}
+    check("Closed is not the HTML loop", direction_io.playable_in_html(closed_html) is False)
     check("reopened WIP is not the HTML loop", direction_io.playable_in_html(reopened) is False)
     closed = {"studioStatus": "closed", "assigneeId": "artdir1", "playableHtml": True}
     direction_io.touch_playable_html(closed)
