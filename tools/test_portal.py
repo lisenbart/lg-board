@@ -2144,9 +2144,9 @@ def test_playable_card_pipeline() -> None:
         '["new", "wip", "revision", "check", "finalart"].includes(st)' in js,
     )
     check(
-        "DEV part stays open until that programmer Send to LP",
-        "function playableDevDelivered" in js
-        and "return String(t.handedBy || \"\") === dev" in js,
+        "DEV HTML stays active after Send to LP",
+        'playableInHtml(t)) return ["new", "wip", "revision", "artready"].includes(st)'
+        in js.split("function playablePartOpen")[1].split("function isActiveForMe")[0],
     )
     check("LP can bounce HTML Need Fixing to Art", "Need Fixing · Art" in js and "Need Fixing · HTML" in js)
     check("DEV sees HTML slot before Art ready", "The link saves itself. Send to LP after LP sets to DEV." in js)
@@ -2582,8 +2582,13 @@ def test_playable_team_scenarios() -> None:
     html = card(studioStatus="wip", assigneeId=anna, programmerId=bohdan, playableHtml=True)
     check("HTML WIP: Bohdan active", part(html, "programmer", bohdan) and not part(html, "art_director", anna))
     html_in = card(studioStatus="wip", assigneeId=anna, programmerId=bohdan, playableHtml=True, handedToLp=True, handedBy=bohdan)
-    check("After Bohdan Send to LP: his part is done", not part(html_in, "programmer", bohdan) and part(html_in, "manager"))
+    check(
+        "After Bohdan Send to LP: HTML stays his active card",
+        part(html_in, "programmer", bohdan) and part(html_in, "manager"),
+    )
     check("After Bohdan Send to LP: no second Send", direction_io.playable_handoff_status("programmer", html_in) == "")
+    html_ready_in = card(studioStatus="artready", assigneeId=anna, programmerId=bohdan, playableHtml=True, handedToLp=True, handedBy=bohdan)
+    check("After Send from to DEV: Bohdan stays active", part(html_ready_in, "programmer", bohdan))
     html_ghost = card(studioStatus="artready", assigneeId=anna, programmerId=bohdan, playableHtml=True, handedToLp=True)
     check("HTML Send without handedBy still Bohdan", part(html_ghost, "programmer", bohdan) and not part(html_ghost, "art_director", anna))
     html_fix = card(studioStatus="revision", assigneeId=anna, programmerId=bohdan, playableHtml=True)

@@ -329,7 +329,7 @@ def playable_turn_role(task: dict | None) -> str:
 
 
 def playable_part_open(task: dict | None, role: str, person_id: str = "") -> bool:
-    """Active while seated and this seat still owns the work. Inactive only if not seated, or the part is in and they do not need to come back. Need Fixing always reopens the person who must fix it."""
+    """Active while seated and this seat's work is not yet accepted. Send to LP does not grey the row — LP still has to check. Need Fixing reopens the person who must fix it."""
     task = task or {}
     st = playable_norm_status(task.get("studioStatus"))
     if st == "closed":
@@ -344,7 +344,13 @@ def playable_part_open(task: dict | None, role: str, person_id: str = "") -> boo
             return False
         return st in {"new", "wip", "revision", "check", "finalart"}
     if role == "programmer":
-        return playable_turn_role(task) == "programmer" and str(task.get("programmerId") or "") == actor
+        if str(task.get("programmerId") or "") != actor:
+            return False
+        if st in {"approve", "closed", "clientart", "done"}:
+            return False
+        if playable_in_html(task):
+            return st in {"new", "wip", "revision", "artready"}
+        return False
     return False
 
 

@@ -3531,6 +3531,7 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
             : "Open Client notes on this card. Text and files stay there after you read the ping. Then fix the HTML and Send to LP.",
         };
       }
+      if (playableDevDelivered(t)) return { tone: "wait", title: "Waiting for LP", body: "HTML is with LP. They set Done or Need Fixing. Tap WIP if you still need to fix it." };
       if (st === "artready") return { tone: "do", title: "to DEV", body: "Tap the chip → WIP · HTML or Send to LP. Paste the HTML first. LP sets Done or Need Fixing. Not in Telegram." };
       if (!hasResult) return { tone: "do", title: "Your job", body: "Paste the HTML, then Send to LP. LP sets Done or Need Fixing. Not in Telegram." };
       return { tone: "do", title: "Send to LP", body: "Link is in the field. Send to LP — LP sets Done. Not in Telegram." };
@@ -4933,7 +4934,12 @@ function playablePartOpen(t, role, personId) {
     if (playableInHtml(t) || ["approve", "clientart", "artready", "done"].includes(st)) return false;
     return ["new", "wip", "revision", "check", "finalart"].includes(st);
   }
-  if (role === "programmer") return playableTurnRole(t) === "programmer" && String(t.programmerId || "") === actor;
+  if (role === "programmer") {
+    if (String(t.programmerId || "") !== actor) return false;
+    if (["approve", "closed", "clientart", "done"].includes(st)) return false;
+    if (playableInHtml(t)) return ["new", "wip", "revision", "artready"].includes(st);
+    return false;
+  }
   return false;
 }
 function isActiveForMe(t) {
