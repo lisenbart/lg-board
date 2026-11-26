@@ -1717,9 +1717,11 @@ def test_playables_desk() -> None:
         )
         check(
             "client KPIs are stamp plus direction chips",
-            "${hoursStampKpi()}${dirKpis}" in js
+            "${hoursStampKpi()}${dirKpis}${clientDoneKpi}" in js
             and 'hoursKpiHtml(totalProjects, "projects")}${dirKpis}' in js
-            and "sp-report.is-projects .sp-kpis .sp-stamp" in css,
+            and "sp-report.is-projects .sp-kpis .sp-stamp" in css
+            and 'id="kpiClientDone"' in js
+            and "state.hoursDone" in js,
         )
         html = (ROOT / "public" / "index.html").read_text(encoding="utf-8")
         check(

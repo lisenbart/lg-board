@@ -140,6 +140,7 @@ const state = {
   openId: null,
   designerFilter: null,
   hoursDir: null,
+  hoursDone: false,
   hoursClient: "superplay",
   boardClient: localStorage.getItem("lg-client") || "superplay",
   presence: {},
@@ -1903,6 +1904,7 @@ function setMonth(ym) {
   state.selected.clear();
   state.designerFilter = null;
   state.hoursDir = null;
+  state.hoursDone = false;
   localStorage.setItem(MONTH_KEY, ym);
   render();
 }
@@ -4051,7 +4053,10 @@ function renderClientReport() {
   const hideHours = isClient();
   const q = searchQuery();
   const all = monthTasks({ all: true });
-  const tasks = all
+  const doneCount = all.filter((t) => isDoneKpiStatus(t)).length;
+  if (hideHours && state.hoursDone && !doneCount) state.hoursDone = false;
+  const scoped = hideHours && state.hoursDone ? all.filter((t) => isDoneKpiStatus(t)) : all;
+  const tasks = scoped
     .filter((t) => !q || String(t.name || "").toLowerCase().includes(q))
     .slice()
     .sort((a, b) => String(a.line).localeCompare(String(b.line)) || String(a.name).localeCompare(String(b.name)));
@@ -4061,7 +4066,9 @@ function renderClientReport() {
     return;
   }
   if (!tasks.length) {
-    $("board").innerHTML = `<div class="sp-empty">No projects match.</div>`;
+    $("board").innerHTML = `<div class="sp-empty">${
+      hideHours && state.hoursDone ? "No Done or Closed projects." : "No projects match."
+    }</div>`;
     return;
   }
   const sections = reportSections(tasks);
@@ -4176,12 +4183,15 @@ function renderClientReport() {
         ${play.rows.length ? hoursKpiHtml(playCount, "Playable", "playables") : ""}`
     : `${mgx.rows.length ? hoursKpiHtml(`${fmtReportNum(mgx.hours, 1)} h`, "MGX", "mgx") : ""}
         ${play.rows.length ? hoursKpiHtml(`${fmtReportNum(play.hours, 1)} h`, "Playable", "playables") : ""}`;
+  const clientDoneKpi = hideHours
+    ? `<button type="button" class="kpi${state.hoursDone ? " on" : ""}" id="kpiClientDone" aria-pressed="${state.hoursDone ? "true" : "false"}"><b>${doneCount}</b><span>Done</span></button>`
+    : "";
   $("board").innerHTML = `
     <section class="sp-report${hideHours ? " is-projects" : ""}">
       <div class="sp-kpis">
         ${
           hideHours
-            ? `${hoursStampKpi()}${dirKpis}`
+            ? `${hoursStampKpi()}${dirKpis}${clientDoneKpi}`
             : `${hoursKpiHtml(totalProjects, "projects")}${dirKpis}${hoursStampKpi()}`
         }
       </div>
@@ -4197,6 +4207,10 @@ function renderClientReport() {
       state.hoursDir = !next || state.hoursDir === next ? null : next;
       render();
     });
+  });
+  $("kpiClientDone")?.addEventListener("click", () => {
+    state.hoursDone = !state.hoursDone;
+    render();
   });
   startHoursStamp();
   bindHoursDownload();
@@ -9426,6 +9440,7 @@ $("who").addEventListener("change", (e) => {
   state.selected.clear();
   state.designerFilter = null;
   state.hoursDir = null;
+  state.hoursDone = false;
   state.view = next?.role === "finance" ? "close" : next?.role === "client" ? "report" : "board";
   setInboxOpen(false);
   if (state.session) writeSession({ ...state.session, seatId: e.target.value });
@@ -9506,6 +9521,7 @@ async function signOutNow(fromBtn) {
     state.selected.clear();
     state.designerFilter = null;
     state.hoursDir = null;
+    state.hoursDone = false;
     state.openId = null;
     $("drawerBg").classList.remove("show");
     document.documentElement.classList.remove("card-open");
