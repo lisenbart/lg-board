@@ -2003,15 +2003,6 @@ function whoIds(t) {
   }
   return ids;
 }
-function phoneWhoLine(t) {
-  const names = whoIds(t)
-    .map((id) => String(person(id)?.name || id).trim().split(/\s+/)[0])
-    .filter(Boolean);
-  if (!names.length) return "";
-  if (names.length <= 2) return names.join(" · ");
-  return `${names[0]} +${names.length - 1}`;
-}
-
 function phoneHoursLine(t) {
   if (isPerformer()) {
     const h = hoursForPerson(t, me().id);
@@ -2025,22 +2016,27 @@ function phoneHoursLine(t) {
   return h ? `${h} h` : "";
 }
 
+function phoneWhoCell(t) {
+  const ids = whoIds(t);
+  if (!ids.length) return `<span class="phone-card-who is-empty">—</span>`;
+  return `<span class="phone-card-who">${whoCell(t)}</span>`;
+}
+
 function phoneCardHtml(t) {
   const spec = statusMark(t);
   const due = deadlineMark(t);
   const hours = phoneHoursLine(t);
-  const who = phoneWhoLine(t);
   const flag = urgentMark(t);
   const cue = clientCue(t);
   const pillCls = statusPillClass(t);
   const chip = canUseStatusPop(t)
     ? `<button type="button" class="pill ${pillCls} status-pop-btn phone-status" data-id="${escapeHtml(t.id)}" data-status-pop="1" title="${escapeHtml(spec.title)}">${escapeHtml(spec.label)}</button>`
     : `<span class="pill ${pillCls} phone-status" title="${escapeHtml(spec.title)}">${escapeHtml(spec.label)}</span>`;
-  const meta = [who, due.label || "", cue ? "Note" : ""].filter(Boolean).join(" · ");
+  const meta = [due.label || "", hours, cue ? "Note" : ""].filter(Boolean).join(" · ");
   return `<div class="phone-card tone-${escapeHtml(isPlayables(t) ? playableStatusKey(t) : t.studioStatus || "new")}${isUrgent(t) ? " is-urgent" : ""}${turnClass(t)}${cue ? " has-note" : ""}" data-id="${escapeHtml(t.id)}" role="button" tabindex="0">
     ${chip}
-    <span class="phone-card-name">${flag}${escapeHtml(t.name)}</span>
-    <span class="phone-card-hrs">${escapeHtml(hours)}</span>
+    <button type="button" class="phone-card-name" data-name-pop="${escapeHtml(t.id)}" title="${escapeHtml(t.name)}" aria-label="${escapeHtml(t.name)}">${flag}${escapeHtml(t.name)}</button>
+    ${phoneWhoCell(t)}
     <span class="phone-card-meta">${escapeHtml(meta)}</span>
   </div>`;
 }
@@ -2087,17 +2083,21 @@ function renderPhoneQueue() {
   }</div>`;
   $("board").querySelectorAll(".phone-card").forEach((el) => {
     el.addEventListener("click", (e) => {
-      if (e.target.closest("[data-status-pop]")) return;
+      if (e.target.closest("[data-status-pop], [data-who-pop], [data-name-pop]")) return;
+      closeNamePop();
       openTask(el.dataset.id);
     });
     el.addEventListener("keydown", (e) => {
       if (e.key !== "Enter" && e.key !== " ") return;
-      if (e.target.closest("[data-status-pop]")) return;
+      if (e.target.closest("[data-status-pop], [data-who-pop], [data-name-pop]")) return;
       e.preventDefault();
+      closeNamePop();
       openTask(el.dataset.id);
     });
   });
   bindStatusPop($("board"));
+  bindWhoPop($("board"));
+  bindNamePop($("board"));
   $("board").querySelectorAll(".phone-dirs button").forEach((el) => {
     el.addEventListener("click", () => setDirection(el.dataset.dir));
   });
@@ -5176,6 +5176,47 @@ function statusButtonsHtml(t, canEdit, lockedStatus) {
 let whoPopTimer = 0;
 let whoPopId = "";
 let whoPopPinned = false;
+let namePopId = "";
+function closeNamePop() {
+  namePopId = "";
+  $("namePop")?.classList.remove("show");
+}
+function openNamePop(t, anchor) {
+  const pop = $("namePop");
+  if (!pop || !t || !anchor) return;
+  closeWhoPop();
+  closeStatusPop();
+  namePopId = t.id;
+  pop.textContent = t.name || "";
+  pop.classList.add("show");
+  const r = anchor.getBoundingClientRect();
+  const w = pop.offsetWidth || 200;
+  const h = pop.offsetHeight || 40;
+  let left = r.left;
+  let top = r.bottom + 6;
+  if (left + w > window.innerWidth - 8) left = Math.max(8, window.innerWidth - w - 8);
+  if (left < 8) left = 8;
+  if (top + h > window.innerHeight - 8) top = Math.max(8, r.top - h - 6);
+  pop.style.left = `${Math.round(left)}px`;
+  pop.style.top = `${Math.round(top)}px`;
+}
+function bindNamePop(root) {
+  (root || document).querySelectorAll("[data-name-pop]").forEach((el) => {
+    if (el.dataset.nameBound === "1") return;
+    el.dataset.nameBound = "1";
+    el.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const t = state.db?.tasks?.find((row) => row.id === el.dataset.namePop);
+      if (!t) return;
+      if (namePopId === t.id && $("namePop")?.classList.contains("show")) {
+        closeNamePop();
+        return;
+      }
+      openNamePop(t, el);
+    });
+  });
+}
 function closeWhoPop() {
   clearTimeout(whoPopTimer);
   whoPopPinned = false;
@@ -5214,6 +5255,7 @@ function placeWhoPop(anchor) {
 function openWhoPop(t, anchor, pinned) {
   if (!t || !whoIds(t).length) return;
   closeStatusPop();
+  closeNamePop();
   whoPopId = t.id;
   whoPopPinned = Boolean(pinned);
   fillWhoPop(t);
@@ -9425,6 +9467,7 @@ $("soundVol")?.addEventListener("input", () => {
 });
 document.addEventListener("click", (e) => {
   if (!e.target.closest("[data-who-pop], #whoPop")) closeWhoPop();
+  if (!e.target.closest("[data-name-pop], #namePop")) closeNamePop();
   if (isPhone()) return;
   if (!$("inboxWrap")?.contains(e.target)) setInboxOpen(false);
   if (!$("soundWrap")?.contains(e.target)) setSoundOpen(false);

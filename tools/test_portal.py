@@ -496,7 +496,7 @@ def test_phone_queue_mvp() -> None:
         ".phone-card-name {\n  grid-column: 2;\n  grid-row: 1;" in css
         and "text-overflow: ellipsis" in css.split(".phone-card-name {\n  grid-column: 2;")[1].split("}")[0]
         and "white-space: nowrap" in css.split(".phone-card-name {\n  grid-column: 2;")[1].split("}")[0]
-        and "phone-status" in js
+        and 'data-name-pop="' in js
         and "statusPillClass(t)" in js.split("function phoneCardHtml")[1].split("function renderPhoneInbox")[0],
     )
     check(
@@ -515,9 +515,14 @@ def test_phone_queue_mvp() -> None:
         and "phone-card.is-wait .phone-card-name" in css,
     )
     check(
-        "phone who stays short",
-        "split(/\\s+/)" in js.split("function phoneWhoLine")[1].split("function phoneHoursLine")[0]
-        and "+${names.length - 1}" in js.split("function phoneWhoLine")[1].split("function phoneHoursLine")[0],
+        "phone cards show who faces and name pop",
+        "function phoneWhoCell" in js
+        and "whoCell(t)" in js.split("function phoneWhoCell")[1].split("function phoneCardHtml")[0]
+        and "data-name-pop" in js
+        and "function bindNamePop" in js
+        and "bindWhoPop($(\"board\"))" in js
+        and "phone-card-who" in css
+        and "name-pop" in css,
     )
     check(
         "Who on the row lists every person, not +1",
