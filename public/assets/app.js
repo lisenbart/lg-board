@@ -4877,14 +4877,16 @@ function playableTurnRole(t) {
   if (st === "closed" || st === "approve" || st === "clientart") return "";
   if (html) {
     if (st === "done") return "manager";
-    if (st === "artready" || st === "wip" || st === "revision" || st === "new") {
+    if (st === "revision") return dev ? "programmer" : "manager";
+    if (st === "artready" || st === "wip" || st === "new") {
       if (playableDevDelivered(t)) return "manager";
       return dev ? "programmer" : "manager";
     }
     return "";
   }
   if (!ad && dev) {
-    if (["new", "wip", "revision"].includes(st)) return playableDevDelivered(t) ? "manager" : "programmer";
+    if (st === "revision") return "programmer";
+    if (["new", "wip"].includes(st)) return playableDevDelivered(t) ? "manager" : "programmer";
     if (st === "done" || st === "check") return "manager";
     return "";
   }

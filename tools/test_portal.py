@@ -2127,7 +2127,8 @@ def test_playable_card_pipeline() -> None:
     )
     check(
         "DEV-only Ready is a HTML turn in JS",
-        'st === "artready" || st === "wip" || st === "revision" || st === "new"' in js,
+        'st === "artready" || st === "wip" || st === "new"' in js
+        and 'st === "revision") return dev ? "programmer"' in js,
     )
     notices_js = (ROOT / "public" / "assets" / "notices.js").read_text(encoding="utf-8")
     check(
@@ -2518,8 +2519,25 @@ def test_playable_team_scenarios() -> None:
     check("HTML Send without handedBy still Bohdan", part(html_ghost, "programmer", bohdan) and not part(html_ghost, "art_director", anna))
     html_fix = card(studioStatus="revision", assigneeId=anna, programmerId=bohdan, playableHtml=True)
     check("Need Fixing HTML is Bohdan", part(html_fix, "programmer", bohdan) and not part(html_fix, "art_director", anna))
+    html_reopen = card(
+        studioStatus="revision",
+        assigneeId=anna,
+        programmerId=bohdan,
+        playableHtml=True,
+        handedToLp=True,
+        handedBy=bohdan,
+    )
+    check("Need Fixing HTML reopens Bohdan after Send", part(html_reopen, "programmer", bohdan))
     art_fix = card(studioStatus="revision", assigneeId=anna, programmerId=bohdan)
     check("Need Fixing art is Anna", part(art_fix, "art_director", anna) and not part(art_fix, "programmer", bohdan))
+    art_reopen = card(
+        studioStatus="revision",
+        assigneeId=anna,
+        programmerId=bohdan,
+        handedToLp=True,
+        handedBy=anna,
+    )
+    check("Need Fixing art reopens Anna after Send", part(art_reopen, "art_director", anna) and not part(art_reopen, "programmer", bohdan))
     send = card(studioStatus="approve", assigneeId=anna, programmerId=bohdan, playableHtml=True)
     check("Send: AD and DEV wait, LP stays", not part(send, "art_director", anna) and not part(send, "programmer", bohdan) and part(send, "manager"))
     code_only = card(studioStatus="new", assigneeId="", programmerId=bohdan)

@@ -296,13 +296,17 @@ def playable_turn_role(task: dict | None) -> str:
     if html:
         if st == "done":
             return "manager"
-        if st in {"artready", "wip", "revision", "new"}:
+        if st == "revision":
+            return "programmer" if dev else "manager"
+        if st in {"artready", "wip", "new"}:
             if playable_dev_delivered(task):
                 return "manager"
             return "programmer" if dev else "manager"
         return ""
     if not has_ad and dev:
-        if st in {"new", "wip", "revision"}:
+        if st == "revision":
+            return "programmer"
+        if st in {"new", "wip"}:
             return "manager" if playable_dev_delivered(task) else "programmer"
         if st in {"done", "check"}:
             return "manager"
@@ -319,7 +323,7 @@ def playable_turn_role(task: dict | None) -> str:
 
 
 def playable_part_open(task: dict | None, role: str, person_id: str = "") -> bool:
-    """Active while seated and this seat's phase is still open. Check stays the AD's card until Sent / Art ready. DEV waits through art, then until HTML is in."""
+    """Active while seated and this seat still owns the work. Inactive only if not seated, or the part is in and they do not need to come back. Need Fixing always reopens the person who must fix it."""
     task = task or {}
     st = playable_norm_status(task.get("studioStatus"))
     if st == "closed":
