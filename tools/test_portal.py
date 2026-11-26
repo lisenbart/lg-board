@@ -2106,6 +2106,10 @@ def test_playable_card_pipeline() -> None:
         and 'isActiveForMe(t) ? " is-turn" : " is-wait"' in js,
     )
     check(
+        "AD Check stays active after Send to LP",
+        '["new", "wip", "revision", "check", "finalart"].includes(st)' in js,
+    )
+    check(
         "DEV part stays open until that programmer Send to LP",
         "function playableDevDelivered" in js
         and "return String(t.handedBy || \"\") === dev" in js,
@@ -2492,8 +2496,8 @@ def test_playable_team_scenarios() -> None:
         resultUrl="https://miro.com/app/board/zeus",
     )
     check(
-        "After Anna Send to LP: her part is done",
-        not part(handed_check, "art_director", anna) and part(handed_check, "manager"),
+        "After Anna Send to LP: Check stays her active card",
+        part(handed_check, "art_director", anna) and part(handed_check, "manager"),
     )
     check(
         "After Anna Send to LP: no second Send",

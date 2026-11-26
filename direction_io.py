@@ -319,19 +319,22 @@ def playable_turn_role(task: dict | None) -> str:
 
 
 def playable_part_open(task: dict | None, role: str, person_id: str = "") -> bool:
-    """Active while this person is seated and has not delivered their part. Inactive after they hand off, or before their queue starts."""
+    """Active while seated and this seat's phase is still open. Check stays the AD's card until Sent / Art ready. DEV waits through art, then until HTML is in."""
     task = task or {}
     st = playable_norm_status(task.get("studioStatus"))
     if st == "closed":
         return False
     if role in {"manager", "finance"}:
         return True
-    turn = playable_turn_role(task)
     actor = str(person_id or "")
     if role == "art_director":
-        return turn == "art_director" and playable_has_ad(task) and str(task.get("assigneeId") or "") == actor
+        if not playable_has_ad(task) or str(task.get("assigneeId") or "") != actor:
+            return False
+        if playable_in_html(task) or st in {"approve", "clientart", "artready", "done"}:
+            return False
+        return st in {"new", "wip", "revision", "check", "finalart"}
     if role == "programmer":
-        return turn == "programmer" and str(task.get("programmerId") or "") == actor
+        return playable_turn_role(task) == "programmer" and str(task.get("programmerId") or "") == actor
     return False
 
 

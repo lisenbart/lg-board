@@ -3490,7 +3490,7 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
       if (!playableAdDelivered(t)) {
         return { tone: "do", title: "Your job", body: "This is already Check. Tap WIP if you still need to work, then Send to LP from WIP — once. Don't send the link in Telegram." };
       }
-      return { tone: "wait", title: "Waiting for LP", body: "Storyboard is ready. LP sends it. Only LP talks to the client." };
+      return { tone: "do", title: "Check", body: "Storyboard is with LP. They send it to the client. Tap WIP if you still need to fix the board." };
     }
     if (st === "finalart") return { tone: "do", title: "Final art", body: "Finish art, then Send to LP. LP sets Art ready so DEV can start HTML." };
     if (st === "revision") {
@@ -4898,10 +4898,13 @@ function playablePartOpen(t, role, personId) {
   const st = playableStatusKey(t);
   if (st === "closed") return false;
   if (role === "manager" || role === "finance") return true;
-  const turn = playableTurnRole(t);
   const actor = String(personId || "");
-  if (role === "art_director") return turn === "art_director" && playableAdId(t) === actor;
-  if (role === "programmer") return turn === "programmer" && String(t.programmerId || "") === actor;
+  if (role === "art_director") {
+    if (playableAdId(t) !== actor) return false;
+    if (playableInHtml(t) || ["approve", "clientart", "artready", "done"].includes(st)) return false;
+    return ["new", "wip", "revision", "check", "finalart"].includes(st);
+  }
+  if (role === "programmer") return playableTurnRole(t) === "programmer" && String(t.programmerId || "") === actor;
   return false;
 }
 function isActiveForMe(t) {
