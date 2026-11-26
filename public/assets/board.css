@@ -3400,8 +3400,73 @@ html:not(.phone-ui):not(.standalone-app) .push-hint { display: none !important; 
     padding-bottom: 8px;
     overflow-x: hidden;
     overflow-y: auto;
+    overscroll-behavior: contain;
     overscroll-behavior-x: none;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
     max-width: 100%;
+  }
+  html.card-open:not(.hours-host),
+  html.card-open:not(.hours-host) body {
+    overflow: hidden;
+    overscroll-behavior: none;
+    height: 100%;
+  }
+  html:not(.hours-host) .drawer-head,
+  html:not(.hours-host) .drawer .meta,
+  html:not(.hours-host) .card-watch,
+  html:not(.hours-host) .drawer-actions {
+    flex-shrink: 0;
+  }
+  html:not(.hours-host) .who-status > label,
+  html:not(.hours-host) .who-status .status-btns {
+    display: none;
+  }
+  html:not(.hours-host) .who-status {
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  html:not(.hours-host) .who-block:not(:has(.who-assign)) {
+    border: 0;
+    padding: 0;
+    margin: 0;
+    background: transparent;
+  }
+  html:not(.hours-host) .drawer .meta #stMetaStatus,
+  html:not(.hours-host) .drawer .meta .status-pop-btn {
+    flex: 0 0 auto;
+    min-width: 4.5rem;
+    min-height: 36px;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  html:not(.hours-host) .card-ops-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 4px 0 12px;
+  }
+  html:not(.hours-host) .card-ops-actions .btn {
+    flex: 1 1 calc(50% - 8px);
+    min-height: 44px;
+  }
+  html:not(.hours-host) .status-pop {
+    width: min(420px, 100%);
+    margin-top: auto;
+    margin-bottom: 0;
+    border-radius: 16px 16px 0 0;
+    padding: 16px 14px calc(14px + env(safe-area-inset-bottom));
+  }
+  html:not(.hours-host) .status-pop-bg.show {
+    align-items: flex-end;
+    padding: 0;
+  }
+  html:not(.hours-host) .status-pop-grid .status-btn {
+    min-height: 44px;
+    flex: 1 1 calc(50% - 6px);
+    font-size: 14px;
   }
   .drawer-x {
     width: 44px;
@@ -3507,12 +3572,14 @@ html:not(.phone-ui):not(.standalone-app) .push-hint { display: none !important; 
   }
   html:not(.hours-host) .drawer-actions {
     flex-direction: row;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: center;
+    justify-content: flex-end;
     gap: 8px;
     margin-top: 0;
     padding: 10px 0 calc(10px + env(safe-area-inset-bottom));
     background: #fff;
+    border-top: 1px solid #eceef5;
   }
   html:not(.hours-host) {
     --fs: 15px;

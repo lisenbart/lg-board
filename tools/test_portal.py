@@ -455,14 +455,32 @@ def test_phone_queue_mvp() -> None:
     check(
         "phone card drawer locks horizontal scroll",
         "overflow-x: hidden" in css
+        and "overscroll-behavior: contain" in css
         and "overscroll-behavior-x: none" in css
         and "max-width: 100vw" in css
         and "position: sticky" not in css.split("@media (max-width: 980px)")[-1].split("html:not(.hours-host) .drawer-actions")[1].split("}")[0],
     )
     check(
+        "phone card scroll stays in the body",
+        "touch-action: pan-y" in css.split("@media (max-width: 980px)")[-1]
+        and "-webkit-overflow-scrolling: touch" in css.split("@media (max-width: 980px)")[-1]
+        and 'classList.add("card-open")' in js
+        and 'classList.remove("card-open")' in js
+        and "html.card-open:not(.hours-host)" in css,
+    )
+    check(
+        "phone status lives in the top pill",
+        ".who-status .status-btns" in css
+        and "display: none" in css.split(".who-status .status-btns")[1].split("}")[0]
+        and "card-ops-actions" in js
+        and "const phone = isPhone()" in js
+        and "status-pop-bg.show" in css,
+    )
+    check(
         "phone card footer stays a compact row",
         "html:not(.hours-host) .drawer-actions-end" in css
-        and "margin-left: auto" in css.split("@media (max-width: 980px)")[-1]
+        and "justify-content: flex-end" in css.split("@media (max-width: 980px)")[-1]
+        and "flex-wrap: nowrap" in css.split("html:not(.hours-host) .drawer-actions {")[-1].split("}")[0]
         and "width: auto;\n    min-width: 96px" in css.split("@media (max-width: 980px)")[-1],
     )
     check(

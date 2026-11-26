@@ -7427,6 +7427,23 @@ function openTask(id) {
   const st = STATUS[t.studioStatus] || STATUS.new;
   const sourceBlock = sourceHtml(t);
   const resultBlock = resultHtml(t, performer, canPaste);
+  const phone = isPhone();
+  const opsMain = [
+    canOps() && isSendable(t) ? `<button type="button" class="btn green" id="exportOne">Send this to client</button>` : "",
+    canOps() && isClientCopyable(t) ? `<button type="button" class="btn" id="copyOne">Copy for client</button>` : "",
+    canOps() && t.studioStatus !== "closed" ? `<button type="button" class="btn" id="closeOne">Mark Closed</button>` : "",
+    canOps() && isDeletableTask(t) ? `<button type="button" class="btn danger" id="deleteTask">Delete</button>` : "",
+  ]
+    .filter(Boolean)
+    .join("");
+  const endActions = handoffLabel(t)
+    ? `<button type="button" class="btn green card-save" id="handOff" ${hrefOf(isPlayables(t) && playableInHtml(t) ? playableHtmlUrl(t) : t.resultUrl || t.htmlUrl || "") ? "" : "disabled"}>${escapeHtml(handoffLabel(t))}</button>`
+    : hidePerformerSave(t)
+      ? ""
+      : canEdit || canOps()
+        ? `<button type="button" class="btn ghost" id="cancelTask" disabled>Cancel</button>
+        <button type="button" class="btn primary card-save" id="saveTask" disabled>Save</button>`
+        : "";
   $("drawer").innerHTML = `
     <div class="drawer-head">
       ${
@@ -7454,26 +7471,13 @@ function openTask(id) {
     ${play ? playableHoursHtml(t, canEditPlayableCrew()) : helpSplitHtml(t, canEditHelp())}
     ${slotomaniaMoneyHtml(t)}
     ${opsTime ? `<div class="card-ops">${opsTime}</div>` : ""}
+    ${phone ? (opsMain ? `<div class="card-ops-actions">${opsMain}</div>` : "") : ""}
     </div>
     <div class="drawer-actions">
-      <div class="drawer-actions-main">
-        ${canOps() && isSendable(t) ? `<button type="button" class="btn green" id="exportOne">Send this to client</button>` : ""}
-        ${canOps() && isClientCopyable(t) ? `<button type="button" class="btn" id="copyOne">Copy for client</button>` : ""}
-        ${canOps() && t.studioStatus !== "closed" ? `<button type="button" class="btn" id="closeOne">Mark Closed</button>` : ""}
-        ${canOps() && isDeletableTask(t) ? `<button type="button" class="btn danger" id="deleteTask">Delete</button>` : ""}
-      </div>
+      ${phone ? "" : `<div class="drawer-actions-main">${opsMain}</div>`}
       <div class="drawer-actions-end">
         <span class="save-wait" id="saveWait" hidden></span>
-        ${
-          handoffLabel(t)
-            ? `<button type="button" class="btn green card-save" id="handOff" ${hrefOf(isPlayables(t) && playableInHtml(t) ? playableHtmlUrl(t) : t.resultUrl || t.htmlUrl || "") ? "" : "disabled"}>${escapeHtml(handoffLabel(t))}</button>`
-            : hidePerformerSave(t)
-              ? ""
-              : canEdit || canOps()
-                ? `<button type="button" class="btn ghost" id="cancelTask" disabled>Cancel</button>
-        <button type="button" class="btn primary card-save" id="saveTask" disabled>Save</button>`
-                : ""
-        }
+        ${endActions}
       </div>
     </div>
   `;
@@ -8285,6 +8289,7 @@ function openTask(id) {
   });
   syncDoneOption();
   $("drawerBg").classList.add("show");
+  document.documentElement.classList.add("card-open");
   $("stShifts")?.addEventListener("input", () => {
     const shifts = parseShifts($("stShifts").value);
     const hint = $("stHoursHint");
@@ -8632,6 +8637,7 @@ async function closeDrawer(opts = {}) {
     }
   }
   $("drawerBg").classList.remove("show");
+  document.documentElement.classList.remove("card-open");
   stopCardPresence();
   state.openId = null;
   state.openCard = null;
@@ -9392,6 +9398,7 @@ async function signOutNow(fromBtn) {
     state.hoursDir = null;
     state.openId = null;
     $("drawerBg").classList.remove("show");
+    document.documentElement.classList.remove("card-open");
     setNavOpen(false);
     if (isHoursPage()) {
       location.replace("/");
