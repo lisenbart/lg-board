@@ -3500,8 +3500,8 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
           : "Open Client notes on this card. Text and files stay there after you read the ping. Then fix the board and Send to LP.",
       };
     }
-    if (st === "wip") return { tone: "do", title: "WIP", body: "Paste the storyboard, then Send to LP. Don't send the link in Telegram." };
-    return { tone: "do", title: "Your job", body: "Tap Ready → WIP. Paste the storyboard, then Send to LP. Don't send the link in Telegram." };
+    if (st === "wip")     return { tone: "do", title: "WIP", body: "Paste the storyboard, then Send to LP — footer or the status chip. Don't send the link in Telegram." };
+    return { tone: "do", title: "Your job", body: "Tap Ready → WIP, or Send to LP from the chip once the link is in. Don't send the link in Telegram." };
   }
   if (role === "programmer") {
     const onDev = String(t.programmerId || "") === String(me().id);
@@ -3519,7 +3519,7 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
             : "Open Client notes on this card. Text and files stay there after you read the ping. Then fix the HTML and Send to LP.",
         };
       }
-      if (st === "artready") return { tone: "do", title: "Art ready", body: "Tap Art ready → WIP · HTML. Paste the HTML, then Send to LP. LP sets Done or Need Fixing. Not in Telegram." };
+      if (st === "artready") return { tone: "do", title: "Art ready", body: "Tap the chip → WIP · HTML or Send to LP. Paste the HTML first. LP sets Done or Need Fixing. Not in Telegram." };
       if (!hasResult) return { tone: "do", title: "Your job", body: "Paste the HTML, then Send to LP. LP sets Done or Need Fixing. Not in Telegram." };
       return { tone: "do", title: "Send to LP", body: "Link is in the field. Send to LP — LP sets Done. Not in Telegram." };
     }
@@ -4342,7 +4342,7 @@ function renderGuide() {
         <p class="guide-lead">Ready → WIP → Send to LP → Check → Sent → Final art → Art ready → Send to LP → Done → Send → Closed. Кожен тапає чіп статусу і бачить лише свій крок. Done, Need Fixing і Art ready — жест LP по чіпу.</p>
         <ol class="guide-pipe">
           ${pipeStep("1", "LP", "Line Producer", "Картка заходить", `${ui("Create task")} після апруву годин. Ставить AD і DEV одразу, години — на людей.`, "ready", "Ready")}
-          ${pipeStep("2", "AD", "Art Director", "Сторіборд", `Тап ${ui("Ready")} → ${ui("WIP")}. Лінк на борд → ${ui("Send to LP")}. Статус стає ${ui("Check")}.`, "check", "Check")}
+          ${pipeStep("2", "AD", "Art Director", "Сторіборд", `Тап ${ui("Ready")} → ${ui("WIP")}. Лінк на борд → ${ui("Send to LP")} у футері або в чіпі. Статус стає ${ui("Check")}.`, "check", "Check")}
           ${pipeStep("3", "LP", "Line Producer", "Шле борд", `${ui("Send to client")} з ${ui("Check")}. Статус стає ${ui("Sent")}. Відбій → ${ui("Need Fixing")}. Апрув → ${ui("Final art")}.`, "sent", "Sent")}
           ${pipeStep("4", "AD", "Art Director", "Фінальний арт", `Доробляє арт → ${ui("Send to LP")}. Лише LP ставить ${ui("Art ready")} з чіпа.`, "artok", "Art OK")}
           ${pipeStep("5", "DEV", "Programmer", "Бере HTML", `Після ${ui("Art ready")} тап → ${ui("WIP · HTML")}, вставляє лінк. Поки арт іде — лінк уже можна зберегти.`, "wip", "WIP")}
@@ -4352,13 +4352,13 @@ function renderGuide() {
       </div>
       <div class="guide-grid">
         ${card("art_director", "AD", "Art Director", "Анна, Юля. Лише свої playable.", [
-          `Тап по чіпу ${ui("Ready")} → ${ui("WIP")}. Вставляєш лінк на сторіборд, потім ${ui("Send to LP")} — не в Telegram. ${ui("Copy")} / ${ui("Open")} праворуч від поля.`,
+          `Тап по чіпу: ${ui("WIP")} або ${ui("Send to LP")} після лінка. Можна закрити картку і змінити статус з рядка. Не в Telegram.`,
           `Після відбою: новий лінк, потім знову ${ui("Send to LP")}.`,
           `${ui("Final art")}: доробляєш арт і ${ui("Send to LP")}. ${ui("Art ready")}, ${ui("Done")} і ${ui("Need Fixing")} ставить лише LP.`,
           `${ui("Send to client")} у AD немає.`,
         ])}
         ${card("programmer", "DEV", "Programmer", "Богдан. Лише свої playable.", [
-          `LP садить тебе з Ready для годин. Після ${ui("Art ready")} тап по чіпу → ${ui("WIP · HTML")}, потім ${ui("Send to LP")}.`,
+          `LP садить тебе з Ready для годин. Після ${ui("Art ready")} в чіпі: ${ui("WIP · HTML")} і ${ui("Send to LP")}. Можна закрити картку після лінка.`,
           `Вставляєш HTML і ${ui("Send to LP")} — не в Telegram. Done і Need Fixing ставить лише LP.`,
           `Поки арт іде, на картці вже є слот HTML, щоб зберегти лінк. Send to LP — після Art ready.`,
           `Код-онлі (немає AD) — лінк з Ready, потім ${ui("Send to LP")}.`,
@@ -4938,17 +4938,41 @@ function playableStatusActions(task) {
 }
 function statusPopChoices(t) {
   if (!t) return [];
+  const keys = [];
+  const add = (key) => {
+    if (!key || keys.includes(key)) return;
+    keys.push(key);
+  };
   if (isPlayables(t)) {
     if (canOps()) return playableLpChoices(t);
     const role = me().role;
     if (role === "art_director" && playableAdId(t) !== me().id) return [];
     if (role === "programmer" && String(t.programmerId || "") !== String(me().id)) return [];
-    return playableNextStatuses(role, t);
+    playableNextStatuses(role, t).forEach(add);
+    add(playableHandoffStatus(role, t));
+    return keys;
   }
-  return statusActions(t).filter((key) => key !== (t.studioStatus || "new"));
+  statusActions(t)
+    .filter((key) => key !== (t.studioStatus || "new"))
+    .forEach(add);
+  add(handoffStatus(t));
+  return keys;
 }
 function canUseStatusPop(t) {
   return statusPopChoices(t).length > 0;
+}
+function statusPopLabel(t, key) {
+  if (key === "notify") return handoffLabel(t) || "Send to LP";
+  if (key === "check" && !canOps() && handoffStatus(t) === "check") return "Send to LP";
+  if (key === "tlcheck" && !canOps()) return "Send to TL";
+  return statusText(key, t);
+}
+function popHasLink(t) {
+  if (state.openId === t?.id) {
+    const typed = $("stResult")?.value || $("stHtml")?.value || "";
+    if (hrefOf(typed || t.resultUrl || t.htmlUrl || "")) return true;
+  }
+  return Boolean(taskLinkUrl(t));
 }
 function statusActions(task) {
   const role = me().role;
@@ -5108,8 +5132,40 @@ function closeStatusPop() {
 }
 async function pickStatusFromPop(t, key, artBounce) {
   closeStatusPop();
+  const hand = handoffStatus(t);
+  const isHand = key === "notify" || (Boolean(hand) && key === hand);
+  if (isHand && !popHasLink(t)) {
+    toast(handoffLabel(t) === "Send to TL" ? "Paste the link, then Send to TL" : "Paste the link, then Send to LP");
+    return;
+  }
   if (state.openId === t.id && typeof state.commitCard === "function") {
+    if (key === "notify") {
+      state.commitCard({ fromChip: true, handed: true, notifyLp: true });
+      return;
+    }
+    if (isHand) {
+      state.commitCard({ fromChip: true, status: key, handed: true });
+      return;
+    }
     state.commitCard({ fromChip: true, status: key, artBounce: Boolean(artBounce) });
+    return;
+  }
+  if (isHand) {
+    const toTl = handoffLabel(t) === "Send to TL";
+    const patch = { role: me().role, handed: true };
+    if (key !== "notify") patch.studioStatus = key;
+    await updateTask(
+      t.id,
+      {
+        ...patch,
+        note: toTl ? `${me().name} handed the file to TL` : `${me().name} handed the link to LP`,
+      },
+      {
+        toast: toTl
+          ? "TL has the file on the card. No need to send it in Telegram."
+          : "LP has the link on the card. No need to send it in Telegram.",
+      },
+    );
     return;
   }
   const patch = { studioStatus: key, role: me().role };
@@ -5132,7 +5188,7 @@ function openStatusPop(t) {
   const htmlLoop = isPlayables(t) && playableInHtml(t) && canOps();
   grid.replaceChildren();
   const paint = (key, label, artBounce = false) => {
-    const mark = statusMark({ ...t, studioStatus: key });
+    const mark = statusMark({ ...t, studioStatus: key === "notify" ? "check" : key });
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = `status-btn st-${mark.cls} is-on`;
@@ -5149,7 +5205,7 @@ function openStatusPop(t) {
       paint(key, "Need Fixing · Art", true);
       return;
     }
-    paint(key, statusText(key, t));
+    paint(key, statusPopLabel(t, key));
   });
   if (!grid.children.length) {
     toast("No next step from this status");

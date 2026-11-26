@@ -2039,6 +2039,12 @@ def test_playable_card_pipeline() -> None:
         and "function canUseStatusPop" in js
         and "Tap Ready → WIP" in js,
     )
+    check(
+        "status pop also offers Send to LP",
+        "function statusPopLabel" in js
+        and 'key === "notify"' in js.split("function pickStatusFromPop")[1].split("function openStatusPop")[0]
+        and "add(playableHandoffStatus(role, t))" in js,
+    )
     check("Monday chips name Art vs HTML WIP", "WIP · Art" in js and "WIP · HTML" in js)
     check("rows mark your turn vs waiting", "function isActiveForMe" in js and "is-turn" in js and "is-wait" in js)
     check(
