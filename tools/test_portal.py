@@ -449,7 +449,14 @@ def test_phone_queue_mvp() -> None:
         "phone For you is a full list",
         "function renderPhoneInbox" in js
         and "Nothing for you right now." in js
-        and "if (isPhone()) return" in js,
+        and "if (isPhone()) return" in js
+        and "tap to open the card" not in js,
+    )
+    check(
+        "phone card drawer stacks actions",
+        "html:not(.hours-host) .pin-actions" in css
+        and "html:not(.hours-host) .drawer-actions" in css
+        and "position: sticky" in css.split("html:not(.hours-host) .drawer-actions")[1].split("}")[0],
     )
     check("phone names wrap inside the card", "overflow-wrap: anywhere" in css and "word-break: break-word" in css)
     check(

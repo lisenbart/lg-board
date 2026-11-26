@@ -2048,10 +2048,9 @@ function renderPhoneInbox() {
   const N = window.LGNotices;
   const unread = N && state.db && me()?.id ? N.forPerson(state.db, me().id, true) : [];
   const kept = readClientNotices();
-  const lead = `<div class="phone-inbox-lead">
-    <p>TL Check, Need Fixing, a new project, or a client note — tap to open the card. Client notes stay on the card after you read them.</p>
-    ${unread.length ? `<button type="button" class="btn ghost" id="phoneInboxAll">Mark all read</button>` : ""}
-  </div>`;
+  const lead = unread.length
+    ? `<div class="phone-inbox-lead"><button type="button" class="btn ghost" id="phoneInboxAll">Mark all read</button></div>`
+    : "";
   if (!unread.length && !kept.length) {
     $("board").innerHTML = `${lead}<p class="io-empty">Nothing for you right now.</p>`;
     return;
