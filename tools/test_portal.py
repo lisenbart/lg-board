@@ -493,8 +493,8 @@ def test_phone_queue_mvp() -> None:
     )
     check(
         "phone names stay one line",
-        "text-overflow: ellipsis" in css.split(".phone-card-name")[1].split("}")[0]
-        and "white-space: nowrap" in css.split(".phone-card-name")[1].split("}")[0]
+        "text-overflow: ellipsis" in css.split(".phone-card-name {")[1].split("}")[0]
+        and "white-space: nowrap" in css.split(".phone-card-name {")[1].split("}")[0]
         and "phone-status" in js
         and "statusPillClass(t)" in js.split("function phoneCardHtml")[1].split("function renderPhoneInbox")[0],
     )
