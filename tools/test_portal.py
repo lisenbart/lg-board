@@ -2583,7 +2583,7 @@ def test_playable_team_scenarios() -> None:
     back_ready = bounced("new")
     check("last note undo Ready", undo(back_ready) and back_ready["studioStatus"] == "new" and not direction_io.playable_in_html(back_ready))
     back_sent = bounced("clientart")
-    check("last note undo Sent is Need Fixing Art off", undo(back_sent) and back_sent["studioStatus"] == "clientart" and not direction_io.playable_in_html(back_sent))
+    check("last note undo Sent is Check", undo(back_sent) and back_sent["studioStatus"] == "check" and not direction_io.playable_in_html(back_sent))
     back_check = bounced("check")
     check("last note undo Check", undo(back_check) and back_check["studioStatus"] == "check")
     back_html = bounced("artready", playableHtml=True)
@@ -2591,7 +2591,7 @@ def test_playable_team_scenarios() -> None:
     back_done = bounced("done", playableHtml=True)
     check("last note undo Done", undo(back_done) and back_done["studioStatus"] == "done" and direction_io.playable_in_html(back_done))
     back_send_html = bounced("approve", playableHtml=True)
-    check("last note undo Sent HTML", undo(back_send_html) and back_send_html["studioStatus"] == "approve" and direction_io.playable_in_html(back_send_html))
+    check("last note undo Sent HTML is Done", undo(back_send_html) and back_send_html["studioStatus"] == "done" and direction_io.playable_in_html(back_send_html))
     still_note = bounced("new")
     still_note["comments"] = [{"id": "c2", "source": "manual", "body": "still here"}]
     check("other notes keep Need Fixing", not undo(still_note) and still_note["studioStatus"] == "revision")

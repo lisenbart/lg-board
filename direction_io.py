@@ -484,6 +484,10 @@ def undo_client_note_bounce(task: dict | None) -> bool:
         prev = _status_before(task, "revision")
         if not prev or prev == "revision":
             prev = "artready" if html else "new"
+        if prev == "clientart":
+            prev = "check"
+        elif prev == "approve":
+            prev = "done"
         task["studioStatus"] = prev
         task["mondayStatus"] = PLAY_STATUS.get(prev, task.get("mondayStatus"))
         touch_playable_html(task, prev="revision")
