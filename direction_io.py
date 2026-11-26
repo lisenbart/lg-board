@@ -235,11 +235,76 @@ def _status_before(task: dict, st: str) -> str:
     return ""
 
 
-def playable_in_html(task: dict | None) -> bool:
-    """HTML loop starts at Art ready (or a DEV-only card). Seating DEV on Ready is still art."""
+def playable_work_ids(task: dict | None) -> list[str]:
+    """Who works this loop: AD on art, DEV on HTML."""
+    task = task or {}
+    if playable_in_html(task):
+        pid = str(task.get("programmerId") or "").strip()
+        return [pid] if pid else []
+    if playable_has_ad(task):
+        aid = str(task.get("assigneeId") or "").strip()
+        return [aid] if aid else []
+    pid = str(task.get("programmerId") or "").strip()
+    return [pid] if pid else []
+
+
+def playable_crew_ids(task: dict | None) -> list[str]:
+    """AD and DEV seated on the card."""
+    task = task or {}
+    ids: list[str] = []
+    if playable_has_ad(task):
+        aid = str(task.get("assigneeId") or "").strip()
+        if aid:
+            ids.append(aid)
+    pid = str(task.get("programmerId") or "").strip()
+    if pid and pid not in ids:
+        ids.append(pid)
+    return ids
+
+
+def playable_turn_role(task: dict | None) -> str:
+    """Whose move: art_director, programmer, manager, or empty (waiting on the client)."""
     task = task or {}
     st = playable_norm_status(task.get("studioStatus"))
-    if st in ART_LOOP or st == "closed":
+    html = playable_in_html(task)
+    has_ad = playable_has_ad(task)
+    dev = str(task.get("programmerId") or "").strip()
+    handed = bool(task.get("handedToLp"))
+    if st in {"closed", "approve", "clientart"}:
+        return ""
+    if html:
+        if st == "done":
+            return "manager"
+        if st in {"artready", "wip", "revision", "new"}:
+            if handed:
+                return "manager"
+            return "programmer" if dev else "manager"
+        return ""
+    if not has_ad and dev:
+        if st in {"new", "wip", "revision"}:
+            return "manager" if handed else "programmer"
+        if st in {"done", "check"}:
+            return "manager"
+        return ""
+    if st == "finalart":
+        return "manager" if handed or not has_ad else "art_director"
+    if st in {"new", "wip", "revision"}:
+        return "art_director" if has_ad else "manager"
+    if st == "check":
+        return "manager"
+    return ""
+
+
+def playable_in_html(task: dict | None) -> bool:
+    """HTML loop starts at Art ready (or a DEV-only card). Seating DEV on Ready is still art when AD is on the card."""
+    task = task or {}
+    st = playable_norm_status(task.get("studioStatus"))
+    if st == "closed":
+        return False
+    dev_only = not playable_has_ad(task) and bool(str(task.get("programmerId") or "").strip())
+    if dev_only and st not in {"check", "clientart", "finalart"}:
+        return True
+    if st in ART_LOOP:
         return False
     if st in HTML_HANDOFF:
         return True
@@ -252,8 +317,6 @@ def playable_in_html(task: dict | None) -> bool:
         if prev in HTML_HANDOFF:
             return True
     if task.get("playableHtml"):
-        return True
-    if not playable_has_ad(task) and str(task.get("programmerId") or "").strip():
         return True
     return False
 
@@ -324,7 +387,7 @@ def playable_next_statuses(role: str, task: dict | None) -> list[str]:
     if role in {"manager", "finance"}:
         return list(PLAY_OPS_STATUSES)
     if role == "art_director":
-        if html:
+        if html or not has_ad:
             return []
         return {
             "new": ["wip"],

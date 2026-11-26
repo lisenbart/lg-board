@@ -65,12 +65,21 @@ KINDS = {
         "skip_actor": True,
         "channels": ["portal"],
     },
+    "task.finalart": {
+        "label": "Final art",
+        "title": "{name}",
+        "detail": "Final art · finish the board, then Hand to LP",
+        "mark": "mine",
+        "audience": {"assignee": True},
+        "skip_actor": True,
+        "channels": ["portal"],
+    },
     "task.artready": {
         "label": "Art ready",
         "title": "{name}",
         "detail": "Art ready · paste HTML on the card",
         "mark": "done",
-        "audience": {"assignee": True, "roles": ["manager"]},
+        "audience": {"assignee": True},
         "skip_actor": True,
         "channels": ["portal"],
     },
@@ -369,43 +378,44 @@ def on_task_change(db: dict, task: dict, before: dict | None, actor_id: str = ""
         and task.get("playableHtml") is False
         and before.get("playableHtml") is True
     )
+
+    def playable_ping_ids(kind: str) -> list[str] | None:
+        import direction_io
+        if not direction_io.is_playables(task):
+            return None
+        if kind in {"task.revision", "task.wip", "task.finalart", "task.artready"}:
+            return direction_io.playable_work_ids(task) or None
+        if kind in {"task.sent", "task.closed"}:
+            return direction_io.playable_crew_ids(task) or None
+        return None
+
     if new_status and new_status != old_status:
         stamp_status(db, task, old_status, new_status, actor_id)
         if new_status == "revision":
-            import direction_io
-            ping_ids = None
-            if direction_io.is_playables(task):
-                if direction_io.playable_in_html(task):
-                    ping_ids = [str(task.get("programmerId") or "").strip()]
-                else:
-                    ping_ids = [str(task.get("assigneeId") or "").strip()]
-                ping_ids = [pid for pid in ping_ids if pid]
-            emit(db, "task.revision", actor_id=actor_id, task=task, audience_ids=ping_ids or None)
+            emit(db, "task.revision", actor_id=actor_id, task=task, audience_ids=playable_ping_ids("task.revision"))
         elif new_status == "tlcheck":
             emit(db, "task.tlcheck", actor_id=actor_id, task=task)
         elif new_status == "check":
             emit(db, "task.check", actor_id=actor_id, task=task)
+        elif new_status == "finalart":
+            emit(db, "task.finalart", actor_id=actor_id, task=task, audience_ids=playable_ping_ids("task.finalart"))
         elif new_status == "artready":
-            emit(db, "task.artready", actor_id=actor_id, task=task)
+            emit(db, "task.artready", actor_id=actor_id, task=task, audience_ids=playable_ping_ids("task.artready"))
         elif new_status == "done":
             emit(db, "task.ready", actor_id=actor_id, task=task)
             ack(db, actor_id, task_id=task.get("id"), kinds=["task.revision", "task.assigned", "task.tlcheck", "task.check"])
         elif new_status == "approve":
-            emit(db, "task.sent", actor_id=actor_id, task=task)
+            emit(db, "task.sent", actor_id=actor_id, task=task, audience_ids=playable_ping_ids("task.sent"))
             ack(db, actor_id, task_id=task.get("id"), kinds=["task.ready", "task.check"])
         elif new_status == "closed":
-            emit(db, "task.closed", actor_id=actor_id, task=task)
+            emit(db, "task.closed", actor_id=actor_id, task=task, audience_ids=playable_ping_ids("task.closed"))
             ack(db, actor_id, task_id=task.get("id"), kinds=["task.sent", "task.ready", "task.handed"])
         elif new_status == "wip" and old_status in WIP_REVERT_FROM:
-            emit(db, "task.wip", actor_id=actor_id, task=task)
+            emit(db, "task.wip", actor_id=actor_id, task=task, audience_ids=playable_ping_ids("task.wip"))
         if not handed:
             task["handedToLp"] = False
     elif bounced_art:
-        import direction_io
-        if direction_io.is_playables(task):
-            ping_ids = [str(task.get("assigneeId") or "").strip()]
-            ping_ids = [pid for pid in ping_ids if pid]
-            emit(db, "task.revision", actor_id=actor_id, task=task, audience_ids=ping_ids or None)
+        emit(db, "task.revision", actor_id=actor_id, task=task, audience_ids=playable_ping_ids("task.revision"))
     if handed:
         import direction_io
         task["handedToLp"] = True

@@ -3528,14 +3528,17 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
     if (!t.programmerId) {
       return { tone: "do", title: "Assign DEV", body: "Art is ready. Put a programmer on the card if they are not there yet. They can sit on the card from Ready." };
     }
-    if (t.handedToLp || hasResult) {
+    if (t.handedToLp) {
       return { tone: "do", title: "HTML is in", body: `${progName || "Programmer"} handed the HTML. Set Done, or Need Fixing if it is not right.` };
     }
     return { tone: "wait", title: "Art ready", body: `${progName || "Programmer"} pastes HTML and Hands to LP. Then you set Done or Need Fixing.` };
   }
   if (html && t.programmerId) {
-    if (t.handedToLp || hasResult) {
+    if (t.handedToLp) {
       return { tone: "do", title: "HTML is in", body: `${progName || "Programmer"} handed the HTML. Set Done, or Need Fixing if it is not right.` };
+    }
+    if (st === "new") {
+      return { tone: "wait", title: "Waiting for DEV", body: `${progName || "Programmer"} starts HTML (no AD on this card). They Hand to LP — you set Done.` };
     }
     return { tone: "wait", title: "In WIP", body: `${progName || "Programmer"} is on HTML. They Hand to LP — you set Done or Need Fixing.` };
   }
@@ -4772,7 +4775,10 @@ function playableStatusFrom(t) {
 }
 function playableInHtml(t) {
   const st = playableStatusKey(t);
-  if (["new", "check", "clientart", "finalart", "closed"].includes(st)) return false;
+  const devOnly = !playableAdId(t) && String(t?.programmerId || "").trim();
+  if (st === "closed") return false;
+  if (devOnly && !["check", "clientart", "finalart"].includes(st)) return true;
+  if (["new", "check", "clientart", "finalart"].includes(st)) return false;
   if (["artready", "done", "approve"].includes(st)) return true;
   if (st === "wip" || st === "revision") {
     const prev = playableStatusFrom(t);
@@ -4781,7 +4787,6 @@ function playableInHtml(t) {
     if (["artready", "done", "approve"].includes(prev)) return true;
   }
   if (t?.playableHtml) return true;
-  if (!playableAdId(t) && String(t?.programmerId || "").trim()) return true;
   return false;
 }
 function playableTurnRole(t) {
@@ -4790,21 +4795,22 @@ function playableTurnRole(t) {
   const html = playableInHtml(t);
   const ad = playableAdId(t);
   const dev = String(t.programmerId || "").trim();
+  const handed = Boolean(t.handedToLp);
   if (st === "closed" || st === "approve" || st === "clientart") return "";
   if (html) {
     if (st === "done") return "manager";
-    if (st === "artready" || st === "wip" || st === "revision") {
-      if (t.handedToLp) return "manager";
+    if (st === "artready" || st === "wip" || st === "revision" || st === "new") {
+      if (handed) return "manager";
       return dev ? "programmer" : "manager";
     }
     return "";
   }
   if (!ad && dev) {
-    if (["new", "wip", "revision"].includes(st)) return "programmer";
+    if (["new", "wip", "revision"].includes(st)) return handed ? "manager" : "programmer";
     if (st === "done" || st === "check") return "manager";
     return "";
   }
-  if (st === "finalart") return t.handedToLp || !ad ? "manager" : "art_director";
+  if (st === "finalart") return handed || !ad ? "manager" : "art_director";
   if (st === "new" || st === "wip" || st === "revision") return ad ? "art_director" : "manager";
   if (st === "check") return "manager";
   return "";
@@ -4865,7 +4871,7 @@ function playableNextStatuses(role, t) {
     return PLAY_OPS_STATUSES.slice();
   }
   if (role === "art_director") {
-    if (html) return [];
+    if (html || !hasAd) return [];
     return (
       {
         new: ["wip"],

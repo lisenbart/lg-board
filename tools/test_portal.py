@@ -2022,12 +2022,18 @@ def test_playable_card_pipeline() -> None:
         "paste into a link row fires input so Save lights up",
         'dispatchEvent(new Event("input"' in js and 'rowId === "stResult" || rowId === "stHtml"' in js,
     )
-    check("Art ready pings seated DEV", notice_io.KINDS["task.artready"]["audience"].get("assignee") is True)
+    check(
+        "LP HTML-is-in waits for Hand to LP",
+        js.count('title: "HTML is in"') >= 2 and "t.handedToLp || hasResult" not in js,
+    )
+    check(
+        "DEV-only Ready is a HTML turn in JS",
+        'st === "artready" || st === "wip" || st === "revision" || st === "new"' in js,
+    )
     notices_js = (ROOT / "public" / "assets" / "notices.js").read_text(encoding="utf-8")
     check(
         "card Art ready pings DEV",
-        "paste HTML on the card" in notices_js
-        and "assignee: true" in notices_js.split("task.artready")[1].split("task.ready")[0],
+        "paste HTML on the card" in notices_js and "task.finalart" in notices_js,
     )
     check("storyboard row has Copy and Open", 'class="link-row"' in js and "link-copy" in js and "link-open" in js)
     check("Copy/Open sit on the paste row", "link-row-actions" in js and "function bindLinkRows" in js)
@@ -2123,6 +2129,224 @@ def test_playable_card_pipeline() -> None:
         "AD storyboard unlocks after Closed → WIP",
         '["new", "check", "clientart", "finalart", "closed"].includes(prev)' in js_html,
     )
+
+
+def test_playable_team_scenarios() -> None:
+    """1 LP + 2 AD + 1 DEV: every path from client intake to Closed."""
+    lp, anna, yulia, bohdan = "manager", "artdir1", "artdir2", "programmer1"
+
+    def db():
+        return {
+            "people": [
+                {"id": lp, "role": "manager", "name": "Анастасія"},
+                {"id": anna, "role": "art_director", "name": "Анна"},
+                {"id": yulia, "role": "art_director", "name": "Юля"},
+                {"id": bohdan, "role": "programmer", "name": "Богдан"},
+            ],
+            "notices": [],
+            "noticeReads": {},
+            "meta": {},
+        }
+
+    def card(**kw):
+        row = {
+            "id": "p-zeus",
+            "name": "DS-P-062_ZeusThunderbolts",
+            "department": "Playables",
+            "studioStatus": "new",
+            "assigneeId": anna,
+            "programmerId": bohdan,
+            "resultUrl": "",
+            "htmlUrl": "",
+            "storyboardUrl": "",
+            "handedToLp": False,
+            "statusLog": [],
+        }
+        row.update(kw)
+        return row
+
+    def snap(task):
+        return {
+            "studioStatus": task.get("studioStatus"),
+            "assigneeId": task.get("assigneeId"),
+            "programmerId": task.get("programmerId"),
+            "playableHtml": task.get("playableHtml"),
+        }
+
+    def apply(board, task, actor, *, status=None, handed=False, force_art=False, html_url=None, result_url=None):
+        before = snap(task)
+        if status is not None:
+            task["studioStatus"] = status
+        if html_url is not None:
+            task["htmlUrl"] = html_url
+        if result_url is not None:
+            task["resultUrl"] = result_url
+        direction_io.touch_playable_html(task, prev=before.get("studioStatus"), force_art=force_art)
+        notice_io.on_task_change(board, task, before, actor, handed=handed)
+        return task
+
+    def latest(board, kind):
+        return next((n for n in board.get("notices") or [] if n.get("kind") == kind), None)
+
+    def audience(board, kind):
+        n = latest(board, kind)
+        return list(n.get("audience") or []) if n else []
+
+    def turn(task):
+        return direction_io.playable_turn_role(task)
+
+    def can(role, task, nxt, actor):
+        return direction_io.playable_can_set(role, task, nxt, actor_id=actor)[0]
+
+    # --- Happy path: client → Anna art → LP send board → final art → Bohdan HTML → send → closed
+    board = db()
+    t = card()
+    check("intake: Anna's turn on Ready", turn(t) == "art_director")
+    check("intake: Yulia cannot drive Anna's card", not can("art_director", t, "wip", yulia))
+    check("intake: Anna can start WIP", can("art_director", t, "wip", anna))
+    check("intake: Bohdan cannot WIP art", direction_io.playable_next_statuses("programmer", t) == [])
+    apply(board, t, lp)  # assignment already on card
+    apply(board, t, anna, status="wip")
+    check("art WIP is Anna", turn(t) == "art_director")
+    t["resultUrl"] = "https://miro.com/app/board/zeus"
+    check("Anna Hands Check", can("art_director", t, "check", anna) and direction_io.playable_handoff_status("art_director", t) == "check")
+    apply(board, t, anna, status="check")
+    check("Check is LP", turn(t) == "manager")
+    check("Check pings LP", lp in audience(board, "task.check"))
+    check("Check is sendable", server.is_sendable(t))
+    apply(board, t, lp, status="clientart")
+    check("Sent waits on the client", turn(t) == "")
+    check("Anna cannot status Sent", direction_io.playable_next_statuses("art_director", t) == [])
+    apply(board, t, lp, status="finalart")
+    check("Final art is Anna", turn(t) == "art_director")
+    check("Final art pings Anna not Bohdan", audience(board, "task.finalart") == [anna], str(audience(board, "task.finalart")))
+    check("Anna Hands Final art without changing status", direction_io.playable_handoff_status("art_director", t) == "notify")
+    apply(board, t, anna, handed=True)
+    check("after Final Hand, LP's turn", turn(t) == "manager" and t.get("handedToLp") is True)
+    check("Hand ping goes to LP", lp in audience(board, "task.handed"))
+    apply(board, t, lp, status="artready")
+    check("Art ready is Bohdan", turn(t) == "programmer")
+    check("Art ready pings Bohdan not Anna", audience(board, "task.artready") == [bohdan], str(audience(board, "task.artready")))
+    check("draft HTML is not a handoff", t.get("handedToLp") is False)
+    t["htmlUrl"] = "https://play.example/zeus-v1"
+    direction_io.touch_playable_html(t)
+    check("saved draft fills HTML after Art ready", t.get("resultUrl") == "https://play.example/zeus-v1")
+    check("draft still waits for Bohdan to Hand", turn(t) == "programmer")
+    check("Art ready is not sendable", not server.is_sendable(t))
+    apply(board, t, bohdan, handed=True)
+    check("after HTML Hand, LP's turn", turn(t) == "manager")
+    apply(board, t, lp, status="done")
+    check("Done is LP to send", turn(t) == "manager" and server.is_sendable(t))
+    apply(board, t, lp, status="approve")
+    check("Send waits on the client", turn(t) == "")
+    check("HTML Send pings Anna and Bohdan, not a missing TL", set(audience(board, "task.sent")) == {anna, bohdan}, str(audience(board, "task.sent")))
+    apply(board, t, lp, status="closed")
+    check("Closed is finished", turn(t) == "")
+    check("Closed pings the seated crew", set(audience(board, "task.closed")) == {anna, bohdan}, str(audience(board, "task.closed")))
+
+    # --- Client bounces the storyboard
+    board = db()
+    t = card(studioStatus="clientart", resultUrl="https://miro.com/app/board/zeus")
+    direction_io.touch_playable_html(t)
+    apply(board, t, lp, status="revision")
+    check("board bounce is Anna", turn(t) == "art_director" and not direction_io.playable_in_html(t))
+    check("board bounce pings Anna not Bohdan", audience(board, "task.revision") == [anna], str(audience(board, "task.revision")))
+    apply(board, t, anna, status="wip")
+    t["resultUrl"] = "https://miro.com/app/board/zeus-v2"
+    apply(board, t, anna, status="check")
+    check("fixed board is back at LP Check", turn(t) == "manager" and server.is_sendable(t))
+
+    # --- Client bounces the HTML
+    board = db()
+    t = card(
+        studioStatus="approve",
+        playableHtml=True,
+        storyboardUrl="https://miro.com/app/board/zeus",
+        resultUrl="https://play.example/zeus-v1",
+    )
+    direction_io.touch_playable_html(t)
+    apply(board, t, lp, status="revision")
+    check("HTML bounce is Bohdan", turn(t) == "programmer" and direction_io.playable_in_html(t))
+    check("HTML bounce pings Bohdan not Anna", audience(board, "task.revision") == [bohdan], str(audience(board, "task.revision")))
+    apply(board, t, bohdan, status="wip")
+    t["resultUrl"] = "https://play.example/zeus-v2"
+    apply(board, t, bohdan, handed=True)
+    check("fixed HTML is LP again", turn(t) == "manager")
+    apply(board, t, lp, status="done")
+    check("LP can Send the fixed HTML", server.is_sendable(t))
+
+    # --- Client bounces HTML back to art
+    board = db()
+    t = card(
+        studioStatus="approve",
+        playableHtml=True,
+        storyboardUrl="https://miro.com/app/board/zeus",
+        resultUrl="https://play.example/zeus-v2",
+        htmlUrl="https://play.example/zeus-v2",
+    )
+    apply(board, t, lp, status="revision", force_art=True)
+    check("Need Fixing · Art returns the card to Anna", turn(t) == "art_director" and not direction_io.playable_in_html(t))
+    check("Need Fixing · Art drops HTML draft", t.get("htmlUrl") == "")
+    check("Need Fixing · Art pings Anna", audience(board, "task.revision") == [anna], str(audience(board, "task.revision")))
+
+    # --- Skip Final art: client approved the board as-is
+    board = db()
+    t = card(studioStatus="clientart", resultUrl="https://miro.com/app/board/zeus", programmerId=bohdan)
+    direction_io.touch_playable_html(t)
+    check("LP can skip Final art", can("manager", t, "artready", lp))
+    apply(board, t, lp, status="artready")
+    check("skip Final art still hands HTML to Bohdan", turn(t) == "programmer")
+    check("skip Final art pings Bohdan", audience(board, "task.artready") == [bohdan])
+
+    # --- Code-only: LP seats only Bohdan
+    board = db()
+    t = card(assigneeId="", programmerId=bohdan)
+    check("code-only Ready is Bohdan", turn(t) == "programmer" and direction_io.playable_in_html(t))
+    check("code-only Anna has no chips", direction_io.playable_next_statuses("art_director", t) == [])
+    apply(board, t, bohdan, status="wip")
+    t["resultUrl"] = "https://play.example/code-only"
+    apply(board, t, bohdan, handed=True)
+    check("code-only Hand is LP", turn(t) == "manager")
+    apply(board, t, lp, status="done")
+    check("code-only Done is sendable", server.is_sendable(t))
+    apply(board, t, lp, status="approve")
+    apply(board, t, lp, status="closed")
+    check("code-only Closed pings Bohdan", audience(board, "task.closed") == [bohdan], str(audience(board, "task.closed")))
+
+    # --- Two ADs: Yulia takes over Anna's card
+    board = db()
+    t = card(studioStatus="wip", assigneeId=anna, resultUrl="https://miro.com/app/board/zeus")
+    check("helper Yulia cannot Hand Anna's card", not can("art_director", t, "check", yulia))
+    apply(board, t, lp)  # no status change yet
+    before = snap(t)
+    t["assigneeId"] = yulia
+    notice_io.on_task_change(board, t, before, lp)
+    check("after switch, Yulia owns the card", turn(t) == "art_director")
+    check("Yulia can Hand Check", can("art_director", t, "check", yulia))
+    check("Anna can no longer Hand", not can("art_director", t, "check", anna))
+    check("switch pings Yulia", yulia in audience(board, "task.assigned"))
+
+    # --- LP covers Anna: sets Check herself
+    t = card(studioStatus="wip", resultUrl="https://miro.com/app/board/zeus")
+    check("LP can Check if Anna is away", can("manager", t, "check", lp))
+
+    # --- Bohdan saves HTML while Anna is still on art
+    board = db()
+    t = card(studioStatus="wip", htmlUrl="https://play.example/early")
+    check("early HTML is still art", not direction_io.playable_in_html(t) and turn(t) == "art_director")
+    check("Bohdan still cannot Hand during art", direction_io.playable_handoff_status("programmer", t) == "")
+    apply(board, t, anna, status="check", result_url="https://miro.com/app/board/zeus")
+    apply(board, t, lp, status="clientart")
+    apply(board, t, lp, status="finalart")
+    apply(board, t, anna, handed=True)
+    apply(board, t, lp, status="artready")
+    check("early draft is on the HTML field", t.get("resultUrl") == "https://play.example/early")
+    check("early draft is not LP's until Hand", turn(t) == "programmer" and not t.get("handedToLp"))
+
+    # --- Closed → Ready reopens art for Anna
+    t = card(studioStatus="closed", playableHtml=True, programmerId=bohdan)
+    apply(db(), t, lp, status="new")
+    check("reopen Ready is Anna again", turn(t) == "art_director" and not direction_io.playable_in_html(t))
 
 
 def test_card_presence() -> None:
@@ -4100,6 +4324,7 @@ def main() -> int:
         test_playables_desk,
         test_drive_folder_lock,
         test_playable_card_pipeline,
+        test_playable_team_scenarios,
         test_card_presence,
         test_urgent_marker,
         test_card_folder_buttons,

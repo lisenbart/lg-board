@@ -33,7 +33,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-11-24i"
+BUILD = "2026-11-24j"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -3681,12 +3681,16 @@ class Handler(SimpleHTTPRequestHandler):
                 preview = " ".join(str(comment.get("body") or "").split())[:140]
                 if not preview:
                     preview = "New note under the brief"
+                comment_audience = None
+                if direction_io.is_playables(task):
+                    comment_audience = direction_io.playable_work_ids(task) or None
                 notice_io.emit(
                     db,
                     "task.comment",
                     actor_id=str(data.get("actorId") or ""),
                     task=task,
                     payload={"preview": preview},
+                    audience_ids=comment_audience,
                 )
                 save_db(db)
                 out = {"comment": comment, "task": task, "state": db}

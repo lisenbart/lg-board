@@ -55,12 +55,21 @@
       skipActor: true,
       channels: ["portal"],
     },
+    "task.finalart": {
+      label: "Final art",
+      title: "{name}",
+      detail: "Final art · finish the board, then Hand to LP",
+      mark: "mine",
+      audience: { assignee: true },
+      skipActor: true,
+      channels: ["portal"],
+    },
     "task.artready": {
       label: "Art ready",
       title: "{name}",
       detail: "Art ready · paste HTML on the card",
       mark: "done",
-      audience: { assignee: true, roles: ["manager"] },
+      audience: { assignee: true },
       skipActor: true,
       channels: ["portal"],
     },
@@ -162,7 +171,20 @@
     if (payload.line == null) payload.line = task.line || "";
     if (payload.actorName == null) payload.actorName = personName(db, opts.actorId);
     if (payload.preview == null) payload.preview = "New note under the brief";
-    const audience = resolveAudience(db, spec, task, opts.actorId || "");
+    let audience;
+    if (opts.audienceIds) {
+      const seen = new Set();
+      audience = [];
+      for (const raw of opts.audienceIds) {
+        const id = String(raw || "").trim();
+        if (!id || seen.has(id)) continue;
+        seen.add(id);
+        audience.push(id);
+      }
+      if (spec.skipActor) audience = audience.filter((id) => id !== (opts.actorId || ""));
+    } else {
+      audience = resolveAudience(db, spec, task, opts.actorId || "");
+    }
     if (!audience.length) return null;
     db.meta.noticeSeq = (Number(db.meta.noticeSeq) || 0) + 1;
     const notice = {
@@ -246,7 +268,8 @@
       if (newS === "revision") emit(db, "task.revision", { actorId, task });
       if (newS === "tlcheck") emit(db, "task.tlcheck", { actorId, task });
       if (newS === "check") emit(db, "task.check", { actorId, task });
-      if (newS === "artready") emit(db, "task.artready", { actorId, task });
+      if (newS === "finalart") emit(db, "task.finalart", { actorId, task, audienceIds: [task.assigneeId] });
+      if (newS === "artready") emit(db, "task.artready", { actorId, task, audienceIds: [task.programmerId] });
       if (newS === "done") {
         emit(db, "task.ready", { actorId, task });
         ack(db, actorId, { taskId: task.id, kinds: ["task.revision", "task.assigned", "task.tlcheck", "task.check"] });
