@@ -515,6 +515,13 @@ def test_phone_queue_mvp() -> None:
         and "phone-card.is-wait .phone-card-name" in css,
     )
     check(
+        "board turn has no blue side ribbon",
+        ".row.is-turn {\n  box-shadow: inset 4px 0 0 #3b6cf0;\n}" not in css
+        and "inset 4px 0 0 #3b6cf0" not in css
+        and ".row.is-wait .name-text { font-weight: 400; }" in css
+        and ".row.is-turn .name-text { font-weight: 600; }" in css,
+    )
+    check(
         "phone cards show who faces and name pop",
         "function phoneWhoCell" in js
         and "whoCell(t)" in js.split("function phoneWhoCell")[1].split("function phoneCardHtml")[0]

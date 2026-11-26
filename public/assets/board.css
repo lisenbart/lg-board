@@ -1127,9 +1127,6 @@ body.col-resizing * { cursor: col-resize !important; }
 .row.tone-quote:hover, .row.tone-quote:hover .frozen, .row.tone-quote:hover .meta { background: #eef0f5; }
 .row.tone-check:hover, .row.tone-check:hover .frozen, .row.tone-check:hover .meta { background: #dff2fc; }
 .row.tone-artready:hover, .row.tone-artready:hover .frozen, .row.tone-artready:hover .meta { background: #e0ebff; }
-.row.is-turn {
-  box-shadow: inset 4px 0 0 #3b6cf0;
-}
 .row.is-turn,
 .row.is-turn .frozen,
 .row.is-turn .meta {
