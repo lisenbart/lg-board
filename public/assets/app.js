@@ -3296,26 +3296,25 @@ function resultHtml(t, performer, canPaste) {
     const board = String(t.storyboardUrl || t.resultUrl || "").trim();
     const htmlVal = samePlayableLink(t.htmlUrl, board) ? "" : String(t.htmlUrl || "").trim();
     return `<section class="io io-result is-focus">
-      <h3>HTML</h3>
+      <h3>Storyboard</h3>
       ${linkRowHtml({
-        id: "stHtml",
-        value: htmlVal,
-        placeholder: "Paste HTML / playable link — not in Telegram",
-        canPaste: true,
-        emptyText: "Paste the playable link here. Send to LP after Art ready.",
+        id: "stStoryboard",
+        value: board,
+        placeholder: "",
+        canPaste: false,
+        emptyText: "Waiting for the storyboard",
       })}
-      <p class="io-hint">The link saves itself. Send to LP after LP sets Art ready.</p>
-      ${
-        board
-          ? `<div class="link-sub"><h4>Storyboard</h4>${linkRowHtml({
-              id: "stStoryboard",
-              value: board,
-              placeholder: "",
-              canPaste: false,
-              emptyText: "",
-            })}</div>`
-          : ""
-      }
+      <div class="link-sub">
+        <h4>HTML</h4>
+        ${linkRowHtml({
+          id: "stHtml",
+          value: htmlVal,
+          placeholder: "Paste HTML / playable link — not in Telegram",
+          canPaste: true,
+          emptyText: "Paste the playable link here. Send to LP after Art ready.",
+        })}
+        <p class="io-hint">The link saves itself. Send to LP after LP sets Art ready.</p>
+      </div>
     </section>`;
   }
   const title = !play ? "Result" : html ? "HTML" : "Storyboard";
@@ -3333,30 +3332,40 @@ function resultHtml(t, performer, canPaste) {
     emptyText: waiting,
   });
   const board = play ? String(t.storyboardUrl || "").trim() : "";
-  const boardRow = html && board
-    ? `<div class="link-sub">
-        <h4>Storyboard</h4>
-        ${linkRowHtml({ id: "stStoryboard", value: board, placeholder: "", canPaste: false, emptyText: "" })}
-      </div>`
-    : "";
   const htmlDraft = play && !html ? String(t.htmlUrl || "").trim() : "";
-  const htmlDraftRow = htmlDraft
-    ? `<div class="link-sub">
-        <h4>HTML</h4>
-        ${linkRowHtml({ id: "stHtmlView", value: htmlDraft, placeholder: "", canPaste: false, emptyText: "" })}
-      </div>`
-    : "";
   const hand = canPaste ? handoffLabel(t) : "";
   const handHint = hand === "Send to LP"
     ? "Paste the link, then Send to LP at the bottom. Not Telegram."
     : hand === "Send to TL"
       ? "Paste the link, then Send to TL at the bottom. Not Telegram."
       : "";
+  if (html) {
+    return `<section class="io io-result${performer ? " is-focus" : ""}">
+      <h3>Storyboard</h3>
+      ${linkRowHtml({
+        id: "stStoryboard",
+        value: board,
+        placeholder: "",
+        canPaste: false,
+        emptyText: waiting,
+      })}
+      <div class="link-sub">
+        <h4>HTML</h4>
+        ${body}
+        ${handHint ? `<p class="io-hint">${escapeHtml(handHint)}</p>` : ""}
+      </div>
+    </section>`;
+  }
+  const htmlDraftRow = htmlDraft
+    ? `<div class="link-sub">
+        <h4>HTML</h4>
+        ${linkRowHtml({ id: "stHtmlView", value: htmlDraft, placeholder: "", canPaste: false, emptyText: "" })}
+      </div>`
+    : "";
   return `<section class="io io-result${performer ? " is-focus" : ""}">
       <h3>${title}</h3>
       ${body}
       ${handHint ? `<p class="io-hint">${escapeHtml(handHint)}</p>` : ""}
-      ${boardRow}
       ${htmlDraftRow}
     </section>`;
 }

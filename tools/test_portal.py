@@ -2173,6 +2173,11 @@ def test_playable_card_pipeline() -> None:
     check("Copy/Open sit on the paste row", "link-row-actions" in js and "function bindLinkRows" in js)
     check("Open uses the typed link", "function hrefOf" in js and "function syncLinkRow" in js)
     check("HTML loop keeps storyboard Copy/Open", 'id: "stStoryboard"' in js)
+    check(
+        "Playables Storyboard sits above HTML",
+        js.split("function resultHtml")[1].split("function hasDriveDoc")[0].index("<h3>Storyboard</h3>")
+        < js.split("function resultHtml")[1].split("function hasDriveDoc")[0].index("<h4>HTML</h4>"),
+    )
     css_link = (ROOT / "public" / "assets" / "board.css").read_text(encoding="utf-8")
     check("Copy/Open stay on the link row", ".link-row {" in css_link and ".link-row-actions" in css_link)
     check("active Playables rows use is-turn", ".row.is-turn" in css_link and ".row.is-wait" in css_link)
