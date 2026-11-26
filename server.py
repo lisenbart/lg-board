@@ -33,7 +33,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-11-25a"
+BUILD = "2026-11-25b"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -3647,8 +3647,14 @@ class Handler(SimpleHTTPRequestHandler):
                         self._json(400, {"error": "Monday notes stay until the Monday sync"})
                         return
                     task["comments"] = [row for row in rows if row.get("id") != delete_id]
+                    drive_err = drive_io.drop_comment_from_drive(task, found)
+                    if drive_err:
+                        print(f"[drive] comment delete {found.get('id')}: {drive_err}", flush=True)
                     save_db(db)
-                    self._json(200, {"task": task, "state": db})
+                    out = {"task": task, "state": db}
+                    if drive_err:
+                        out["drive"] = {"ok": False, "error": drive_err}
+                    self._json(200, out)
                     return
                 edit_id = str(data.get("editId") or "").strip()
                 if edit_id:

@@ -3055,9 +3055,11 @@ def test_comment_shots() -> None:
         and "function saveNoteEdit" in js
         and "Monday notes stay until the Monday sync" in src,
     )
+    check("delete note toasts a Drive miss", "Note off the card. Drive:" in js)
     drive = (ROOT / "drive_io.py").read_text(encoding="utf-8")
     check("Comments live in a Comments folder", 'parent, "Comments"' in drive or '", "Comments"' in drive)
     check("each client note gets a numbered Drive slot", "def ensure_comment_slot" in drive and "def next_comment_index" in src)
+    check("delete note trashes Drive Comments", "def drop_comment_from_drive" in drive and "drop_comment_from_drive" in src)
     check("first client note is 01", server.next_comment_index({"comments": []}) == 1)
     check("next client note is 03", server.next_comment_index({"comments": [{"driveIndex": 1}, {"driveIndex": 2}]}) == 3)
     check("Comments button opens the Drive folder", ">Comments</a>" in js and "Open Comments" in js)
@@ -3108,6 +3110,84 @@ def test_comment_shots() -> None:
         drive_io.drive_token = orig_token
         drive_io.ensure_comment_slot = orig_slot
         drive_io.upload_bytes = orig_up
+    trashed: list[str] = []
+    orig_trash = drive_io._trash_file
+    orig_find = drive_io._find_child
+    orig_pack = drive_io.studio_pack_folder_id
+    orig_created = dict(drive_io._CREATED_FOLDERS)
+
+    def fake_trash(token, fid):
+        trashed.append(fid)
+
+    def fake_find(token, parent_id, title, mime=None):
+        return None
+
+    def fake_pack(task):
+        return "pack1"
+
+    drive_io.drive_token = fake_token
+    drive_io._trash_file = fake_trash
+    drive_io._find_child = fake_find
+    drive_io.studio_pack_folder_id = fake_pack
+    try:
+        last = {
+            "id": "t-note",
+            "commentsFolderId": "cf1",
+            "commentsFolderUrl": "https://drive.google.com/drive/folders/cf1",
+            "comments": [],
+        }
+        gone = {"id": "c1", "folderId": "slot1", "driveIndex": 1}
+        err = drive_io.drop_comment_from_drive(last, gone)
+        check(
+            "last note trashes Comments/01 and Comments",
+            err is None and trashed == ["slot1", "cf1"] and not last.get("commentsFolderId") and not last.get("commentsFolderUrl"),
+            f"{err} {trashed} {last}",
+        )
+        trashed.clear()
+        keep = {
+            "id": "t-note",
+            "commentsFolderId": "cf1",
+            "commentsFolderUrl": "https://drive.google.com/drive/folders/cf1",
+            "comments": [{"id": "c2", "folderId": "slot2", "driveIndex": 2}],
+        }
+        err = drive_io.drop_comment_from_drive(keep, {"id": "c1", "folderId": "slot1", "driveIndex": 1})
+        check(
+            "other notes keep the Comments folder",
+            err is None and trashed == ["slot1"] and keep.get("commentsFolderId") == "cf1",
+            f"{err} {trashed} {keep}",
+        )
+        trashed.clear()
+        monday_only = {
+            "id": "t-note",
+            "commentsFolderId": "cf1",
+            "comments": [{"id": "m1", "source": "monday", "body": "from Monday"}],
+        }
+        err = drive_io.drop_comment_from_drive(monday_only, {"id": "c1", "folderId": "slot1", "driveIndex": 1})
+        check(
+            "Monday-only card drops Comments",
+            err is None and "cf1" in trashed and not monday_only.get("commentsFolderId"),
+            f"{err} {trashed} {monday_only}",
+        )
+        trashed.clear()
+        drive_io.drive_token = lambda: ""
+        leftover = {
+            "id": "t-note",
+            "commentsFolderId": "cf1",
+            "comments": [],
+        }
+        err = drive_io.drop_comment_from_drive(leftover, {"id": "c1", "folderId": "slot1", "driveIndex": 1})
+        check(
+            "offline Drive still drops the card note",
+            err is None and not trashed and leftover.get("commentsFolderId") == "cf1",
+            f"{err} {trashed} {leftover}",
+        )
+    finally:
+        drive_io.drive_token = orig_token
+        drive_io._trash_file = orig_trash
+        drive_io._find_child = orig_find
+        drive_io.studio_pack_folder_id = orig_pack
+        drive_io._CREATED_FOLDERS.clear()
+        drive_io._CREATED_FOLDERS.update(orig_created)
 
 
 def test_card_videos() -> None:

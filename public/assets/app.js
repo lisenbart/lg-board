@@ -8009,6 +8009,7 @@ function openTask(id) {
         return;
       }
       applyState(out.state);
+      if (out.drive && out.drive.ok === false) toast(`Note off the card. Drive: ${out.drive.error}`, 6000);
       openTask(t.id);
     });
   });

@@ -609,6 +609,65 @@ def ensure_comment_slot(task: dict, index: int) -> dict:
     return {"id": fid, "url": folder_url(fid), "index": int(index), "name": title}
 
 
+def _forget_created_folder(fid: str = "", parent_id: str = "", title: str = "") -> None:
+    fid = str(fid or "")
+    parent_id = str(parent_id or "")
+    title = str(title or "")
+    with _LOCKS_GUARD:
+        if parent_id or title:
+            _CREATED_FOLDERS.pop((parent_id, title), None)
+        if fid:
+            for key, value in list(_CREATED_FOLDERS.items()):
+                if value == fid:
+                    _CREATED_FOLDERS.pop(key, None)
+
+
+def _comment_drive_index(comment: dict | None) -> int:
+    try:
+        return int((comment or {}).get("driveIndex") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def drop_comment_from_drive(task: dict | None, comment: dict | None) -> str | None:
+    """Trash Comments/01 for this note. Last Drive note also trashes Comments."""
+    task = task or {}
+    comment = comment or {}
+    token = drive_token()
+    if not token:
+        return None
+    parent = studio_pack_folder_id(task)
+    comments_id = str(task.get("commentsFolderId") or "").strip()
+    if not comments_id and parent:
+        found = _find_child(token, parent, "Comments", FOLDER_MIME)
+        comments_id = str((found or {}).get("id") or "")
+    slot_id = str(comment.get("folderId") or "").strip()
+    idx = _comment_drive_index(comment)
+    label = f"{idx:02d}" if idx else ""
+    if not slot_id and comments_id and label:
+        found = _find_child(token, comments_id, label, FOLDER_MIME)
+        slot_id = str((found or {}).get("id") or "")
+    try:
+        if slot_id:
+            _trash_file(token, slot_id)
+            _forget_created_folder(slot_id, comments_id, label)
+        keep = [
+            row
+            for row in (task.get("comments") or [])
+            if isinstance(row, dict) and (row.get("folderId") or _comment_drive_index(row))
+        ]
+        if keep:
+            return None
+        if comments_id:
+            _trash_file(token, comments_id)
+            _forget_created_folder(comments_id, parent, "Comments")
+        task.pop("commentsFolderId", None)
+        task.pop("commentsFolderUrl", None)
+        return None
+    except DriveError as e:
+        return str(e)
+
+
 def ensure_invoice_month_folder(ym: str, direction: str = "mgx") -> dict:
     """LLC/docs/_clients/SUPERPLAY/invoice/MGX|Playable / 10_October."""
     token = drive_token()
