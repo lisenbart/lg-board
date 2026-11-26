@@ -262,6 +262,18 @@ def playable_crew_ids(task: dict | None) -> list[str]:
     return ids
 
 
+def playable_ad_delivered(task: dict | None) -> bool:
+    """True after the AD on the card Send to LP. Check without that hand is still her job."""
+    task = task or {}
+    if not bool(task.get("handedToLp")):
+        return False
+    ad = str(task.get("assigneeId") or "").strip()
+    if not playable_has_ad(task) or not ad:
+        return True
+    who = str(task.get("handedBy") or "").strip()
+    return not who or who == ad
+
+
 def playable_turn_role(task: dict | None) -> str:
     """Whose move: art_director, programmer, manager, or empty (waiting on the client)."""
     task = task or {}
@@ -291,6 +303,8 @@ def playable_turn_role(task: dict | None) -> str:
     if st in {"new", "wip", "revision"}:
         return "art_director" if has_ad else "manager"
     if st == "check":
+        if has_ad and not playable_ad_delivered(task):
+            return "art_director"
         return "manager"
     return ""
 
@@ -333,6 +347,7 @@ def touch_playable_html(task: dict | None, prev: str | None = None, force_art: b
         task["playableHtml"] = False
         task["htmlUrl"] = ""
         task["handedToLp"] = False
+        task["handedBy"] = ""
         return
     if st in ART_LOOP or st == "closed":
         if task.get("playableHtml"):
@@ -389,6 +404,8 @@ def playable_next_statuses(role: str, task: dict | None) -> list[str]:
     if role == "art_director":
         if html or not has_ad:
             return []
+        if st == "check" and not playable_ad_delivered(task):
+            return ["wip"]
         return {
             "new": ["wip"],
             "revision": ["wip"],
@@ -413,6 +430,8 @@ def playable_handoff_status(role: str, task: dict | None) -> str:
         if html:
             return ""
         if st in {"new", "wip", "revision"}:
+            return "check"
+        if st == "check" and not playable_ad_delivered(task):
             return "check"
         if st == "finalart":
             return HANDOFF_NOTIFY

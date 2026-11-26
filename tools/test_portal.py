@@ -1869,6 +1869,14 @@ def test_playable_card_pipeline() -> None:
         direction_io.playable_next_statuses("programmer", art_wip) == [],
     )
     ad["studioStatus"] = "check"
+    check(
+        "Check without Send to LP stays AD work",
+        direction_io.playable_turn_role(ad) == "art_director"
+        and direction_io.playable_next_statuses("art_director", ad) == ["wip"]
+        and direction_io.playable_handoff_status("art_director", ad) == "check",
+    )
+    ad["handedToLp"] = True
+    ad["handedBy"] = "artdir1"
     check("AD waits on Check for LP", direction_io.playable_next_statuses("art_director", ad) == [])
     check("LP does not chip-set Send", not direction_io.playable_can_set("manager", ad, "approve")[0])
     check("LP can Mark Closed from Check", direction_io.playable_can_set("manager", ad, "closed")[0])
@@ -2070,6 +2078,8 @@ def test_playable_card_pipeline() -> None:
     )
     check("Monday chips name Art vs HTML WIP", "WIP · Art" in js and "WIP · HTML" in js)
     check("rows mark your turn vs waiting", "function isActiveForMe" in js and "is-turn" in js and "is-wait" in js)
+    check("in progress KPI is your turn", "tasks.filter((t) => isActiveForMe(t))" in js)
+    check("Check without Send to LP stays the AD", "function playableAdDelivered" in js)
     check(
         "board Result uses HTML if resultUrl is empty",
         "function taskLinkUrl" in js and "t.htmlUrl || t.storyboardUrl" in js,
@@ -2278,6 +2288,8 @@ def test_playable_team_scenarios() -> None:
     t["resultUrl"] = "https://miro.com/app/board/zeus"
     check("Anna Hands Check", can("art_director", t, "check", anna) and direction_io.playable_handoff_status("art_director", t) == "check")
     apply(board, t, anna, status="check")
+    check("Check without Send to LP is still Anna", turn(t) == "art_director")
+    apply(board, t, anna, handed=True)
     check("Check is LP", turn(t) == "manager")
     check("Check pings LP", lp in audience(board, "task.check"))
     check("Check is sendable", server.is_sendable(t))
@@ -2320,7 +2332,7 @@ def test_playable_team_scenarios() -> None:
     check("board bounce pings Anna not Bohdan", audience(board, "task.revision") == [anna], str(audience(board, "task.revision")))
     apply(board, t, anna, status="wip")
     t["resultUrl"] = "https://miro.com/app/board/zeus-v2"
-    apply(board, t, anna, status="check")
+    apply(board, t, anna, status="check", handed=True)
     check("fixed board is back at LP Check", turn(t) == "manager" and server.is_sendable(t))
 
     # --- Client bounces the HTML
@@ -2394,8 +2406,19 @@ def test_playable_team_scenarios() -> None:
     check("switch pings Yulia", yulia in audience(board, "task.assigned"))
 
     # --- LP covers Anna: sets Check herself
+    board = db()
     t = card(studioStatus="wip", resultUrl="https://miro.com/app/board/zeus")
     check("LP can Check if Anna is away", can("manager", t, "check", lp))
+    apply(board, t, lp, status="check")
+    check("LP Check without AD Send still Anna's turn", turn(t) == "art_director")
+    stolen = card(
+        studioStatus="check",
+        assigneeId=anna,
+        handedToLp=True,
+        handedBy=yulia,
+        resultUrl="https://miro.com/app/board/zeus",
+    )
+    check("other AD hand does not finish Anna's card", turn(stolen) == "art_director")
 
     # --- Bohdan saves HTML while Anna is still on art
     board = db()

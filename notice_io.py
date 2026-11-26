@@ -414,11 +414,13 @@ def on_task_change(db: dict, task: dict, before: dict | None, actor_id: str = ""
             emit(db, "task.wip", actor_id=actor_id, task=task, audience_ids=playable_ping_ids("task.wip"))
         if not handed:
             task["handedToLp"] = False
+            task["handedBy"] = ""
     elif bounced_art:
         emit(db, "task.revision", actor_id=actor_id, task=task, audience_ids=playable_ping_ids("task.revision"))
     if handed:
         import direction_io
         task["handedToLp"] = True
+        task["handedBy"] = str(actor_id or "")
         st = direction_io.playable_norm_status(task.get("studioStatus")) if direction_io.is_playables(task) else ""
         if st and st != "check":
             if st == "finalart":

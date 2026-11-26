@@ -2528,9 +2528,7 @@ function renderKpis() {
   const tasks = visibleTasks();
   if (isPerformer() && state.view !== "excel") {
     const hours = tasks.reduce((s, t) => s + hoursForPerson(t, me().id), 0);
-    const active = tasks.filter((t) =>
-      ["wip", "revision", "tlcheck", "check", "finalart"].includes(playableStatusKey(t))
-    ).length;
+    const active = tasks.filter((t) => isActiveForMe(t)).length;
     $("kpis").innerHTML = `
       <div class="kpi"><b>${tasks.length}</b><span>assigned to me</span></div>
       <div class="kpi"><b>${active}</b><span>in progress</span></div>
@@ -3488,7 +3486,12 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
     if (st === "done") return { tone: "wait", title: "Waiting for LP", body: "HTML is in. Line Producer sends it." };
     if (html) return { tone: "wait", title: "Waiting for DEV / LP", body: "Art is done. Programmer builds HTML. LP sends it." };
     if (st === "clientart") return { tone: "wait", title: "Sent", body: "Storyboard is with the client. LP sets Need Fixing if they bounce it, or Final art when they approve." };
-    if (st === "check") return { tone: "wait", title: "Waiting for LP", body: "Storyboard is ready. LP sends it. Only LP talks to the client." };
+    if (st === "check") {
+      if (!playableAdDelivered(t)) {
+        return { tone: "do", title: "Your job", body: "Paste the storyboard, then Send to LP — footer or the status chip. Don't send the link in Telegram." };
+      }
+      return { tone: "wait", title: "Waiting for LP", body: "Storyboard is ready. LP sends it. Only LP talks to the client." };
+    }
     if (st === "finalart") return { tone: "do", title: "Final art", body: "Finish art, then Send to LP. LP sets Art ready so DEV can start HTML." };
     if (st === "revision") {
       const cue = clientCue(t);
@@ -4853,6 +4856,13 @@ function playableInHtml(t) {
   if (t?.playableHtml) return true;
   return false;
 }
+function playableAdDelivered(t) {
+  if (!t?.handedToLp) return false;
+  const ad = playableAdId(t);
+  if (!ad) return true;
+  const who = String(t.handedBy || "");
+  return !who || who === ad;
+}
 function playableTurnRole(t) {
   if (!isPlayables(t)) return "";
   const st = playableStatusKey(t);
@@ -4876,7 +4886,7 @@ function playableTurnRole(t) {
   }
   if (st === "finalart") return handed || !ad ? "manager" : "art_director";
   if (st === "new" || st === "wip" || st === "revision") return ad ? "art_director" : "manager";
-  if (st === "check") return "manager";
+  if (st === "check") return ad && !playableAdDelivered(t) ? "art_director" : "manager";
   return "";
 }
 function isActiveForMe(t) {
@@ -4918,6 +4928,7 @@ function playableHandoffStatus(role, t) {
   if (role === "art_director") {
     if (html) return "";
     if (["new", "wip", "revision"].includes(st)) return "check";
+    if (st === "check" && !playableAdDelivered(t)) return "check";
     if (st === "finalart") return "notify";
     return "";
   }
@@ -4937,6 +4948,7 @@ function playableNextStatuses(role, t) {
   }
   if (role === "art_director") {
     if (html || !hasAd) return [];
+    if (st === "check" && !playableAdDelivered(t)) return ["wip"];
     return (
       {
         new: ["wip"],
