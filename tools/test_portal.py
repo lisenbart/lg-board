@@ -164,6 +164,23 @@ def test_client_hours_xlsx() -> None:
     check("hours section sum is mid pastel", sec_fill.upper().endswith("CAD9E8"), sec_fill)
     check("hours fills are not WIP blue", "579BFC" not in mgx_fill.upper() and "579BFC" not in sec_fill.upper())
     check("hours blocks are separate", play_row - mgx_row >= 3, f"{mgx_row} → {play_row}")
+    projects = excel_io.client_hours_bytes(
+        db, "2026-10", generated_at=at, tz_name="Europe/Kyiv", projects_only=True
+    )
+    pwb = load_workbook(BytesIO(projects))
+    pws = pwb.active
+    p_headers = [str(pws.cell(2, c).value or "") for c in range(1, 5)]
+    p_a = [str(pws.cell(r, 1).value or "") for r in range(1, (pws.max_row or 1) + 1)]
+    p_mgx = next(
+        pws.cell(r, 2).value
+        for r in range(1, (pws.max_row or 1) + 1)
+        if str(pws.cell(r, 1).value or "").startswith("MGX TOTAL")
+    )
+    check("client projects xlsx has no hours columns", "SHIFTS" not in p_headers and "HOURS" not in p_headers and "STATUS" in p_headers, str(p_headers))
+    check("client projects MGX TOTAL is a count", int(p_mgx) == 2, str(p_mgx))
+    check("client projects keeps names", "DX-AAA-0001" in p_a and "DS-P-060_MergeSolitaire" in p_a)
+    pwb.close()
+    check("client projects filename", excel_io.client_hours_filename("2026-10", projects_only=True) == "SUPERPLAY_projects_2026-10.xlsx")
     check("hours sheet has no mixed TOTAL", "TOTAL" not in col_a)
     empl = any("EMPL" in str(ws.cell(2, c).value or "") for c in range(1, 8))
     check("hours sheet has no EMPL", not empl)
@@ -1601,6 +1618,12 @@ def test_playables_desk() -> None:
         check("hours table totals omit rates", "MGX TOTAL · $" not in js and "Playable TOTAL · $" not in js)
         check("hours report is two direction sheets", "sp-sheet-${kind}" in js and 'sheetHtml("mgx"' in js and 'sheetHtml("play"' in js)
         check("hours KPIs filter a direction", 'data-hours-dir="' in js and "state.hoursDir" in js)
+        check(
+            "client board hides hours, studio report keeps them",
+            "const hideHours = isClient()" in js
+            and 'hoursKpiHtml(mgxCount, "MGX", "mgx")' in js
+            and 'th class="sp-num">HOURS</th>' in js,
+        )
         html = (ROOT / "public" / "index.html").read_text(encoding="utf-8")
         check(
             "DL SuperPlay hours stay in the cabinet",
@@ -2483,6 +2506,7 @@ def test_superplay_visits_and_status() -> None:
     task = (client.get("tasks") or [{}])[0]
     check("client hours carry studio status", task.get("studioStatus") == "wip")
     check("client hours hide assignee and brief", "assigneeId" not in task and "brief" not in task)
+    check("client desk hides hours and shifts", "hours" not in task and "shifts" not in task, str(task))
     check("client state has no visit log", "superplayVisits" not in client)
     fin = auth_io.view_state(db, {"role": "finance", "email": "dmytro@lisenbart.games"})
     check("finance state has visit log", isinstance(fin.get("superplayVisits"), list))
@@ -3957,7 +3981,32 @@ def test_http(base: str) -> str | None:
         not sp_tasks or ("assigneeId" not in sp_tasks[0] and "brief" not in sp_tasks[0]),
         str(sp_tasks[:1] if sp_tasks else None),
     )
+    check(
+        "SuperPlay desk hides hours and shifts",
+        not sp_tasks or ("hours" not in sp_tasks[0] and "shifts" not in sp_tasks[0]),
+        str(sp_tasks[:1] if sp_tasks else None),
+    )
     if sp_cookie:
+        code, payload, xh = _http(
+            f"{base}/api/hours/file?month=2026-10&tz=Europe/Kyiv",
+            cookie=sp_cookie.split(";", 1)[0],
+        )
+        check(
+            "client Excel is a projects file",
+            code == 200 and isinstance(payload, (bytes, bytearray)) and payload[:2] == b"PK",
+            f"status={code} type={type(payload).__name__}",
+        )
+        if isinstance(payload, (bytes, bytearray)) and payload[:2] == b"PK":
+            cwb = load_workbook(BytesIO(payload))
+            chead = [str(cwb.active.cell(2, c).value or "") for c in range(1, 5)]
+            cdisp = str(xh.get("Content-Disposition") or "")
+            cwb.close()
+            check(
+                "client Excel has no hours columns",
+                "SHIFTS" not in chead and "HOURS" not in chead and "STATUS" in chead,
+                str(chead),
+            )
+            check("client Excel filename is projects", "projects_" in cdisp, cdisp)
         code, payload, _ = _http(f"{base}/api/me", cookie=sp_cookie.split(";", 1)[0])
         me_state = (payload or {}).get("state") or {}
         check(

@@ -1269,11 +1269,40 @@ def _as_float(value, default: float = 0.0) -> float:
         return default
 
 
-def client_hours_filename(ym: str, client_id: str = "") -> str:
+def client_hours_filename(ym: str, client_id: str = "", projects_only: bool = False) -> str:
     import client_io
 
     prefix = "SLOTOMANIA" if client_io.norm(client_id) == client_io.SLOTOMANIA else "SUPERPLAY"
-    return f"{prefix}_hours_{ym}.xlsx"
+    kind = "projects" if projects_only else "hours"
+    return f"{prefix}_{kind}_{ym}.xlsx"
+
+
+CLIENT_STATUS_LABEL = {
+    "new": "Ready",
+    "wip": "WIP",
+    "revision": "Need Fixing",
+    "tlcheck": "TL Check",
+    "check": "Check",
+    "done": "Done",
+    "approve": "Sent",
+    "closed": "Closed",
+    "clientart": "Sent",
+    "finalart": "Final art",
+    "artready": "Art ready",
+    "quote": "Ready",
+    "storyboard": "Check",
+    "htmlready": "Done",
+    "build": "Art ready",
+}
+
+
+def client_status_label(task: dict | None) -> str:
+    task = task or {}
+    raw = str(task.get("mondayStatus") or "").strip()
+    if raw:
+        return raw
+    st = str(task.get("studioStatus") or "new")
+    return CLIENT_STATUS_LABEL.get(st, st)
 
 
 TZ_NAME = re.compile(r"^[A-Za-z0-9_+\-/]{1,64}$")
@@ -1333,8 +1362,9 @@ def client_hours_bytes(
     generated_at: datetime | None = None,
     tz_name: str = "UTC",
     client_id: str = "",
+    projects_only: bool = False,
 ) -> bytes:
-    """Build a fresh client hours xlsx at download time. No people, rates, or money."""
+    """Build a fresh client xlsx at download time. Studio gets hours; the client gets project names."""
     import client_io
 
     ym = str(ym or "").strip()
@@ -1373,8 +1403,9 @@ def client_hours_bytes(
     ws.title = sheet_name_for(ym)[:31]
     stamp = ws.cell(1, 1, f"Generated {local_stamp(generated_at, tz_name)}")
     stamp.font = Font(name="Calibri", size=11, color="676879")
-    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=3)
-    headers = (f"{year} PROJECT NAME", "SHIFTS", "HOURS")
+    last_col = 2 if projects_only else 3
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=last_col)
+    headers = (f"{year} PROJECT NAME", "STATUS") if projects_only else (f"{year} PROJECT NAME", "SHIFTS", "HOURS")
     for col, title in enumerate(headers, 1):
         cell = ws.cell(2, col, title)
         cell.font = HOURS_INK
@@ -1384,17 +1415,18 @@ def client_hours_bytes(
 
     row = 3
 
-    def write_dir_total(label: str, hours: float) -> None:
+    def write_dir_total(label: str, hours: float, count: int) -> None:
         nonlocal row
         ws.cell(row, 1, label)
-        ws.cell(row, 3, round(hours, 1))
-        for col in range(1, 4):
+        value_col = 2 if projects_only else 3
+        ws.cell(row, value_col, count if projects_only else round(hours, 1))
+        for col in range(1, last_col + 1):
             cell = ws.cell(row, col)
             cell.font = HOURS_TOTAL_FONT
             cell.fill = HOURS_TOTAL_FILL
             cell.border = THIN
-        ws.cell(row, 3).fill = HOURS_TOTAL_SUM_FILL
-        ws.cell(row, 3).alignment = CENTER
+        ws.cell(row, value_col).fill = HOURS_TOTAL_SUM_FILL
+        ws.cell(row, value_col).alignment = CENTER
         row += 1
 
     grouped = (("MGX", "MGX TOTAL"), ("Playable", "Playable TOTAL"))
@@ -1406,36 +1438,44 @@ def client_hours_bytes(
         if wrote:
             row += 2
         dir_hours = 0.0
+        dir_count = 0
         for label, line, rows in block:
             rows = sorted(rows, key=lambda t: str(t.get("name") or "").lower())
             sec_hours = round(sum(client_hours(t, shift_hours) for t in rows), 1)
             dir_hours += sec_hours
+            dir_count += len(rows)
+            value_col = 2 if projects_only else 3
             ws.cell(row, 1, label)
-            ws.cell(row, 3, sec_hours)
-            for col in range(1, 4):
+            ws.cell(row, value_col, len(rows) if projects_only else sec_hours)
+            for col in range(1, last_col + 1):
                 cell = ws.cell(row, col)
                 cell.fill = HOURS_SEC_FILL
                 cell.font = HOURS_INK
                 cell.border = THIN
-            ws.cell(row, 3).fill = HOURS_SEC_SUM_FILL
-            ws.cell(row, 3).alignment = CENTER
+            ws.cell(row, value_col).fill = HOURS_SEC_SUM_FILL
+            ws.cell(row, value_col).alignment = CENTER
             row += 1
             for task in rows:
                 ws.cell(row, 1, str(task.get("name") or ""))
-                ws.cell(row, 2, _as_float(task.get("shifts")))
-                ws.cell(row, 3, client_hours(task, shift_hours))
-                for col in range(1, 4):
+                if projects_only:
+                    ws.cell(row, 2, client_status_label(task))
+                else:
+                    ws.cell(row, 2, _as_float(task.get("shifts")))
+                    ws.cell(row, 3, client_hours(task, shift_hours))
+                for col in range(1, last_col + 1):
                     cell = ws.cell(row, col)
                     cell.font = CALIBRI
                     cell.border = THIN
                 ws.cell(row, 2).alignment = CENTER
-                ws.cell(row, 3).alignment = CENTER
+                if not projects_only:
+                    ws.cell(row, 3).alignment = CENTER
                 row += 1
-        write_dir_total(total_label, dir_hours)
+        write_dir_total(total_label, dir_hours, dir_count)
         wrote += 1
     ws.column_dimensions["A"].width = 72
-    ws.column_dimensions["B"].width = 12
-    ws.column_dimensions["C"].width = 12
+    ws.column_dimensions["B"].width = 16 if projects_only else 12
+    if not projects_only:
+        ws.column_dimensions["C"].width = 12
     ws.freeze_panes = "A3"
     buf = BytesIO()
     try:

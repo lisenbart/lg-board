@@ -931,8 +931,6 @@ def client_state(db: dict, sess: dict | None = None) -> dict:
                 "department": t.get("department") or "Playables",
                 "game": t.get("game"),
                 "month": t.get("month"),
-                "shifts": t.get("shifts"),
-                "hours": t.get("hours"),
                 "studioStatus": t.get("studioStatus") or "new",
                 "clientId": cid,
             }

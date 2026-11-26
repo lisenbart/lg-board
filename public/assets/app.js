@@ -3888,7 +3888,7 @@ function hoursStampKpi() {
 function hoursXlsxName(res) {
   const raw = res.headers.get("Content-Disposition") || "";
   const m = raw.match(/filename="([^"]+)"/i);
-  return m ? m[1] : `${activeClientId() === "slotomania" ? "SLOTOMANIA" : "SUPERPLAY"}_hours_${state.month}.xlsx`;
+  return m ? m[1] : `${activeClientId() === "slotomania" ? "SLOTOMANIA" : "SUPERPLAY"}_${isClient() ? "projects" : "hours"}_${state.month}.xlsx`;
 }
 function bindHoursDownload() {
   $("btnHoursXlsx")?.addEventListener("click", downloadHoursXlsx);
@@ -4024,7 +4024,11 @@ function hoursKpiHtml(value, label, dir) {
   return `<button type="button" class="kpi${on ? " on" : ""}" data-hours-dir="${escapeHtml(key)}" aria-pressed="${on ? "true" : "false"}"><b>${value}</b><span>${escapeHtml(label)}</span></button>`;
 }
 
+function reportProjectCount(block) {
+  return (block?.rows || []).reduce((s, sec) => s + (sec.rows || []).length, 0);
+}
 function renderClientReport() {
+  const hideHours = isClient();
   const q = searchQuery();
   const all = monthTasks({ all: true });
   const tasks = all
@@ -4048,10 +4052,17 @@ function renderClientReport() {
   const showMgx = (!state.hoursDir || state.hoursDir === "mgx") && mgx.rows.length;
   const showPlay = (!state.hoursDir || state.hoursDir === "playables") && play.rows.length;
   const totalProjects = sections.reduce((s, sec) => s + sec.rows.length, 0);
+  const mgxCount = reportProjectCount(mgx);
+  const playCount = reportProjectCount(play);
   const sectionHtml = (sec) => {
     const rows = sec.rows
-      .map(
-        (t) => `<tr class="sp-row">
+      .map((t) =>
+        hideHours
+          ? `<tr class="sp-row">
+            <td class="sp-name" title="${escapeHtml(t.name)}">${escapeHtml(t.name)}</td>
+            <td class="sp-st">${statusChip(t)}</td>
+          </tr>`
+          : `<tr class="sp-row">
             <td class="sp-name" title="${escapeHtml(t.name)}">${escapeHtml(t.name)}</td>
             <td class="sp-st">${statusChip(t)}</td>
             <td class="sp-num">${fmtReportNum(t.shifts, 3)}</td>
@@ -4060,7 +4071,12 @@ function renderClientReport() {
           </tr>`
       )
       .join("");
-    return `<tr class="sp-sec">
+    return hideHours
+      ? `<tr class="sp-sec">
+          <th class="sp-name">${escapeHtml(sec.label)}</th>
+          <th class="sp-st sp-sec-sum">${sec.rows.length}</th>
+        </tr>${rows}`
+      : `<tr class="sp-sec">
           <th class="sp-name">${escapeHtml(sec.label)}</th>
           <th class="sp-st"></th>
           <th class="sp-num"></th>
@@ -4069,7 +4085,12 @@ function renderClientReport() {
         </tr>${rows}`;
   };
   const dirTotalRow = (label, block) =>
-    `<tr class="sp-dir-total">
+    hideHours
+      ? `<tr class="sp-dir-total">
+            <td class="sp-name">${escapeHtml(label)}</td>
+            <td class="sp-st sp-hours">${reportProjectCount(block)}</td>
+          </tr>`
+      : `<tr class="sp-dir-total">
             <td class="sp-name">${escapeHtml(label)}</td>
             <td class="sp-st"></td>
             <td class="sp-num">${fmtReportNum(block.shifts, 1)}</td>
@@ -4077,7 +4098,28 @@ function renderClientReport() {
             <td class="sp-num sp-hours">${fmtReportNum(block.hours, 1)}</td>
           </tr>`;
   const sheetHtml = (kind, label, block) =>
-    `<div class="sp-sheet sp-sheet-${kind}">
+    hideHours
+      ? `<div class="sp-sheet sp-sheet-${kind}">
+        <div class="sp-scroll">
+          <table class="sp-table">
+            <colgroup>
+              <col class="sp-col-name" />
+              <col class="sp-col-st" />
+            </colgroup>
+            <thead>
+              <tr>
+                <th class="sp-name">${escapeHtml(year)} PROJECT NAME</th>
+                <th class="sp-st">STATUS</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${block.rows.map(sectionHtml).join("")}
+              ${dirTotalRow(label, block)}
+            </tbody>
+          </table>
+        </div>
+      </div>`
+      : `<div class="sp-sheet sp-sheet-${kind}">
         <div class="sp-scroll">
           <table class="sp-table">
             <colgroup>
@@ -4109,12 +4151,16 @@ function renderClientReport() {
   ]
     .filter(Boolean)
     .join("");
+  const dirKpis = hideHours
+    ? `${mgx.rows.length ? hoursKpiHtml(mgxCount, "MGX", "mgx") : ""}
+        ${play.rows.length ? hoursKpiHtml(playCount, "Playable", "playables") : ""}`
+    : `${mgx.rows.length ? hoursKpiHtml(`${fmtReportNum(mgx.hours, 1)} h`, "MGX", "mgx") : ""}
+        ${play.rows.length ? hoursKpiHtml(`${fmtReportNum(play.hours, 1)} h`, "Playable", "playables") : ""}`;
   $("board").innerHTML = `
-    <section class="sp-report">
+    <section class="sp-report${hideHours ? " is-projects" : ""}">
       <div class="sp-kpis">
         ${hoursKpiHtml(totalProjects, "projects")}
-        ${mgx.rows.length ? hoursKpiHtml(`${fmtReportNum(mgx.hours, 1)} h`, "MGX", "mgx") : ""}
-        ${play.rows.length ? hoursKpiHtml(`${fmtReportNum(play.hours, 1)} h`, "Playable", "playables") : ""}
+        ${dirKpis}
         ${hoursStampKpi()}
       </div>
       <div class="sp-blocks">${sheets}</div>
@@ -4443,7 +4489,7 @@ function renderGuide() {
           "Клієнт. Своя сторінка годин, без черги студії.",
           [
             `Адреса студії ${ui("board.lisenbart.games")}. Кнопка ${ui("Client")} → логін ${ui("SuperPlay")} або ${ui("Slotomania")} і PIN саме цього клієнта.`,
-            `Прямі посилання ${ui("/superplay")} і ${ui("/slotomania")}. Старе ${ui("/hours")} веде на SuperPlay. Список: ${ui("PROJECT NAME")} / ${ui("STATUS")} / ${ui("SHIFTS")} / ${ui("HOURS")}.`,
+            `Прямі посилання ${ui("/superplay")} і ${ui("/slotomania")}. Старе ${ui("/hours")} веде на SuperPlay. Список: ${ui("PROJECT NAME")} і ${ui("STATUS")} — без годин і шифтів. Студія бачить години окремо.`,
             `Логін має бути ім’я клієнта, не ім’я людини. ${ui("DL")} бачить журнал входів окремо для SuperPlay і Slotomania.`,
             `SuperPlay: секції ${ui("MGX")} і ${ui("Playable")}. Slotomania: лише Playable. Імен виконавців, ставок, квотів і PO клієнт не бачить.`,
           ]

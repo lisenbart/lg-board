@@ -33,7 +33,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-11-24q"
+BUILD = "2026-11-24r"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -2027,6 +2027,7 @@ class Handler(SimpleHTTPRequestHandler):
                     asked = str((qs.get("client") or [""])[0] or "").strip()
                     if asked:
                         cid = client_io.norm(asked)
+                projects_only = auth_io.is_client_session(sess)
                 snap = {
                     "meta": {"shiftHours": (db.get("meta") or {}).get("shiftHours") or 9},
                     "tasks": [
@@ -2034,20 +2035,30 @@ class Handler(SimpleHTTPRequestHandler):
                             "name": t.get("name"),
                             "line": t.get("line"),
                             "month": t.get("month"),
-                            "shifts": t.get("shifts"),
-                            "hours": t.get("hours"),
                             "department": t.get("department"),
                             "direction": t.get("direction"),
                             "clientId": client_io.of_task(t),
+                            "studioStatus": t.get("studioStatus"),
+                            "mondayStatus": t.get("mondayStatus"),
+                            **(
+                                {}
+                                if projects_only
+                                else {
+                                    "shifts": t.get("shifts"),
+                                    "hours": t.get("hours"),
+                                }
+                            ),
                         }
                         for t in db.get("tasks") or []
                     ],
                 }
-            data = excel_io.client_hours_bytes(snap, month, tz_name=tz_name, client_id=cid)
+            data = excel_io.client_hours_bytes(
+                snap, month, tz_name=tz_name, client_id=cid, projects_only=projects_only
+            )
             self._bytes(
                 data,
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                excel_io.client_hours_filename(month, cid),
+                excel_io.client_hours_filename(month, cid, projects_only=projects_only),
             )
             return
         if path == "/api/drive/status":
