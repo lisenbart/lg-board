@@ -273,6 +273,17 @@ def playable_ad_delivered(task: dict | None) -> bool:
     return str(task.get("handedBy") or "").strip() == ad
 
 
+def playable_dev_delivered(task: dict | None) -> bool:
+    """True only after the programmer seated on the card Send to LP."""
+    task = task or {}
+    if not bool(task.get("handedToLp")):
+        return False
+    dev = str(task.get("programmerId") or "").strip()
+    if not dev:
+        return True
+    return str(task.get("handedBy") or "").strip() == dev
+
+
 def playable_turn_role(task: dict | None) -> str:
     """Whose move: art_director, programmer, manager, or empty (waiting on the client)."""
     task = task or {}
@@ -280,20 +291,19 @@ def playable_turn_role(task: dict | None) -> str:
     html = playable_in_html(task)
     has_ad = playable_has_ad(task)
     dev = str(task.get("programmerId") or "").strip()
-    handed = bool(task.get("handedToLp"))
     if st in {"closed", "approve", "clientart"}:
         return ""
     if html:
         if st == "done":
             return "manager"
         if st in {"artready", "wip", "revision", "new"}:
-            if handed:
+            if playable_dev_delivered(task):
                 return "manager"
             return "programmer" if dev else "manager"
         return ""
     if not has_ad and dev:
         if st in {"new", "wip", "revision"}:
-            return "manager" if handed else "programmer"
+            return "manager" if playable_dev_delivered(task) else "programmer"
         if st in {"done", "check"}:
             return "manager"
         return ""
@@ -309,7 +319,7 @@ def playable_turn_role(task: dict | None) -> str:
 
 
 def playable_part_open(task: dict | None, role: str, person_id: str = "") -> bool:
-    """True while this seat still has unfinished work. LP until Closed; AD until Send to LP; DEV until HTML is in."""
+    """Active while this person is seated and has not delivered their part. Inactive after they hand off, or before their queue starts."""
     task = task or {}
     st = playable_norm_status(task.get("studioStatus"))
     if st == "closed":
@@ -322,6 +332,29 @@ def playable_part_open(task: dict | None, role: str, person_id: str = "") -> boo
         return turn == "art_director" and playable_has_ad(task) and str(task.get("assigneeId") or "") == actor
     if role == "programmer":
         return turn == "programmer" and str(task.get("programmerId") or "") == actor
+    return False
+
+
+def task_part_open(task: dict | None, role: str, person_id: str = "") -> bool:
+    """Board-wide active row: seated + part not delivered. Helpers never. LP/DL until Closed."""
+    task = task or {}
+    if is_playables(task):
+        return playable_part_open(task, role, person_id)
+    st = str(task.get("studioStatus") or "new")
+    if st == "closed":
+        return False
+    if role in {"manager", "finance"}:
+        return True
+    actor = str(person_id or "")
+    mine = str(task.get("assigneeId") or "") == actor
+    if st == "approve":
+        return False
+    if role == "designer":
+        return mine and st in {"new", "wip", "revision"}
+    if role == "teamlead":
+        if st == "tlcheck":
+            return True
+        return mine and st in {"new", "wip", "revision"}
     return False
 
 

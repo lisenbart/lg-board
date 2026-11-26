@@ -3545,13 +3545,13 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
     if (!t.programmerId) {
       return { tone: "do", title: "Assign DEV", body: "Art is ready. Put a programmer on the card if they are not there yet. They can sit on the card from Ready." };
     }
-    if (t.handedToLp) {
+    if (playableDevDelivered(t)) {
       return { tone: "do", title: "HTML is in", body: `${progName || "Programmer"} sent the HTML. Tap the status chip for Done or Need Fixing.` };
     }
     return { tone: "wait", title: "Art ready", body: `${progName || "Programmer"} pastes HTML and Send to LP. Then tap the status chip for Done or Need Fixing.` };
   }
   if (html && t.programmerId) {
-    if (t.handedToLp) {
+    if (playableDevDelivered(t)) {
       return { tone: "do", title: "HTML is in", body: `${progName || "Programmer"} sent the HTML. Tap the status chip for Done or Need Fixing.` };
     }
     if (st === "new") {
@@ -3560,7 +3560,7 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
     return { tone: "wait", title: "In WIP", body: `${progName || "Programmer"} is on HTML. They Send to LP — you set Done or Need Fixing.` };
   }
   if (st === "finalart") {
-    if (t.handedToLp) return { tone: "do", title: "Art is in", body: `${name || "Art Director"} sent the art. Tap the status chip → Art ready so DEV can start HTML.` };
+    if (playableAdDelivered(t)) return { tone: "do", title: "Art is in", body: `${name || "Art Director"} sent the art. Tap the status chip → Art ready so DEV can start HTML.` };
     return { tone: "wait", title: "Final art", body: `${name || "Art Director"} is finishing art. They Send to LP — you set Art ready.` };
   }
   if (st === "revision") return { tone: "wait", title: "Need Fixing", body: html ? `${progName || "Programmer"} is fixing HTML. If they are away, tap the status chip.` : `${name || "Art Director"} is fixing the storyboard. If they are away, tap the status chip.` };
@@ -4862,24 +4862,29 @@ function playableAdDelivered(t) {
   if (!ad) return true;
   return String(t.handedBy || "") === ad;
 }
+function playableDevDelivered(t) {
+  if (!t?.handedToLp) return false;
+  const dev = String(t.programmerId || "").trim();
+  if (!dev) return true;
+  return String(t.handedBy || "") === dev;
+}
 function playableTurnRole(t) {
   if (!isPlayables(t)) return "";
   const st = playableStatusKey(t);
   const html = playableInHtml(t);
   const ad = playableAdId(t);
   const dev = String(t.programmerId || "").trim();
-  const handed = Boolean(t.handedToLp);
   if (st === "closed" || st === "approve" || st === "clientart") return "";
   if (html) {
     if (st === "done") return "manager";
     if (st === "artready" || st === "wip" || st === "revision" || st === "new") {
-      if (handed) return "manager";
+      if (playableDevDelivered(t)) return "manager";
       return dev ? "programmer" : "manager";
     }
     return "";
   }
   if (!ad && dev) {
-    if (["new", "wip", "revision"].includes(st)) return handed ? "manager" : "programmer";
+    if (["new", "wip", "revision"].includes(st)) return playableDevDelivered(t) ? "manager" : "programmer";
     if (st === "done" || st === "check") return "manager";
     return "";
   }
@@ -4888,19 +4893,26 @@ function playableTurnRole(t) {
   if (st === "check") return ad && !playableAdDelivered(t) ? "art_director" : "manager";
   return "";
 }
+function playablePartOpen(t, role, personId) {
+  if (!t) return false;
+  const st = playableStatusKey(t);
+  if (st === "closed") return false;
+  if (role === "manager" || role === "finance") return true;
+  const turn = playableTurnRole(t);
+  const actor = String(personId || "");
+  if (role === "art_director") return turn === "art_director" && playableAdId(t) === actor;
+  if (role === "programmer") return turn === "programmer" && String(t.programmerId || "") === actor;
+  return false;
+}
 function isActiveForMe(t) {
   if (!t || isClient()) return false;
   const role = me().role;
-  const st = isPlayables(t) ? playableStatusKey(t) : t.studioStatus || "new";
+  const id = String(me().id || "");
+  if (isPlayables(t)) return playablePartOpen(t, role, id);
+  const st = t.studioStatus || "new";
   if (st === "closed") return false;
   if (role === "manager" || role === "finance") return true;
-  if (isPlayables(t)) {
-    const turn = playableTurnRole(t);
-    if (role === "art_director") return turn === "art_director" && playableAdId(t) === String(me().id);
-    if (role === "programmer") return turn === "programmer" && String(t.programmerId || "") === String(me().id);
-    return false;
-  }
-  const mine = String(t.assigneeId || "") === String(me().id);
+  const mine = String(t.assigneeId || "") === id;
   if (st === "approve") return false;
   if (role === "designer") return mine && ["new", "wip", "revision"].includes(st);
   if (role === "teamlead") {

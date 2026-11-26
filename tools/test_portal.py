@@ -2091,8 +2091,14 @@ def test_playable_card_pipeline() -> None:
     )
     check(
         "LP rows stay active until Closed",
-        'role === "manager" || role === "finance") return true' in js
+        "function playablePartOpen" in js
+        and 'role === "manager" || role === "finance") return true' in js
         and 'isActiveForMe(t) ? " is-turn" : " is-wait"' in js,
+    )
+    check(
+        "DEV part stays open until that programmer Send to LP",
+        "function playableDevDelivered" in js
+        and "return String(t.handedBy || \"\") === dev" in js,
     )
     check("LP can bounce HTML Need Fixing to Art", "Need Fixing · Art" in js and "Need Fixing · HTML" in js)
     check("DEV sees HTML slot before Art ready", "The link saves itself. Send to LP after LP sets Art ready." in js)
@@ -2489,10 +2495,40 @@ def test_playable_team_scenarios() -> None:
     check("HTML WIP: Bohdan active", part(html, "programmer", bohdan) and not part(html, "art_director", anna))
     html_in = card(studioStatus="wip", assigneeId=anna, programmerId=bohdan, playableHtml=True, handedToLp=True, handedBy=bohdan)
     check("After Bohdan Send to LP: his part is done", not part(html_in, "programmer", bohdan) and part(html_in, "manager"))
+    html_ghost = card(studioStatus="artready", assigneeId=anna, programmerId=bohdan, playableHtml=True, handedToLp=True)
+    check("HTML Send without handedBy still Bohdan", part(html_ghost, "programmer", bohdan) and not part(html_ghost, "art_director", anna))
+    html_fix = card(studioStatus="revision", assigneeId=anna, programmerId=bohdan, playableHtml=True)
+    check("Need Fixing HTML is Bohdan", part(html_fix, "programmer", bohdan) and not part(html_fix, "art_director", anna))
+    art_fix = card(studioStatus="revision", assigneeId=anna, programmerId=bohdan)
+    check("Need Fixing art is Anna", part(art_fix, "art_director", anna) and not part(art_fix, "programmer", bohdan))
+    send = card(studioStatus="approve", assigneeId=anna, programmerId=bohdan, playableHtml=True)
+    check("Send: AD and DEV wait, LP stays", not part(send, "art_director", anna) and not part(send, "programmer", bohdan) and part(send, "manager"))
+    code_only = card(studioStatus="new", assigneeId="", programmerId=bohdan)
+    check("DEV-only Ready is Bohdan", part(code_only, "programmer", bohdan) and not part(code_only, "art_director", anna))
+    check("helpers never own the Playables turn", not part(ready, "designer", anna) and not part(ready, "teamlead", yulia))
     done = card(studioStatus="done", assigneeId=anna, programmerId=bohdan, playableHtml=True)
     check("Done: only LP", not part(done, "art_director", anna) and not part(done, "programmer", bohdan) and part(done, "manager"))
     closed = card(studioStatus="closed", assigneeId=anna, programmerId=bohdan)
     check("Closed: nobody", not part(closed, "manager") and not part(closed, "art_director", anna) and not part(closed, "programmer", bohdan))
+
+    seat = direction_io.task_part_open
+    mgx = {"department": "MGX", "studioStatus": "wip", "assigneeId": "md1"}
+    check("MGX WIP: designer active", seat(mgx, "designer", "md1") and not seat(mgx, "designer", "md2"))
+    check("MGX WIP: helper waits, LP stays", not seat(mgx, "designer", "helper") and seat(mgx, "manager"))
+    check("MGX WIP: TL waits unless assigned", not seat(mgx, "teamlead", "tl1"))
+    mgx_own_tl = {"department": "MGX", "studioStatus": "wip", "assigneeId": "tl1"}
+    check("MGX TL on own WIP is active", seat(mgx_own_tl, "teamlead", "tl1"))
+    mgx_tl = {**mgx, "studioStatus": "tlcheck"}
+    check(
+        "MGX TL Check: designer delivered, TL's queue",
+        not seat(mgx_tl, "designer", "md1") and seat(mgx_tl, "teamlead", "tl1") and seat(mgx_tl, "manager"),
+    )
+    mgx_done = {**mgx, "studioStatus": "done"}
+    check("MGX Done: only LP", not seat(mgx_done, "designer", "md1") and not seat(mgx_done, "teamlead", "tl1") and seat(mgx_done, "manager"))
+    mgx_sent = {**mgx, "studioStatus": "approve"}
+    check("MGX Sent: designer waits, LP stays", not seat(mgx_sent, "designer", "md1") and seat(mgx_sent, "manager"))
+    mgx_closed = {**mgx, "studioStatus": "closed"}
+    check("MGX Closed: nobody", not seat(mgx_closed, "manager") and not seat(mgx_closed, "designer", "md1"))
 
 
 def test_card_presence() -> None:
