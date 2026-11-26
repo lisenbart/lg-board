@@ -33,7 +33,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-11-26d"
+BUILD = "2026-11-26e"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -1386,7 +1386,8 @@ def push_comment_to_drive(task: dict, comment: dict) -> str | None:
             return "Drive is not connected"
         try:
             idx = int(comment.get("driveIndex") or 0) or next_comment_index(task)
-            slot = drive_io.ensure_comment_slot(task, idx)
+            loop = direction_io.comment_loop_key(comment.get("loop"), task)
+            slot = drive_io.ensure_comment_slot(task, idx, loop)
         except drive_io.DriveError as e:
             return str(e)
         comment["driveIndex"] = idx
@@ -3709,6 +3710,8 @@ class Handler(SimpleHTTPRequestHandler):
                     self._json(400, {"error": comment})
                     return
                 comment["driveIndex"] = next_comment_index(task)
+                if direction_io.is_playables(task):
+                    comment["loop"] = direction_io.comment_loop_key(data.get("loop"), task)
                 task.setdefault("comments", []).append(comment)
                 if task.get("brief") != brief_before:
                     task["brief"] = brief_before
@@ -3719,7 +3722,8 @@ class Handler(SimpleHTTPRequestHandler):
                         "programmerId": task.get("programmerId"),
                         "playableHtml": task.get("playableHtml"),
                     }
-                    if direction_io.apply_client_note_bounce(task, role):
+                    force_art = direction_io.comment_loop_key(comment.get("loop")) == "art"
+                    if direction_io.apply_client_note_bounce(task, role, force_art=force_art):
                         notice_io.on_task_change(
                             db, task, before, str(data.get("actorId") or "")
                         )

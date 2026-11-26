@@ -2698,6 +2698,16 @@ def test_playable_team_scenarios() -> None:
     check("LP client note on Check is Need Fixing Art", bounce(check_note, "manager") and check_note["studioStatus"] == "revision" and not direction_io.playable_in_html(check_note))
     html_note = card(studioStatus="artready", playableHtml=True)
     check("LP client note on Art ready is Need Fixing HTML", bounce(html_note, "manager") and html_note["studioStatus"] == "revision" and direction_io.playable_in_html(html_note))
+    art_from_html = card(studioStatus="artready", playableHtml=True, programmerId=bohdan, assigneeId=anna)
+    check(
+        "Art note from HTML loop is Need Fixing Art",
+        bounce(art_from_html, "manager", True)
+        and art_from_html["studioStatus"] == "revision"
+        and not direction_io.playable_in_html(art_from_html),
+    )
+    check("comment loop html", direction_io.comment_loop_key("html") == "html")
+    check("comment loop follows the HTML card", direction_io.comment_loop_key("", card(studioStatus="artready", playableHtml=True)) == "html")
+    check("comment loop follows the art card", direction_io.comment_loop_key("", card()) == "art")
     done_note = card(studioStatus="done", playableHtml=True)
     check("LP client note on Done is Need Fixing HTML", bounce(done_note, "manager") and direction_io.playable_in_html(done_note))
     send_html_note = card(studioStatus="approve", playableHtml=True)
@@ -3027,6 +3037,15 @@ def test_lp_can_close_without_send() -> None:
     )
     check("AD still sees Client notes", "function canSeeNotes" in js and "stays on this card" in js)
     check(
+        "Playables notes pick Art or HTML",
+        'data-loop="art"' in js and 'data-loop="html"' in js and "function defaultNoteLoop" in js,
+    )
+    check(
+        "Art and HTML chips sit on the note",
+        "notes-loop-${loop}" in js
+        and ".notes-loop-art" in (ROOT / "public" / "assets" / "board.css").read_text(encoding="utf-8"),
+    )
+    check(
         "LP client note toasts Need Fixing",
         "Need Fixing · Art · note on the card" in js and "Need Fixing · HTML · note on the card" in js,
     )
@@ -3234,6 +3253,8 @@ def test_comment_shots() -> None:
     drive = (ROOT / "drive_io.py").read_text(encoding="utf-8")
     check("Comments live in a Comments folder", 'parent, "Comments"' in drive or '", "Comments"' in drive)
     check("each client note gets a numbered Drive slot", "def ensure_comment_slot" in drive and "def next_comment_index" in src)
+    check("Art note Drive folder is 01 Art", drive_io.comment_slot_title(1, "art") == "01 Art")
+    check("HTML note Drive folder is 02 HTML", drive_io.comment_slot_title(2, "html") == "02 HTML")
     check("delete note trashes Drive Comments", "def drop_comment_from_drive" in drive and "drop_comment_from_drive" in src)
     check("delete last note undoes Need Fixing", "def undo_client_note_bounce" in (ROOT / "direction_io.py").read_text(encoding="utf-8") and "undo_client_note_bounce" in src)
     check("first client note is 01", server.next_comment_index({"comments": []}) == 1)
@@ -3245,12 +3266,13 @@ def test_comment_shots() -> None:
     def fake_token():
         return "tok"
 
-    def fake_slot(task, index):
+    def fake_slot(task, index, loop=""):
+        title = drive_io.comment_slot_title(index, loop)
         return {
             "id": f"slot{index}",
             "url": f"https://drive.google.com/drive/folders/slot{index}",
             "index": index,
-            "name": f"{int(index):02d}",
+            "name": title,
         }
 
     def fake_upload(parent, name, blob, mime):

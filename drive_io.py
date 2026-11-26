@@ -600,11 +600,21 @@ def ensure_comments_folder(task: dict) -> dict:
     return {"id": fid, "url": url}
 
 
-def ensure_comment_slot(task: dict, index: int) -> dict:
-    """Comments/01, Comments/02, … one folder per client note."""
+def comment_slot_title(index: int, loop: str = "") -> str:
+    label = f"{int(index):02d}"
+    key = str(loop or "").strip().lower()
+    if key == "html":
+        return f"{label} HTML"
+    if key == "art":
+        return f"{label} Art"
+    return label
+
+
+def ensure_comment_slot(task: dict, index: int, loop: str = "") -> dict:
+    """Comments/01 Art, Comments/02 HTML, … one folder per client note."""
     comments = ensure_comments_folder(task)
     token = drive_token()
-    title = f"{int(index):02d}"
+    title = comment_slot_title(index, loop)
     fid, _ = _ensure_folder(token, comments["id"], title)
     return {"id": fid, "url": folder_url(fid), "index": int(index), "name": title}
 
@@ -644,13 +654,28 @@ def drop_comment_from_drive(task: dict | None, comment: dict | None) -> str | No
     slot_id = str(comment.get("folderId") or "").strip()
     idx = _comment_drive_index(comment)
     label = f"{idx:02d}" if idx else ""
-    if not slot_id and comments_id and label:
-        found = _find_child(token, comments_id, label, FOLDER_MIME)
-        slot_id = str((found or {}).get("id") or "")
+    loop = str(comment.get("loop") or "").strip().lower()
+    titles = []
+    if idx:
+        titles.append(comment_slot_title(idx, loop))
+        titles.extend([f"{label} Art", f"{label} HTML", label])
+    if not slot_id and comments_id:
+        seen = set()
+        for title in titles:
+            if not title or title in seen:
+                continue
+            seen.add(title)
+            found = _find_child(token, comments_id, title, FOLDER_MIME)
+            slot_id = str((found or {}).get("id") or "")
+            if slot_id:
+                label = title
+                break
     try:
         if slot_id:
             _trash_file(token, slot_id)
             _forget_created_folder(slot_id, comments_id, label)
+            for title in titles:
+                _forget_created_folder("", comments_id, title)
         keep = [
             row
             for row in (task.get("comments") or [])

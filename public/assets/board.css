@@ -1534,6 +1534,44 @@ body.col-resizing * { cursor: col-resize !important; }
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
+.notes-loop {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.notes-loop-art { background: #fff3d6; color: #9a6700; }
+.notes-loop-html { background: #efe6fb; color: #6b21a8; }
+.notes-loop-pick {
+  display: flex;
+  gap: 6px;
+  margin: 0 0 8px;
+}
+.notes-loop-btn {
+  flex: 1;
+  border: 1px solid #c5cad8;
+  background: #fff;
+  color: var(--ink);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.notes-loop-btn[data-loop="art"].is-on {
+  background: #fff3d6;
+  color: #9a6700;
+  border-color: #e0b34a;
+}
+.notes-loop-btn[data-loop="html"].is-on {
+  background: #7c5cbf;
+  color: #fff;
+  border-color: #5b3d9a;
+}
 .notes-open {
   font-size: 11px;
   font-weight: 600;

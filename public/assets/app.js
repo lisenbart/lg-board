@@ -943,11 +943,16 @@ function latestClientNote(t) {
 function clientCue(t) {
   const note = latestClientNote(t);
   if (!note) return "";
-  if (note.body) return String(note.body).replace(/\s+/g, " ").trim().slice(0, 90);
-  const files = (note.attachments || []).filter((a) => a?.url || a?.name);
-  if (files.length === 1) return files[0].name || "1 file";
-  if (files.length > 1) return `${files.length} files`;
-  return "";
+  const loop = commentLoopLabel(commentLoopKey(note, t));
+  let text = "";
+  if (note.body) text = String(note.body).replace(/\s+/g, " ").trim().slice(0, 90);
+  else {
+    const files = (note.attachments || []).filter((a) => a?.url || a?.name);
+    if (files.length === 1) text = files[0].name || "1 file";
+    else if (files.length > 1) text = `${files.length} files`;
+  }
+  if (!text) return "";
+  return loop ? `${loop}: ${text}` : text;
 }
 function commentsFolder(t) {
   return String(t?.commentsFolderUrl || "").trim();
@@ -955,6 +960,19 @@ function commentsFolder(t) {
 function commentIndexLabel(row) {
   const n = Number(row?.driveIndex || 0);
   return n > 0 ? String(n).padStart(2, "0") : "";
+}
+function commentLoopKey(row, t) {
+  const raw = String(row?.loop || "").trim().toLowerCase();
+  if (raw === "html" || raw === "art") return raw;
+  return "";
+}
+function commentLoopLabel(loop) {
+  if (loop === "html") return "HTML";
+  if (loop === "art") return "Art";
+  return "";
+}
+function defaultNoteLoop(t) {
+  return isPlayables(t) && playableInHtml(t) ? "html" : "art";
 }
 function canEditTime() {
   return canOps();
@@ -3234,9 +3252,14 @@ function notesHtml(t) {
       const open = row.folderUrl
         ? `<a class="notes-open" href="${escapeHtml(row.folderUrl)}" target="_blank" rel="noreferrer">Open</a>`
         : "";
+      const loop = commentLoopKey(row, t);
+      const loopChip = loop
+        ? `<span class="notes-loop notes-loop-${loop}">${escapeHtml(commentLoopLabel(loop))}</span>`
+        : "";
       return `<article class="notes-item" data-id="${escapeHtml(row.id || "")}">
         <header class="notes-meta">
           ${num ? `<span class="notes-num">${escapeHtml(num)}</span>` : ""}
+          ${loopChip}
           <strong>${escapeHtml(row.authorName || person(row.authorId)?.name || "Client")}</strong>
           <span>${escapeHtml(commentWhen(row.editedAt || row.at))}${row.editedAt ? " · edited" : ""}${row.source === "monday" ? " · Monday" : ""}</span>
           ${open}
@@ -3252,10 +3275,17 @@ function notesHtml(t) {
       </article>`;
     })
     .join("");
+  const loopPick = isPlayables(t) && canWrite
+    ? `<div class="notes-loop-pick" role="group" aria-label="Note for">
+        <button type="button" class="notes-loop-btn" data-loop="art">Art</button>
+        <button type="button" class="notes-loop-btn" data-loop="html">HTML</button>
+      </div>`
+    : "";
   const composer = canWrite
     ? `<div class="notes-compose" id="stCommentBox">
+        ${loopPick}
         <div class="notes-draft" id="stCommentShots"></div>
-        <textarea id="stComment" rows="3" placeholder="Write a client note"></textarea>
+        <textarea id="stComment" rows="3" placeholder="${isPlayables(t) ? "Write a client note for Art or HTML" : "Write a client note"}"></textarea>
         <div class="notes-compose-actions">
           ${attachChipHtml("stCommentFiles")}
           <button class="btn primary" type="button" id="sendNote" disabled>OK</button>
@@ -7669,6 +7699,25 @@ function openTask(id) {
     if (drive.length) await queueDriveUploads(drive);
   }
   let noteBusy = false;
+  let noteLoop = isPlayables(t) ? defaultNoteLoop(t) : "";
+  function paintNoteLoop() {
+    document.querySelectorAll(".notes-loop-btn").forEach((btn) => {
+      const on = btn.dataset.loop === noteLoop;
+      btn.classList.toggle("is-on", on);
+      btn.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+    const box = $("stComment");
+    if (box && isPlayables(t)) {
+      box.placeholder = noteLoop === "html" ? "Write a client note for HTML" : "Write a client note for Art";
+    }
+  }
+  document.querySelectorAll(".notes-loop-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      noteLoop = btn.dataset.loop === "html" ? "html" : "art";
+      paintNoteLoop();
+    });
+  });
+  paintNoteLoop();
   async function postClientNote({ reopen } = { reopen: true }) {
     const body = String($("stComment")?.value || "").trim();
     if (!body && !pendingShots.length) return true;
@@ -7682,6 +7731,7 @@ function openTask(id) {
       {
         id: t.id,
         body,
+        loop: isPlayables(t) ? noteLoop : "",
         attachments: pendingShots.map((s) => ({ name: s.name, mime: s.mime, data: s.data })),
         actorId: me().id,
         role: me().role,
@@ -7696,7 +7746,10 @@ function openTask(id) {
     applyState(out.state, { render: reopen !== false });
     const bounced = isPlayables(out.task) && playableStatusKey(out.task) === "revision" && playableStatusKey(t) !== "revision";
     if (out.drive && out.drive.ok === false) toast(`Note on the card. Drive: ${out.drive.error}`, 6000);
-    else if (bounced) toast(playableInHtml(out.task) ? "Need Fixing · HTML · note on the card" : "Need Fixing · Art · note on the card");
+    else if (bounced) {
+      const loop = commentLoopKey(out.comment, out.task) || (playableInHtml(out.task) ? "html" : "art");
+      toast(loop === "html" ? "Need Fixing · HTML · note on the card" : "Need Fixing · Art · note on the card");
+    }
     else toast("Note added · Comments folder");
     if (reopen) openTask(t.id);
     else {
