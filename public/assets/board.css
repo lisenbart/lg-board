@@ -3303,22 +3303,26 @@ html:not(.phone-ui):not(.standalone-app) .push-hint { display: none !important; 
   font: inherit;
   color: inherit;
 }
-.phone-card.is-urgent { box-shadow: inset 3px 0 0 var(--red); }
-.phone-card.has-note:not(.is-urgent) { box-shadow: inset 3px 0 0 #9b2245; }
+.phone-card.is-urgent,
+.phone-card.has-note {
+  box-shadow: none;
+}
 .phone-card .phone-status,
 .phone-card .pill.phone-status {
   grid-column: 1;
   grid-row: 1 / span 2;
   align-self: center;
   width: auto;
-  min-width: 4.25rem;
-  max-width: 5.75rem;
+  min-width: 4.5rem;
+  max-width: 6.25rem;
   flex: 0 0 auto;
   justify-content: center;
-  padding: 5px 8px;
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 1.2;
+  align-items: center;
+  text-align: center;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.15;
   white-space: nowrap;
 }
 .phone-card-name {
@@ -3426,10 +3430,11 @@ html:not(.phone-ui):not(.standalone-app) .push-hint { display: none !important; 
     z-index: 15;
     background: #fff;
     border-top: 1px solid var(--line);
-    padding: 4px 8px calc(6px + env(safe-area-inset-bottom));
-    gap: 4px;
+    box-shadow: 0 -6px 18px rgba(23, 23, 36, 0.06);
+    padding: 8px 10px calc(10px + env(safe-area-inset-bottom));
+    gap: 8px;
   }
-  html:not(.hours-host) .app { padding-bottom: 58px; }
+  html:not(.hours-host) .app { padding-bottom: 72px; }
   html:not(.hours-host) .who-id { display: none; }
   html:not(.hours-host) .board-logo { display: none !important; }
   html:not(.hours-host) .views { display: none; }
@@ -3700,16 +3705,29 @@ html:not(.phone-ui):not(.standalone-app) .push-hint { display: none !important; 
     grid-area: month;
     width: 100%;
     margin-left: 0;
+    align-items: stretch;
   }
   html:not(.hours-host) .month-btn {
-    width: 44px;
-    min-height: 44px;
-    font-size: 20px;
+    width: 48px;
+    min-height: 48px;
+    font-size: 22px;
   }
   html:not(.hours-host) .month-now {
     flex: 1;
     min-width: 0;
-    padding: 6px 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 8px 10px;
+  }
+  html:not(.hours-host) .month-now strong {
+    width: 100%;
+    text-align: center;
+    font-size: 17px;
+    font-weight: 650;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
   }
   html:not(.hours-host) .month-now small { display: none; }
   html:not(.hours-host) .top-end {
@@ -3728,12 +3746,19 @@ html:not(.phone-ui):not(.standalone-app) .push-hint { display: none !important; 
     display: none !important;
   }
   html:not(.hours-host) .phone-bar {
-    min-height: 56px;
-    padding: 6px 4px calc(8px + env(safe-area-inset-bottom));
+    min-height: 64px;
+    padding: 8px 10px calc(10px + env(safe-area-inset-bottom));
   }
   html:not(.hours-host) .phone-bar-btn {
-    min-height: 44px;
-    font-size: 13px;
+    min-height: 48px;
+    font-size: 16px;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+    border-radius: 12px;
+  }
+  html:not(.hours-host) .phone-bar-btn.active {
+    background: #eef5ff;
+    color: var(--blue);
   }
   html:not(.hours-host) .toast {
     left: 50%;
@@ -3743,7 +3768,7 @@ html:not(.phone-ui):not(.standalone-app) .push-hint { display: none !important; 
     transform: translate(-50%, -50%);
     max-width: min(360px, calc(100vw - 24px));
   }
-  html:not(.hours-host) .app { padding-bottom: 64px; }
+  html:not(.hours-host) .app { padding-bottom: 80px; }
   html:not(.hours-host) .toolbar {
     padding: 8px 12px;
     gap: 8px;
@@ -3831,7 +3856,7 @@ html:not(.phone-ui):not(.standalone-app) .push-hint { display: none !important; 
     font-size: 12px;
   }
   html:not(.hours-host) .phone-dirs {
-    padding: 10px 12px 0;
+    padding: 10px 12px 8px;
     gap: 8px;
   }
   html:not(.hours-host) .phone-dirs button {
@@ -3839,23 +3864,42 @@ html:not(.phone-ui):not(.standalone-app) .push-hint { display: none !important; 
     min-height: 44px;
     font-size: 15px;
   }
-  html:not(.hours-host) .phone-queue { padding: 10px 12px 20px; gap: 8px; }
+  html:not(.hours-host) .phone-queue {
+    padding: 0 0 24px;
+    gap: 0;
+  }
   html:not(.hours-host) .phone-card {
-    min-height: 60px;
-    padding: 10px 12px;
-    border-radius: 12px;
-    gap: 2px 10px;
+    min-height: 64px;
+    width: 100%;
+    max-width: none;
+    padding: 12px 14px;
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+    border-bottom: 0;
+    gap: 3px 12px;
+  }
+  html:not(.hours-host) .phone-card:last-child {
+    border-bottom: 1px solid var(--line);
   }
   html:not(.hours-host) .phone-card .phone-status {
-    min-height: 36px;
-    font-size: 12px;
-    padding: 6px 10px;
+    min-height: 40px;
+    min-width: 5rem;
+    max-width: 6.5rem;
+    font-size: 13px;
+    font-weight: 650;
+    padding: 8px 10px;
+    text-align: center;
+    justify-content: center;
   }
-  html:not(.hours-host) .phone-card-name { font-size: 15px; }
-  html:not(.hours-host) .phone-card-meta { font-size: 12px; }
+  html:not(.hours-host) .phone-card-name {
+    font-size: 16px;
+    font-weight: 650;
+  }
+  html:not(.hours-host) .phone-card-meta { font-size: 13px; }
   html:not(.hours-host) .phone-card-who .who-face .avatar {
-    width: 30px;
-    height: 30px;
+    width: 32px;
+    height: 32px;
   }
   html:not(.hours-host) .inbox-panel {
     position: fixed;

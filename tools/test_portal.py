@@ -522,6 +522,18 @@ def test_phone_queue_mvp() -> None:
         and ".row.is-turn .name-text { font-weight: 600; }" in css,
     )
     check(
+        "phone cards have no note/urgent side ribbon",
+        ".phone-card.is-urgent,\n.phone-card.has-note {\n  box-shadow: none;\n}" in css
+        and ".phone-card.has-note:not(.is-urgent) { box-shadow: inset 3px 0 0 #9b2245; }" not in css,
+    )
+    check(
+        "phone month and bar are larger and centered",
+        "font-size: 17px" in css.split("html:not(.hours-host) .month-now strong")[1].split("}")[0]
+        and "text-align: center" in css.split("html:not(.hours-host) .month-now strong")[1].split("}")[0]
+        and "font-size: 16px" in css.split("html:not(.hours-host) .phone-bar-btn")[1].split("}")[0]
+        and "padding: 0 0 24px" in css.split("html:not(.hours-host) .phone-queue")[1].split("}")[0],
+    )
+    check(
         "phone cards show who faces and name pop",
         "function phoneWhoCell" in js
         and "whoCell(t)" in js.split("function phoneWhoCell")[1].split("function phoneCardHtml")[0]
