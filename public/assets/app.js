@@ -3539,7 +3539,7 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
   if (st === "closed") return { tone: "ok", title: "Closed", body: "Client accepted. Hours stay on this month." };
   if (st === "approve") return { tone: "ok", title: "Already sent", body: "HTML is with the client. Mark Closed when they accept. Need Fixing if they bounce it." };
   if (st === "done" && hasResult) return { tone: "do", title: "Your job", body: "HTML is in. Send to client, or Mark Closed if they already accepted." };
-  if (st === "check") return { tone: "do", title: "Your job", body: "Storyboard is ready. Send to client — only LP talks to SuperPlay." };
+  if (st === "check") return { tone: "do", title: "Your job", body: "Storyboard is in. Send to client, or Art ready so DEV can start HTML." };
   if (st === "clientart") return { tone: "wait", title: "Sent", body: "Waiting on the client. Need Fixing if they bounce it. Final art when they approve the board." };
   if (st === "artready") {
     if (!t.programmerId) {
@@ -5009,7 +5009,11 @@ function playableLpChoices(t) {
     return keys;
   }
   if (!html && (st === "new" || st === "wip" || st === "revision")) add("check");
-  if (st === "check") add("revision");
+  if (st === "check") {
+    add("revision");
+    add("finalart");
+    add("artready");
+  }
   if (st === "clientart") {
     add("revision");
     add("finalart");

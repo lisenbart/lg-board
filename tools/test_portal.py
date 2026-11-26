@@ -2121,6 +2121,19 @@ def test_playable_card_pipeline() -> None:
         'add("artready")' in js.split("function playableLpChoices")[1].split("function playableStatusActions")[0],
     )
     check(
+        "LP Check can pass to Art ready",
+        'add("artready")'
+        in js.split("function playableLpChoices")[1]
+        .split("function playableStatusActions")[0]
+        .split('st === "check"')[1]
+        .split('st === "clientart"')[0]
+        and 'add("finalart")'
+        in js.split("function playableLpChoices")[1]
+        .split("function playableStatusActions")[0]
+        .split('st === "check"')[1]
+        .split('st === "clientart"')[0],
+    )
+    check(
         "LP rows stay active until Closed",
         "function playablePartOpen" in js
         and 'role === "manager" || role === "finance") return true' in js
