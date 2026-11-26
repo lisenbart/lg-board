@@ -1802,6 +1802,14 @@ function onMyPlayable(t) {
     helpedOn(t, id)
   );
 }
+function doneKpiKey(t) {
+  return isPlayables(t) ? playableStatusKey(t) : t.studioStatus || "new";
+}
+function isDoneKpiStatus(t) {
+  const st = doneKpiKey(t);
+  return st === "done" || st === "closed";
+}
+
 function visibleTasks() {
   const q = searchQuery();
   return monthTasks().filter((t) => {
@@ -1810,8 +1818,7 @@ function visibleTasks() {
     if ((isArtDirector() || isProgrammer()) && !onMyPlayable(t)) return false;
     if (!isPerformer() && state.designerFilter) {
       if (state.designerFilter === "done") {
-        const want = "done";
-        if (t.studioStatus !== want) return false;
+        if (!isDoneKpiStatus(t)) return false;
       } else if (state.designerFilter === "unassigned") {
         if (isPlayables(t) ? playableAdId(t) || t.programmerId : t.assigneeId) return false;
       } else if (
@@ -2564,9 +2571,8 @@ function renderKpis() {
   }
   const month = monthTasks();
   const hours = month.reduce((s, t) => s + deskHours(t), 0);
-  const readyKey = "done";
   const readyLabel = "Done";
-  const ready = month.filter((t) => t.studioStatus === readyKey).length;
+  const ready = month.filter((t) => isDoneKpiStatus(t)).length;
   const doneOn = canOps() && state.designerFilter === "done";
   const doneKpi = canOps()
     ? `<button type="button" class="kpi${doneOn ? " on" : ""}" id="kpiDone" aria-pressed="${doneOn ? "true" : "false"}"><b>${ready}</b><span>${readyLabel}</span></button>`

@@ -2194,6 +2194,13 @@ def test_playable_card_pipeline() -> None:
         and 'revision: { label: "Need Fixing", cls: "status-revision", order: 1 }' in js,
     )
     check("rows mark your turn vs waiting", "function isActiveForMe" in js and "is-turn" in js and "is-wait" in js)
+    check(
+        "Done KPI counts Done and Closed",
+        "function isDoneKpiStatus" in js
+        and 'st === "done" || st === "closed"' in js
+        and "month.filter((t) => isDoneKpiStatus(t))" in js
+        and "if (!isDoneKpiStatus(t)) return false" in js,
+    )
     check("in progress KPI is your turn", "tasks.filter((t) => isActiveForMe(t))" in js)
     check(
         "Check without Send to LP stays the AD",
