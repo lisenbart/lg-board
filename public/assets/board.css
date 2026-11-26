@@ -3417,8 +3417,8 @@ html:not(.phone-ui):not(.standalone-app) .push-hint { display: none !important; 
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
-  min-height: 36px;
-  max-width: 5.5rem;
+  min-height: 28px;
+  max-width: 4.25rem;
 }
 .phone-card-who.is-empty {
   color: var(--muted);
@@ -3428,13 +3428,17 @@ html:not(.phone-ui):not(.standalone-app) .push-hint { display: none !important; 
 }
 .phone-card-who .who-faces {
   max-width: 100%;
-  min-height: 36px;
-  padding: 4px 0;
+  min-height: 24px;
+  padding: 0;
+  gap: 0;
+}
+.phone-card-who .who-face + .who-face {
+  margin-left: -11px;
 }
 .phone-card-who .who-face .avatar {
-  width: 28px;
-  height: 28px;
-  font-size: 12px;
+  width: 24px;
+  height: 24px;
+  font-size: 11px;
   box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.92);
 }
 .name-pop {
@@ -3974,8 +3978,12 @@ html:not(.phone-ui):not(.standalone-app) .push-hint { display: none !important; 
   }
   html:not(.hours-host) .phone-card-meta { font-size: 13px; }
   html:not(.hours-host) .phone-card-who .who-face .avatar {
-    width: 32px;
-    height: 32px;
+    width: 24px;
+    height: 24px;
+    font-size: 11px;
+  }
+  html:not(.hours-host) .phone-card-who .who-face + .who-face {
+    margin-left: -11px;
   }
   html:not(.hours-host) .inbox-panel {
     position: fixed;

@@ -496,7 +496,8 @@ def test_phone_queue_mvp() -> None:
         ".phone-card-name {\n  grid-column: 2;\n  grid-row: 1;" in css
         and "text-overflow: ellipsis" in css.split(".phone-card-name {\n  grid-column: 2;")[1].split("}")[0]
         and "white-space: nowrap" in css.split(".phone-card-name {\n  grid-column: 2;")[1].split("}")[0]
-        and 'data-name-pop="' in js
+        and 'class="phone-card-name"' in js
+        and 'data-name-pop="' not in js.split("function phoneCardHtml")[1].split("function renderPhoneInbox")[0]
         and "statusPillClass(t)" in js.split("function phoneCardHtml")[1].split("function renderPhoneInbox")[0],
     )
     check(
@@ -548,14 +549,15 @@ def test_phone_queue_mvp() -> None:
         and "box-shadow: none" in css.split("html:not(.hours-host) .phone-bar")[1].split("}")[0],
     )
     check(
-        "phone cards show who faces and name pop",
+        "phone cards show who faces; name opens task",
         "function phoneWhoCell" in js
         and "whoCell(t)" in js.split("function phoneWhoCell")[1].split("function phoneCardHtml")[0]
-        and "data-name-pop" in js
-        and "function bindNamePop" in js
+        and 'class="phone-card-name"' in js.split("function phoneCardHtml")[1].split("function renderPhoneInbox")[0]
+        and "bindNamePop($(\"board\"))" not in js.split("function renderPhoneQueue")[1].split("function unreadNoticeCount")[0]
         and "bindWhoPop($(\"board\"))" in js
         and "phone-card-who" in css
-        and "name-pop" in css,
+        and "margin-left: -11px" in css.split(".phone-card-who .who-face + .who-face")[1].split("}")[0]
+        and "width: 24px" in css.split(".phone-card-who .who-face .avatar")[1].split("}")[0],
     )
     check(
         "Who on the row lists every person, not +1",

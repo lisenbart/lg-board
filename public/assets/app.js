@@ -2044,7 +2044,7 @@ function phoneCardHtml(t) {
   const meta = [due.label || "", hours, cue ? "Note" : ""].filter(Boolean).join(" · ");
   return `<div class="phone-card tone-${escapeHtml(isPlayables(t) ? playableStatusKey(t) : t.studioStatus || "new")}${isUrgent(t) ? " is-urgent" : ""}${turnClass(t)}${cue ? " has-note" : ""}" data-id="${escapeHtml(t.id)}" role="button" tabindex="0">
     ${chip}
-    <button type="button" class="phone-card-name" data-name-pop="${escapeHtml(t.id)}" title="${escapeHtml(t.name)}" aria-label="${escapeHtml(t.name)}">${flag}${escapeHtml(t.name)}</button>
+    <span class="phone-card-name" title="${escapeHtml(t.name)}">${flag}${escapeHtml(t.name)}</span>
     ${phoneWhoCell(t)}
     <span class="phone-card-meta">${escapeHtml(meta)}</span>
   </div>`;
@@ -2092,13 +2092,13 @@ function renderPhoneQueue() {
   }</div>`;
   $("board").querySelectorAll(".phone-card").forEach((el) => {
     el.addEventListener("click", (e) => {
-      if (e.target.closest("[data-status-pop], [data-who-pop], [data-name-pop]")) return;
+      if (e.target.closest("[data-status-pop], [data-who-pop]")) return;
       closeNamePop();
       openTask(el.dataset.id);
     });
     el.addEventListener("keydown", (e) => {
       if (e.key !== "Enter" && e.key !== " ") return;
-      if (e.target.closest("[data-status-pop], [data-who-pop], [data-name-pop]")) return;
+      if (e.target.closest("[data-status-pop], [data-who-pop]")) return;
       e.preventDefault();
       closeNamePop();
       openTask(el.dataset.id);
@@ -2106,7 +2106,6 @@ function renderPhoneQueue() {
   });
   bindStatusPop($("board"));
   bindWhoPop($("board"));
-  bindNamePop($("board"));
   $("board").querySelectorAll(".phone-dirs button").forEach((el) => {
     el.addEventListener("click", () => setDirection(el.dataset.dir));
   });
