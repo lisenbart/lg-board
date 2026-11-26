@@ -7386,14 +7386,14 @@ function openTask(id) {
       </div>`
     : "";
   const monthPick = canOps()
-    ? `<div class="ops-item ops-fix-month"><label>Wrong month</label>
+    ? `<div class="ops-item ops-fix-month"><label>Month</label>
         <select id="stMonth">${nearbyMonths()
           .map(
             (ym) =>
               `<option value="${escapeHtml(ym)}"${taskMonth(t) === ym ? " selected" : ""}>${escapeHtml(monthLabel(ym))}</option>`,
           )
           .join("")}</select>
-        <p class="status-hint">Only to fix a card created in the wrong month.</p></div>`
+      </div>`
     : "";
   const opsTime = canEditTime() && !play
     ? `<div class="ops-item"><label>Shifts</label>
@@ -7443,9 +7443,7 @@ function openTask(id) {
       ${jobBadgeHtml(me())}
       <div>
         <strong>${escapeHtml(job.title)}</strong>
-        ${job.body ? `<p>${escapeHtml(job.body)}</p>` : ""}
         ${clientCue(t) && job.tone === "fix" ? `<p class="client-cue">${escapeHtml(clientCue(t))}</p>` : ""}
-        <small class="turn-flag">${isActiveForMe(t) ? "Your turn" : "Waiting"}</small>
       </div>
     </div>
     ${heroAssign}

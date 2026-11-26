@@ -2331,17 +2331,17 @@ a.pack-work:hover { background: #e2e4ec; }
 }
 .card-job {
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  margin: 0 0 16px;
-  padding: 10px 12px;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 8px 10px;
   border-radius: 8px;
   border: 1px solid #eceef5;
   background: #f7f8fc;
 }
-.card-job .job-badge { margin: 2px 0 0; }
+.card-job .job-badge { margin: 0; }
 .card-job strong { display: block; font-size: 13px; font-weight: 500; }
-.card-job p { margin: 2px 0 0; font-size: 12px; color: var(--muted); line-height: 1.4; }
+.card-job p { margin: 2px 0 0; font-size: 12px; color: var(--muted); line-height: 1.35; }
 .card-job.tone-do { background: #eef6ff; border-color: #c5ddf8; }
 .card-job.tone-do strong { color: var(--blue); }
 .card-job.tone-fix { background: #fdf2f4; border-color: #f0c9d2; }
@@ -2349,16 +2349,6 @@ a.pack-work:hover { background: #e2e4ec; }
 .card-job.tone-ok { background: #f1fbf6; border-color: #c6eedd; }
 .card-job.tone-ok strong { color: #037f4c; }
 .card-job.tone-wait { background: #f7f8fc; }
-.card-job .turn-flag {
-  display: inline-block;
-  margin-top: 6px;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-.card-job.is-turn .turn-flag { color: var(--blue); }
 .phone-card.is-wait { opacity: 0.72; }
 .phone-card.is-turn { box-shadow: inset 3px 0 0 #3b6cf0; }
 .drive-missing {

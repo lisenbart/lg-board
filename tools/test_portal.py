@@ -3104,8 +3104,9 @@ def test_lp_can_close_without_send() -> None:
         and js.count("state.month = calendarMonth();") >= 2
         and 'fillMonthSelect($("createTaskMonth"), now)' in js
         and 'localStorage.getItem(MONTH_KEY)' not in js
-        and "Wrong month" in js
-        and "Only to fix a card created in the wrong month." in js,
+        and ">Month</label>" in js
+        and "Only to fix a card created in the wrong month." not in js
+        and "Wrong month" not in js,
     )
     check(
         "video attach shows upload progress",
