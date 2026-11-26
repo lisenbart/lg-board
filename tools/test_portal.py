@@ -465,7 +465,25 @@ def test_phone_queue_mvp() -> None:
         and "margin-left: auto" in css.split("@media (max-width: 980px)")[-1]
         and "width: auto;\n    min-width: 96px" in css.split("@media (max-width: 980px)")[-1],
     )
-    check("phone names wrap inside the card", "overflow-wrap: anywhere" in css and "word-break: break-word" in css)
+    check(
+        "phone names stay one line",
+        "text-overflow: ellipsis" in css.split(".phone-card-name")[1].split("}")[0]
+        and "white-space: nowrap" in css.split(".phone-card-name")[1].split("}")[0]
+        and "phone-status" in js
+        and "statusPillClass(t)" in js.split("function phoneCardHtml")[1].split("function renderPhoneInbox")[0],
+    )
+    check(
+        "phone status uses board pill colors",
+        "class=\"pill ${pillCls}" in js
+        and "phone-status" in js
+        and "statusPillClass(t)" in js.split("function phoneCardHtml")[1].split("function renderPhoneInbox")[0]
+        and "min-height: 56px" in css.split(".phone-card {")[1].split("}")[0],
+    )
+    check(
+        "phone who stays short",
+        "split(/\\s+/)" in js.split("function phoneWhoLine")[1].split("function phoneHoursLine")[0]
+        and "+${names.length - 1}" in js.split("function phoneWhoLine")[1].split("function phoneHoursLine")[0],
+    )
     check(
         "Who on the row lists every person, not +1",
         "function whoIds" in js
@@ -3095,7 +3113,12 @@ def test_lp_can_close_without_send() -> None:
         "LP client note toasts Need Fixing",
         "Need Fixing · Art · note on the card" in js and "Need Fixing · HTML · note on the card" in js,
     )
-    check("phone queue shows the client cue", "function clientCue" in js and "phone-card-note" in js)
+    check(
+        "phone queue marks a client note",
+        "function clientCue" in js
+        and "has-note" in js
+        and '"Note"' in js.split("function phoneCardHtml")[1].split("function renderPhoneInbox")[0],
+    )
     check("read client notes stay in Notices", "function readClientNotices" in js and "Read · stays on the card" in js)
     check(
         "brief and notes are separate panels",

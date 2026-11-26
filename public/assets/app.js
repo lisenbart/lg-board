@@ -2004,14 +2004,18 @@ function whoIds(t) {
   return ids;
 }
 function phoneWhoLine(t) {
-  const names = whoIds(t).map((id) => person(id)?.name || id);
-  return names.join(" · ") || "unassigned";
+  const names = whoIds(t)
+    .map((id) => String(person(id)?.name || id).trim().split(/\s+/)[0])
+    .filter(Boolean);
+  if (!names.length) return "";
+  if (names.length <= 2) return names.join(" · ");
+  return `${names[0]} +${names.length - 1}`;
 }
 
 function phoneHoursLine(t) {
   if (isPerformer()) {
     const h = hoursForPerson(t, me().id);
-    return h ? `${h.toFixed(1)} h yours` : "";
+    return h ? `${h.toFixed(1)} h` : "";
   }
   if (isPlayables(t)) {
     const crew = playableCrewTotal(t);
@@ -2028,19 +2032,16 @@ function phoneCardHtml(t) {
   const who = phoneWhoLine(t);
   const flag = urgentMark(t);
   const cue = clientCue(t);
+  const pillCls = statusPillClass(t);
   const chip = canUseStatusPop(t)
-    ? `<button type="button" class="notice-chip notice-${spec.cls} status-pop-btn" data-id="${escapeHtml(t.id)}" data-status-pop="1">${spec.label}</button>`
-    : `<span class="notice-chip notice-${spec.cls}">${spec.label}</span>`;
-  return `<div class="phone-card tone-${escapeHtml(isPlayables(t) ? playableStatusKey(t) : t.studioStatus || "new")}${isUrgent(t) ? " is-urgent" : ""}${turnClass(t)}" data-id="${escapeHtml(t.id)}" role="button" tabindex="0">
+    ? `<button type="button" class="pill ${pillCls} status-pop-btn phone-status" data-id="${escapeHtml(t.id)}" data-status-pop="1" title="${escapeHtml(spec.title)}">${escapeHtml(spec.label)}</button>`
+    : `<span class="pill ${pillCls} phone-status" title="${escapeHtml(spec.title)}">${escapeHtml(spec.label)}</span>`;
+  const meta = [who, due.label || "", cue ? "Note" : ""].filter(Boolean).join(" · ");
+  return `<div class="phone-card tone-${escapeHtml(isPlayables(t) ? playableStatusKey(t) : t.studioStatus || "new")}${isUrgent(t) ? " is-urgent" : ""}${turnClass(t)}${cue ? " has-note" : ""}" data-id="${escapeHtml(t.id)}" role="button" tabindex="0">
     ${chip}
     <span class="phone-card-name">${flag}${escapeHtml(t.name)}</span>
     <span class="phone-card-hrs">${escapeHtml(hours)}</span>
-    ${cue ? `<span class="phone-card-note">${escapeHtml(cue)}</span>` : ""}
-    <span class="phone-card-meta">
-      <span>${escapeHtml(who)}</span>
-      ${due.label ? `<span>${escapeHtml(due.label)}</span>` : ""}
-      ${t.line ? `<span>${escapeHtml(t.line)}</span>` : ""}
-    </span>
+    <span class="phone-card-meta">${escapeHtml(meta)}</span>
   </div>`;
 }
 
