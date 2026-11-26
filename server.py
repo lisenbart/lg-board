@@ -33,7 +33,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-11-26b"
+BUILD = "2026-11-26c"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -1428,6 +1428,9 @@ def is_sendable(task: dict) -> bool:
         result = str(task.get("resultUrl") or "").strip()
         html = str(task.get("htmlUrl") or "").strip()
         if status == "check":
+            if direction_io.playable_in_html(task):
+                link = result if result and result != story else html
+                return bool(link and link != story)
             return bool(result or story)
         link = result if result and result != story else html
         return status == "done" and bool(link and link != story)

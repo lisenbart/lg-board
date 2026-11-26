@@ -60,7 +60,7 @@ PLAY_OPS_STATUSES = (
 
 PLAY_STATUS_BY_ROLE = {
     "art_director": {"wip", "check"},
-    "programmer": {"wip"},
+    "programmer": {"wip", "check"},
     "designer": set(),
     "teamlead": set(),
     "manager": set(PLAY_OPS_STATUSES),
@@ -222,7 +222,7 @@ def on_playable_seat(task: dict | None, actor_id: str) -> bool:
     return False
 
 
-ART_LOOP = {"new", "check", "clientart", "finalart"}
+ART_LOOP = {"new", "clientart", "finalart"}
 HTML_HANDOFF = {"artready", "done", "approve"}
 
 
@@ -304,6 +304,10 @@ def playable_turn_role(task: dict | None) -> str:
             return "manager"
         if st == "revision":
             return "programmer" if dev else "manager"
+        if st == "check":
+            if playable_dev_delivered(task):
+                return "manager"
+            return "programmer" if dev else "manager"
         if st in {"artready", "wip", "new"}:
             if playable_dev_delivered(task):
                 return "manager"
@@ -349,7 +353,7 @@ def playable_part_open(task: dict | None, role: str, person_id: str = "") -> boo
         if st in {"approve", "closed", "clientart", "done"}:
             return False
         if playable_in_html(task):
-            return st in {"new", "wip", "revision", "artready"}
+            return st in {"new", "wip", "revision", "artready", "check"}
         return False
     return False
 
@@ -384,7 +388,9 @@ def playable_in_html(task: dict | None) -> bool:
     if st == "closed":
         return False
     dev_only = not playable_has_ad(task) and bool(str(task.get("programmerId") or "").strip())
-    if dev_only and st not in {"check", "clientart", "finalart"}:
+    if st == "check":
+        return bool(task.get("playableHtml")) or dev_only
+    if dev_only and st not in {"clientart", "finalart"}:
         return True
     if st in ART_LOOP:
         return False
@@ -392,6 +398,8 @@ def playable_in_html(task: dict | None) -> bool:
         return True
     if st in {"wip", "revision"}:
         prev = _status_before(task, st)
+        if prev == "check":
+            return bool(task.get("playableHtml")) or dev_only
         if prev in ART_LOOP or prev == "closed":
             return False
         if task.get("playableHtml") is False:
@@ -416,6 +424,15 @@ def touch_playable_html(task: dict | None, prev: str | None = None, force_art: b
         task["htmlUrl"] = ""
         task["handedToLp"] = False
         task["handedBy"] = ""
+        return
+    if st == "check":
+        prev_st = playable_norm_status(prev) if prev else _status_before(task, st)
+        if (
+            bool(task.get("playableHtml"))
+            or prev_st in HTML_HANDOFF
+            or (not playable_has_ad(task) and bool(str(task.get("programmerId") or "").strip()))
+        ):
+            task["playableHtml"] = True
         return
     if st in ART_LOOP or st == "closed":
         if task.get("playableHtml"):
@@ -442,6 +459,14 @@ def touch_playable_html(task: dict | None, prev: str | None = None, force_art: b
         return
     if st in {"wip", "revision"}:
         prev_st = playable_norm_status(prev) if prev else _status_before(task, st)
+        if prev_st == "check":
+            if task.get("playableHtml") or (
+                not playable_has_ad(task) and bool(str(task.get("programmerId") or "").strip())
+            ):
+                task["playableHtml"] = True
+            else:
+                task["playableHtml"] = False
+            return
         if prev_st in ART_LOOP or prev_st == "closed":
             task["playableHtml"] = False
             return
@@ -561,6 +586,8 @@ def playable_next_statuses(role: str, task: dict | None) -> list[str]:
     if role == "programmer":
         if st == "artready":
             return ["wip"]
+        if st == "check" and (html or not has_ad):
+            return ["wip"]
         if not has_ad and st == "new":
             return ["wip"]
         if st == "revision" and (html or not has_ad):
@@ -570,7 +597,7 @@ def playable_next_statuses(role: str, task: dict | None) -> list[str]:
 
 
 def playable_handoff_status(role: str, task: dict | None) -> str:
-    """AD/DEV hand work to LP. Check is the storyboard inbox. notify does not change status."""
+    """AD/DEV hand work to LP. Check is the inbox after Send to LP — art and HTML. notify does not change status."""
     task = task or {}
     st = playable_norm_status(task.get("studioStatus"))
     html = playable_in_html(task)
@@ -588,9 +615,9 @@ def playable_handoff_status(role: str, task: dict | None) -> str:
         if playable_dev_delivered(task):
             return ""
         if st in {"artready", "wip", "revision"} and html:
-            return HANDOFF_NOTIFY
+            return "check"
         if not playable_has_ad(task) and st in {"new", "wip", "revision"}:
-            return HANDOFF_NOTIFY
+            return "check"
         return ""
     return ""
 

@@ -1925,8 +1925,8 @@ def test_playable_card_pipeline() -> None:
         not direction_io.playable_can_set("programmer", {**ad, "programmerId": "programmer1"}, "done", actor_id="programmer1")[0],
     )
     check(
-        "DEV Hand to LP from Art ready does not change status",
-        direction_io.playable_handoff_status("programmer", {**ad, "programmerId": "programmer1"}) == "notify",
+        "DEV Hand to LP from to DEV is Check",
+        direction_io.playable_handoff_status("programmer", {**ad, "programmerId": "programmer1"}) == "check",
     )
     check(
         "DEV cannot Hand Done during art WIP",
@@ -1941,7 +1941,7 @@ def test_playable_card_pipeline() -> None:
     }
     check("HTML loop starts after Art ready", direction_io.playable_in_html(html))
     check("DEV HTML WIP has no Done chip", direction_io.playable_next_statuses("programmer", html) == [])
-    check("DEV HTML WIP hands to LP", direction_io.playable_handoff_status("programmer", html) == "notify")
+    check("DEV HTML WIP hands to LP", direction_io.playable_handoff_status("programmer", html) == "check")
     check("AD does not drive HTML WIP", direction_io.playable_next_statuses("art_director", html) == [])
     ok_html, err_html = direction_io.playable_can_set("programmer", html, "done", actor_id="programmer1")
     check("DEV cannot pick Done from HTML WIP", not ok_html, err_html)
@@ -2145,7 +2145,7 @@ def test_playable_card_pipeline() -> None:
     )
     check(
         "DEV HTML stays active after Send to LP",
-        'playableInHtml(t)) return ["new", "wip", "revision", "artready"].includes(st)'
+        'playableInHtml(t)) return ["new", "wip", "revision", "artready", "check"].includes(st)'
         in js.split("function playablePartOpen")[1].split("function isActiveForMe")[0],
     )
     check("LP can bounce HTML Need Fixing to Art", "Need Fixing · Art" in js and "Need Fixing · HTML" in js)
@@ -2161,7 +2161,7 @@ def test_playable_card_pipeline() -> None:
     )
     check(
         "DEV-only Ready is a HTML turn in JS",
-        'st === "artready" || st === "wip" || st === "new"' in js
+        'st === "artready" || st === "wip" || st === "new" || st === "check"' in js
         and 'st === "revision") return dev ? "programmer"' in js,
     )
     notices_js = (ROOT / "public" / "assets" / "notices.js").read_text(encoding="utf-8")
@@ -2203,6 +2203,16 @@ def test_playable_card_pipeline() -> None:
     ready_check["htmlUrl"] = ""
     ready_check["resultUrl"] = "https://board.example/story"
     check("Check with storyboard is sendable", server.is_sendable(ready_check))
+    html_check = {
+        "department": "Playables",
+        "studioStatus": "check",
+        "assigneeId": "artdir1",
+        "programmerId": "programmer1",
+        "playableHtml": True,
+        "storyboardUrl": "https://board.example/story",
+        "resultUrl": "https://play.example/v1",
+    }
+    check("HTML Check with playable is sendable", server.is_sendable(html_check) and direction_io.playable_in_html(html_check))
     art = {"studioStatus": "artready", "assigneeId": "artdir1", "programmerId": "programmer1", "resultUrl": "https://board.example/story"}
     direction_io.touch_playable_html(art)
     check("Art ready locks the HTML loop", art.get("playableHtml") is True)
@@ -2293,7 +2303,7 @@ def test_playable_card_pipeline() -> None:
     )
     check(
         "AD storyboard unlocks after Closed → WIP",
-        '["new", "check", "clientart", "finalart", "closed"].includes(prev)' in js_html,
+        '["new", "clientart", "finalart", "closed"].includes(prev)' in js_html,
     )
 
 
@@ -2341,6 +2351,12 @@ def test_playable_team_scenarios() -> None:
 
     def apply(board, task, actor, *, status=None, handed=False, force_art=False, html_url=None, result_url=None):
         before = snap(task)
+        if handed and status is None:
+            people = {p.get("id"): p for p in board.get("people") or []}
+            role = str((people.get(actor) or {}).get("role") or "")
+            hand = direction_io.playable_handoff_status(role, task)
+            if hand and hand != direction_io.HANDOFF_NOTIFY:
+                status = hand
         if status is not None:
             task["studioStatus"] = status
         if html_url is not None:
@@ -2409,6 +2425,8 @@ def test_playable_team_scenarios() -> None:
     check("draft still waits for Bohdan to Hand", turn(t) == "programmer")
     check("Art ready is not sendable", not server.is_sendable(t))
     apply(board, t, bohdan, handed=True)
+    check("after HTML Hand, status is Check", t.get("studioStatus") == "check")
+    check("after HTML Hand, still HTML loop", direction_io.playable_in_html(t))
     check("after HTML Hand, LP's turn", turn(t) == "manager")
     apply(board, t, lp, status="done")
     check("Done is LP to send", turn(t) == "manager" and server.is_sendable(t))
@@ -2481,6 +2499,7 @@ def test_playable_team_scenarios() -> None:
     apply(board, t, bohdan, status="wip")
     t["resultUrl"] = "https://play.example/code-only"
     apply(board, t, bohdan, handed=True)
+    check("code-only Hand is Check", t.get("studioStatus") == "check" and direction_io.playable_in_html(t))
     check("code-only Hand is LP", turn(t) == "manager")
     apply(board, t, lp, status="done")
     check("code-only Done is sendable", server.is_sendable(t))
@@ -2602,6 +2621,48 @@ def test_playable_team_scenarios() -> None:
         handedBy=bohdan,
     )
     check("Need Fixing HTML reopens Bohdan after Send", part(html_reopen, "programmer", bohdan))
+    html_check_in = card(
+        studioStatus="check",
+        assigneeId=anna,
+        programmerId=bohdan,
+        playableHtml=True,
+        handedToLp=True,
+        handedBy=bohdan,
+        resultUrl="https://play.example/zeus-v1",
+        storyboardUrl="https://miro.com/app/board/zeus",
+    )
+    check(
+        "HTML Check after Send stays Bohdan's card",
+        part(html_check_in, "programmer", bohdan) and direction_io.playable_in_html(html_check_in),
+    )
+    check("HTML Check after Send is not a second Send", direction_io.playable_handoff_status("programmer", html_check_in) == "")
+    cycle = card(
+        studioStatus="revision",
+        assigneeId=anna,
+        programmerId=bohdan,
+        playableHtml=True,
+        resultUrl="https://play.example/zeus-v1",
+        storyboardUrl="https://miro.com/app/board/zeus",
+    )
+    check("Need Fixing HTML is the HTML loop", direction_io.playable_in_html(cycle))
+    cycle["studioStatus"] = "wip"
+    direction_io.touch_playable_html(cycle, prev="revision")
+    check("WIP after HTML Need Fixing stays HTML", direction_io.playable_in_html(cycle) and cycle.get("playableHtml") is True)
+    check("HTML Send after Need Fixing is Check", direction_io.playable_handoff_status("programmer", cycle) == "check")
+    cycle["studioStatus"] = "check"
+    cycle["handedToLp"] = True
+    cycle["handedBy"] = bohdan
+    direction_io.touch_playable_html(cycle, prev="wip")
+    check("second HTML Send lands on Check", cycle.get("studioStatus") == "check" and direction_io.playable_in_html(cycle))
+    check("second HTML Send still active for Bohdan", part(cycle, "programmer", bohdan))
+    bounce = direction_io.apply_client_note_bounce
+    bounce(cycle, "manager")
+    check("second comment is Need Fixing HTML again", cycle["studioStatus"] == "revision" and direction_io.playable_in_html(cycle))
+    cycle["studioStatus"] = "wip"
+    cycle["handedToLp"] = False
+    cycle["handedBy"] = ""
+    direction_io.touch_playable_html(cycle, prev="revision")
+    check("third HTML Send is Check again", direction_io.playable_handoff_status("programmer", cycle) == "check")
     art_fix = card(studioStatus="revision", assigneeId=anna, programmerId=bohdan)
     check("Need Fixing art is Anna", part(art_fix, "art_director", anna) and not part(art_fix, "programmer", bohdan))
     art_reopen = card(
@@ -2612,7 +2673,6 @@ def test_playable_team_scenarios() -> None:
         handedBy=anna,
     )
     check("Need Fixing art reopens Anna after Send", part(art_reopen, "art_director", anna) and not part(art_reopen, "programmer", bohdan))
-    bounce = direction_io.apply_client_note_bounce
     ready_note = card()
     check("LP client note on Ready is Need Fixing Art", bounce(ready_note, "manager") and ready_note["studioStatus"] == "revision" and not direction_io.playable_in_html(ready_note))
     sent_note = card(studioStatus="clientart")

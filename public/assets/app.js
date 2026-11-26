@@ -60,7 +60,7 @@ const STATUS_BY_ROLE = {
 const PLAY_OPS_STATUSES = ["new", "wip", "check", "clientart", "revision", "finalart", "artready", "done", "closed"];
 const PLAY_STATUS_BY_ROLE = {
   art_director: ["wip", "check"],
-  programmer: ["wip"],
+  programmer: ["wip", "check"],
   designer: [],
   teamlead: [],
   manager: PLAY_OPS_STATUSES.slice(),
@@ -1444,7 +1444,10 @@ function isSendable(t) {
   if (!t) return false;
   if (isPlayables(t)) {
     const st = playableStatusKey(t);
-    if (st === "check") return Boolean(hrefOf(t.resultUrl || t.storyboardUrl || ""));
+    if (st === "check") {
+      if (playableInHtml(t)) return Boolean(hrefOf(playableHtmlUrl(t)));
+      return Boolean(hrefOf(t.resultUrl || t.storyboardUrl || ""));
+    }
     return st === "done" && Boolean(hrefOf(playableHtmlUrl(t)));
   }
   return t.studioStatus === "done" && Boolean(String(t.resultUrl || "").trim());
@@ -3549,7 +3552,15 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
   if (st === "closed") return { tone: "ok", title: "Closed", body: "Client accepted. Hours stay on this month." };
   if (st === "approve") return { tone: "ok", title: "Already sent", body: "HTML is with the client. Mark Closed when they accept. Need Fixing if they bounce it." };
   if (st === "done" && hasResult) return { tone: "do", title: "Your job", body: "HTML is in. Send to client, or Mark Closed if they already accepted." };
-  if (st === "check") return { tone: "do", title: "Your job", body: "Storyboard is in. Send to client, or tap to DEV so HTML can start." };
+  if (st === "check") {
+    return {
+      tone: "do",
+      title: "Your job",
+      body: html
+        ? "HTML is in. Send to client, or Need Fixing if it still needs work."
+        : "Storyboard is in. Send to client, or tap to DEV so HTML can start.",
+    };
+  }
   if (st === "clientart") return { tone: "wait", title: "Sent", body: "Waiting on the client. Need Fixing if they bounce it. Final art when they approve the board." };
   if (st === "artready") {
     if (!t.programmerId) {
@@ -4754,7 +4765,7 @@ function statusMark(t) {
       wip: { cls: html ? "htmlwip" : "wip", label: isPlayables(t) ? (html ? "WIP · HTML" : "WIP · Art") : "WIP", title },
       revision: { cls: html ? "htmlfix" : "fix", label: isPlayables(t) ? (html ? "Fix · HTML" : "Fix · Art") : "Fix", title },
       tlcheck: { cls: "tlcheck", label: "TL chk", title },
-      check: { cls: "check", label: "Check", title },
+      check: { cls: "check", label: isPlayables(t) ? (html ? "Check · HTML" : "Check") : "Check", title },
       done: { cls: "done", label: "Done", title },
       approve: { cls: isPlayables(t) ? "send" : "appr", label: isPlayables(t) ? "Send" : "Appr.", title },
       closed: { cls: "closed", label: "Closed", title },
@@ -4872,12 +4883,14 @@ function playableInHtml(t) {
   const st = playableStatusKey(t);
   const devOnly = !playableAdId(t) && String(t?.programmerId || "").trim();
   if (st === "closed") return false;
-  if (devOnly && !["check", "clientart", "finalart"].includes(st)) return true;
-  if (["new", "check", "clientart", "finalart"].includes(st)) return false;
+  if (st === "check") return Boolean(t?.playableHtml) || Boolean(devOnly);
+  if (devOnly && !["clientart", "finalart"].includes(st)) return true;
+  if (["new", "clientart", "finalart"].includes(st)) return false;
   if (["artready", "done", "approve"].includes(st)) return true;
   if (st === "wip" || st === "revision") {
     const prev = playableStatusFrom(t);
-    if (["new", "check", "clientart", "finalart", "closed"].includes(prev)) return false;
+    if (prev === "check") return Boolean(t?.playableHtml) || Boolean(devOnly);
+    if (["new", "clientart", "finalart", "closed"].includes(prev)) return false;
     if (t?.playableHtml === false) return false;
     if (["artready", "done", "approve"].includes(prev)) return true;
   }
@@ -4906,7 +4919,7 @@ function playableTurnRole(t) {
   if (html) {
     if (st === "done") return "manager";
     if (st === "revision") return dev ? "programmer" : "manager";
-    if (st === "artready" || st === "wip" || st === "new") {
+    if (st === "artready" || st === "wip" || st === "new" || st === "check") {
       if (playableDevDelivered(t)) return "manager";
       return dev ? "programmer" : "manager";
     }
@@ -4937,7 +4950,7 @@ function playablePartOpen(t, role, personId) {
   if (role === "programmer") {
     if (String(t.programmerId || "") !== actor) return false;
     if (["approve", "closed", "clientart", "done"].includes(st)) return false;
-    if (playableInHtml(t)) return ["new", "wip", "revision", "artready"].includes(st);
+    if (playableInHtml(t)) return ["new", "wip", "revision", "artready", "check"].includes(st);
     return false;
   }
   return false;
@@ -4980,8 +4993,8 @@ function playableHandoffStatus(role, t) {
   }
   if (role === "programmer") {
     if (playableDevDelivered(t)) return "";
-    if (["artready", "wip", "revision"].includes(st) && html) return "notify";
-    if (!playableAdId(t) && ["new", "wip", "revision"].includes(st)) return "notify";
+    if (["artready", "wip", "revision"].includes(st) && html) return "check";
+    if (!playableAdId(t) && ["new", "wip", "revision"].includes(st)) return "check";
     return "";
   }
   return "";
@@ -5005,6 +5018,7 @@ function playableNextStatuses(role, t) {
   }
   if (role === "programmer") {
     if (st === "artready") return ["wip"];
+    if (st === "check" && (html || !hasAd)) return ["wip"];
     if (!hasAd && st === "new") return ["wip"];
     if (st === "revision" && (html || !hasAd)) return ["wip"];
     return [];
@@ -5026,8 +5040,13 @@ function playableLpChoices(t) {
   if (!html && (st === "new" || st === "wip" || st === "revision")) add("check");
   if (st === "check") {
     add("revision");
-    add("finalart");
-    add("artready");
+    if (html) {
+      add("done");
+      add("artready");
+    } else {
+      add("finalart");
+      add("artready");
+    }
   }
   if (st === "clientart") {
     add("revision");
@@ -5035,7 +5054,7 @@ function playableLpChoices(t) {
     add("artready");
   }
   if (st === "finalart") add("artready");
-  if (html && (st === "artready" || st === "wip" || st === "revision" || st === "done" || st === "approve")) {
+  if (html && (st === "artready" || st === "wip" || st === "revision" || st === "check" || st === "done" || st === "approve")) {
     add("artready");
     add("done");
     add("revision");

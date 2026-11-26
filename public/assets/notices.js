@@ -49,7 +49,7 @@
     "task.check": {
       label: "Check",
       title: "{name}",
-      detail: "Check · send storyboard",
+      detail: "Check · review the card",
       mark: "check",
       audience: { roles: ["manager"] },
       skipActor: true,
