@@ -1445,7 +1445,7 @@ function isSendable(t) {
   if (isPlayables(t)) {
     const st = playableStatusKey(t);
     if (st === "check") return Boolean(hrefOf(t.resultUrl || t.storyboardUrl || ""));
-    return st === "done" && Boolean(hrefOf(t.resultUrl || t.htmlUrl || ""));
+    return st === "done" && Boolean(hrefOf(playableHtmlUrl(t)));
   }
   return t.studioStatus === "done" && Boolean(String(t.resultUrl || "").trim());
 }
@@ -3327,7 +3327,7 @@ function resultHtml(t, performer, canPaste) {
   const waiting = `Waiting for ${escapeHtml(person(html ? t.programmerId : t.assigneeId)?.name || "designer")}`;
   const body = linkRowHtml({
     id: "stResult",
-    value: t.resultUrl || "",
+    value: html ? playableHtmlUrl(t) : t.resultUrl || "",
     placeholder,
     canPaste,
     emptyText: waiting,
@@ -4841,6 +4841,18 @@ function playableStatusFrom(t) {
   }
   return "";
 }
+function playableStoryboardUrl(t) {
+  return String(t?.storyboardUrl || "").trim();
+}
+function playableHtmlUrl(t) {
+  const board = playableStoryboardUrl(t);
+  const draft = String(t?.htmlUrl || "").trim();
+  if (!playableInHtml(t)) return draft;
+  const result = String(t?.resultUrl || "").trim();
+  if (result && result !== board) return result;
+  if (draft && draft !== board) return draft;
+  return "";
+}
 function playableInHtml(t) {
   const st = playableStatusKey(t);
   const devOnly = !playableAdId(t) && String(t?.programmerId || "").trim();
@@ -5044,7 +5056,7 @@ function statusPopLabel(t, key) {
 function popHasLink(t) {
   if (state.openId === t?.id) {
     const typed = $("stResult")?.value || $("stHtml")?.value || "";
-    if (hrefOf(typed || t.resultUrl || t.htmlUrl || "")) return true;
+    if (hrefOf(typed || (isPlayables(t) && playableInHtml(t) ? playableHtmlUrl(t) : t.resultUrl || t.htmlUrl || ""))) return true;
   }
   return Boolean(taskLinkUrl(t));
 }
@@ -5343,8 +5355,9 @@ function canSetStatus(next, task) {
 function hasResultLink(task, typedResult) {
   const typed =
     typedResult !== undefined ? String(typedResult || "").trim() : "";
-  const saved = String(task?.resultUrl || "").trim();
-  return Boolean(typed || saved);
+  if (typed) return true;
+  if (isPlayables(task) && playableInHtml(task)) return Boolean(playableHtmlUrl(task));
+  return Boolean(String(task?.resultUrl || "").trim());
 }
 
 function savedNameWidth() {
@@ -7420,7 +7433,7 @@ function openTask(id) {
         <span class="save-wait" id="saveWait" hidden></span>
         ${
           handoffLabel(t)
-            ? `<button type="button" class="btn green card-save" id="handOff" ${hrefOf(t.resultUrl || t.htmlUrl || "") ? "" : "disabled"}>${escapeHtml(handoffLabel(t))}</button>`
+            ? `<button type="button" class="btn green card-save" id="handOff" ${hrefOf(isPlayables(t) && playableInHtml(t) ? playableHtmlUrl(t) : t.resultUrl || t.htmlUrl || "") ? "" : "disabled"}>${escapeHtml(handoffLabel(t))}</button>`
             : hidePerformerSave(t)
               ? ""
               : canEdit || canOps()
@@ -8104,7 +8117,7 @@ function openTask(id) {
     });
     if (hint) hint.textContent = "";
     const hand = $("handOff");
-    if (hand) hand.disabled = !hrefOf(typed || t.resultUrl || t.htmlUrl || "");
+    if (hand) hand.disabled = !hrefOf(typed || (isPlayables(t) && playableInHtml(t) ? playableHtmlUrl(t) : t.resultUrl || t.htmlUrl || ""));
   };
   bindLinkRows($("drawer"), syncDoneOption);
   bindStatusPop($("drawer"));
@@ -8112,7 +8125,7 @@ function openTask(id) {
     const key = handoffStatus(t);
     if (!key) return;
     const typed = $("stResult")?.value || $("stHtml")?.value || "";
-    if (!hrefOf(typed || t.resultUrl || t.htmlUrl || "")) {
+    if (!hrefOf(typed || (isPlayables(t) && playableInHtml(t) ? playableHtmlUrl(t) : t.resultUrl || t.htmlUrl || ""))) {
       toast("Paste the link, then Send to LP");
       return;
     }

@@ -415,8 +415,11 @@ def touch_playable_html(task: dict | None, prev: str | None = None, force_art: b
         if board and not str(task.get("storyboardUrl") or "").strip():
             task["storyboardUrl"] = board
         html = str(task.get("htmlUrl") or "").strip()
+        story = str(task.get("storyboardUrl") or "").strip()
         if html:
             task["resultUrl"] = html
+        elif story and str(task.get("resultUrl") or "").strip() == story:
+            task["resultUrl"] = ""
         return
     if st in {"done", "approve"}:
         task["playableHtml"] = True

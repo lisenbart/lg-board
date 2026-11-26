@@ -33,7 +33,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-11-25d"
+BUILD = "2026-11-25e"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -1424,11 +1424,13 @@ def push_comment_to_drive(task: dict, comment: dict) -> str | None:
 def is_sendable(task: dict) -> bool:
     status = direction_io.playable_norm_status(task.get("studioStatus")) if direction_io.is_playables(task) else task.get("studioStatus")
     if direction_io.is_playables(task):
-        story = str(task.get("resultUrl") or task.get("storyboardUrl") or "").strip()
-        html = str(task.get("resultUrl") or task.get("htmlUrl") or "").strip()
+        story = str(task.get("storyboardUrl") or "").strip()
+        result = str(task.get("resultUrl") or "").strip()
+        html = str(task.get("htmlUrl") or "").strip()
         if status == "check":
-            return bool(story)
-        return status == "done" and bool(html)
+            return bool(result or story)
+        link = result if result and result != story else html
+        return status == "done" and bool(link and link != story)
     return status == "done" and bool(str(task.get("resultUrl") or "").strip())
 
 

@@ -1984,7 +1984,9 @@ def test_playable_card_pipeline() -> None:
     direction_io.touch_playable_html(stale)
     check(
         "second Art ready does not restore old HTML",
-        stale.get("resultUrl") == "https://miro.com/app/board/art",
+        stale.get("storyboardUrl") == "https://miro.com/app/board/art"
+        and not str(stale.get("htmlUrl") or "")
+        and not str(stale.get("resultUrl") or ""),
         str({k: stale.get(k) for k in ("resultUrl", "htmlUrl", "storyboardUrl")}),
     )
     check("AD can WIP after art bounce", direction_io.playable_next_statuses("art_director", art_bounce) == ["wip"])
@@ -2107,6 +2109,10 @@ def test_playable_card_pipeline() -> None:
         "function taskLinkUrl" in js and "t.htmlUrl || t.storyboardUrl" in js,
     )
     check(
+        "Art ready HTML field ignores the storyboard",
+        "function playableHtmlUrl" in js and "result !== board" in js,
+    )
+    check(
         "LP rows stay active until Closed",
         "function playablePartOpen" in js
         and 'role === "manager" || role === "finance") return true' in js
@@ -2173,6 +2179,11 @@ def test_playable_card_pipeline() -> None:
     direction_io.touch_playable_html(art)
     check("Art ready locks the HTML loop", art.get("playableHtml") is True)
     check("Art ready keeps the storyboard URL", art.get("storyboardUrl") == "https://board.example/story")
+    check(
+        "Art ready does not copy the storyboard into HTML",
+        not str(art.get("htmlUrl") or "") and not str(art.get("resultUrl") or ""),
+        str({k: art.get(k) for k in ("resultUrl", "htmlUrl", "storyboardUrl")}),
+    )
     drafted = {
         "studioStatus": "artready",
         "assigneeId": "artdir1",
@@ -2339,6 +2350,13 @@ def test_playable_team_scenarios() -> None:
     check("Hand ping goes to LP", lp in audience(board, "task.handed"))
     apply(board, t, lp, status="artready")
     check("Art ready is Bohdan", turn(t) == "programmer")
+    check(
+        "Art ready HTML is empty until DEV pastes",
+        not str(t.get("htmlUrl") or "")
+        and not str(t.get("resultUrl") or "")
+        and t.get("storyboardUrl") == "https://miro.com/app/board/zeus",
+        str({k: t.get(k) for k in ("resultUrl", "htmlUrl", "storyboardUrl")}),
+    )
     check("Art ready pings Bohdan not Anna", audience(board, "task.artready") == [bohdan], str(audience(board, "task.artready")))
     check("draft HTML is not a handoff", t.get("handedToLp") is False)
     t["htmlUrl"] = "https://play.example/zeus-v1"
