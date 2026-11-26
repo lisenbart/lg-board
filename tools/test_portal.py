@@ -469,6 +469,14 @@ def test_phone_queue_mvp() -> None:
         and "html.card-open:not(.hours-host)" in css,
     )
     check(
+        "phone card lifts above the keyboard",
+        "function syncDrawerKeyboard" in js
+        and "visualViewport" in js
+        and "--kbd-inset" in js
+        and "var(--kbd-inset, 0px)" in css
+        and "interactive-widget=resizes-content" in (ROOT / "public" / "index.html").read_text(encoding="utf-8"),
+    )
+    check(
         "phone status lives in the top pill",
         ".who-status .status-btns" in css
         and "display: none" in css.split(".who-status .status-btns")[1].split("}")[0]

@@ -8292,6 +8292,7 @@ function openTask(id) {
   syncDoneOption();
   $("drawerBg").classList.add("show");
   document.documentElement.classList.add("card-open");
+  syncDrawerKeyboard();
   $("stShifts")?.addEventListener("input", () => {
     const shifts = parseShifts($("stShifts").value);
     const hint = $("stHoursHint");
@@ -8616,6 +8617,63 @@ function openTask(id) {
   startCardPresence(id);
 }
 
+let drawerKbdTimer = 0;
+function clearDrawerKeyboardInset() {
+  clearTimeout(drawerKbdTimer);
+  drawerKbdTimer = 0;
+  document.documentElement.style.setProperty("--kbd-inset", "0px");
+  document.documentElement.classList.remove("card-kbd");
+}
+function syncDrawerKeyboard() {
+  const root = document.documentElement;
+  const open = root.classList.contains("card-open") && $("drawerBg")?.classList.contains("show");
+  if (!open || !isPhone()) {
+    clearDrawerKeyboardInset();
+    return;
+  }
+  const vv = window.visualViewport;
+  if (!vv) {
+    clearDrawerKeyboardInset();
+    return;
+  }
+  const inset = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+  root.style.setProperty("--kbd-inset", `${inset}px`);
+  root.classList.toggle("card-kbd", inset > 40);
+  const active = document.activeElement;
+  const body = $("drawer")?.querySelector(".drawer-body");
+  if (
+    inset > 40 &&
+    body &&
+    active &&
+    body.contains(active) &&
+    /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName)
+  ) {
+    clearTimeout(drawerKbdTimer);
+    drawerKbdTimer = setTimeout(() => {
+      try {
+        active.scrollIntoView({ block: "center", inline: "nearest", behavior: "smooth" });
+      } catch (_) {
+        active.scrollIntoView(true);
+      }
+    }, 80);
+  }
+}
+let drawerKbdBound = false;
+function bindDrawerKeyboard() {
+  if (drawerKbdBound) return;
+  drawerKbdBound = true;
+  const bump = () => syncDrawerKeyboard();
+  const vv = window.visualViewport;
+  if (vv) {
+    vv.addEventListener("resize", bump);
+    vv.addEventListener("scroll", bump);
+  }
+  window.addEventListener("resize", bump);
+  window.addEventListener("focusin", bump);
+  window.addEventListener("focusout", () => setTimeout(bump, 50));
+}
+bindDrawerKeyboard();
+
 async function closeDrawer(opts = {}) {
   closeShot();
   closeStatusPop();
@@ -8640,6 +8698,7 @@ async function closeDrawer(opts = {}) {
   }
   $("drawerBg").classList.remove("show");
   document.documentElement.classList.remove("card-open");
+  clearDrawerKeyboardInset();
   stopCardPresence();
   state.openId = null;
   state.openCard = null;
@@ -9401,6 +9460,7 @@ async function signOutNow(fromBtn) {
     state.openId = null;
     $("drawerBg").classList.remove("show");
     document.documentElement.classList.remove("card-open");
+    clearDrawerKeyboardInset();
     setNavOpen(false);
     if (isHoursPage()) {
       location.replace("/");
