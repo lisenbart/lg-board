@@ -3181,10 +3181,25 @@ a.pack-work:hover { background: #e2e4ec; }
   display: none;
   position: fixed;
   inset: 0;
-  background: rgba(23, 23, 36, 0.4);
+  background: rgba(15, 18, 28, 0.55);
   z-index: 25;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  filter: none !important;
+  opacity: 1;
+  transform: none;
 }
 .nav-scrim.show { display: block; }
+html.nav-open .main,
+html.nav-open .topbar,
+html.nav-open .toolbar,
+html.nav-open .board,
+html.nav-open .phone-bar {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  filter: none !important;
+  -webkit-filter: none !important;
+}
 .phone-bar {
   display: none;
 }
@@ -3446,16 +3461,23 @@ html:not(.phone-ui):not(.standalone-app) .push-hint { display: none !important; 
     display: flex;
     position: fixed;
     z-index: 30;
-    inset: 0 auto 0 0;
+    top: 0;
+    bottom: 0;
+    left: -100%;
     width: min(280px, 86vw);
-    height: 100dvh;
-    max-height: 100dvh;
+    height: 100%;
+    max-height: none;
+    padding-top: env(safe-area-inset-top);
     overflow: hidden;
-    transform: translateX(-110%);
-    transition: transform 0.18s ease;
+    background: var(--sidebar);
+    transform: none;
+    transition: left 0.18s ease;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    filter: none;
   }
   html:not(.hours-host).nav-open .sidebar {
-    transform: none;
+    left: 0;
     box-shadow: 8px 0 24px rgba(20, 22, 40, 0.28);
   }
   html:not(.hours-host) .phone-menu-btn { display: inline-flex; }
@@ -3468,7 +3490,7 @@ html:not(.phone-ui):not(.standalone-app) .push-hint { display: none !important; 
     z-index: 15;
     background: #fff;
     border-top: 1px solid var(--line);
-    box-shadow: 0 -6px 18px rgba(23, 23, 36, 0.06);
+    box-shadow: none;
     padding: 8px 10px calc(10px + env(safe-area-inset-bottom));
     gap: 8px;
   }
@@ -3710,6 +3732,22 @@ html:not(.phone-ui):not(.standalone-app) .push-hint { display: none !important; 
   }
   html:not(.hours-host) .topbar {
     padding: 8px 12px 8px;
+    padding-top: max(8px, env(safe-area-inset-top));
+    background: #fff;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    filter: none !important;
+  }
+  html:not(.hours-host) .toolbar,
+  html:not(.hours-host) .main,
+  html:not(.hours-host) .board {
+    background: #fff;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    filter: none !important;
+  }
+  html:not(.hours-host) .board {
+    background: var(--bg);
   }
   html:not(.hours-host) .top-row {
     display: grid;

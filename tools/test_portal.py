@@ -541,6 +541,13 @@ def test_phone_queue_mvp() -> None:
         and ".month-now.this-month strong" in css,
     )
     check(
+        "phone menu opens without transform blur",
+        "transform: translateX(-110%)" not in css
+        and "left: -100%" in css.split("html:not(.hours-host) .sidebar")[1].split("html:not(.hours-host).nav-open")[0]
+        and "backdrop-filter: none !important" in css.split(".nav-scrim")[1].split("}")[0]
+        and "box-shadow: none" in css.split("html:not(.hours-host) .phone-bar")[1].split("}")[0],
+    )
+    check(
         "phone cards show who faces and name pop",
         "function phoneWhoCell" in js
         and "whoCell(t)" in js.split("function phoneWhoCell")[1].split("function phoneCardHtml")[0]
