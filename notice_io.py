@@ -68,7 +68,7 @@ KINDS = {
     "task.finalart": {
         "label": "Final art",
         "title": "{name}",
-        "detail": "Final art · finish the board, then Hand to LP",
+        "detail": "Final art · finish the board, then Send to LP",
         "mark": "mine",
         "audience": {"assignee": True},
         "skip_actor": True,
@@ -84,7 +84,7 @@ KINDS = {
         "channels": ["portal"],
     },
     "task.handed": {
-        "label": "Hand to LP",
+        "label": "Send to LP",
         "title": "{name}",
         "detail": "{preview}",
         "mark": "check",

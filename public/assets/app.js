@@ -1475,9 +1475,13 @@ function handoffStatus(t) {
 }
 function handoffLabel(t) {
   const st = handoffStatus(t);
-  if (st === "check" || st === "notify") return "Hand to LP";
-  if (st === "tlcheck") return "Hand to TL";
+  if (st === "check" || st === "notify") return "Send to LP";
+  if (st === "tlcheck") return "Send to TL";
   return "";
+}
+function hidePerformerSave(t) {
+  if (canOps()) return false;
+  return Boolean(handoffStatus(t) || canPasteResult(t) || canPasteHtmlDraft(t));
 }
 function sortPeople(list) {
   return list.slice().sort(
@@ -1994,8 +1998,11 @@ function phoneCardHtml(t) {
   const who = phoneWhoLine(t);
   const flag = urgentMark(t);
   const cue = clientCue(t);
-  return `<button type="button" class="phone-card tone-${escapeHtml(isPlayables(t) ? playableStatusKey(t) : t.studioStatus || "new")}${isUrgent(t) ? " is-urgent" : ""}${turnClass(t)}" data-id="${escapeHtml(t.id)}">
-    <span class="notice-chip notice-${spec.cls}">${spec.label}</span>
+  const chip = canOps()
+    ? `<button type="button" class="notice-chip notice-${spec.cls} status-pop-btn" data-id="${escapeHtml(t.id)}" data-status-pop="1">${spec.label}</button>`
+    : `<span class="notice-chip notice-${spec.cls}">${spec.label}</span>`;
+  return `<div class="phone-card tone-${escapeHtml(isPlayables(t) ? playableStatusKey(t) : t.studioStatus || "new")}${isUrgent(t) ? " is-urgent" : ""}${turnClass(t)}" data-id="${escapeHtml(t.id)}" role="button" tabindex="0">
+    ${chip}
     <span class="phone-card-name">${flag}${escapeHtml(t.name)}</span>
     <span class="phone-card-hrs">${escapeHtml(hours)}</span>
     ${cue ? `<span class="phone-card-note">${escapeHtml(cue)}</span>` : ""}
@@ -2004,7 +2011,7 @@ function phoneCardHtml(t) {
       ${due.label ? `<span>${escapeHtml(due.label)}</span>` : ""}
       ${t.line ? `<span>${escapeHtml(t.line)}</span>` : ""}
     </span>
-  </button>`;
+  </div>`;
 }
 
 function renderPhoneInbox() {
@@ -2049,8 +2056,18 @@ function renderPhoneQueue() {
     tasks.length ? tasks.map(phoneCardHtml).join("") : empty
   }</div>`;
   $("board").querySelectorAll(".phone-card").forEach((el) => {
-    el.addEventListener("click", () => openTask(el.dataset.id));
+    el.addEventListener("click", (e) => {
+      if (e.target.closest("[data-status-pop]")) return;
+      openTask(el.dataset.id);
+    });
+    el.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      if (e.target.closest("[data-status-pop]")) return;
+      e.preventDefault();
+      openTask(el.dataset.id);
+    });
   });
+  bindStatusPop($("board"));
   $("board").querySelectorAll(".phone-dirs button").forEach((el) => {
     el.addEventListener("click", () => setDirection(el.dataset.dir));
   });
@@ -3280,9 +3297,9 @@ function resultHtml(t, performer, canPaste) {
         value: htmlVal,
         placeholder: "Paste HTML / playable link — not in Telegram",
         canPaste: true,
-        emptyText: "Paste the playable link here. Hand to LP after Art ready.",
+        emptyText: "Paste the playable link here. Send to LP after Art ready.",
       })}
-      <p class="io-hint">Save the link. Hand to LP after LP sets Art ready.</p>
+      <p class="io-hint">The link saves itself. Send to LP after LP sets Art ready.</p>
       ${
         board
           ? `<div class="link-sub"><h4>Storyboard</h4>${linkRowHtml({
@@ -3325,20 +3342,15 @@ function resultHtml(t, performer, canPaste) {
       </div>`
     : "";
   const hand = canPaste ? handoffLabel(t) : "";
-  const handHint = hand === "Hand to LP"
-    ? "This is how LP gets the link. Not Telegram."
-    : hand === "Hand to TL"
-      ? "This is how TL gets the file. Not Telegram."
+  const handHint = hand === "Send to LP"
+    ? "Paste the link, then Send to LP at the bottom. Not Telegram."
+    : hand === "Send to TL"
+      ? "Paste the link, then Send to TL at the bottom. Not Telegram."
       : "";
-  const hasLink = Boolean(hrefOf(t.resultUrl || ""));
-  const handBtn = hand
-    ? `<button type="button" class="btn green link-hand" id="handOff" ${hasLink ? "" : "disabled"}>${escapeHtml(hand)}</button>
-       <p class="io-hint">${escapeHtml(handHint)}</p>`
-    : "";
   return `<section class="io io-result${performer ? " is-focus" : ""}">
       <h3>${title}</h3>
       ${body}
-      ${handBtn}
+      ${handHint ? `<p class="io-hint">${escapeHtml(handHint)}</p>` : ""}
       ${boardRow}
       ${htmlDraftRow}
     </section>`;
@@ -3392,10 +3404,10 @@ function cardJob(t) {
       return {
         tone: "do",
         title: "Your job",
-        body: "Paste the finished-file link, then Hand to TL. Don't send it in Telegram.",
+        body: "Paste the finished-file link, then Send to TL. Don't send it in Telegram.",
       };
     }
-    return { tone: "do", title: "Hand to TL", body: "Link is in the field. Hand to TL — don't send it in Telegram." };
+    return { tone: "do", title: "Send to TL", body: "Link is in the field. Send to TL — don't send it in Telegram." };
   }
   if (role === "teamlead") {
     if (!t.assigneeId) {
@@ -3470,19 +3482,19 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
     if (html) return { tone: "wait", title: "Waiting for DEV / LP", body: "Art is done. Programmer builds HTML. LP sends it." };
     if (st === "clientart") return { tone: "wait", title: "Sent", body: "Storyboard is with the client. LP sets Need Fixing if they bounce it, or Final art when they approve." };
     if (st === "check") return { tone: "wait", title: "Waiting for LP", body: "Storyboard is ready. LP sends it. Only LP talks to the client." };
-    if (st === "finalart") return { tone: "do", title: "Final art", body: "Finish art, then Hand to LP. LP sets Art ready so DEV can start HTML." };
+    if (st === "finalart") return { tone: "do", title: "Final art", body: "Finish art, then Send to LP. LP sets Art ready so DEV can start HTML." };
     if (st === "revision") {
       const cue = clientCue(t);
       return {
         tone: "fix",
         title: "Need Fixing",
         body: cue
-          ? `Client: ${cue} — stays on this card. Fix the board, paste the new link, then Hand to LP.`
-          : "Open Client notes on this card. Text and files stay there after you read the ping. Then fix the board and Hand to LP.",
+          ? `Client: ${cue} — stays on this card. Fix the board, paste the new link, then Send to LP.`
+          : "Open Client notes on this card. Text and files stay there after you read the ping. Then fix the board and Send to LP.",
       };
     }
-    if (st === "wip") return { tone: "do", title: "WIP", body: "Paste the storyboard, then Hand to LP. Don't send the link in Telegram." };
-    return { tone: "do", title: "Your job", body: "Paste the storyboard, then Hand to LP. Don't send the link in Telegram." };
+    if (st === "wip") return { tone: "do", title: "WIP", body: "Paste the storyboard, then Send to LP. Don't send the link in Telegram." };
+    return { tone: "do", title: "Your job", body: "Paste the storyboard, then Send to LP. Don't send the link in Telegram." };
   }
   if (role === "programmer") {
     const onDev = String(t.programmerId || "") === String(me().id);
@@ -3496,15 +3508,15 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
           tone: "fix",
           title: "Need Fixing",
           body: cue
-            ? `Client: ${cue} — stays on this card. Fix the HTML, paste the new link, then Hand to LP.`
-            : "Open Client notes on this card. Text and files stay there after you read the ping. Then fix the HTML and Hand to LP.",
+            ? `Client: ${cue} — stays on this card. Fix the HTML, paste the new link, then Send to LP.`
+            : "Open Client notes on this card. Text and files stay there after you read the ping. Then fix the HTML and Send to LP.",
         };
       }
-      if (st === "artready") return { tone: "do", title: "Art ready", body: "Paste the HTML, then Hand to LP. LP sets Done or Need Fixing. Not in Telegram." };
-      if (!hasResult) return { tone: "do", title: "Your job", body: "Paste the HTML, then Hand to LP. LP sets Done or Need Fixing. Not in Telegram." };
-      return { tone: "do", title: "Hand to LP", body: "Link is in the field. Hand to LP — LP sets Done. Not in Telegram." };
+      if (st === "artready") return { tone: "do", title: "Art ready", body: "Paste the HTML, then Send to LP. LP sets Done or Need Fixing. Not in Telegram." };
+      if (!hasResult) return { tone: "do", title: "Your job", body: "Paste the HTML, then Send to LP. LP sets Done or Need Fixing. Not in Telegram." };
+      return { tone: "do", title: "Send to LP", body: "Link is in the field. Send to LP — LP sets Done. Not in Telegram." };
     }
-    return { tone: "wait", title: "Art is still in progress", body: "Paste the HTML link on this card now. Hand to LP after LP sets Art ready. Not in Telegram." };
+    return { tone: "wait", title: "Art is still in progress", body: "Paste the HTML link on this card now. Send to LP after LP sets Art ready. Not in Telegram." };
   }
   if (role === "designer") {
     return { tone: "ok", title: "Art help", body: `${hoursForPerson(t, me().id) || 0}h on this playable. LP owns Done and Need Fixing — you do not change status.` };
@@ -3524,24 +3536,24 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
       return { tone: "do", title: "Assign DEV", body: "Art is ready. Put a programmer on the card if they are not there yet. They can sit on the card from Ready." };
     }
     if (t.handedToLp) {
-      return { tone: "do", title: "HTML is in", body: `${progName || "Programmer"} handed the HTML. Set Done, or Need Fixing if it is not right.` };
+      return { tone: "do", title: "HTML is in", body: `${progName || "Programmer"} sent the HTML. Tap the status chip for Done or Need Fixing.` };
     }
-    return { tone: "wait", title: "Art ready", body: `${progName || "Programmer"} pastes HTML and Hands to LP. Then you set Done or Need Fixing.` };
+    return { tone: "wait", title: "Art ready", body: `${progName || "Programmer"} pastes HTML and Send to LP. Then tap the status chip for Done or Need Fixing.` };
   }
   if (html && t.programmerId) {
     if (t.handedToLp) {
-      return { tone: "do", title: "HTML is in", body: `${progName || "Programmer"} handed the HTML. Set Done, or Need Fixing if it is not right.` };
+      return { tone: "do", title: "HTML is in", body: `${progName || "Programmer"} sent the HTML. Tap the status chip for Done or Need Fixing.` };
     }
     if (st === "new") {
-      return { tone: "wait", title: "Waiting for DEV", body: `${progName || "Programmer"} starts HTML (no AD on this card). They Hand to LP — you set Done.` };
+      return { tone: "wait", title: "Waiting for DEV", body: `${progName || "Programmer"} starts HTML (no AD on this card). They Send to LP — you set Done.` };
     }
-    return { tone: "wait", title: "In WIP", body: `${progName || "Programmer"} is on HTML. They Hand to LP — you set Done or Need Fixing.` };
+    return { tone: "wait", title: "In WIP", body: `${progName || "Programmer"} is on HTML. They Send to LP — you set Done or Need Fixing.` };
   }
   if (st === "finalart") {
-    if (t.handedToLp) return { tone: "do", title: "Art is in", body: `${name || "Art Director"} handed the art. Set Art ready so DEV can start HTML.` };
-    return { tone: "wait", title: "Final art", body: `${name || "Art Director"} is finishing art. They Hand to LP — you set Art ready.` };
+    if (t.handedToLp) return { tone: "do", title: "Art is in", body: `${name || "Art Director"} sent the art. Tap the status chip → Art ready so DEV can start HTML.` };
+    return { tone: "wait", title: "Final art", body: `${name || "Art Director"} is finishing art. They Send to LP — you set Art ready.` };
   }
-  if (st === "revision") return { tone: "wait", title: "Need Fixing", body: html ? `${progName || "Programmer"} is fixing HTML. If they are away, set the status yourself.` : `${name || "Art Director"} is fixing the storyboard. If they are away, set the status yourself.` };
+  if (st === "revision") return { tone: "wait", title: "Need Fixing", body: html ? `${progName || "Programmer"} is fixing HTML. If they are away, tap the status chip.` : `${name || "Art Director"} is fixing the storyboard. If they are away, tap the status chip.` };
   const ad = playableAdId(t);
   if (!ad && !t.programmerId) {
     return { tone: "do", title: "Assign people", body: "Put AD and DEV on the card now. Hours sit next to the person. One DEV is enough if this is code-only." };
@@ -3553,12 +3565,12 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
       body: `${progName || "Programmer"} is on this. One DEV is enough — put AD on only if art starts.`,
     };
   }
-  if (st === "wip") return { tone: "wait", title: "WIP", body: `${name || "Art Director"} is on the storyboard. You send after Check. If they are away, set Check yourself.` };
+  if (st === "wip") return { tone: "wait", title: "WIP", body: `${name || "Art Director"} is on the storyboard. You send after Check. If they are away, tap the status chip and set Check.` };
   if (st === "new") {
     return {
       tone: "wait",
       title: "Waiting for AD",
-      body: `${name || "Art Director"} sets WIP, then Check. If they are away, set the status yourself. You can already put DEV on the card — they start HTML after Art ready.`,
+      body: `${name || "Art Director"} pastes the storyboard and Send to LP. If they are away, tap the status chip. You can already put DEV on the card — they start HTML after Art ready.`,
     };
   }
   return { tone: "wait", title: "In progress", body: `${name || "Art Director"} is on this. If they are away, set the status yourself. Send the storyboard, then HTML.` };
@@ -4306,51 +4318,51 @@ function renderGuide() {
         <h3>Статуси</h3>
         <p class="guide-lead">Один наступний крок на картці. WIP / Check / Done — ті самі слова, що в MGX.</p>
         <div class="guide-status-grid">
-          ${statusCard("ready", "Ready", "Ready", "Хто: LP створила, назначила AD / DEV", "Картка в роботі. AD ставить WIP і вставляє сторіборд. DEV уже може сидіти, HTML починає після Art ready.")}
+          ${statusCard("ready", "Ready", "Ready", "Хто: LP створила, назначила AD / DEV", "Картка в роботі. AD вставляє сторіборд і Send to LP — без своїх чіпів. DEV уже може сидіти, HTML починає після Art ready.")}
           ${statusCard("wip", "WIP", "WIP · Art / WIP · HTML", "Хто: чий хід по чіпу", "WIP · Art — Юля малює. WIP · HTML — Богдан збирає. Один чіп, різні лейбли як у Monday.")}
           ${statusCard("check", "Check", "Check", "Хто: AD здав борд, далі LP", "Сторіборд готовий, лінк у картці. Тільки LP шле клієнту — це стає Sent.")}
           ${statusCard("fix", "Fix", "Need Fixing", "Хто: відбій клієнта", "Сторіборд — AD править, знову Check. HTML — DEV править, знову Done.")}
           ${statusCard("sent", "Sent", "Sent", "Хто: чекаємо клієнта по борду", "LP відправила сторіборд. Відбили → Need Fixing. Прийняли → LP ставить Final art.")}
-          ${statusCard("final", "Final", "Final art", "Хто: AD робить, LP ставить чіп", "Клієнт прийняв борд. AD фіналізує арт і Hand to LP. Лише LP ставить Art ready.")}
-          ${statusCard("artok", "Art OK", "Art ready", "Хто: LP після здачі арту, далі DEV", "LP поставила Art ready. DEV вставляє HTML і Hand to LP.")}
-          ${statusCard("done", "Done", "Done", "Хто: лише LP", "DEV здав HTML через Hand to LP. Лише LP ставить Done, Need Fixing або шле клієнту.")}
+          ${statusCard("final", "Final", "Final art", "Хто: AD робить, LP ставить чіп", "Клієнт прийняв борд. AD фіналізує арт і Send to LP. Лише LP ставить Art ready.")}
+          ${statusCard("artok", "Art OK", "Art ready", "Хто: LP після здачі арту, далі DEV", "LP поставила Art ready. DEV вставляє HTML і Send to LP.")}
+          ${statusCard("done", "Done", "Done", "Хто: лише LP", "DEV здав HTML через Send to LP. Лише LP ставить Done, Need Fixing або шле клієнту.")}
           ${statusCard("send", "Send", "Send", "Хто: чекаємо клієнта по HTML", "LP натиснула Send to client. Відбили → Need Fixing. Прийняли → Closed.")}
           ${statusCard("closed", "Closed", "Closed", "Хто: LP", "Клієнт прийняв. Години лишаються.")}
         </div>
       </div>
       <div class="guide-block">
         <h3>Пайплайн</h3>
-        <p class="guide-lead">Ready → WIP → Hand to LP → Check → Sent → Final art → Art ready → WIP HTML → Hand to LP → Done → Send → Closed. Done, Need Fixing і Art ready ставить лише LP.</p>
+        <p class="guide-lead">Ready → Send to LP → Check → Sent → Final art → Art ready → Send to LP → Done → Send → Closed. AD / DEV не ставлять статуси. Done, Need Fixing і Art ready — жест LP по чіпу.</p>
         <ol class="guide-pipe">
           ${pipeStep("1", "LP", "Line Producer", "Картка заходить", `${ui("Create task")} після апруву годин. Ставить AD і DEV одразу, години — на людей.`, "ready", "Ready")}
-          ${pipeStep("2", "AD", "Art Director", "Сторіборд", `${ui("WIP")} → лінк на борд → ${ui("Hand to LP")}. Статус стає ${ui("Check")}.`, "check", "Check")}
+          ${pipeStep("2", "AD", "Art Director", "Сторіборд", `Лінк на борд → ${ui("Send to LP")}. Статус стає ${ui("Check")}. WIP не треба.`, "check", "Check")}
           ${pipeStep("3", "LP", "Line Producer", "Шле борд", `${ui("Send to client")} з ${ui("Check")}. Статус стає ${ui("Sent")}. Відбій → ${ui("Need Fixing")}. Апрув → ${ui("Final art")}.`, "sent", "Sent")}
-          ${pipeStep("4", "AD", "Art Director", "Фінальний арт", `Доробляє арт → ${ui("Hand to LP")}. Лише LP ставить ${ui("Art ready")}.`, "artok", "Art OK")}
-          ${pipeStep("5", "DEV", "Programmer", "Бере HTML", `Після ${ui("Art ready")} DEV ставить ${ui("WIP · HTML")} і вставляє лінк.`, "wip", "WIP")}
-          ${pipeStep("6", "DEV", "Programmer", "Здає HTML", `Лінк у ${ui("HTML")}, потім ${ui("Hand to LP")}. Done не ставить DEV.`, "done", "Done")}
-          ${pipeStep("7", "LP", "Line Producer", "Продовжує картку", `Лише LP ставить ${ui("Done")}, ${ui("Need Fixing")}, ${ui("Art ready")}. ${ui("Send to client")} з ${ui("Done")} + лінк, або одразу ${ui("Closed")}.`, "send", "Send")}
+          ${pipeStep("4", "AD", "Art Director", "Фінальний арт", `Доробляє арт → ${ui("Send to LP")}. Лише LP ставить ${ui("Art ready")} з чіпа.`, "artok", "Art OK")}
+          ${pipeStep("5", "DEV", "Programmer", "Бере HTML", `Після ${ui("Art ready")} DEV вставляє лінк. Поки арт іде — лінк уже можна зберегти.`, "wip", "WIP")}
+          ${pipeStep("6", "DEV", "Programmer", "Здає HTML", `Лінк у ${ui("HTML")}, потім ${ui("Send to LP")}. Done не ставить DEV.`, "done", "Done")}
+          ${pipeStep("7", "LP", "Line Producer", "Продовжує картку", `Тап по чіпу статусу: ${ui("Done")}, ${ui("Need Fixing")}, ${ui("Art ready")}. ${ui("Send to client")} з ${ui("Done")} + лінк, або одразу ${ui("Closed")}.`, "send", "Send")}
         </ol>
       </div>
       <div class="guide-grid">
         ${card("art_director", "AD", "Art Director", "Анна, Юля. Лише свої playable.", [
-          `Ready → ${ui("WIP")}. Вставляєш лінк на сторіборд, потім ${ui("Hand to LP")} — не в Telegram. ${ui("Copy")} / ${ui("Open")} праворуч від поля.`,
-          `Після відбою: ${ui("WIP")} знову, потім ${ui("Hand to LP")}.`,
-          `${ui("Final art")}: доробляєш арт і ${ui("Hand to LP")}. ${ui("Art ready")}, ${ui("Done")} і ${ui("Need Fixing")} ставить лише LP.`,
+          `Вставляєш лінк на сторіборд, потім ${ui("Send to LP")} — не в Telegram і без своїх чіпів. ${ui("Copy")} / ${ui("Open")} праворуч від поля.`,
+          `Після відбою: новий лінк, потім знову ${ui("Send to LP")}.`,
+          `${ui("Final art")}: доробляєш арт і ${ui("Send to LP")}. ${ui("Art ready")}, ${ui("Done")} і ${ui("Need Fixing")} ставить лише LP.`,
           `${ui("Send to client")} у AD немає.`,
         ])}
         ${card("programmer", "DEV", "Programmer", "Богдан. Лише свої playable.", [
-          `LP садить тебе з Ready для годин. HTML здаєш після ${ui("Art ready")} через ${ui("Hand to LP")}.`,
-          `Вставляєш HTML і ${ui("Hand to LP")} — не в Telegram. Done і Need Fixing ставить лише LP.`,
-          `Поки арт іде, на картці вже є слот HTML, щоб зберегти лінк. Hand to LP — після Art ready.`,
-          `Код-онлі (немає AD) — ${ui("WIP")} одразу з Ready, потім ${ui("Hand to LP")}.`,
+          `LP садить тебе з Ready для годин. HTML здаєш після ${ui("Art ready")} через ${ui("Send to LP")}.`,
+          `Вставляєш HTML і ${ui("Send to LP")} — не в Telegram. Done і Need Fixing ставить лише LP.`,
+          `Поки арт іде, на картці вже є слот HTML, щоб зберегти лінк. Send to LP — після Art ready.`,
+          `Код-онлі (немає AD) — лінк з Ready, потім ${ui("Send to LP")}.`,
         ])}
         ${card("designer", "MD", "Motion design", "Сергій на Playables. Години, не статус.", [
           `Картка з’являється, якщо LP поставив тобі години на арт-спліт.`,
           `Статус не чіпаєш — Done і Need Fixing ставить LP. Бриф читаєш, роботу здаєш AD.`,
         ])}
         ${card("manager", "LP", "Line Producer", "Анастасія. Обидві дошки.", [
-          `${ui("Create task")} після апруву годин у Telegram. AD і DEV садить одразу. Лише ти ставиш ${ui("Done")}, ${ui("Need Fixing")}, ${ui("Art ready")} і шлеш клієнту.`,
-          `AD і DEV здають роботу кнопкою ${ui("Hand to LP")} — не статусом Done.`,
+          `${ui("Create task")} після апруву годин у Telegram. AD і DEV садить одразу. Наступний крок — тап по чіпу статусу на рядку чи картці: ${ui("Done")}, ${ui("Need Fixing")}, ${ui("Art ready")}.`,
+          `AD і DEV здають роботу кнопкою ${ui("Send to LP")} — статуси їм не треба. Якщо їх немає — тап по чіпу і постав сам.`,
           `${ui("Send to client")} з ${ui("Check")} (борд) і з ${ui("Done")} (HTML + лінк). ${ui("Copy")} / ${ui("Open")} біля лінка.`,
           `Sent: відбій → ${ui("Need Fixing")}. Апрув борду → ${ui("Final art")}, потім ти ставиш ${ui("Art ready")}.`,
           `${ui("Mark Closed")} можна без Send. Closed → Ready знову відкриває арт для AD.`,
@@ -4527,10 +4539,11 @@ function renderBoard() {
 
   $("board").querySelectorAll(".row").forEach((el) => {
     el.addEventListener("click", (e) => {
-      if (e.target.closest("input,select,a,button,.num-step,.col-splitter")) return;
+      if (e.target.closest("input,select,a,button,.num-step,.col-splitter,[data-status-pop]")) return;
       openTask(el.dataset.id);
     });
   });
+  bindStatusPop($("board"));
   $("board").querySelectorAll(".chk").forEach((el) => {
     el.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -4736,7 +4749,7 @@ function rowHtml(t, mode, gap) {
       ${frozen}
       <div class="meta">
         <div class="cell">${timeCell(t)}</div>
-        <div class="cell"><span class="pill ${statusPillClass(t)}">${statusText(t.studioStatus || "new", t)}</span>${moneyChipHtml(t)}</div>
+        <div class="cell">${canOps() ? `<button type="button" class="pill ${statusPillClass(t)} status-pop-btn" data-id="${t.id}" data-status-pop="1">${statusText(t.studioStatus || "new", t)}</button>` : `<span class="pill ${statusPillClass(t)}">${statusText(t.studioStatus || "new", t)}</span>`}${moneyChipHtml(t)}</div>
         <div class="cell">${brief}</div>
         <div class="cell">${result}</div>
         <div class="cell">${whoCell(t)}</div>
@@ -4882,12 +4895,35 @@ function playableNextStatuses(role, t) {
   }
   return [];
 }
+function playableLpChoices(t) {
+  const st = playableStatusKey(t);
+  const html = playableInHtml(t);
+  const keys = [];
+  const add = (key) => {
+    if (!key || keys.includes(key)) return;
+    keys.push(key);
+  };
+  if (st === "closed") {
+    add("new");
+    return keys;
+  }
+  if (!html && (st === "new" || st === "wip" || st === "revision")) add("check");
+  if (st === "check") add("revision");
+  if (st === "clientart") {
+    add("revision");
+    add("finalart");
+    add("artready");
+  }
+  if (st === "finalart") add("artready");
+  if (html && (st === "artready" || st === "wip" || st === "revision" || st === "done" || st === "approve")) {
+    add("done");
+    add("revision");
+  }
+  add("closed");
+  return keys.filter((key) => key !== st || (html && key === "revision"));
+}
 function playableStatusActions(task) {
-  const role = me().role;
-  const next = playableNextStatuses(role, task);
-  if (role === "art_director" && playableAdId(task) !== me().id) return [];
-  if (role === "programmer" && String(task?.programmerId || "") !== String(me().id)) return [];
-  return next;
+  return [];
 }
 function statusActions(task) {
   const role = me().role;
@@ -4963,6 +4999,74 @@ function statusButtonsHtml(t, canEdit, lockedStatus) {
     <p class="status-hint" id="stDoneHint"></p>`;
 }
 
+function closeStatusPop() {
+  $("statusPopBg")?.classList.remove("show");
+}
+async function pickStatusFromPop(t, key, artBounce) {
+  closeStatusPop();
+  if (state.openId === t.id && typeof state.commitCard === "function") {
+    state.commitCard({ fromChip: true, status: key, artBounce: Boolean(artBounce) });
+    return;
+  }
+  const patch = { studioStatus: key, role: me().role };
+  if (artBounce) patch.artBounce = true;
+  await updateTask(
+    t.id,
+    { ...patch, note: `${me().name} set ${statusText(key, t)}` },
+    { toast: "" },
+  );
+}
+function openStatusPop(t) {
+  if (!canOps() || !t) return;
+  const bg = $("statusPopBg");
+  const grid = $("statusPopGrid");
+  const now = $("statusPopNow");
+  if (!bg || !grid || !now) return;
+  now.textContent = "Now · " + statusText(t.studioStatus || "new", t);
+  const keys = isPlayables(t)
+    ? playableLpChoices(t)
+    : statusActions(t).filter((key) => key !== (t.studioStatus || "new"));
+  const htmlLoop = isPlayables(t) && playableInHtml(t);
+  grid.replaceChildren();
+  const paint = (key, label, artBounce = false) => {
+    const mark = statusMark({ ...t, studioStatus: key });
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = `status-btn st-${mark.cls} is-on`;
+    btn.textContent = label;
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      pickStatusFromPop(t, key, artBounce);
+    });
+    grid.appendChild(btn);
+  };
+  keys.forEach((key) => {
+    if (key === "revision" && isPlayables(t) && htmlLoop) {
+      paint(key, "Need Fixing · HTML", false);
+      paint(key, "Need Fixing · Art", true);
+      return;
+    }
+    paint(key, statusText(key, t));
+  });
+  if (!grid.children.length) {
+    toast("No next step from this status");
+    return;
+  }
+  bg.classList.add("show");
+}
+function bindStatusPop(root) {
+  (root || document).querySelectorAll("[data-status-pop]").forEach((el) => {
+    if (el.dataset.popBound === "1") return;
+    el.dataset.popBound = "1";
+    el.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const t = state.db?.tasks?.find((row) => row.id === el.dataset.id);
+      if (t) openStatusPop(t);
+    });
+  });
+}
+
 function paintStatusButtons(key) {
   const input = $("stStatus");
   if (input) input.value = key;
@@ -4977,8 +5081,10 @@ function paintStatusButtons(key) {
   const pill = $("stMetaStatus");
   if (pill && STATUS[key]) {
     const t = state.db?.tasks?.find((x) => x.id === state.openId);
-    pill.className = `pill ${STATUS[key].cls}`;
-    pill.textContent = statusText(key, t);
+    const live = t ? { ...t, studioStatus: key } : { studioStatus: key };
+    const pop = pill.hasAttribute("data-status-pop");
+    pill.className = `pill ${statusPillClass(live)}${pop ? " status-pop-btn" : ""}`;
+    pill.textContent = statusText(key, live);
   }
 }
 
@@ -4987,8 +5093,11 @@ function canSetStatus(next, task) {
   if (t && isPlayables(t)) {
     if (next === (t.studioStatus || "new")) return true;
     if (next === "closed") return canOps();
-    if (playableStatusActions(t).includes(next)) return true;
-    return handoffStatus(t) === next;
+    if (canOps() && (playableLpChoices(t).includes(next) || playableNextStatuses(me().role, t).includes(next))) {
+      return true;
+    }
+    if (handoffStatus(t) === next) return true;
+    return playableNextStatuses(me().role, t).includes(next);
   }
   return (STATUS_BY_ROLE[me().role] || []).includes(next);
 }
@@ -6938,6 +7047,7 @@ function startCardPresence(id) {
 
 function openTask(id) {
   if (isClient()) return;
+  closeStatusPop();
   const t = state.db.tasks.find((x) => x.id === id);
   if (!t) return;
   const keepFiles =
@@ -7039,7 +7149,7 @@ function openTask(id) {
       }
       <button type="button" class="drawer-x" id="closeCard" aria-label="Close">×</button>
     </div>
-    <div class="meta"><span class="pill line-${t.line}">${t.line}</span> ${isUrgent(t) ? `<span class="urgent-flag">${urgentMark(t)} URGENT</span>` : ""} ${play ? (playableCardMeta(t) ? `${playableCardMeta(t)} · ` : "") : `${t.shifts || 0} shift · ${t.hours || 0} h · `}<span id="stMetaStatus" class="pill ${statusPillClass(t)}">${statusText(t.studioStatus || "new", t)}</span>${moneyChipHtml(t)}</div>
+    <div class="meta"><span class="pill line-${t.line}">${t.line}</span> ${isUrgent(t) ? `<span class="urgent-flag">${urgentMark(t)} URGENT</span>` : ""} ${play ? (playableCardMeta(t) ? `${playableCardMeta(t)} · ` : "") : `${t.shifts || 0} shift · ${t.hours || 0} h · `}${canOps() ? `<button type="button" id="stMetaStatus" class="pill ${statusPillClass(t)} status-pop-btn" data-id="${escapeHtml(t.id)}" data-status-pop="1">${statusText(t.studioStatus || "new", t)}</button>` : `<span id="stMetaStatus" class="pill ${statusPillClass(t)}">${statusText(t.studioStatus || "new", t)}</span>`}${moneyChipHtml(t)}</div>
     <p class="card-watch" id="cardWatch" hidden></p>
     <div class="drawer-body">
     <div class="card-job tone-${job.tone}${isActiveForMe(t) ? " is-turn" : " is-wait"}">
@@ -7069,8 +7179,16 @@ function openTask(id) {
       </div>
       <div class="drawer-actions-end">
         <span class="save-wait" id="saveWait" hidden></span>
-        ${canEdit || canOps() ? `<button type="button" class="btn ghost" id="cancelTask" disabled>Cancel</button>
-        <button type="button" class="btn primary card-save" id="saveTask" disabled>Save</button>` : ""}
+        ${
+          handoffLabel(t)
+            ? `<button type="button" class="btn green card-save" id="handOff" ${hrefOf(t.resultUrl || t.htmlUrl || "") ? "" : "disabled"}>${escapeHtml(handoffLabel(t))}</button>`
+            : hidePerformerSave(t)
+              ? ""
+              : canEdit || canOps()
+                ? `<button type="button" class="btn ghost" id="cancelTask" disabled>Cancel</button>
+        <button type="button" class="btn primary card-save" id="saveTask" disabled>Save</button>`
+                : ""
+        }
       </div>
     </div>
   `;
@@ -7120,10 +7238,44 @@ function openTask(id) {
     setIdleEnabled(cancel, dirty || noteDraft() || uploadsBusy());
     btn?.classList.toggle("is-ready", dirty);
   }
+  let linkTimer = 0;
+  const savePerformerLink = () => {
+    if (!hidePerformerSave(t)) return Promise.resolve();
+    if (state.openId && state.openId !== t.id) return Promise.resolve();
+    const patch = { role: me().role };
+    if ($("stHtml")) {
+      const url = String($("stHtml").value || "").trim();
+      if (url !== String(t.htmlUrl || "").trim()) patch.htmlUrl = url;
+    }
+    if ($("stResult")) {
+      const url = String($("stResult").value || "").trim();
+      if (url !== String(t.resultUrl || "").trim()) patch.resultUrl = url;
+    }
+    if (!("htmlUrl" in patch) && !("resultUrl" in patch)) return Promise.resolve();
+    const draft = Boolean($("stHtml") && !playableInHtml(t) && patch.htmlUrl);
+    return updateTask(t.id, patch, {
+      quiet: true,
+      stay: true,
+      toast: "",
+    }).then((ok) => {
+      if (ok === false) return false;
+      if (patch.htmlUrl != null) t.htmlUrl = patch.htmlUrl;
+      if (patch.resultUrl != null) t.resultUrl = patch.resultUrl;
+      cardBaseline = cardFingerprint();
+      refreshCardSave();
+      if (draft) toast("Link saved. Send to LP after Art ready.");
+      return true;
+    });
+  };
+  state.flushPerformerLink = savePerformerLink;
   function refreshCardActions() {
     refreshSendNote();
     refreshSendBrief();
     refreshCardSave();
+    if (!hidePerformerSave(t) || (!$("stHtml") && !$("stResult"))) return;
+    clearTimeout(linkTimer);
+    linkTimer = setTimeout(savePerformerLink, 400);
+    state.linkSaveTimer = linkTimer;
   }
   state.noteDraft = noteDraft;
   state.cardChanged = () => Boolean($("saveTask")) && cardFingerprint() !== cardBaseline;
@@ -7693,7 +7845,7 @@ function openTask(id) {
   }
   const syncDoneOption = () => {
     const hint = $("stDoneHint");
-    const typed = $("stResult")?.value || "";
+    const typed = $("stResult")?.value || $("stHtml")?.value || "";
     const hasResult = hasResultLink(t, typed);
     ["tlcheck", "check", "done"].forEach((key) => {
       const btn = $("drawer")?.querySelector(`.status-btn[data-status="${key}"]`);
@@ -7707,15 +7859,16 @@ function openTask(id) {
     });
     if (hint) hint.textContent = "";
     const hand = $("handOff");
-    if (hand) hand.disabled = !hrefOf(typed || t.resultUrl || "");
+    if (hand) hand.disabled = !hrefOf(typed || t.resultUrl || t.htmlUrl || "");
   };
   bindLinkRows($("drawer"), syncDoneOption);
+  bindStatusPop($("drawer"));
   $("handOff")?.addEventListener("click", () => {
     const key = handoffStatus(t);
     if (!key) return;
     const typed = $("stResult")?.value || $("stHtml")?.value || "";
     if (!hrefOf(typed || t.resultUrl || t.htmlUrl || "")) {
-      toast("Paste the link, then Hand to LP");
+      toast("Paste the link, then Send to LP");
       return;
     }
     if (key === "notify") {
@@ -7980,7 +8133,7 @@ function openTask(id) {
     startBusy("Saving…");
       const handed = Boolean(opts.handed);
       const handKey = handoffStatus(t);
-      const toTl = handoffLabel(t) === "Hand to TL";
+      const toTl = handoffLabel(t) === "Send to TL";
       const savedHtmlDraft =
         !handed &&
         Boolean($("stHtml")) &&
@@ -8008,11 +8161,11 @@ function openTask(id) {
               ? "TL has the file on the card. No need to send it in Telegram."
               : "LP has the link on the card. No need to send it in Telegram."
             : savedHtmlDraft
-              ? "HTML link saved. Hand to LP after Art ready."
+              ? "HTML link saved. Send to LP after Art ready."
             : savedLinkOnly
               ? toTl
-                ? "Link saved. Hand to TL so TL sees it — don't send it in Telegram."
-                : "Link saved. Hand to LP so LP sees it — don't send it in Telegram."
+                ? "Link saved. Send to TL so TL sees it — don't send it in Telegram."
+                : "Link saved. Send to LP so LP sees it — don't send it in Telegram."
               : "",
         },
       );
@@ -8084,6 +8237,12 @@ function openTask(id) {
 
 async function closeDrawer(opts = {}) {
   closeShot();
+  closeStatusPop();
+  if (state.linkSaveTimer) {
+    clearTimeout(state.linkSaveTimer);
+    state.linkSaveTimer = 0;
+  }
+  if (state.flushPerformerLink) await state.flushPerformerLink();
   if (!opts.force && $("drawerBg")?.classList.contains("show")) {
     const uploading = Boolean($("drawer")?.querySelector(".is-uploading"));
     const unsaved =
@@ -8106,6 +8265,7 @@ async function closeDrawer(opts = {}) {
   state.cardChanged = null;
   state.noteDraft = null;
   state.flushNote = null;
+  state.flushPerformerLink = null;
   state.commitCard = null;
   state.cardOpenedStamp = "";
   state.cardStale = false;
@@ -8132,6 +8292,11 @@ async function updateTask(id, patch, opts = {}) {
   }
   if (opts.close) {
     closeDrawer({ force: true });
+    return true;
+  }
+  if (opts.stay) {
+    const live = state.db?.tasks?.find((row) => row.id === id);
+    if (live && state.openCard?.id === id) Object.assign(state.openCard, live);
     return true;
   }
   if (state.openId && $("drawerBg").classList.contains("show")) {
@@ -9001,8 +9166,16 @@ $("emailApply").onclick = async () => {
 $("drawerBg").addEventListener("click", (e) => {
   if (e.target === $("drawerBg")) closeDrawer();
 });
+$("statusPopClose")?.addEventListener("click", closeStatusPop);
+$("statusPopBg")?.addEventListener("click", (e) => {
+  if (e.target === $("statusPopBg")) closeStatusPop();
+});
 document.addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
+  if ($("statusPopBg")?.classList.contains("show")) {
+    closeStatusPop();
+    return;
+  }
   if ($("taskDelModal")?.classList.contains("show")) {
     closeTaskDelete();
     return;

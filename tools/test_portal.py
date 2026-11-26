@@ -2002,7 +2002,7 @@ def test_playable_card_pipeline() -> None:
     check("card uses next-step Playables statuses", "function playableNextStatuses" in js and "function playableStatusActions" in js)
     check("Playables assign is LP/DL", "function canAssignPlayable" in js and "play ? canAssignPlayable() : canAssign()" in js)
     check("LP seats DEV from Ready in copy", "You can already put DEV on the card" in js)
-    check("Playables guide names the pipeline", "Done, Need Fixing і Art ready ставить лише LP" in js)
+    check("Playables guide names the pipeline", "Done, Need Fixing і Art ready — жест LP по чіпу" in js)
     check("MD copy says LP owns Done", "LP owns Done and Need Fixing" in js)
     check(
         "LP/DL can set any Playables work status",
@@ -2012,11 +2012,16 @@ def test_playable_card_pipeline() -> None:
     check("DEV HTML paste is owner-only", "isProgrammer() && String(t.programmerId || \"\") === String(me().id) && playableInHtml(t)" in js)
     check("DEV can paste HTML before Art ready", 'id: "stHtml"' in js and "function canPasteHtmlDraft" in js)
     check("AD can paste a storyboard link", "isArtDirector() && playableAdId(t) === me().id && !playableInHtml(t)" in js)
-    check("Hand to LP sits on the paste block", 'id="handOff"' in js and "Hand to LP" in js)
+    check("Send to LP sits in the card footer", 'id="handOff"' in js and "Send to LP" in js)
+    check(
+        "AD/DEV have no Playables status chips",
+        "return [];" in js.split("function playableStatusActions")[1].split("function statusActions")[0],
+    )
+    check("LP next step is a status pop", "function openStatusPop" in js and "function playableLpChoices" in js and "data-status-pop" in js)
     check("Monday chips name Art vs HTML WIP", "WIP · Art" in js and "WIP · HTML" in js)
     check("rows mark your turn vs waiting", "function isActiveForMe" in js and "is-turn" in js and "is-wait" in js)
-    check("LP can bounce HTML Need Fixing to Art", 'data-art-bounce="1"' in js and "Need Fixing · Art" in js)
-    check("DEV sees HTML slot before Art ready", "Save the link. Hand to LP after LP sets Art ready." in js)
+    check("LP can bounce HTML Need Fixing to Art", "Need Fixing · Art" in js and "Need Fixing · HTML" in js)
+    check("DEV sees HTML slot before Art ready", "The link saves itself. Send to LP after LP sets Art ready." in js)
     check("DEV HTML draft uses the card Save", 'id="saveHtmlDraft"' not in js)
     check(
         "paste into a link row fires input so Save lights up",
@@ -2043,6 +2048,7 @@ def test_playable_card_pipeline() -> None:
     check("Copy/Open stay on the link row", ".link-row {" in css_link and ".link-row-actions" in css_link)
     check("active Playables rows use is-turn", ".row.is-turn" in css_link and ".row.is-wait" in css_link)
     check("HTML WIP chip is purple", ".status-htmlwip" in css_link and ".status-htmlfix" in css_link)
+    check("LP status pop sits above the card", ".status-pop-bg" in css_link and "id=\"statusPopBg\"" in (ROOT / "public" / "index.html").read_text(encoding="utf-8"))
     check("empty Status plaque is hidden", "const statusKeys = statusActions(t)" in js and "statusKeys.length" in js)
     check("Check needs the storyboard link", '(key === "done" || key === "check")' in js)
     check("Check unlocks after the storyboard paste", '["tlcheck", "check", "done"].forEach' in js)

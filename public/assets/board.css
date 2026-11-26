@@ -584,6 +584,18 @@ html.hours-host .who-tools {
   margin-right: 6px;
   vertical-align: 1px;
 }
+button.notice-chip,
+button.pill.status-pop-btn {
+  appearance: none;
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+  text-align: inherit;
+}
+button.pill.status-pop-btn:hover,
+button.notice-chip.status-pop-btn:hover {
+  filter: brightness(0.96);
+}
 .notice-new { background: #e0f0ff; color: #0059b3; }
 .notice-ready { background: #fff3d6; color: #9a6700; }
 .notice-wip { background: #e0f0ff; color: #0059b3; }
@@ -2316,6 +2328,22 @@ a.pack-work:hover { background: #e2e4ec; }
 .modal h3 { margin: 0 0 8px; font-size: 15px; font-weight: 500; }
 .modal textarea { width: 100%; min-height: 220px; border: 1px solid var(--line); border-radius: 8px; padding: 10px; font-size: 13px; font-weight: 400; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.status-pop-bg { z-index: 32; }
+.status-pop {
+  width: min(360px, 100%);
+  padding: 14px 14px 12px;
+}
+.status-pop-now {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.status-pop-grid {
+  margin: 0;
+}
+.status-pop-grid .status-btn {
+  flex: 1 1 calc(50% - 6px);
+}
 
 .toast {
   position: fixed;
@@ -3415,7 +3443,8 @@ html:not(.phone-ui):not(.standalone-app) .push-hint { display: none !important; 
     width: 100%;
   }
   html:not(.hours-host) #cancelTask,
-  html:not(.hours-host) #saveTask { width: 100%; }
+  html:not(.hours-host) #saveTask,
+  html:not(.hours-host) #handOff { width: 100%; }
   html:not(.hours-host) .status-btns { gap: 8px; }
   html:not(.hours-host) .status-btn {
     min-height: 44px;
