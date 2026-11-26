@@ -760,10 +760,6 @@ function bindLinkRows(root, onMainInput) {
     const isMain = rowId === "stResult" || rowId === "stHtml";
     const onChange = () => {
       syncLinkRow(row);
-      if (rowId === "stHtml") {
-        const saveHtml = document.getElementById("saveHtmlDraft");
-        if (saveHtml) saveHtml.disabled = !hrefOf(String(input?.value || "").trim());
-      }
       if (isMain && onMainInput) onMainInput();
     };
     input?.addEventListener("input", onChange);
@@ -3286,8 +3282,7 @@ function resultHtml(t, performer, canPaste) {
         canPaste: true,
         emptyText: "Paste the playable link here. Hand to LP after Art ready.",
       })}
-      <button type="button" class="btn green link-hand" id="saveHtmlDraft" ${hrefOf(htmlVal) ? "" : "disabled"}>Save link</button>
-      <p class="io-hint">Tap Save link after you paste. Hand to LP after LP sets Art ready.</p>
+      <p class="io-hint">Save the link. Hand to LP after LP sets Art ready.</p>
       ${
         board
           ? `<div class="link-sub"><h4>Storyboard</h4>${linkRowHtml({
@@ -7699,7 +7694,6 @@ function openTask(id) {
   const syncDoneOption = () => {
     const hint = $("stDoneHint");
     const typed = $("stResult")?.value || "";
-    const htmlTyped = $("stHtml")?.value || "";
     const hasResult = hasResultLink(t, typed);
     ["tlcheck", "check", "done"].forEach((key) => {
       const btn = $("drawer")?.querySelector(`.status-btn[data-status="${key}"]`);
@@ -7714,18 +7708,8 @@ function openTask(id) {
     if (hint) hint.textContent = "";
     const hand = $("handOff");
     if (hand) hand.disabled = !hrefOf(typed || t.resultUrl || "");
-    const saveHtml = $("saveHtmlDraft");
-    if (saveHtml) saveHtml.disabled = !hrefOf(htmlTyped);
   };
   bindLinkRows($("drawer"), syncDoneOption);
-  $("saveHtmlDraft")?.addEventListener("click", () => {
-    const url = String($("stHtml")?.value || "").trim();
-    if (!hrefOf(url)) {
-      toast("Paste the HTML link first");
-      return;
-    }
-    commitCard({ fromChip: true, htmlDraft: true });
-  });
   $("handOff")?.addEventListener("click", () => {
     const key = handoffStatus(t);
     if (!key) return;
@@ -7819,10 +7803,6 @@ function openTask(id) {
     try {
     const resultUrl = ($("stResult")?.value || t.resultUrl || "").trim();
     const htmlTyped = String($("stHtml")?.value || "").trim();
-    if (opts.htmlDraft && !hrefOf(htmlTyped)) {
-      toast("Paste the HTML link first");
-      return;
-    }
     const studioStatus = opts.notifyLp
       ? t.studioStatus || "new"
       : opts.status || $("stStatus")?.value || t.studioStatus;
@@ -8002,12 +7982,11 @@ function openTask(id) {
       const handKey = handoffStatus(t);
       const toTl = handoffLabel(t) === "Hand to TL";
       const savedHtmlDraft =
-        Boolean(opts.htmlDraft) ||
-        (!handed &&
-          Boolean($("stHtml")) &&
-          htmlTyped &&
-          htmlTyped !== String(t.htmlUrl || "").trim() &&
-          studioStatus === (t.studioStatus || "new"));
+        !handed &&
+        Boolean($("stHtml")) &&
+        htmlTyped &&
+        htmlTyped !== String(t.htmlUrl || "").trim() &&
+        studioStatus === (t.studioStatus || "new");
       const savedLinkOnly =
         !handed &&
         Boolean(handKey) &&
