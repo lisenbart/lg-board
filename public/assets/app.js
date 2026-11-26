@@ -3294,7 +3294,7 @@ function resultHtml(t, performer, canPaste) {
   const seatedDevWaiting = canPasteHtmlDraft(t);
   if (seatedDevWaiting) {
     const board = String(t.storyboardUrl || t.resultUrl || "").trim();
-    const htmlVal = String(t.htmlUrl || "").trim();
+    const htmlVal = samePlayableLink(t.htmlUrl, board) ? "" : String(t.htmlUrl || "").trim();
     return `<section class="io io-result is-focus">
       <h3>HTML</h3>
       ${linkRowHtml({
@@ -4844,13 +4844,18 @@ function playableStatusFrom(t) {
 function playableStoryboardUrl(t) {
   return String(t?.storyboardUrl || "").trim();
 }
+function samePlayableLink(a, b) {
+  const one = String(a || "").trim().replace(/\/+$/, "");
+  const two = String(b || "").trim().replace(/\/+$/, "");
+  return Boolean(one) && one === two;
+}
 function playableHtmlUrl(t) {
   const board = playableStoryboardUrl(t);
   const draft = String(t?.htmlUrl || "").trim();
-  if (!playableInHtml(t)) return draft;
+  if (!playableInHtml(t)) return samePlayableLink(draft, board) ? "" : draft;
   const result = String(t?.resultUrl || "").trim();
-  if (result && result !== board) return result;
-  if (draft && draft !== board) return draft;
+  if (result && !samePlayableLink(result, board)) return result;
+  if (draft && !samePlayableLink(draft, board)) return draft;
   return "";
 }
 function playableInHtml(t) {
@@ -5012,6 +5017,7 @@ function playableLpChoices(t) {
   }
   if (st === "finalart") add("artready");
   if (html && (st === "artready" || st === "wip" || st === "revision" || st === "done" || st === "approve")) {
+    add("artready");
     add("done");
     add("revision");
   }
@@ -7502,6 +7508,10 @@ function openTask(id) {
     if ($("stResult")) {
       const url = String($("stResult").value || "").trim();
       if (url !== String(t.resultUrl || "").trim()) patch.resultUrl = url;
+      if (isPlayables(t) && playableInHtml(t) && (!url || samePlayableLink(url, playableStoryboardUrl(t)))) {
+        patch.resultUrl = "";
+        patch.htmlUrl = "";
+      }
     }
     if (!("htmlUrl" in patch) && !("resultUrl" in patch)) return Promise.resolve();
     const draft = Boolean($("stHtml") && !playableInHtml(t) && patch.htmlUrl);
@@ -8212,8 +8222,12 @@ function openTask(id) {
       actionBtns().forEach((btn) => setBusy(btn, false));
     };
     try {
-    const resultUrl = ($("stResult")?.value || t.resultUrl || "").trim();
-    const htmlTyped = String($("stHtml")?.value || "").trim();
+    const resultUrl = $("stResult")
+      ? String($("stResult").value || "").trim()
+      : String(t.resultUrl || "").trim();
+    const htmlTyped = $("stHtml")
+      ? String($("stHtml").value || "").trim()
+      : String(t.htmlUrl || "").trim();
     const studioStatus = opts.notifyLp
       ? t.studioStatus || "new"
       : opts.status || $("stStatus")?.value || t.studioStatus;
@@ -8318,6 +8332,15 @@ function openTask(id) {
     }
     if ($("stResult")) patch.resultUrl = resultUrl;
     if ($("stHtml")) patch.htmlUrl = String($("stHtml").value || "").trim();
+    if (
+      isPlayables(t) &&
+      playableInHtml(t) &&
+      $("stResult") &&
+      (!resultUrl || samePlayableLink(resultUrl, playableStoryboardUrl(t)))
+    ) {
+      patch.resultUrl = "";
+      patch.htmlUrl = "";
+    }
     if (opts.handed) patch.handed = true;
     if (canEditTime() && $("stShifts")) {
       const shifts = parseShifts($("stShifts").value);

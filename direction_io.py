@@ -226,6 +226,12 @@ ART_LOOP = {"new", "check", "clientart", "finalart"}
 HTML_HANDOFF = {"artready", "done", "approve"}
 
 
+def _same_playable_link(a, b) -> bool:
+    one = str(a or "").strip().rstrip("/")
+    two = str(b or "").strip().rstrip("/")
+    return bool(one) and one == two
+
+
 def _status_before(task: dict, st: str) -> str:
     for item in reversed(task.get("statusLog") or []):
         if not isinstance(item, dict):
@@ -411,14 +417,18 @@ def touch_playable_html(task: dict | None, prev: str | None = None, force_art: b
         return
     if st == "artready":
         task["playableHtml"] = True
-        board = str(task.get("resultUrl") or "").strip()
-        if board and not str(task.get("storyboardUrl") or "").strip():
-            task["storyboardUrl"] = board
-        html = str(task.get("htmlUrl") or "").strip()
+        result = str(task.get("resultUrl") or "").strip()
         story = str(task.get("storyboardUrl") or "").strip()
-        if html:
+        html = str(task.get("htmlUrl") or "").strip()
+        if result and not story:
+            task["storyboardUrl"] = result
+            story = result
+        if html and _same_playable_link(html, story):
+            task["htmlUrl"] = ""
+            html = ""
+        if html and (not result or _same_playable_link(result, story)):
             task["resultUrl"] = html
-        elif story and str(task.get("resultUrl") or "").strip() == story:
+        elif story and (not result or _same_playable_link(result, story)):
             task["resultUrl"] = ""
         return
     if st in {"done", "approve"}:

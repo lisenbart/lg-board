@@ -2110,7 +2110,15 @@ def test_playable_card_pipeline() -> None:
     )
     check(
         "Art ready HTML field ignores the storyboard",
-        "function playableHtmlUrl" in js and "result !== board" in js,
+        "function playableHtmlUrl" in js and "function samePlayableLink" in js,
+    )
+    check(
+        "empty HTML save does not keep the old result",
+        'const resultUrl = ($("stResult")?.value || t.resultUrl' not in js,
+    )
+    check(
+        "LP can return to Art ready from HTML Need Fixing",
+        'add("artready")' in js.split("function playableLpChoices")[1].split("function playableStatusActions")[0],
     )
     check(
         "LP rows stay active until Closed",
@@ -2183,6 +2191,22 @@ def test_playable_card_pipeline() -> None:
         "Art ready does not copy the storyboard into HTML",
         not str(art.get("htmlUrl") or "") and not str(art.get("resultUrl") or ""),
         str({k: art.get(k) for k in ("resultUrl", "htmlUrl", "storyboardUrl")}),
+    )
+    leftover = {
+        "studioStatus": "artready",
+        "assigneeId": "artdir1",
+        "programmerId": "programmer1",
+        "storyboardUrl": "https://drive.google.com/drive/folders/board",
+        "resultUrl": "https://drive.google.com/drive/folders/board",
+        "htmlUrl": "https://drive.google.com/drive/folders/board",
+    }
+    direction_io.touch_playable_html(leftover)
+    check(
+        "Art ready drops a storyboard leftover in HTML",
+        leftover.get("storyboardUrl") == "https://drive.google.com/drive/folders/board"
+        and not str(leftover.get("htmlUrl") or "")
+        and not str(leftover.get("resultUrl") or ""),
+        str({k: leftover.get(k) for k in ("resultUrl", "htmlUrl", "storyboardUrl")}),
     )
     drafted = {
         "studioStatus": "artready",
