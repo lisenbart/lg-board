@@ -2086,7 +2086,8 @@ def test_playable_card_pipeline() -> None:
     )
     check(
         "LP rows stay active until Closed",
-        'canOps()) return (t.studioStatus || "new") === "closed" ? " is-wait" : " is-turn"' in js,
+        'role === "manager" || role === "finance") return true' in js
+        and 'isActiveForMe(t) ? " is-turn" : " is-wait"' in js,
     )
     check("LP can bounce HTML Need Fixing to Art", "Need Fixing · Art" in js and "Need Fixing · HTML" in js)
     check("DEV sees HTML slot before Art ready", "The link saves itself. Send to LP after LP sets Art ready." in js)
@@ -2437,6 +2438,43 @@ def test_playable_team_scenarios() -> None:
     t = card(studioStatus="closed", playableHtml=True, programmerId=bohdan)
     apply(db(), t, lp, status="new")
     check("reopen Ready is Anna again", turn(t) == "art_director" and not direction_io.playable_in_html(t))
+
+    # --- Each seat stays active until that seat's part is done
+    part = direction_io.playable_part_open
+    ready = card(studioStatus="new", assigneeId=anna, programmerId=bohdan)
+    check("Ready: Anna's art is open", part(ready, "art_director", anna) and not part(ready, "art_director", yulia))
+    check("Ready: Bohdan waits for Art ready", not part(ready, "programmer", bohdan))
+    check("Ready: LP still on the card", part(ready, "manager"))
+    wip = card(studioStatus="wip", assigneeId=anna, programmerId=bohdan)
+    check("Art WIP: Anna active, Bohdan waits", part(wip, "art_director", anna) and not part(wip, "programmer", bohdan))
+    pending = card(studioStatus="check", assigneeId=anna, programmerId=bohdan)
+    check("Check without Send: Anna still active", part(pending, "art_director", anna) and part(pending, "manager"))
+    handed_check = card(
+        studioStatus="check",
+        assigneeId=anna,
+        programmerId=bohdan,
+        handedToLp=True,
+        handedBy=anna,
+        resultUrl="https://miro.com/app/board/zeus",
+    )
+    check(
+        "After Anna Send to LP: her part is done",
+        not part(handed_check, "art_director", anna) and part(handed_check, "manager"),
+    )
+    sent = card(studioStatus="clientart", assigneeId=anna, programmerId=bohdan)
+    check("Sent: AD and DEV wait, LP stays", not part(sent, "art_director", anna) and not part(sent, "programmer", bohdan) and part(sent, "manager"))
+    final = card(studioStatus="finalart", assigneeId=anna, programmerId=bohdan)
+    check("Final art: Anna again, Bohdan waits", part(final, "art_director", anna) and not part(final, "programmer", bohdan))
+    artok = card(studioStatus="artready", assigneeId=anna, programmerId=bohdan, playableHtml=True)
+    check("Art ready: Bohdan's HTML is open", part(artok, "programmer", bohdan) and not part(artok, "art_director", anna) and part(artok, "manager"))
+    html = card(studioStatus="wip", assigneeId=anna, programmerId=bohdan, playableHtml=True)
+    check("HTML WIP: Bohdan active", part(html, "programmer", bohdan) and not part(html, "art_director", anna))
+    html_in = card(studioStatus="wip", assigneeId=anna, programmerId=bohdan, playableHtml=True, handedToLp=True, handedBy=bohdan)
+    check("After Bohdan Send to LP: his part is done", not part(html_in, "programmer", bohdan) and part(html_in, "manager"))
+    done = card(studioStatus="done", assigneeId=anna, programmerId=bohdan, playableHtml=True)
+    check("Done: only LP", not part(done, "art_director", anna) and not part(done, "programmer", bohdan) and part(done, "manager"))
+    closed = card(studioStatus="closed", assigneeId=anna, programmerId=bohdan)
+    check("Closed: nobody", not part(closed, "manager") and not part(closed, "art_director", anna) and not part(closed, "programmer", bohdan))
 
 
 def test_card_presence() -> None:

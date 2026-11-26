@@ -309,6 +309,23 @@ def playable_turn_role(task: dict | None) -> str:
     return ""
 
 
+def playable_part_open(task: dict | None, role: str, person_id: str = "") -> bool:
+    """True while this seat still has unfinished work. LP until Closed; AD until Send to LP; DEV until HTML is in."""
+    task = task or {}
+    st = playable_norm_status(task.get("studioStatus"))
+    if st == "closed":
+        return False
+    if role in {"manager", "finance"}:
+        return True
+    turn = playable_turn_role(task)
+    actor = str(person_id or "")
+    if role == "art_director":
+        return turn == "art_director" and playable_has_ad(task) and str(task.get("assigneeId") or "") == actor
+    if role == "programmer":
+        return turn == "programmer" and str(task.get("programmerId") or "") == actor
+    return False
+
+
 def playable_in_html(task: dict | None) -> bool:
     """HTML loop starts at Art ready (or a DEV-only card). Seating DEV on Ready is still art when AD is on the card."""
     task = task or {}

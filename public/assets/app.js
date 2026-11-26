@@ -4892,28 +4892,25 @@ function playableTurnRole(t) {
 function isActiveForMe(t) {
   if (!t || isClient()) return false;
   const role = me().role;
+  const st = isPlayables(t) ? playableStatusKey(t) : t.studioStatus || "new";
+  if (st === "closed") return false;
+  if (role === "manager" || role === "finance") return true;
   if (isPlayables(t)) {
     const turn = playableTurnRole(t);
-    if (role === "manager" || role === "finance") return turn === "manager";
     if (role === "art_director") return turn === "art_director" && playableAdId(t) === me().id;
     if (role === "programmer") return turn === "programmer" && String(t.programmerId || "") === String(me().id);
     return false;
   }
   const mine = String(t.assigneeId || "") === String(me().id);
-  const st = t.studioStatus || "new";
-  if (st === "closed" || st === "approve") return false;
+  if (st === "approve") return false;
   if (role === "designer") return mine && ["new", "wip", "revision"].includes(st);
   if (role === "teamlead") {
     if (st === "tlcheck") return true;
     return mine && ["new", "wip", "revision"].includes(st);
   }
-  if (role === "manager" || role === "finance") {
-    return st === "tlcheck" || st === "done" || (!t.assigneeId && st === "new");
-  }
   return false;
 }
 function turnClass(t) {
-  if (canOps()) return (t.studioStatus || "new") === "closed" ? " is-wait" : " is-turn";
   return isActiveForMe(t) ? " is-turn" : " is-wait";
 }
 function playableDevUnlocked(t) {
