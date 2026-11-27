@@ -508,6 +508,21 @@ def test_phone_queue_mvp() -> None:
         and "min-height: 56px" in css.split(".phone-card {")[1].split("}")[0],
     )
     check(
+        "board Project column has no duplicate status chip",
+        "const chip = statusChip(t);" not in js.split("function rowHtml")[1].split("function statusChoices")[0]
+        and "${chip}${flag}" not in js
+        and "${flag}<span class=\"name-text\">" in js.split("function rowHtml")[1].split("function statusChoices")[0]
+        and "${statusChip(t)}" in js,
+    )
+    check(
+        "phone status pills share one fixed width",
+        "grid-template-columns: 7.5rem minmax(0, 1fr) auto" in css.split(".phone-card {")[1].split("}")[0]
+        and "width: 7.5rem" in css.split(".phone-card .phone-status,\n.phone-card .pill.phone-status")[1].split("}")[0]
+        and "grid-template-columns: 7.75rem minmax(0, 1fr) auto" in css.split("html:not(.hours-host) .phone-card {")[1].split("}")[0]
+        and "width: 7.75rem" in css.split("html:not(.hours-host) .phone-card .phone-status")[1].split("}")[0]
+        and "padding: 12px 12px 12px 6px" in css.split("html:not(.hours-host) .phone-card {")[1].split("}")[0],
+    )
+    check(
         "phone cards match desktop turn and status tint",
         ".phone-card.tone-wip" in css
         and ".phone-card.is-wait { opacity: 0.72; }" in css

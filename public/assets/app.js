@@ -4850,7 +4850,6 @@ function rowHtml(t, mode, gap) {
         ? `<input class="chk" data-id="${t.id}" type="checkbox" ${checked} />`
         : ""
       : "";
-  const chip = statusChip(t);
   const flag = urgentMark(t);
   const nameTitle = escapeHtml((isUrgent(t) ? "URGENT · " : "") + t.name);
   const frozen =
@@ -4858,11 +4857,11 @@ function rowHtml(t, mode, gap) {
       ? `<div class="frozen">
           <div class="cell"><span class="pill line-${t.line}">${t.line}</span></div>
           <div class="cell">${pick}</div>
-          <div class="cell name" title="${nameTitle}">${chip}${flag}<span class="name-text">${escapeHtml(t.name)}</span></div>
+          <div class="cell name" title="${nameTitle}">${flag}<span class="name-text">${escapeHtml(t.name)}</span></div>
         </div>`
       : `<div class="frozen">
           <div class="cell"><span class="pill line-${t.line}">${t.line}</span></div>
-          <div class="cell name" title="${nameTitle}">${chip}${flag}<span class="name-text">${escapeHtml(t.name)}</span></div>
+          <div class="cell name" title="${nameTitle}">${flag}<span class="name-text">${escapeHtml(t.name)}</span></div>
         </div>`;
   return `
     <div class="row ${mode} tone-${escapeHtml(isPlayables(t) ? playableStatusKey(t) : t.studioStatus || "new")}${gapCls}${isUrgent(t) ? " is-urgent" : ""}${turnClass(t)}${checked ? " selected" : ""}" data-id="${t.id}">
