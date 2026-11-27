@@ -1880,6 +1880,12 @@ def test_playables_desk() -> None:
             and "width: 100%;\n  box-sizing: border-box;" in css.split(".row .cell > .pill.status-new")[1].split(".status-new { background")[0]
             and "flex: 0 0 auto;" in css.split(".drawer .meta .status-new")[1].split(".drawer-actions")[0],
         )
+        check(
+            "board meta columns stay compact",
+            "--meta-width: 524px;" in css
+            and "104px 140px 48px 48px 112px 56px" in css
+            and "grid-template-columns: 40px 28px minmax(0, 1fr)" in css,
+        )
         with tempfile.TemporaryDirectory() as raw:
             path = Path(raw) / "pl.xlsx"
             shutil.copy(playables_io.XLSX_PATH, path)

@@ -843,7 +843,8 @@ button.kpi.on { border-color: var(--blue); box-shadow: 0 0 0 1px rgba(0,115,234,
 }
 .group.sheet {
   --name-width: 412px;
-  --meta-width: 658px;
+  /* Time+Status+Brief+Result+Who+Due + meta pad — keep tight, no air between tracks. */
+  --meta-width: 524px;
   position: relative;
   width: max(100%, calc(var(--name-width) + var(--meta-width)));
   min-width: max(100%, calc(var(--name-width) + var(--meta-width)));
@@ -886,12 +887,12 @@ button.kpi.on { border-color: var(--blue); box-shadow: 0 0 0 1px rgba(0,115,234,
   overflow: hidden;
   display: grid;
   align-items: center;
-  padding: 0 10px 0 8px;
+  padding: 0 6px 0 6px;
   background: #fff;
 }
 .frozen > .cell { min-width: 0; }
-.cols.ops .frozen, .row.ops .frozen { grid-template-columns: 52px 36px minmax(0, 1fr); }
-.cols.exec .frozen, .row.exec .frozen { grid-template-columns: 52px minmax(0, 1fr); }
+.cols.ops .frozen, .row.ops .frozen { grid-template-columns: 40px 28px minmax(0, 1fr); }
+.cols.exec .frozen, .row.exec .frozen { grid-template-columns: 40px minmax(0, 1fr); }
 .due {
   position: relative;
   display: inline-block;
@@ -1046,12 +1047,13 @@ button.kpi.on { border-color: var(--blue); box-shadow: 0 0 0 1px rgba(0,115,234,
   max-width: var(--meta-width);
   display: grid;
   align-items: center;
-  padding: 0 12px 0 14px;
+  padding: 0 8px 0 8px;
   border-left: 1px solid #eceef5;
 }
 .cols.ops .meta, .row.ops .meta,
 .cols.exec .meta, .row.exec .meta {
-  grid-template-columns: 126px 154px 56px 64px 158px 72px;
+  /* Time · Status · Brief · Result · Who · Due — Time keeps room for MGX shift stepper. */
+  grid-template-columns: 104px 140px 48px 48px 112px 56px;
 }
 .col-splitter {
   position: absolute;
@@ -1167,7 +1169,8 @@ body.col-resizing * { cursor: col-resize !important; }
 }
 .row.is-wait .name-text { font-weight: 400; }
 .row.is-turn .name-text { font-weight: 600; }
-.cell { padding: 2px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 400; }
+.cell { padding: 2px 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 400; }
+.row .frozen > .cell:first-child { padding-left: 2px; padding-right: 2px; }
 .row .meta > .cell:first-child { overflow: visible; }
 .row .meta > .cell:nth-child(5) { overflow: visible; }
 .name { font-weight: 400; }
@@ -3594,10 +3597,10 @@ html:not(.phone-ui):not(.standalone-app) .push-hint { display: none !important; 
   html:not(.hours-host) .top-end { margin-left: auto; width: auto; }
   html.hours-host .top-end { width: auto; }
   .team-row { grid-template-columns: 1fr; }
-  .group.sheet { --meta-width: 626px; }
+  .group.sheet { --meta-width: 524px; }
   .cols.ops .meta, .row.ops .meta,
   .cols.exec .meta, .row.exec .meta {
-    grid-template-columns: 126px 140px 56px 64px 140px 72px;
+    grid-template-columns: 104px 140px 48px 48px 112px 56px;
   }
   .hide-sm { display: none !important; }
   .search-wrap { min-width: 0; width: 100%; margin-left: 0; }
