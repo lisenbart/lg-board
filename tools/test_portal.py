@@ -1832,6 +1832,30 @@ def test_playables_desk() -> None:
         check("role is not a page subtitle", 'class="role-hint"' not in html)
         check("who label is the name only", "${p.name} · ${jobMeta(p).code}" not in js)
         check("AD/DEV hours blocks have a tint", ".play-seat-ad" in css and ".play-seat-dev" in css)
+        check(
+            "Who · hours seats have no colored left brackets",
+            "box-shadow: inset 3px 0 0 #a855f7" not in css
+            and "box-shadow: inset 3px 0 0 #4f6bed" not in css
+            and ".play-seat-md" in css,
+        )
+        check(
+            "Playables Who · hours includes MD seat",
+            'playableSeatHtml("md"' in js
+            and 'id="stMotion"' in js
+            and 'id="stMotionHours"' in js
+            and "function motionDesigners" in js
+            and "patch.motionId" in js
+            and "patch.motionHours" in js,
+        )
+        check(
+            "MD sequence link gates Send to DEV",
+            'id: "stSequence"' in js
+            and "function playableMdPending" in js
+            and "Send to DEV" in js
+            and "Paste the sequence link, then Send to DEV" in js
+            and "playable_md_pending" in Path("direction_io.py").read_text(encoding="utf-8")
+            and "sequenceUrl" in Path("server.py").read_text(encoding="utf-8"),
+        )
         with tempfile.TemporaryDirectory() as raw:
             path = Path(raw) / "pl.xlsx"
             shutil.copy(playables_io.XLSX_PATH, path)
@@ -2047,6 +2071,38 @@ def test_playable_card_pipeline() -> None:
     check("AD Need Fixing offers WIP", direction_io.playable_next_statuses("art_director", bounced) == ["wip"])
     check("DEV stays off storyboard Fix", direction_io.playable_next_statuses("programmer", bounced) == [])
 
+    md_fix = {
+        "department": "Playables",
+        "studioStatus": "approve",
+        "assigneeId": "artdir1",
+        "programmerId": "programmer1",
+        "motionId": "designer1",
+        "playableHtml": True,
+        "htmlUrl": "https://html.example/md",
+        "storyboardUrl": "https://board.example/md",
+        "sequenceReady": True,
+        "sequenceUrl": "https://seq.example/old",
+    }
+    check("client HTML bounce clears sequence ready", direction_io.apply_client_note_bounce(md_fix, "manager"))
+    check("client HTML bounce clears sequence url", md_fix.get("sequenceUrl") == "")
+    check("MD pending after Sent HTML bounce", direction_io.playable_md_pending(md_fix) is True)
+    check("MD owns HTML Need Fixing turn", direction_io.playable_turn_role(md_fix) == "designer")
+    check("MD part open on HTML fix", direction_io.playable_part_open(md_fix, "designer", "designer1"))
+    check("DEV waits while MD pending", not direction_io.playable_part_open(md_fix, "programmer", "programmer1"))
+    check("MD can WIP from HTML fix", direction_io.playable_next_statuses("designer", md_fix) == ["wip"])
+    check("DEV has no WIP while MD pending", direction_io.playable_next_statuses("programmer", md_fix) == [])
+    md_wip = {**md_fix, "studioStatus": "wip"}
+    ok_md, err_md = direction_io.playable_can_set("designer", md_wip, "check", actor_id="designer1")
+    check("MD Send to DEV needs sequence link", not ok_md and "sequence" in err_md.lower(), err_md)
+    md_wip["sequenceUrl"] = "https://seq.example/new"
+    ok_md2, err_md2 = direction_io.playable_can_set("designer", md_wip, "check", actor_id="designer1")
+    check("MD Send to DEV with sequence link", ok_md2, err_md2)
+    check("MD handoff is Check for DEV", direction_io.playable_handoff_status("designer", md_wip) == "check")
+    direction_io.mark_playable_sequence_ready(md_wip)
+    md_wip["studioStatus"] = "check"
+    check("after MD handoff DEV owns turn", direction_io.playable_turn_role(md_wip) == "programmer")
+    check("after MD handoff MD not pending", direction_io.playable_md_pending(md_wip) is False)
+
     ad["studioStatus"] = "finalart"
     ad["handedToLp"] = False
     ad["handedBy"] = ""
@@ -2180,7 +2236,7 @@ def test_playable_card_pipeline() -> None:
     check("DEV-only Ready offers WIP", direction_io.playable_next_statuses("programmer", dev_only) == ["wip"])
     check("DEV-only can be assigned from Ready", direction_io.playable_may_assign_dev(dev_only))
 
-    check("MD has no Playables status", direction_io.playable_next_statuses("designer", ad) == [])
+    check("MD has no Playables status off HTML fix", direction_io.playable_next_statuses("designer", ad) == [])
     check("TL has no Playables status", direction_io.playable_next_statuses("teamlead", ad) == [])
     split = {
         "assigneeId": "artdir1",
@@ -2200,7 +2256,7 @@ def test_playable_card_pipeline() -> None:
         and 'id="btnEmail"' in js
         and '|| state.direction === "playables" ? ""' in js,
     )
-    check("MD copy says LP owns Done", "LP owns Done and Need Fixing" in js)
+    check("MD copy covers sequence handoff", "Send to DEV" in js and "Sequence" in js)
     check(
         "LP/DL can set any Playables work status",
         'return PLAY_OPS_STATUSES.slice()' in js.split("function playableNextStatuses")[1].split("function playableStatusActions")[0]
@@ -2378,7 +2434,10 @@ def test_playable_card_pipeline() -> None:
     check("Check needs the storyboard link", '(key === "done" || key === "check")' in js)
     check("Check unlocks after the storyboard paste", '["tlcheck", "check", "done"].forEach' in js)
     check("playableInHtml uses Art ready flag", "t?.playableHtml" in js)
-    check("designer Playables status set is empty", "designer: []" in js.split("const PLAY_STATUS_BY_ROLE")[1].split("const LINES")[0])
+    check(
+        "designer Playables status set allows WIP and Check",
+        'designer: ["wip", "check"]' in js.split("const PLAY_STATUS_BY_ROLE")[1].split("const LINES")[0],
+    )
 
     ready_check = {
         "department": "Playables",

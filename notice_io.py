@@ -401,13 +401,25 @@ def on_task_change(db: dict, task: dict, before: dict | None, actor_id: str = ""
         return None
 
     if new_status and new_status != old_status:
+        import direction_io
+
         stamp_status(db, task, old_status, new_status, actor_id)
         if new_status == "revision":
             emit(db, "task.revision", actor_id=actor_id, task=task, audience_ids=playable_ping_ids("task.revision"))
+            if direction_io.is_playables(task) and direction_io.playable_in_html(task):
+                direction_io.clear_playable_sequence_ready(task)
+                task["sequenceUrl"] = ""
         elif new_status == "tlcheck":
             emit(db, "task.tlcheck", actor_id=actor_id, task=task)
         elif new_status == "check":
             emit(db, "task.check", actor_id=actor_id, task=task)
+            if (
+                direction_io.is_playables(task)
+                and direction_io.playable_in_html(task)
+                and direction_io.playable_motion_id(task) == str(actor_id or "")
+                and not before.get("sequenceReady")
+            ):
+                direction_io.mark_playable_sequence_ready(task)
         elif new_status == "finalart":
             emit(db, "task.finalart", actor_id=actor_id, task=task, audience_ids=playable_ping_ids("task.finalart"))
         elif new_status == "artready":

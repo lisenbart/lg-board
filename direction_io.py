@@ -65,7 +65,7 @@ PLAY_OPS_STATUSES = (
 PLAY_STATUS_BY_ROLE = {
     "art_director": {"wip", "check"},
     "programmer": {"wip", "check"},
-    "designer": set(),
+    "designer": {"wip", "check"},
     "teamlead": set(),
     "manager": set(PLAY_OPS_STATUSES),
     "finance": set(PLAY_OPS_STATUSES),
@@ -271,6 +271,41 @@ def playable_art_url(task: dict | None) -> str:
     return ""
 
 
+def playable_sequence_url(task: dict | None) -> str:
+    return str((task or {}).get("sequenceUrl") or "").strip()
+
+
+def playable_sequence_ready(task: dict | None) -> bool:
+    return bool((task or {}).get("sequenceReady"))
+
+
+def playable_motion_id(task: dict | None) -> str:
+    return str((task or {}).get("motionId") or "").strip()
+
+
+def playable_md_pending(task: dict | None) -> bool:
+    """HTML fix waits on MD sequence before DEV owns the card."""
+    task = task or {}
+    if not is_playables(task) or not playable_in_html(task):
+        return False
+    if not playable_motion_id(task):
+        return False
+    if playable_sequence_ready(task):
+        return False
+    st = playable_norm_status(task.get("studioStatus"))
+    return st in {"revision", "wip", "new"}
+
+
+def clear_playable_sequence_ready(task: dict | None) -> None:
+    if task is not None:
+        task["sequenceReady"] = False
+
+
+def mark_playable_sequence_ready(task: dict | None) -> None:
+    if task is not None:
+        task["sequenceReady"] = True
+
+
 def touch_link_stamps(task: dict | None, before: dict | None = None, *, handed: bool = False, now: str = "") -> None:
     """Quiet Updated time on Storyboard / HTML. Same URL still stamps on Send to LP."""
     task = task or {}
@@ -372,6 +407,8 @@ def playable_turn_role(task: dict | None) -> str:
     if st in {"closed", "approve", "clientart", "paused", "cancelled"}:
         return ""
     if html:
+        if playable_md_pending(task):
+            return "designer"
         if st == "done":
             return "manager"
         if st == "revision":
@@ -419,10 +456,16 @@ def playable_part_open(task: dict | None, role: str, person_id: str = "") -> boo
         if playable_in_html(task) or st in {"approve", "clientart", "artready", "done"}:
             return False
         return st in {"new", "wip", "revision", "check", "finalart"}
+    if role == "designer":
+        if playable_motion_id(task) != actor:
+            return False
+        return playable_md_pending(task)
     if role == "programmer":
         if str(task.get("programmerId") or "") != actor:
             return False
         if st in {"approve", "closed", "clientart", "done"}:
+            return False
+        if playable_md_pending(task):
             return False
         if playable_in_html(task):
             return st in {"new", "wip", "revision", "artready", "check"}
@@ -597,6 +640,9 @@ def apply_client_note_bounce(task: dict | None, role: str, force_art: bool = Fal
         task["studioStatus"] = "revision"
         task["mondayStatus"] = PLAY_STATUS["revision"]
         touch_playable_html(task, prev=prev, force_art=bool(force_art))
+        if playable_in_html(task):
+            clear_playable_sequence_ready(task)
+            task["sequenceUrl"] = ""
         return True
     st = str(task.get("studioStatus") or "new")
     if st in {"closed", "cancelled", "paused", "revision"}:
@@ -673,7 +719,7 @@ def playable_may_assign_dev(task: dict | None, role: str | None = None) -> bool:
 
 
 def playable_next_statuses(role: str, task: dict | None) -> list[str]:
-    """AD/DEV may start WIP. Done, Need Fixing, Art ready and the rest are LP."""
+    """AD/DEV/MD may start WIP. Done, Need Fixing, Art ready and the rest are LP."""
     task = task or {}
     st = playable_norm_status(task.get("studioStatus"))
     has_ad = playable_has_ad(task)
@@ -689,7 +735,15 @@ def playable_next_statuses(role: str, task: dict | None) -> list[str]:
             "new": ["wip"],
             "revision": ["wip"],
         }.get(st, [])
+    if role == "designer":
+        if not playable_md_pending(task):
+            return []
+        if st == "revision":
+            return ["wip"]
+        return []
     if role == "programmer":
+        if playable_md_pending(task):
+            return []
         if st == "artready":
             return ["wip"]
         if st == "check" and (html or not has_ad or playable_dev_delivered(task)):
@@ -703,7 +757,7 @@ def playable_next_statuses(role: str, task: dict | None) -> list[str]:
 
 
 def playable_handoff_status(role: str, task: dict | None) -> str:
-    """AD/DEV hand work to LP. Check is the inbox after Send to LP — art and HTML. notify does not change status."""
+    """AD/DEV hand work to LP. MD hands sequence to DEV. Check is the inbox after Send — art and HTML. notify does not change status."""
     task = task or {}
     st = playable_norm_status(task.get("studioStatus"))
     html = playable_in_html(task)
@@ -717,7 +771,13 @@ def playable_handoff_status(role: str, task: dict | None) -> str:
         if st == "finalart":
             return HANDOFF_NOTIFY
         return ""
+    if role == "designer":
+        if playable_md_pending(task) and st in {"new", "wip", "revision"}:
+            return "check"
+        return ""
     if role == "programmer":
+        if playable_md_pending(task):
+            return ""
         if st in {"artready", "wip", "revision"} and html:
             return "check"
         if not playable_has_ad(task) and st in {"new", "wip", "revision"}:
@@ -749,8 +809,12 @@ def playable_can_set(role: str, task: dict | None, nxt: str, *, actor_id: str = 
         return False, "Only the AD on the card sets art status"
     if role == "programmer" and actor_id and str(task.get("programmerId") or "") != str(actor_id):
         return False, "Only the DEV on the card sets HTML status"
+    if role == "designer" and actor_id and playable_motion_id(task) != str(actor_id):
+        return False, "Only the MD on the card sets sequence status"
     if nxt in {"done", "revision", "finalart", "artready", "clientart"} and role not in {"manager", "finance"}:
         return False, "Only LP sets Done, Need Fixing, and the next step"
+    if role == "designer" and nxt == "check" and not playable_sequence_url(task):
+        return False, "Paste the sequence link before Send to DEV"
     if nxt not in playable_next_statuses(role, task) and playable_handoff_status(role, task) != nxt:
         return False, f"{role} cannot set {nxt}"
     return True, ""

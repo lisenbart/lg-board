@@ -75,7 +75,7 @@ const PLAY_OPS_STATUSES = [
 const PLAY_STATUS_BY_ROLE = {
   art_director: ["wip", "check"],
   programmer: ["wip", "check"],
-  designer: [],
+  designer: ["wip", "check"],
   teamlead: [],
   manager: PLAY_OPS_STATUSES.slice(),
   finance: PLAY_OPS_STATUSES.slice(),
@@ -1505,12 +1505,18 @@ function canPasteHtmlDraft(t) {
   if (!isPlayables(t) || playableInHtml(t)) return false;
   return isProgrammer() && String(t.programmerId || "") === String(me().id);
 }
+function canPasteSequence(t) {
+  if (!isPlayables(t) || !playableInHtml(t)) return false;
+  if (canOps()) return true;
+  return isDesigner() && String(t.motionId || "") === String(me().id) && playableMdPending(t);
+}
 function handoffStatus(t) {
   if (!t) return "";
   if (isPlayables(t)) {
     const role = me().role;
     if (role === "art_director" && playableAdId(t) !== me().id) return "";
     if (role === "programmer" && String(t.programmerId || "") !== String(me().id)) return "";
+    if (role === "designer" && String(t.motionId || "") !== String(me().id)) return "";
     return playableHandoffStatus(role, t);
   }
   if ((isDesigner() || isTeamLead()) && String(t.assigneeId || "") === String(me().id)) {
@@ -1521,13 +1527,14 @@ function handoffStatus(t) {
 }
 function handoffLabel(t) {
   const st = handoffStatus(t);
+  if (st === "check" && isDesigner() && isPlayables(t) && playableMdPending(t)) return "Send to DEV";
   if (st === "check" || st === "notify") return "Send to LP";
   if (st === "tlcheck") return "Send to TL";
   return "";
 }
 function hidePerformerSave(t) {
   if (canOps()) return false;
-  return Boolean(handoffStatus(t) || canPasteResult(t) || canPasteHtmlDraft(t));
+  return Boolean(handoffStatus(t) || canPasteResult(t) || canPasteHtmlDraft(t) || canPasteSequence(t));
 }
 function sortPeople(list) {
   return list.slice().sort(
@@ -1538,6 +1545,13 @@ function sortPeople(list) {
 }
 function designers() {
   return sortPeople((state.db.people || []).filter((p) => p.role === "teamlead" || p.role === "designer"));
+}
+function motionDesigners() {
+  return sortPeople(
+    (state.db.people || []).filter(
+      (p) => p.role === "designer" && personDirections(p).includes("playables")
+    )
+  );
 }
 function playableCrew() {
   return sortPeople(
@@ -3350,6 +3364,20 @@ function resultHtml(t, performer, canPaste) {
   if (seatedDevWaiting) {
     const board = String(t.storyboardUrl || t.resultUrl || "").trim();
     const htmlVal = samePlayableLink(t.htmlUrl, board) ? "" : String(t.htmlUrl || "").trim();
+    const seq = String(t.sequenceUrl || "").trim();
+    const seqRow = seq
+      ? `<div class="link-sub">
+        <h4>Sequence</h4>
+        ${linkRowHtml({
+          id: "stSequenceView",
+          value: seq,
+          placeholder: "",
+          canPaste: false,
+          emptyText: "",
+          updatedAt: t.sequenceUpdatedAt,
+        })}
+      </div>`
+      : "";
     return `<section class="io io-result is-focus">
       <h3>Storyboard</h3>
       ${linkRowHtml({
@@ -3360,6 +3388,7 @@ function resultHtml(t, performer, canPaste) {
         emptyText: "Waiting for the storyboard",
         updatedAt: t.storyboardUpdatedAt,
       })}
+      ${seqRow}
       <div class="link-sub">
         <h4>HTML</h4>
         ${linkRowHtml({
@@ -3389,7 +3418,24 @@ function resultHtml(t, performer, canPaste) {
   const board = play ? playableArtUrl(t) : "";
   const htmlDraft = play && !html ? String(t.htmlUrl || "").trim() : "";
   if (html) {
-    return `<section class="io io-result${performer ? " is-focus" : ""}">
+    const seqPaste = canPasteSequence(t);
+    const seqVal = String(t.sequenceUrl || "").trim();
+    const showSeq = seqPaste || seqVal || Boolean(t.motionId);
+    const waitingMd = `Waiting for ${escapeHtml(person(t.motionId)?.name || "MD")}`;
+    const seqRow = showSeq
+      ? `<div class="link-sub">
+        <h4>Sequence</h4>
+        ${linkRowHtml({
+          id: "stSequence",
+          value: seqVal,
+          placeholder: seqPaste ? "Paste sequence link" : "",
+          canPaste: seqPaste,
+          emptyText: seqPaste ? "" : waitingMd,
+          updatedAt: t.sequenceUpdatedAt,
+        })}
+      </div>`
+      : "";
+    return `<section class="io io-result${performer || seqPaste ? " is-focus" : ""}">
       <h3>Storyboard</h3>
       ${linkRowHtml({
         id: "stStoryboard",
@@ -3399,6 +3445,7 @@ function resultHtml(t, performer, canPaste) {
         emptyText: waitingAd,
         updatedAt: t.storyboardUpdatedAt,
       })}
+      ${seqRow}
       <div class="link-sub">
         <h4>HTML</h4>
         ${body}
@@ -3554,17 +3601,47 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
     if (!onDev) return { tone: "wait", title: "Not on you yet", body: "You are not on this card. LP can assign you from Ready — you start HTML after LP taps to DEV." };
     if (st === "done") return { tone: "wait", title: "Waiting for LP", body: "" };
     if (html) {
+      if (playableMdPending(t)) {
+        const md = person(t.motionId);
+        return {
+          tone: "wait",
+          title: "Waiting for MD",
+          body: `${md ? displayName(md) : "MD"} makes the sequence, then Send to DEV.`,
+        };
+      }
       if (st === "revision") {
         return { tone: "fix", title: "Need Fixing", body: "" };
       }
       if (playableDevDelivered(t)) return { tone: "wait", title: "Waiting for LP", body: "" };
       if (st === "artready") return { tone: "do", title: "to DEV", body: "" };
+      if (playableSequenceUrl(t) && st === "check") {
+        return { tone: "do", title: "Sequence in", body: "MD handed the sequence. Insert it into HTML, then Send to LP." };
+      }
       if (!hasResult) return { tone: "do", title: "Your job", body: "" };
       return { tone: "do", title: "Send to LP", body: "" };
     }
     return { tone: "wait", title: "Art is still in progress", body: "" };
   }
   if (role === "designer") {
+    const onMd = String(t.motionId || "") === String(me().id);
+    if (onMd && playableMdPending(t)) {
+      if (st === "revision") {
+        return { tone: "fix", title: "Need Fixing · HTML", body: "Make the sequence from the client video, paste the Sequence link, then Send to DEV." };
+      }
+      if (st === "wip") {
+        return {
+          tone: playableSequenceUrl(t) ? "do" : "do",
+          title: "WIP · sequence",
+          body: playableSequenceUrl(t)
+            ? "Sequence link is in. Send to DEV."
+            : "Paste the Sequence link, then Send to DEV.",
+        };
+      }
+      return { tone: "do", title: "Your job", body: "Paste the Sequence link, then Send to DEV." };
+    }
+    if (onMd && hoursForPerson(t, me().id)) {
+      return { tone: "ok", title: "MD on this card", body: `${hoursForPerson(t, me().id)}h logged. DEV / LP continue the HTML.` };
+    }
     return { tone: "ok", title: "Art help", body: `${hoursForPerson(t, me().id) || 0}h on this playable. LP owns Done and Need Fixing — you do not change status.` };
   }
   if (role === "teamlead") {
@@ -4467,9 +4544,10 @@ function renderGuide() {
           `Поки арт іде, на картці вже є слот HTML, щоб зберегти лінк. Send to LP — після to DEV.`,
           `Код-онлі (немає AD) — лінк з Ready, потім ${ui("Send to LP")}.`,
         ])}
-        ${card("designer", "MD", "Motion design", "Сергій на Playables. Години, не статус.", [
-          `Картка з’являється, якщо LP поставив тобі години на арт-спліт.`,
-          `Статус не чіпаєш — Done і Need Fixing ставить LP. Бриф читаєш, роботу здаєш AD.`,
+        ${card("designer", "MD", "Motion design", "Сергій на Playables. Who · hours + Sequence → Send to DEV.", [
+          `LP садить тебе в ${ui("Who · hours")} і відкриває ${ui("Need Fixing · HTML")}.`,
+          `Ставиш ${ui("WIP")}, вставляєш лінк ${ui("Sequence")}, потім ${ui("Send to DEV")} — не до LP і не до клієнта.`,
+          `DEV бачить сіквенцію і вставляє в HTML.`,
         ])}
         ${card("manager", "LP", "Line Producer", "Анастасія. Обидві дошки.", [
           `${ui("Create task")} після апруву годин у Telegram. AD і DEV садить одразу. Наступний крок — тап по чіпу статусу на рядку чи картці: ${ui("Done")}, ${ui("Need Fixing")}, ${ui("to DEV")}.`,
@@ -4957,6 +5035,19 @@ function playableInHtml(t) {
   if (t?.playableHtml) return true;
   return false;
 }
+function playableSequenceUrl(t) {
+  return String(t?.sequenceUrl || "").trim();
+}
+function playableSequenceReady(t) {
+  return Boolean(t?.sequenceReady);
+}
+function playableMdPending(t) {
+  if (!isPlayables(t) || !playableInHtml(t)) return false;
+  if (!String(t?.motionId || "").trim()) return false;
+  if (playableSequenceReady(t)) return false;
+  const st = playableStatusKey(t);
+  return ["revision", "wip", "new"].includes(st);
+}
 function playableAdDelivered(t) {
   if (!t?.handedToLp) return false;
   const ad = playableAdId(t);
@@ -4977,6 +5068,7 @@ function playableTurnRole(t) {
   const dev = String(t.programmerId || "").trim();
   if (st === "closed" || st === "approve" || st === "clientart" || st === "paused" || st === "cancelled") return "";
   if (html) {
+    if (playableMdPending(t)) return "designer";
     if (st === "done") return "manager";
     if (st === "revision") return dev ? "programmer" : "manager";
     if (st === "artready" || st === "wip" || st === "new" || st === "check") {
@@ -5007,9 +5099,14 @@ function playablePartOpen(t, role, personId) {
     if (playableInHtml(t) || ["approve", "clientart", "artready", "done"].includes(st)) return false;
     return ["new", "wip", "revision", "check", "finalart"].includes(st);
   }
+  if (role === "designer") {
+    if (String(t.motionId || "") !== actor) return false;
+    return playableMdPending(t);
+  }
   if (role === "programmer") {
     if (String(t.programmerId || "") !== actor) return false;
     if (["approve", "closed", "cancelled", "paused", "clientart", "done"].includes(st)) return false;
+    if (playableMdPending(t)) return false;
     if (playableInHtml(t)) return ["new", "wip", "revision", "artready", "check"].includes(st);
     return false;
   }
@@ -5051,7 +5148,12 @@ function playableHandoffStatus(role, t) {
     if (st === "finalart") return "notify";
     return "";
   }
+  if (role === "designer") {
+    if (playableMdPending(t) && ["new", "wip", "revision"].includes(st)) return "check";
+    return "";
+  }
   if (role === "programmer") {
+    if (playableMdPending(t)) return "";
     if (["artready", "wip", "revision"].includes(st) && html) return "check";
     if (!playableAdId(t) && ["new", "wip", "revision"].includes(st)) return "check";
     return "";
@@ -5075,7 +5177,13 @@ function playableNextStatuses(role, t) {
       }[st] || []
     );
   }
+  if (role === "designer") {
+    if (!playableMdPending(t)) return [];
+    if (st === "revision") return ["wip"];
+    return [];
+  }
   if (role === "programmer") {
+    if (playableMdPending(t)) return [];
     if (st === "artready") return ["wip"];
     if (st === "check" && (html || !hasAd || playableDevDelivered(t))) return ["wip"];
     if (!hasAd && st === "new") return ["wip"];
@@ -5148,6 +5256,7 @@ function statusPopChoices(t) {
     const role = me().role;
     if (role === "art_director" && playableAdId(t) !== me().id) return [];
     if (role === "programmer" && String(t.programmerId || "") !== String(me().id)) return [];
+    if (role === "designer" && String(t.motionId || "") !== String(me().id)) return [];
     playableNextStatuses(role, t).forEach(add);
     const hand = playableHandoffStatus(role, t);
     if (hand && (hand === "notify" || hand !== playableStatusKey(t))) add(hand);
@@ -5164,7 +5273,7 @@ function canUseStatusPop(t) {
 }
 function statusPopLabel(t, key) {
   if (key === "notify") return handoffLabel(t) || "Send to LP";
-  if (key === "check" && !canOps() && handoffStatus(t) === "check") return "Send to LP";
+  if (key === "check" && !canOps() && handoffStatus(t) === "check") return handoffLabel(t) || "Send to LP";
   if (key === "tlcheck" && !canOps()) return "Send to TL";
   return statusText(key, t);
 }
@@ -6976,6 +7085,40 @@ function readPlayableSplitIds(kind) {
   return ids;
 }
 function playableSeatHtml(kind, t, editable) {
+  if (kind === "md") {
+    const ownerId = String(t.motionId || "");
+    const hours = roundHours(t.motionHours);
+    if (!editable && !ownerId) return "";
+    const title = "MD";
+    const empty = "No MD";
+    const roster = motionDesigners();
+    const ownerPick = canAssignPlayable()
+      ? `<select id="stMotion" class="play-owner-pick" aria-label="${title}">
+          <option value="">— ${title}</option>
+          ${roster
+            .map(
+              (p) =>
+                `<option value="${p.id}" ${ownerId === p.id ? "selected" : ""}>${escapeHtml(p.name)} · ${jobMeta(p).code}</option>`
+            )
+            .join("")}
+        </select>`
+      : `<div class="play-seat-who">${playableOwnerHtml(ownerId, empty)}</div>`;
+    const ownerRow = editable
+      ? `<div class="play-seat-row is-owner">
+           ${ownerPick}
+           <input id="stMotionHours" type="number" min="0" step="0.1" value="${hours || ""}" aria-label="${title} hours" />
+         </div>`
+      : `<div class="play-seat-row is-owner">
+           <div class="play-seat-who">${playableOwnerHtml(ownerId, empty)}</div>
+           <span class="help-h">${ownerId ? `${hours || 0}h` : "—"}</span>
+         </div>`;
+    return `<div class="play-seat play-seat-md" data-pool="${hours || ""}">
+        <div class="play-seat-head">
+          <span class="job-badge job-md">${title}</span>
+        </div>
+        ${ownerRow}
+      </div>`;
+  }
   const isAd = kind === "ad";
   const ownerId = isAd ? playableAdId(t) : String(t.programmerId || "");
   const hours = isAd ? roundHours(t.assigneeHours) : roundHours(t.programmerHours);
@@ -7040,7 +7183,7 @@ function playableHoursHtml(t, editable) {
   const devs = playableDevSplits(t);
   const adHours = editable;
   const devHours = editable;
-  if (!editable && !adId && !t.programmerId && !ads.length && !devs.length) return "";
+  if (!editable && !adId && !t.programmerId && !t.motionId && !ads.length && !devs.length) return "";
   if (!editable && isPerformer() && !mine) return "";
   const you =
     !editable && mine && hoursForPerson(t, me().id)
@@ -7058,6 +7201,7 @@ function playableHoursHtml(t, editable) {
       <label>Who · hours</label>
       ${playableSeatHtml("ad", t, adHours)}
       ${playableSeatHtml("dev", t, devHours)}
+      ${playableSeatHtml("md", t, editable)}
       <div class="play-crew-foot"><span>Crew ${you}</span><b id="playCrew">${crew}h</b></div>
     </section>${financeStrip}`;
 }
@@ -7139,7 +7283,10 @@ function refreshPlayableCrew(t) {
   }
   $("stAdHours")?.classList.toggle("is-over", ad.given > ad.pool + 0.001);
   $("stProgHours")?.classList.toggle("is-over", dev.given > dev.pool + 0.001);
-  const live = roundHours(crew + roundHours(t?.motionHours));
+  const motionLive = $("stMotionHours")
+    ? roundHours(String($("stMotionHours").value || "").replace(",", "."))
+    : roundHours(t?.motionHours);
+  const live = roundHours(crew + motionLive);
   if ($("playCrew")) $("playCrew").textContent = `${live}h`;
   const billedEl = $("playBilled");
   if (billedEl) {
@@ -7177,7 +7324,7 @@ function bindPlayableCrew(t) {
   const box = $("drawer")?.querySelector(".play-crew");
   if (!box) return;
   const paint = (e) => {
-    const fromOwner = e?.target && (e.target.id === "stAdHours" || e.target.id === "stProgHours");
+    const fromOwner = e?.target && (e.target.id === "stAdHours" || e.target.id === "stProgHours" || e.target.id === "stMotionHours");
     if (fromOwner) {
       updatePlayablePoolFromOwner("ad");
       updatePlayablePoolFromOwner("dev");
@@ -7217,6 +7364,7 @@ function bindPlayableCrew(t) {
     );
     paint();
   });
+  $("stMotion")?.addEventListener("change", paint);
   const addSplit = (kind) => {
     const ownerSel = kind === "dev" ? $("stProgrammer") : $("stPerson");
     const rowsId = kind === "dev" ? "devSplitRows" : "adSplitRows";
@@ -7384,14 +7532,18 @@ function cardRemoteStamp(t) {
     studioStatus: t.studioStatus || "",
     assigneeId: t.assigneeId || "",
     programmerId: t.programmerId || "",
+    motionId: t.motionId || "",
     hours: t.hours || 0,
     shifts: t.shifts || 0,
     assigneeHours: t.assigneeHours || 0,
     programmerHours: t.programmerHours || 0,
+    motionHours: t.motionHours || 0,
     studioBuffer: t.studioBuffer || 0,
     help: t.help || [],
     programmerHelp: t.programmerHelp || [],
     resultUrl: t.resultUrl || "",
+    sequenceUrl: t.sequenceUrl || "",
+    sequenceReady: Boolean(t.sequenceReady),
     deadline: t.deadline || "",
     month: t.month || "",
     urgent: Boolean(t.urgent),
@@ -8356,13 +8508,28 @@ function openTask(id) {
     });
     if (hint) hint.textContent = "";
     const hand = $("handOff");
-    if (hand) hand.disabled = !hrefOf(typed || (isPlayables(t) && playableInHtml(t) ? playableHtmlUrl(t) : t.resultUrl || t.htmlUrl || ""));
+    if (hand) {
+      if (handoffLabel(t) === "Send to DEV") {
+        hand.disabled = !hrefOf($("stSequence")?.value || t.sequenceUrl || "");
+      } else {
+        hand.disabled = !hrefOf(typed || (isPlayables(t) && playableInHtml(t) ? playableHtmlUrl(t) : t.resultUrl || t.htmlUrl || ""));
+      }
+    }
   };
   bindLinkRows($("drawer"), syncDoneOption);
   bindStatusPop($("drawer"));
   $("handOff")?.addEventListener("click", () => {
     const key = handoffStatus(t);
     if (!key) return;
+    if (handoffLabel(t) === "Send to DEV") {
+      const seq = hrefOf($("stSequence")?.value || t.sequenceUrl || "");
+      if (!seq) {
+        toast("Paste the sequence link, then Send to DEV");
+        return;
+      }
+      commitCard({ fromChip: true, status: key, handed: false, sequenceUrl: seq });
+      return;
+    }
     const typed = $("stResult")?.value || $("stHtml")?.value || "";
     if (!hrefOf(typed || (isPlayables(t) && playableInHtml(t) ? playableHtmlUrl(t) : t.resultUrl || t.htmlUrl || ""))) {
       toast("Paste the link, then Send to LP");
@@ -8386,7 +8553,12 @@ function openTask(id) {
         toast("Only LP can mark Closed");
         return;
       }
-      if (isPlayables(t) && key === "check" && !($("stResult")?.value || t.resultUrl || "").trim()) {
+      if (isPlayables(t) && key === "check" && handoffLabel(t) === "Send to DEV") {
+        if (!hrefOf($("stSequence")?.value || t.sequenceUrl || "")) {
+          toast("Paste the sequence link before Send to DEV");
+          return;
+        }
+      } else if (isPlayables(t) && key === "check" && !($("stResult")?.value || t.resultUrl || "").trim()) {
         toast("Paste the storyboard link before Check");
         return;
       }
@@ -8499,6 +8671,7 @@ function openTask(id) {
     const patch = { studioStatus, role: me().role };
     if (opts.artBounce) patch.artBounce = true;
     if (isPlayables(t) && mayAssign && $("stProgrammer")) patch.programmerId = $("stProgrammer").value;
+    if (isPlayables(t) && mayAssign && $("stMotion")) patch.motionId = $("stMotion").value;
     if (isPlayables(t) && isFinance() && $("stStudioBuffer")) {
       const buf = parseShifts($("stStudioBuffer").value);
       if (buf === null) {
@@ -8541,6 +8714,12 @@ function openTask(id) {
       patch.programmerId = devSeat.ownerId;
       patch.programmerHours = devSeat.ownerHours;
       patch.programmerHelp = devSeat.splits;
+      if ($("stMotionHours")) {
+        const motionId = patch.motionId !== undefined ? patch.motionId : t.motionId;
+        const motionHours = roundHours(String($("stMotionHours").value || "").replace(",", "."));
+        patch.motionId = motionId || "";
+        patch.motionHours = motionId ? motionHours : 0;
+      }
     }
     if (
       isPlayables(t) &&
@@ -8563,6 +8742,8 @@ function openTask(id) {
     }
     if ($("stResult")) patch.resultUrl = resultUrl;
     if ($("stHtml")) patch.htmlUrl = String($("stHtml").value || "").trim();
+    if ($("stSequence")) patch.sequenceUrl = String($("stSequence").value || "").trim();
+    if (opts.sequenceUrl != null) patch.sequenceUrl = String(opts.sequenceUrl || "").trim();
     if (
       isPlayables(t) &&
       playableInHtml(t) &&
@@ -8643,6 +8824,8 @@ function openTask(id) {
             : `${me().name} cleared URGENT`
           : htmlTyped && htmlTyped !== String(t.htmlUrl || "").trim()
             ? `${me().name} pasted the HTML draft`
+          : patch.sequenceUrl && patch.sequenceUrl !== String(t.sequenceUrl || "").trim()
+            ? `${me().name} pasted the sequence`
           : resultUrl && resultUrl !== t.resultUrl
             ? `${me().name} pasted the result`
             : `${me().name} updated status`;

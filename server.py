@@ -33,7 +33,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-11-27i"
+BUILD = "2026-11-27j"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -3387,10 +3387,10 @@ class Handler(SimpleHTTPRequestHandler):
                     for locked in ("brief", "folderUrl", "docUrl", "assigneeId", "name", "programmerId"):
                         data.pop(locked, None)
                 if playable:
-                    for field in ("assigneeId", "programmerId"):
+                    for field in ("assigneeId", "programmerId", "motionId"):
                         if field in data and str(data.get(field) or "") != str(task.get(field) or ""):
                             if role not in {"manager", "finance"}:
-                                self._json(403, {"error": "only LP can assign Playables AD / DEV"})
+                                self._json(403, {"error": "only LP can assign Playables AD / DEV / MD"})
                                 return
                 elif (
                     "assigneeId" in data
@@ -3413,7 +3413,10 @@ class Handler(SimpleHTTPRequestHandler):
                     data.pop("studioStatus", None)
                     nxt = None
                 if playable and nxt and nxt != task.get("studioStatus"):
-                    ok, err = direction_io.playable_can_set(role, task, nxt, actor_id=actor)
+                    trial = dict(task)
+                    if "sequenceUrl" in data:
+                        trial["sequenceUrl"] = data.get("sequenceUrl")
+                    ok, err = direction_io.playable_can_set(role, trial, nxt, actor_id=actor)
                     if not ok:
                         self._json(403, {"error": err})
                         return
@@ -3430,6 +3433,14 @@ class Handler(SimpleHTTPRequestHandler):
                     return
                 status_after = data["studioStatus"] if "studioStatus" in data else task.get("studioStatus")
                 result_after = data["resultUrl"] if "resultUrl" in data else task.get("resultUrl")
+                sequence_after = data["sequenceUrl"] if "sequenceUrl" in data else task.get("sequenceUrl")
+                md_send = (
+                    playable
+                    and role == "designer"
+                    and direction_io.playable_motion_id(task) == str(actor or "")
+                    and str(nxt or "") == "check"
+                    and nxt != task.get("studioStatus")
+                )
                 if not playable:
                     if status_after == "tlcheck" and not str(result_after or "").strip():
                         self._json(400, {"error": "paste the result link before TL Check"})
@@ -3445,7 +3456,10 @@ class Handler(SimpleHTTPRequestHandler):
                     ):
                         self._json(403, {"error": "Done is after TL Check"})
                         return
-                elif playable and status_after == "check" and not str(result_after or "").strip():
+                elif md_send and not str(sequence_after or "").strip():
+                    self._json(400, {"error": "paste the sequence link before Send to DEV"})
+                    return
+                elif playable and status_after == "check" and not md_send and not str(result_after or "").strip():
                     self._json(400, {"error": "paste the storyboard link before Check"})
                     return
                 elif playable and status_after == "done" and not str(result_after or "").strip():
@@ -3536,9 +3550,13 @@ class Handler(SimpleHTTPRequestHandler):
                     data.pop("hours", None)
                     data.pop("playableHtml", None)
                     data.pop("storyboardUrl", None)
+                    data.pop("sequenceReady", None)
                     seated_dev = role == "programmer" and str(task.get("programmerId") or "") == str(actor or "")
+                    seated_md = role == "designer" and direction_io.playable_motion_id(task) == str(actor or "")
                     if "htmlUrl" in data and role not in OPS_ROLES and not seated_dev:
                         data.pop("htmlUrl", None)
+                    if "sequenceUrl" in data and role not in OPS_ROLES and not seated_md:
+                        data.pop("sequenceUrl", None)
                     if role == "programmer" and not direction_io.playable_in_html(task):
                         data.pop("resultUrl", None)
                     if role not in {"finance", "manager", "teamlead"}:
@@ -3546,6 +3564,7 @@ class Handler(SimpleHTTPRequestHandler):
                             data.pop(key, None)
                         data.pop("help", None)
                         data.pop("programmerHelp", None)
+                        data.pop("motionId", None)
                     elif role != "finance":
                         data.pop("producerHours", None)
                         data.pop("studioBuffer", None)
@@ -3569,6 +3588,7 @@ class Handler(SimpleHTTPRequestHandler):
                     "motionHours",
                     "resultUrl",
                     "htmlUrl",
+                    "sequenceUrl",
                     "brief",
                     "folderUrl",
                     "docUrl",
@@ -3700,6 +3720,8 @@ class Handler(SimpleHTTPRequestHandler):
                         "programmerId",
                         "programmerHours",
                         "programmerHelp",
+                        "motionId",
+                        "motionHours",
                         "studioBuffer",
                     )
                 )
