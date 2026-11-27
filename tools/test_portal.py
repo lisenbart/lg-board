@@ -1886,6 +1886,12 @@ def test_playables_desk() -> None:
             and "104px 140px 48px 48px 112px 56px" in css
             and "grid-template-columns: 40px 28px minmax(0, 1fr)" in css,
         )
+        check(
+            "status log receipt uses Art/HTML labels",
+            "def playable_status_receipt_label" in Path("direction_io.py").read_text(encoding="utf-8")
+            and "function statusLogLabel" in js
+            and 'if (raw === "Client art"' in js,
+        )
         with tempfile.TemporaryDirectory() as raw:
             path = Path(raw) / "pl.xlsx"
             shutil.copy(playables_io.XLSX_PATH, path)

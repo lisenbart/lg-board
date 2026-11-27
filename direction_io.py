@@ -203,6 +203,23 @@ def playable_norm_status(st) -> str:
     return _LEGACY_PLAYABLE.get(key, "new")
 
 
+def playable_status_receipt_label(task: dict | None, st) -> str:
+    """Card status log label: Art / MD / HTML flavours so the receipt matches the chip."""
+    key = playable_norm_status(st)
+    # Stamp runs after studioStatus write — evaluate flags as if the card sits on `key`.
+    snap = {**(task or {}), "studioStatus": key}
+    html = playable_in_html(snap)
+    if key == "wip":
+        if playable_md_pending(snap):
+            return "WIP · MD"
+        return "WIP · HTML" if html else "WIP · Art"
+    if key == "check":
+        return "Check · HTML" if html else "Check · Art"
+    if key == "revision":
+        return "Need Fixing · HTML" if html else "Need Fixing · Art"
+    return PLAY_STATUS.get(key) or str(st or "")
+
+
 def playable_has_ad(task: dict | None) -> bool:
     aid = str((task or {}).get("assigneeId") or "").strip()
     pid = str((task or {}).get("programmerId") or "").strip()

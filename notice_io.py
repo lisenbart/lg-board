@@ -351,14 +351,17 @@ def stamp_status(db: dict, task: dict, prev: str, nxt: str, actor_id: str = "", 
     """Who set which status, and when. Last write is the receipt on the card."""
     import direction_io
 
-    labels = PLAY_STATUS_LABELS if direction_io.is_playables(task) else STATUS_LABELS
+    if direction_io.is_playables(task):
+        label = direction_io.playable_status_receipt_label(task, nxt)
+    else:
+        label = STATUS_LABELS.get(str(nxt or ""), str(nxt or ""))
     row = {
         "at": at or utc_now(),
         "actorId": actor_id or "",
         "actorName": person_name(db, actor_id) or "Board",
         "from": str(prev or ""),
         "to": str(nxt or ""),
-        "label": labels.get(str(nxt or ""), str(nxt or "")),
+        "label": label,
     }
     task["statusAt"] = row["at"]
     task["statusBy"] = row["actorId"]

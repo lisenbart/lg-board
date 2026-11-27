@@ -2930,13 +2930,26 @@ function boardWhen(at) {
     }) + " Kyiv"
   );
 }
+function statusLogLabel(row, t) {
+  const raw = String(row?.label || "").trim();
+  // Old receipts before Sent · Art rename / Art·HTML split.
+  if (raw === "Client art" || raw === "Sent") return "Sent · Art";
+  if (raw === "Send" || raw === "Senior Approval") {
+    return isPlayables(t) ? "Sent · HTML" : raw;
+  }
+  if (raw === "Check" || raw === "WIP" || raw === "Need Fixing") {
+    return statusText(row.to, t);
+  }
+  if (raw === "Final art" || raw === "Art ready" || raw === "Art OK" || raw === "Build") return "to DEV";
+  return raw || statusText(row.to, t);
+}
 function statusLogHtml(t) {
   const rows = [...(t?.statusLog || [])].filter((row) => row && row.to).slice(-3).reverse();
   if (!rows.length) return "";
   return `<ol class="status-log">${rows
     .map((row) => {
       const who = String(row.actorName || "").trim() || "Board";
-      const label = row.label || statusText(row.to, t);
+      const label = statusLogLabel(row, t);
       const when = boardWhen(row.at);
       return `<li>${escapeHtml(label)} · ${escapeHtml(who)}${when ? ` · ${escapeHtml(when)}` : ""}</li>`;
     })

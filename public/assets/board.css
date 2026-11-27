@@ -629,7 +629,7 @@ button.notice-chip.status-pop-btn:hover {
 .notice-send { background: #a855f7; color: #fff; }
 .notice-sentart { background: #a855f7; color: #fff; }
 .notice-senthtml { background: #a855f7; color: #fff; }
-.notice-final { background: #f472b6; color: #fff; }
+.notice-final { background: #5b4cdb; color: #fff; } /* legacy Final art notice → to DEV purple */
 .notice-artok { background: #5b4cdb; color: #fff; }
 .notice-check {
   color: #fff;
