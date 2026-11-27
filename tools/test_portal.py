@@ -1907,6 +1907,25 @@ def test_playables_desk() -> None:
             ".row .meta .cell:has(> .money-chip)" in css
             and "flex-direction: column" in css.split(".row .meta .cell:has(> .money-chip)")[1].split(".money-chip.no_quote")[0],
         )
+        check(
+            "task update before snapshot keeps motionId and sequence",
+            '"motionId": task.get("motionId")' in Path("server.py").read_text(encoding="utf-8")
+            and '"sequenceUrl": task.get("sequenceUrl")' in Path("server.py").read_text(encoding="utf-8")
+            and '"sequenceReady": task.get("sequenceReady")' in Path("server.py").read_text(encoding="utf-8"),
+        )
+        check(
+            "open-card Send to DEV skips storyboard gate",
+            'handoffLabel(t) !== "Send to DEV"' in js.split("async function commitCard")[1].split("async function closeDrawer")[0],
+        )
+        check(
+            "Load filter includes MD seat",
+            "t.motionId !== state.designerFilter" in js.split("function visibleTasks")[1].split("function renderWho")[0],
+        )
+        check(
+            "HTML Check sendable only after DEV hand",
+            "playable_dev_delivered(task)" in Path("server.py").read_text(encoding="utf-8").split("def is_sendable")[1].split("def task_month")[0]
+            and "!playableDevDelivered(t)" in js.split("function isSendable")[1].split("function canPasteResult")[0],
+        )
         with tempfile.TemporaryDirectory() as raw:
             path = Path(raw) / "pl.xlsx"
             shutil.copy(playables_io.XLSX_PATH, path)
@@ -2592,15 +2611,21 @@ def test_playable_card_pipeline() -> None:
         "assigneeId": "artdir1",
         "programmerId": "programmer1",
         "playableHtml": True,
+        "handedToLp": True,
+        "handedBy": "programmer1",
         "storyboardUrl": "https://board.example/story",
         "resultUrl": "https://play.example/v1",
     }
     check("HTML Check with playable is sendable", server.is_sendable(html_check) and direction_io.playable_in_html(html_check))
+    html_check_waiting = {**html_check, "handedToLp": False, "handedBy": ""}
+    check("HTML Check waiting on DEV is not sendable", not server.is_sendable(html_check_waiting))
     # Send to client from HTML Check must land on Sent · HTML, not Sent · Art.
     html_send = {
         "direction": "playables",
         "studioStatus": "check",
         "playableHtml": True,
+        "handedToLp": True,
+        "handedBy": "programmer1",
         "storyboardUrl": "https://miro.com/app/board/zeus",
         "htmlUrl": "https://play.example/zeus",
         "resultUrl": "https://play.example/zeus",
@@ -2970,6 +2995,7 @@ def test_playable_team_scenarios() -> None:
     check("MD Send to DEV unlocks Bohdan", turn(t) == "programmer" and t.get("sequenceReady") is True)
     check("MD Send to DEV pings Bohdan", audience(board, "task.sequence") == [bohdan], str(audience(board, "task.sequence")))
     check("MD Send to DEV keeps sequence link", t.get("sequenceUrl") == "https://drive.google.com/open?id=seq-new")
+    check("MD Send to DEV Check is not client-sendable yet", not server.is_sendable(t))
 
     # --- Client bounces HTML back to art
     board = db()

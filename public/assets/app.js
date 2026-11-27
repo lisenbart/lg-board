@@ -1489,7 +1489,12 @@ function isSendable(t) {
   if (isPlayables(t)) {
     const st = playableStatusKey(t);
     if (st === "check") {
-      if (playableInHtml(t)) return Boolean(hrefOf(playableHtmlUrl(t)));
+      if (playableInHtml(t)) {
+        // MD→DEV Check waits on DEV — LP must not Send to client yet.
+        if (playableMdPending(t)) return false;
+        if (String(t.programmerId || "").trim() && !playableDevDelivered(t)) return false;
+        return Boolean(hrefOf(playableHtmlUrl(t)));
+      }
       return Boolean(hrefOf(t.resultUrl || t.storyboardUrl || ""));
     }
     return st === "done" && Boolean(hrefOf(playableHtmlUrl(t)));
@@ -1859,6 +1864,7 @@ function visibleTasks() {
       } else if (
         t.assigneeId !== state.designerFilter &&
         t.programmerId !== state.designerFilter &&
+        t.motionId !== state.designerFilter &&
         !helpedOn(t, state.designerFilter)
       ) {
         return false;
@@ -3672,6 +3678,13 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
   if (st === "approve") return { tone: "ok", title: "Already sent", body: "HTML is with the client. Mark Closed when they accept. Need Fixing if they bounce it." };
   if (st === "done" && hasResult) return { tone: "do", title: "Your job", body: "HTML is in. Send to client, or Mark Closed if they already accepted." };
   if (st === "check") {
+    if (html && t.programmerId && !playableDevDelivered(t)) {
+      return {
+        tone: "wait",
+        title: playableSequenceReady(t) ? "Sequence with DEV" : "Waiting on DEV",
+        body: progName || "DEV builds HTML, then Send to LP.",
+      };
+    }
     return {
       tone: "do",
       title: "Your job",
@@ -8751,7 +8764,13 @@ function openTask(id) {
       toast("Only LP can mark Closed");
       return;
     }
-    if (isPlayables(t) && studioStatus === "check" && !resultUrl && !canOps()) {
+    if (
+      isPlayables(t) &&
+      studioStatus === "check" &&
+      !resultUrl &&
+      !canOps() &&
+      handoffLabel(t) !== "Send to DEV"
+    ) {
       toast("Paste the storyboard link before Check");
       return;
     }

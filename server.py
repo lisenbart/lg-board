@@ -33,7 +33,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-11-27u"
+BUILD = "2026-11-27v"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -1430,6 +1430,11 @@ def is_sendable(task: dict) -> bool:
         html = str(task.get("htmlUrl") or "").strip()
         if status == "check":
             if direction_io.playable_in_html(task):
+                # MD→DEV lands on Check before DEV finishes — not client-sendable yet.
+                if direction_io.playable_md_pending(task):
+                    return False
+                if str(task.get("programmerId") or "").strip() and not direction_io.playable_dev_delivered(task):
+                    return False
                 link = result if result and result != story else html
                 return bool(link and link != story)
             return bool(result or story)
@@ -3354,10 +3359,13 @@ class Handler(SimpleHTTPRequestHandler):
                     "studioStatus": task.get("studioStatus"),
                     "assigneeId": task.get("assigneeId"),
                     "programmerId": task.get("programmerId"),
+                    "motionId": task.get("motionId"),
                     "playableHtml": task.get("playableHtml"),
                     "resultUrl": task.get("resultUrl"),
                     "htmlUrl": task.get("htmlUrl"),
                     "storyboardUrl": task.get("storyboardUrl"),
+                    "sequenceUrl": task.get("sequenceUrl"),
+                    "sequenceReady": task.get("sequenceReady"),
                 }
                 nxt = data.get("studioStatus")
                 role = data.get("role") or ""
@@ -3794,7 +3802,10 @@ class Handler(SimpleHTTPRequestHandler):
                         "studioStatus": task.get("studioStatus"),
                         "assigneeId": task.get("assigneeId"),
                         "programmerId": task.get("programmerId"),
+                        "motionId": task.get("motionId"),
                         "playableHtml": task.get("playableHtml"),
+                        "sequenceUrl": task.get("sequenceUrl"),
+                        "sequenceReady": task.get("sequenceReady"),
                     }
                     if direction_io.undo_client_note_bounce(task):
                         notice_io.on_task_change(
@@ -3854,7 +3865,10 @@ class Handler(SimpleHTTPRequestHandler):
                         "studioStatus": task.get("studioStatus"),
                         "assigneeId": task.get("assigneeId"),
                         "programmerId": task.get("programmerId"),
+                        "motionId": task.get("motionId"),
                         "playableHtml": task.get("playableHtml"),
+                        "sequenceUrl": task.get("sequenceUrl"),
+                        "sequenceReady": task.get("sequenceReady"),
                     }
                     force_art = direction_io.comment_loop_key(comment.get("loop")) == "art"
                     if direction_io.apply_client_note_bounce(task, role, force_art=force_art):
