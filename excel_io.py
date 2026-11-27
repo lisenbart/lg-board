@@ -1286,6 +1286,8 @@ CLIENT_STATUS_LABEL = {
     "done": "Done",
     "approve": "Sent · HTML",
     "closed": "Closed",
+    "paused": "On pause",
+    "cancelled": "Cancelled",
     "clientart": "Sent · Art",
     "finalart": "Final art",
     "artready": "to DEV",

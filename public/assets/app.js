@@ -8,6 +8,8 @@ const STATUS = {
   done: { label: "Done", cls: "status-done", order: 7 },
   approve: { label: "Senior Approval", cls: "status-approve", order: 9 },
   closed: { label: "Closed", cls: "status-closed", order: 10 },
+  paused: { label: "On pause", cls: "status-paused", order: 11 },
+  cancelled: { label: "Cancelled", cls: "status-cancelled", order: 12 },
   clientart: { label: "Sent · Art", cls: "status-sentart", order: 8 },
   finalart: { label: "Final art", cls: "status-finalart", order: 5 },
   artready: { label: "to DEV", cls: "status-todev", order: 6 },
@@ -47,7 +49,7 @@ const NAME_WIDTH_KEY = "lg-name-width";
 const NAME_WIDTH_DEFAULT = 412;
 const NAME_WIDTH_MIN = 240;
 
-const MGX_OPS_STATUSES = ["new", "wip", "revision", "tlcheck", "done", "closed"];
+const MGX_OPS_STATUSES = ["new", "wip", "revision", "tlcheck", "done", "closed", "paused", "cancelled"];
 const STATUS_BY_ROLE = {
   designer: ["wip", "tlcheck"],
   teamlead: ["wip", "revision", "tlcheck", "done"],
@@ -57,7 +59,19 @@ const STATUS_BY_ROLE = {
   programmer: ["wip", "done"],
   client: [],
 };
-const PLAY_OPS_STATUSES = ["new", "wip", "check", "clientart", "revision", "finalart", "artready", "done", "closed"];
+const PLAY_OPS_STATUSES = [
+  "new",
+  "wip",
+  "check",
+  "clientart",
+  "revision",
+  "finalart",
+  "artready",
+  "done",
+  "closed",
+  "paused",
+  "cancelled",
+];
 const PLAY_STATUS_BY_ROLE = {
   art_director: ["wip", "check"],
   programmer: ["wip", "check"],
@@ -3514,6 +3528,8 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
       return { tone: "ok", title: "You helped", body: `${hoursForPerson(t, me().id)}h on this playable. ${name || "AD"} owns the card.` };
     }
     if (st === "closed") return { tone: "ok", title: "Closed", body: "Client accepted. This playable is finished." };
+    if (st === "cancelled") return { tone: "ok", title: "Cancelled", body: "LP / DL stopped this playable. Hours stay if logged." };
+    if (st === "paused") return { tone: "wait", title: "On pause", body: "Waiting. LP / DL resumes when the project is back." };
     if (st === "approve") return { tone: "ok", title: "Sent to client", body: "LP already sent the HTML. Nothing else on this card." };
     if (st === "artready") return { tone: "wait", title: "to DEV", body: "" };
     if (st === "done") return { tone: "wait", title: "Waiting for LP", body: "" };
@@ -3557,6 +3573,8 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
     return { tone: "wait", title: "Playables seats are LP", body: "Read the card. LP assigns AD / DEV. You do not set Playables status." };
   }
   if (st === "closed") return { tone: "ok", title: "Closed", body: "Client accepted. Hours stay on this month." };
+  if (st === "cancelled") return { tone: "ok", title: "Cancelled", body: "Project stopped. Reopen with Ready to start if it comes back." };
+  if (st === "paused") return { tone: "wait", title: "On pause", body: "Parked for now. Resume with Ready to start or WIP when it moves again." };
   if (st === "approve") return { tone: "ok", title: "Already sent", body: "HTML is with the client. Mark Closed when they accept. Need Fixing if they bounce it." };
   if (st === "done" && hasResult) return { tone: "do", title: "Your job", body: "HTML is in. Send to client, or Mark Closed if they already accepted." };
   if (st === "check") {
@@ -4419,11 +4437,13 @@ function renderGuide() {
           ${statusCard("done", "Done", "Done", "Хто: лише LP", "DEV здав HTML через Send to LP. Лише LP ставить Done, Need Fixing або шле клієнту.")}
           ${statusCard("senthtml", "Sent · HTML", "Sent · HTML", "Хто: чекаємо клієнта по HTML", "LP натиснула Send to client. Відбили → Need Fixing. Прийняли → Closed.")}
           ${statusCard("closed", "Closed", "Closed", "Хто: LP", "Клієнт прийняв. Години лишаються.")}
+          ${statusCard("paused", "On pause", "On pause", "Хто: лише LP / DL", "Паркуємо проєкт. Resume → Ready to start або WIP.")}
+          ${statusCard("cancelled", "Cancelled", "Cancelled", "Хто: лише LP / DL", "Стоп на півдорозі. Години лишаються. Reopen → Ready to start.")}
         </div>
       </div>
       <div class="guide-block">
         <h3>Пайплайн</h3>
-        <p class="guide-lead">Ready to start → WIP → Send to LP → Check → Sent · Art → Final art → to DEV → Send to LP → Done → Sent · HTML → Closed. Кожен тапає чіп статусу і бачить лише свій крок. Done, Need Fixing і to DEV — жест LP по чіпу.</p>
+        <p class="guide-lead">Ready to start → WIP → Send to LP → Check → Sent · Art → Final art → to DEV → Send to LP → Done → Sent · HTML → Closed. On pause / Cancelled — лише LP / DL. Кожен тапає чіп статусу і бачить лише свій крок. Done, Need Fixing і to DEV — жест LP по чіпу.</p>
         <ol class="guide-pipe">
           ${pipeStep("1", "LP", "Line Producer", "Картка заходить", `${ui("Create task")} після апруву годин. Ставить AD і DEV одразу, години — на людей.`, "ready", "Ready to start")}
           ${pipeStep("2", "AD", "Art Director", "Сторіборд", `Тап ${ui("Ready to start")} → ${ui("WIP")}. Лінк на борд → ${ui("Send to LP")} у футері або в чіпі. Статус стає ${ui("Check")}.`, "check", "Check")}
@@ -4479,6 +4499,8 @@ function renderGuide() {
           ${statusCard("done", "Done", "Done", "Хто: TL перевірив, далі LP", "Team Lead прийняв роботу. LP може Send to client або одразу Closed.")}
           ${statusCard("appr", "Appr.", "Senior Approval", "Хто: чекаємо клієнта", "LP натиснув Send to client. Текст для Monday скопійовано. Ще не Closed.")}
           ${statusCard("closed", "Closed", "Closed", "Хто: LP після відповіді клієнта", "Клієнт прийняв. Години лишаються, роботи більше немає.")}
+          ${statusCard("paused", "On pause", "On pause", "Хто: лише LP / DL", "Паркуємо MGX. Resume → Ready to start або WIP.")}
+          ${statusCard("cancelled", "Cancelled", "Cancelled", "Хто: лише LP / DL", "Стоп. Reopen → Ready to start.")}
         </div>
       </div>
       <div class="guide-block">
@@ -4782,6 +4804,8 @@ function statusMark(t) {
       done: { cls: "done", label: "Done", title },
       approve: { cls: isPlayables(t) ? "senthtml" : "appr", label: isPlayables(t) ? "Sent · HTML" : "Appr.", title },
       closed: { cls: "closed", label: "Closed", title },
+      paused: { cls: "paused", label: "On pause", title },
+      cancelled: { cls: "cancelled", label: "Cancelled", title },
       clientart: { cls: "sentart", label: "Sent · Art", title },
       finalart: { cls: "final", label: "Final", title },
       artready: { cls: "artok", label: "to DEV", title },
@@ -4860,7 +4884,12 @@ function statusChoices(task) {
 
 function playableStatusKey(t) {
   const st = t?.studioStatus || "new";
-  if (["new", "wip", "check", "revision", "clientart", "finalart", "artready", "done", "approve", "closed"].includes(st)) return st;
+  if (
+    ["new", "wip", "check", "revision", "clientart", "finalart", "artready", "done", "approve", "closed", "paused", "cancelled"].includes(
+      st
+    )
+  )
+    return st;
   if (st === "storyboard" || st === "tlcheck") return "check";
   if (st === "htmlready") return "done";
   if (st === "build") return "artready";
@@ -4908,7 +4937,8 @@ function playableHtmlUrl(t) {
 function playableInHtml(t) {
   const st = playableStatusKey(t);
   const devOnly = !playableAdId(t) && String(t?.programmerId || "").trim();
-  if (st === "closed") return false;
+  if (st === "closed" || st === "cancelled") return false;
+  if (st === "paused") return Boolean(t?.playableHtml);
   if (st === "check") {
     if (t?.playableHtml || devOnly) return true;
     const handed = String(t?.handedBy || "").trim();
@@ -4946,7 +4976,7 @@ function playableTurnRole(t) {
   const html = playableInHtml(t);
   const ad = playableAdId(t);
   const dev = String(t.programmerId || "").trim();
-  if (st === "closed" || st === "approve" || st === "clientart") return "";
+  if (st === "closed" || st === "approve" || st === "clientart" || st === "paused" || st === "cancelled") return "";
   if (html) {
     if (st === "done") return "manager";
     if (st === "revision") return dev ? "programmer" : "manager";
@@ -4970,7 +5000,7 @@ function playableTurnRole(t) {
 function playablePartOpen(t, role, personId) {
   if (!t) return false;
   const st = playableStatusKey(t);
-  if (st === "closed") return false;
+  if (st === "closed" || st === "cancelled" || st === "paused") return false;
   if (role === "manager" || role === "finance") return true;
   const actor = String(personId || "");
   if (role === "art_director") {
@@ -4980,7 +5010,7 @@ function playablePartOpen(t, role, personId) {
   }
   if (role === "programmer") {
     if (String(t.programmerId || "") !== actor) return false;
-    if (["approve", "closed", "clientart", "done"].includes(st)) return false;
+    if (["approve", "closed", "cancelled", "paused", "clientart", "done"].includes(st)) return false;
     if (playableInHtml(t)) return ["new", "wip", "revision", "artready", "check"].includes(st);
     return false;
   }
@@ -4992,7 +5022,7 @@ function isActiveForMe(t) {
   const id = String(me().id || "");
   if (isPlayables(t)) return playablePartOpen(t, role, id);
   const st = t.studioStatus || "new";
-  if (st === "closed") return false;
+  if (st === "closed" || st === "cancelled" || st === "paused") return false;
   if (role === "manager" || role === "finance") return true;
   const mine = String(t.assigneeId || "") === id;
   if (st === "approve") return false;
@@ -5063,6 +5093,16 @@ function playableLpChoices(t) {
     if (!key || keys.includes(key)) return;
     keys.push(key);
   };
+  if (st === "cancelled") {
+    add("new");
+    return keys;
+  }
+  if (st === "paused") {
+    add("new");
+    add("wip");
+    add("cancelled");
+    return keys;
+  }
   if (st === "closed") {
     add("new");
     return keys;
@@ -5090,6 +5130,8 @@ function playableLpChoices(t) {
     add("revision");
   }
   add("closed");
+  add("paused");
+  add("cancelled");
   return keys.filter((key) => key !== st || (html && key === "revision"));
 }
 function playableStatusActions(task) {
@@ -7427,7 +7469,9 @@ function openTask(id) {
   state.cardStale = false;
   const mine = onMyPlayable(t);
   const canEdit = canOps() || canAssign() || mine;
-  const lockedStatus = (t.studioStatus === "approve" || t.studioStatus === "closed") && !canOps();
+  const lockedStatus =
+    (t.studioStatus === "approve" || t.studioStatus === "closed" || t.studioStatus === "cancelled" || t.studioStatus === "paused") &&
+    !canOps();
   const job = withUrgentCue(t, cardJob(t));
   const play = isPlayables(t);
   const performer = mine && (isDesigner() || isTeamLead() || isArtDirector() || isProgrammer());
@@ -8571,7 +8615,7 @@ function openTask(id) {
     if (canOps() && $("stPoNumber")) {
       patch.poNumber = String($("stPoNumber").value || "").trim();
     }
-    if (studioStatus === "closed") patch.urgent = false;
+    if (studioStatus === "closed" || studioStatus === "cancelled") patch.urgent = false;
     const helpNote = patch.help
       ? patch.help.map((row) => `${person(row.id)?.name || row.id} ${row.hours}h`).join(", ")
       : "";
@@ -8590,6 +8634,10 @@ function openTask(id) {
             : `${me().name} cleared deadline`
         : studioStatus === "closed" && t.studioStatus !== "closed"
           ? `${me().name} marked Closed (client accepted)`
+        : studioStatus === "cancelled" && t.studioStatus !== "cancelled"
+          ? `${me().name} cancelled this project`
+        : studioStatus === "paused" && t.studioStatus !== "paused"
+          ? `${me().name} put this project On pause`
         : patch.urgent !== undefined && Boolean(patch.urgent) !== Boolean(t.urgent)
           ? patch.urgent
             ? `${me().name} marked URGENT`

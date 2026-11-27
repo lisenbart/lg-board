@@ -44,6 +44,8 @@ PLAY_STATUS = {
     "done": "Done",
     "approve": "Sent · HTML",
     "closed": "Closed",
+    "paused": "On pause",
+    "cancelled": "Cancelled",
 }
 
 PLAY_OPS_STATUSES = (
@@ -56,6 +58,8 @@ PLAY_OPS_STATUSES = (
     "artready",
     "done",
     "closed",
+    "paused",
+    "cancelled",
 )
 
 PLAY_STATUS_BY_ROLE = {
@@ -365,7 +369,7 @@ def playable_turn_role(task: dict | None) -> str:
     html = playable_in_html(task)
     has_ad = playable_has_ad(task)
     dev = str(task.get("programmerId") or "").strip()
-    if st in {"closed", "approve", "clientart"}:
+    if st in {"closed", "approve", "clientart", "paused", "cancelled"}:
         return ""
     if html:
         if st == "done":
@@ -453,8 +457,10 @@ def playable_in_html(task: dict | None) -> bool:
     """HTML loop starts at Art ready (or a DEV-only card). Seating DEV on Ready is still art when AD is on the card."""
     task = task or {}
     st = playable_norm_status(task.get("studioStatus"))
-    if st == "closed":
+    if st == "closed" or st == "cancelled":
         return False
+    if st == "paused":
+        return bool(task.get("playableHtml"))
     dev_only = not playable_has_ad(task) and bool(str(task.get("programmerId") or "").strip())
     if st == "check":
         if bool(task.get("playableHtml")) or dev_only:
@@ -506,7 +512,9 @@ def touch_playable_html(task: dict | None, prev: str | None = None, force_art: b
         ):
             task["playableHtml"] = True
         return
-    if st in ART_LOOP or st == "closed":
+    if st == "paused":
+        return
+    if st in ART_LOOP or st in {"closed", "cancelled"}:
         if task.get("playableHtml"):
             task["playableHtml"] = False
         return
@@ -583,7 +591,7 @@ def apply_client_note_bounce(task: dict | None, role: str, force_art: bool = Fal
     task = task or {}
     if is_playables(task):
         st = playable_norm_status(task.get("studioStatus"))
-        if st in {"closed", "revision"}:
+        if st in {"closed", "cancelled", "paused", "revision"}:
             return False
         prev = st
         task["studioStatus"] = "revision"
@@ -591,7 +599,7 @@ def apply_client_note_bounce(task: dict | None, role: str, force_art: bool = Fal
         touch_playable_html(task, prev=prev, force_art=bool(force_art))
         return True
     st = str(task.get("studioStatus") or "new")
-    if st in {"closed", "revision"}:
+    if st in {"closed", "cancelled", "paused", "revision"}:
         return False
     task["studioStatus"] = "revision"
     task["mondayStatus"] = "Need Fixing"
@@ -615,6 +623,8 @@ def undo_client_note_bounce(task: dict | None) -> bool:
         "done": "Done",
         "approve": "Senior Approval",
         "closed": "Closed",
+        "paused": "On pause",
+        "cancelled": "Cancelled",
     }
     if is_playables(task):
         st = playable_norm_status(task.get("studioStatus"))
@@ -727,10 +737,10 @@ def playable_can_set(role: str, task: dict | None, nxt: str, *, actor_id: str = 
         return True, ""
     if nxt == "approve":
         return False, "Send is set only when you Send to client"
-    if nxt == "closed":
+    if nxt in {"closed", "paused", "cancelled"}:
         if role in {"manager", "finance"}:
             return True, ""
-        return False, "Only LP can mark Closed"
+        return False, "Only LP / DL can set Closed, On pause, or Cancelled"
     if role in {"manager", "finance"}:
         if nxt in PLAY_OPS_STATUSES:
             return True, ""

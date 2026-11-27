@@ -140,6 +140,8 @@ STATUS_LABELS = {
     "done": "Done",
     "approve": "Senior Approval",
     "closed": "Closed",
+    "paused": "On pause",
+    "cancelled": "Cancelled",
     "check": "Check",
     "clientart": "Sent · Art",
     "finalart": "Final art",

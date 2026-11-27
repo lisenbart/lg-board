@@ -33,7 +33,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-11-27d"
+BUILD = "2026-11-27e"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -996,7 +996,7 @@ def apply_person_job(db: dict, person: dict, job: str, *, check_last: bool = Tru
     return None
 
 OPS_ROLES = {"manager", "finance"}
-MGX_OPS_STATUSES = {"new", "wip", "revision", "tlcheck", "done", "closed"}
+MGX_OPS_STATUSES = {"new", "wip", "revision", "tlcheck", "done", "closed", "paused", "cancelled"}
 STATUS_BY_ROLE = {
     "designer": {"wip", "tlcheck"},
     "teamlead": {"wip", "revision", "tlcheck", "done"},
@@ -3657,6 +3657,10 @@ class Handler(SimpleHTTPRequestHandler):
                     )
                 elif task.get("studioStatus") == "closed":
                     task["mondayStatus"] = "Closed"
+                elif task.get("studioStatus") == "paused":
+                    task["mondayStatus"] = "On pause"
+                elif task.get("studioStatus") == "cancelled":
+                    task["mondayStatus"] = "Cancelled"
                 elif nxt == "revision":
                     task["mondayStatus"] = "Need Fixing"
                 elif nxt == "tlcheck":
@@ -3673,7 +3677,7 @@ class Handler(SimpleHTTPRequestHandler):
                     handed=bool(data.get("handed")),
                     now=utc_now(),
                 )
-                if str(task.get("studioStatus") or "") == "closed":
+                if str(task.get("studioStatus") or "") in {"closed", "cancelled"}:
                     task["urgent"] = False
                 note = data.get("note")
                 if note:
