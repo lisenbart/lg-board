@@ -77,7 +77,7 @@ KINDS = {
     "task.finalart": {
         "label": "to DEV",
         "title": "{name}",
-        "detail": "Legacy Final art · treated as to DEV",
+        "detail": "to DEV",
         "mark": "done",
         "audience": {"assignee": True},
         "skip_actor": True,

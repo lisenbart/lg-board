@@ -33,7 +33,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-11-27t"
+BUILD = "2026-11-27u"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -3689,7 +3689,7 @@ class Handler(SimpleHTTPRequestHandler):
                     if md_wip and st == "wip":
                         task["playableHtml"] = True
                         direction_io.clear_playable_sequence_ready(task)
-                    elif html_wip and st in {"wip", "check"}:
+                    elif html_wip and st in {"wip", "check", "revision"}:
                         task["playableHtml"] = True
                         if st == "wip":
                             direction_io.mark_playable_sequence_ready(task)

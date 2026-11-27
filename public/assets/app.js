@@ -4899,7 +4899,11 @@ function statusMark(t) {
           : "WIP",
         title,
       },
-      revision: { cls: html ? "htmlfix" : "fix", label: isPlayables(t) ? (html ? "Fix · HTML" : "Fix · Art") : "Fix", title },
+      revision: {
+        cls: html ? "htmlfix" : "fix",
+        label: isPlayables(t) ? (html ? "Need Fixing · HTML" : "Need Fixing · Art") : "Fix",
+        title,
+      },
       tlcheck: { cls: "tlcheck", label: "TL chk", title },
       check: { cls: "check", label: isPlayables(t) ? (html ? "Check · HTML" : "Check · Art") : "Check", title },
       done: { cls: "done", label: "Done", title },
@@ -5239,7 +5243,7 @@ function playableLpPopLayout() {
     ],
     [
       { key: "revision", label: "Need Fixing · Art", artBounce: true },
-      { key: "revision", label: "Need Fixing · HTML" },
+      { key: "revision", label: "Need Fixing · HTML", htmlWip: true },
     ],
     [
       { key: "artready", label: "to DEV" },
@@ -5345,18 +5349,24 @@ function statusButtonsHtml(t, canEdit, lockedStatus) {
     <p class="status-hint" id="stDoneHint"></p>`;
   }
   const htmlLoop = isPlayables(t) && playableInHtml(t);
-  const paintBtn = (key, label, { artBounce = false, on = false } = {}) => {
-    const mark = statusMark({ ...t, studioStatus: key });
-    const disabled = on || (!artBounce && statusButtonDisabled(t, key, opts));
+  const paintBtn = (key, label, { artBounce = false, htmlWip = false, on = false } = {}) => {
+    const probe = {
+      ...t,
+      studioStatus: key,
+      playableHtml: artBounce ? false : htmlWip ? true : t.playableHtml,
+    };
+    const mark = statusMark(probe);
+    const disabled = on || (!(artBounce || htmlWip) && statusButtonDisabled(t, key, opts));
     const bounce = artBounce ? ` data-art-bounce="1"` : "";
-    return `<button type="button" class="status-btn st-${mark.cls} ${on ? "is-on" : "is-off"}" data-status="${key}"${bounce} aria-pressed="${on ? "true" : "false"}" ${disabled ? "disabled" : ""} title="${escapeHtml(label)}">${escapeHtml(label)}</button>`;
+    const htmlFlag = htmlWip ? ` data-html-wip="1"` : "";
+    return `<button type="button" class="status-btn st-${mark.cls} ${on ? "is-on" : "is-off"}" data-status="${key}"${bounce}${htmlFlag} aria-pressed="${on ? "true" : "false"}" ${disabled ? "disabled" : ""} title="${escapeHtml(label)}">${escapeHtml(label)}</button>`;
   };
   const buttons = keys
     .map((key) => {
       if (key === "revision" && isPlayables(t) && canOps() && htmlLoop) {
         const curRev = current === "revision";
         return (
-          paintBtn("revision", "Need Fixing · HTML", { on: curRev && htmlLoop }) +
+          paintBtn("revision", "Need Fixing · HTML", { htmlWip: true, on: curRev && htmlLoop }) +
           paintBtn("revision", "Need Fixing · Art", { artBounce: true, on: curRev && !htmlLoop })
         );
       }
@@ -5575,13 +5585,15 @@ async function pickStatusFromPop(t, key, opts) {
       ? "WIP · HTML"
       : htmlWip && key === "check"
         ? "Check · HTML"
-        : artBounce && key === "wip"
-          ? "WIP · Art"
-          : artBounce && key === "check"
-            ? "Check · Art"
-            : artBounce && key === "revision"
-              ? "Need Fixing · Art"
-              : statusText(key, t);
+        : htmlWip && key === "revision"
+          ? "Need Fixing · HTML"
+          : artBounce && key === "wip"
+            ? "WIP · Art"
+            : artBounce && key === "check"
+              ? "Check · Art"
+              : artBounce && key === "revision"
+                ? "Need Fixing · Art"
+                : statusText(key, t);
   await updateTask(
     t.id,
     { ...patch, note: `${me().name} set ${label}` },
@@ -8666,7 +8678,12 @@ function openTask(id) {
         toast("This role cannot set " + (STATUS[key]?.label || key));
         return;
       }
-      commitCard({ fromChip: true, status: key, artBounce: btn.dataset.artBounce === "1" });
+      commitCard({
+        fromChip: true,
+        status: key,
+        artBounce: btn.dataset.artBounce === "1",
+        htmlWip: btn.dataset.htmlWip === "1",
+      });
     });
   });
   syncDoneOption();
@@ -8921,6 +8938,8 @@ function openTask(id) {
           ? `${me().name} set WIP · HTML`
         : opts.htmlWip && studioStatus === "check"
           ? `${me().name} set Check · HTML`
+        : opts.htmlWip && studioStatus === "revision"
+          ? `${me().name} set Need Fixing · HTML`
         : opts.artBounce && studioStatus === "wip"
           ? `${me().name} set WIP · Art`
         : opts.artBounce && studioStatus === "check"

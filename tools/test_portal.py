@@ -1892,6 +1892,21 @@ def test_playables_desk() -> None:
             and "function statusLogLabel" in js
             and 'if (raw === "Client art"' in js,
         )
+        check(
+            "Need Fixing · HTML pop sets htmlWip",
+            'label: "Need Fixing · HTML", htmlWip: true' in js.split("function playableLpPopLayout")[1].split("function playableStatusActions")[0]
+            and 'html_wip and st in {"wip", "check", "revision"}' in Path("server.py").read_text(encoding="utf-8"),
+        )
+        check(
+            "phone/excel Need Fixing labels match board",
+            'label: isPlayables(t) ? (html ? "Need Fixing · HTML" : "Need Fixing · Art") : "Fix"' in js
+            or 'html ? "Need Fixing · HTML" : "Need Fixing · Art"' in js,
+        )
+        check(
+            "Slotomania money chip stacks under Status pill",
+            ".row .meta .cell:has(> .money-chip)" in css
+            and "flex-direction: column" in css.split(".row .meta .cell:has(> .money-chip)")[1].split(".money-chip.no_quote")[0],
+        )
         with tempfile.TemporaryDirectory() as raw:
             path = Path(raw) / "pl.xlsx"
             shutil.copy(playables_io.XLSX_PATH, path)

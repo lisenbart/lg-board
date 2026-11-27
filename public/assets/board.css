@@ -646,7 +646,7 @@ button.notice-chip.status-pop-btn:hover {
 .notice-board { background: #e0f0ff; color: #0059b3; }
 .notice-art { background: #a855f7; color: #fff; }
 .notice-build { background: #5b4cdb; color: #fff; }
-.notice-html { background: #14b8a6; color: #fff; }
+.notice-html { background: #a855f7; color: #fff; } /* legacy Sent → Sent purple */
 .notice-quote { background: #ff793d; color: #fff; }
 .notice-paused { background: #8b88ac; color: #fff; }
 .notice-cancelled { background: #171717; color: #fff; }
@@ -1134,7 +1134,7 @@ body.col-resizing * { cursor: col-resize !important; }
 .row.tone-cancelled, .row.tone-cancelled .frozen, .row.tone-cancelled .meta { background: #ececec; }
 .row.tone-storyboard, .row.tone-storyboard .frozen, .row.tone-storyboard .meta { background: #f3f8ff; }
 .row.tone-clientart, .row.tone-clientart .frozen, .row.tone-clientart .meta { background: #f6f0ff; }
-.row.tone-finalart, .row.tone-finalart .frozen, .row.tone-finalart .meta { background: #fdf3f6; }
+.row.tone-finalart, .row.tone-finalart .frozen, .row.tone-finalart .meta { background: #f3f1ff; } /* legacy Final art → to DEV wash */
 .row.tone-build, .row.tone-build .frozen, .row.tone-build .meta { background: #fff8e8; }
 .row.tone-htmlready, .row.tone-htmlready .frozen, .row.tone-htmlready .meta { background: #f1fbf6; }
 .row.tone-quote, .row.tone-quote .frozen, .row.tone-quote .meta { background: #f7f8fb; }
@@ -1151,7 +1151,7 @@ body.col-resizing * { cursor: col-resize !important; }
 .row.tone-cancelled:hover, .row.tone-cancelled:hover .frozen, .row.tone-cancelled:hover .meta { background: #e0e0e0; }
 .row.tone-storyboard:hover, .row.tone-storyboard:hover .frozen, .row.tone-storyboard:hover .meta { background: #e7f1ff; }
 .row.tone-clientart:hover, .row.tone-clientart:hover .frozen, .row.tone-clientart:hover .meta { background: #eee4ff; }
-.row.tone-finalart:hover, .row.tone-finalart:hover .frozen, .row.tone-finalart:hover .meta { background: #fae6eb; }
+.row.tone-finalart:hover, .row.tone-finalart:hover .frozen, .row.tone-finalart:hover .meta { background: #e9e6ff; }
 .row.tone-build:hover, .row.tone-build:hover .frozen, .row.tone-build:hover .meta { background: #ffefc9; }
 .row.tone-htmlready:hover, .row.tone-htmlready:hover .frozen, .row.tone-htmlready:hover .meta { background: #e3f7ec; }
 .row.tone-quote:hover, .row.tone-quote:hover .frozen, .row.tone-quote:hover .meta { background: #eef0f5; }
@@ -2239,7 +2239,7 @@ body.col-resizing * { cursor: col-resize !important; }
 .status-btn.is-on.st-artok { background: #5b4cdb; color: #fff; border-color: #4a3cc0; }
 .status-btn.is-on.st-final { background: #5b4cdb; color: #fff; border-color: #4a3cc0; }
 .status-btn.is-on.st-send { background: #a855f7; color: #fff; border-color: #9333ea; }
-.status-btn.is-on.st-sent { background: #14b8a6; color: #fff; border-color: #0d9488; }
+.status-btn.is-on.st-sent { background: #a855f7; color: #fff; border-color: #9333ea; } /* legacy Sent */
 .status-btn.is-on.st-sentart { background: #a855f7; color: #fff; border-color: #9333ea; }
 .status-btn.is-on.st-senthtml { background: #a855f7; color: #fff; border-color: #9333ea; }
 .status-btn.is-on.st-paused { background: #8b88ac; color: #fff; border-color: #6f6d8c; }
@@ -2402,7 +2402,7 @@ a.pack-work:hover { background: #e2e4ec; }
 .phone-card.tone-wip,
 .phone-card.tone-storyboard { background: #f3f8ff; }
 .phone-card.tone-revision,
-.phone-card.tone-finalart,
+.phone-card.tone-finalart { background: #f3f1ff; } /* legacy Final art → to DEV */
 .phone-card.tone-htmlfix { background: #fdf3f6; }
 .phone-card.tone-tlcheck,
 .phone-card.tone-build { background: #fff8e8; }
@@ -2631,6 +2631,22 @@ a.pack-work:hover { background: #e2e4ec; }
   width: 100%;
   box-sizing: border-box;
 }
+/* Slotomania money chip sits under the equal-width Status pill, not beside it. */
+.row .meta .cell:has(> .money-chip) {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+}
+.row .meta .cell > .money-chip {
+  margin-left: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 /* Cleaner/brighter pills; Check stripes stay ours. Pause/Cancel locked. */
 .status-new { background: #ff793d; } /* Ready to Start */
 .status-wip { background: #4c8bf5; } /* WIP · Art */
@@ -2826,7 +2842,7 @@ a.pack-work:hover { background: #e2e4ec; }
 .xl-table td.xl-st.st-sentart { background: #a855f7; color: #fff; }
 .xl-table td.xl-st.st-senthtml { background: #a855f7; color: #fff; }
 .xl-table td.xl-st.st-send { background: #a855f7; color: #fff; }
-.xl-table td.xl-st.st-sent { background: #14b8a6; color: #fff; }
+.xl-table td.xl-st.st-sent { background: #a855f7; color: #fff; } /* legacy Sent */
 .xl-table td.xl-st.st-final { background: #5b4cdb; color: #fff; }
 .xl-table td.xl-st.st-artok { background: #5b4cdb; color: #fff; }
 .xl-table td.xl-st.st-closed { background: #16a34a; color: #fff; }
