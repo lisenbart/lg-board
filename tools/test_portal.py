@@ -2219,10 +2219,8 @@ def test_playable_card_pipeline() -> None:
         and 'if (playKey === "approve") return "Sent · HTML"' in js
         and 'clientart: { cls: "sentart", label: "Sent · Art"' in js
         and 'label: isPlayables(t) ? "Sent · HTML"' in js
-        and "status-sentart" in css
-        and "status-senthtml" in css
-        and "background: #a78bfa" in css.split(".status-sentart")[1].split("}")[0]
-        and "background: #66ccff" in css.split(".status-senthtml")[1].split("}")[0],
+        and ".status-sentart { background: #a78bfa; }" in css
+        and ".status-senthtml { background: #66ccff; }" in css,
     )
     check("rows mark your turn vs waiting", "function isActiveForMe" in js and "is-turn" in js and "is-wait" in js)
     check(
