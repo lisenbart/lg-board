@@ -56,10 +56,10 @@
       channels: ["portal"],
     },
     "task.finalart": {
-      label: "Final art",
+      label: "to DEV",
       title: "{name}",
-      detail: "Final art · finish the board, then Send to LP",
-      mark: "mine",
+      detail: "Legacy Final art · treated as to DEV",
+      mark: "done",
       audience: { assignee: true },
       skipActor: true,
       channels: ["portal"],
@@ -268,7 +268,6 @@
       if (newS === "revision") emit(db, "task.revision", { actorId, task });
       if (newS === "tlcheck") emit(db, "task.tlcheck", { actorId, task });
       if (newS === "check") emit(db, "task.check", { actorId, task });
-      if (newS === "finalart") emit(db, "task.finalart", { actorId, task, audienceIds: [task.assigneeId] });
       if (newS === "artready") emit(db, "task.artready", { actorId, task, audienceIds: [task.programmerId] });
       if (newS === "done") {
         emit(db, "task.ready", { actorId, task });
@@ -282,7 +281,7 @@
         emit(db, "task.closed", { actorId, task });
         ack(db, actorId, { taskId: task.id, kinds: ["task.sent", "task.ready"] });
       }
-      if (newS === "wip" && ["tlcheck", "done", "approve", "check", "artready", "clientart", "finalart"].includes(oldS)) {
+      if (newS === "wip" && ["tlcheck", "done", "approve", "check", "artready", "clientart"].includes(oldS)) {
         emit(db, "task.wip", { actorId, task });
       }
     }

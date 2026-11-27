@@ -628,7 +628,7 @@ button.notice-chip.status-pop-btn:hover {
 .notice-done { background: #00c875; color: #fff; }
 .notice-send { background: #a855f7; color: #fff; }
 .notice-sentart { background: #a855f7; color: #fff; }
-.notice-senthtml { background: #14b8a6; color: #fff; }
+.notice-senthtml { background: #a855f7; color: #fff; }
 .notice-final { background: #f472b6; color: #fff; }
 .notice-artok { background: #5b4cdb; color: #fff; }
 .notice-check {
@@ -2229,11 +2229,11 @@ body.col-resizing * { cursor: col-resize !important; }
   );
 }
 .status-btn.is-on.st-artok { background: #5b4cdb; color: #fff; border-color: #4a3cc0; }
-.status-btn.is-on.st-final { background: #f472b6; color: #fff; border-color: #db5f9e; }
+.status-btn.is-on.st-final { background: #5b4cdb; color: #fff; border-color: #4a3cc0; }
 .status-btn.is-on.st-send { background: #a855f7; color: #fff; border-color: #9333ea; }
 .status-btn.is-on.st-sent { background: #14b8a6; color: #fff; border-color: #0d9488; }
 .status-btn.is-on.st-sentart { background: #a855f7; color: #fff; border-color: #9333ea; }
-.status-btn.is-on.st-senthtml { background: #14b8a6; color: #fff; border-color: #0d9488; }
+.status-btn.is-on.st-senthtml { background: #a855f7; color: #fff; border-color: #9333ea; }
 .status-btn.is-on.st-paused { background: #8b88ac; color: #fff; border-color: #6f6d8c; }
 .status-btn.is-on.st-cancelled { background: #171717; color: #fff; border-color: #000; }
 .status-btn:disabled.is-off {
@@ -2523,18 +2523,26 @@ a.pack-work:hover { background: #e2e4ec; }
   padding: 14px 14px 12px;
 }
 .status-pop-now {
-  margin: 0 0 10px;
-  color: var(--muted);
-  font-size: 12px;
-}
-.status-pop-grid {
+  display: none;
   margin: 0;
 }
-.status-pop-grid .status-btn {
-  flex: 1 1 calc(50% - 6px);
+.status-pop-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  justify-content: flex-start;
 }
-.status-pop-grid .status-btn.is-wide {
-  flex: 1 1 100%;
+.status-pop-grid .status-btn {
+  flex: 0 0 148px;
+  width: 148px;
+  max-width: 148px;
+  box-sizing: border-box;
+  justify-content: center;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .toast {
@@ -2615,8 +2623,8 @@ a.pack-work:hover { background: #e2e4ec; }
 .status-todev { background: #5b4cdb; } /* to DEV */
 .status-approve { background: #3b82f6; } /* MGX Appr. */
 .status-sentart { background: #a855f7; } /* Sent · Art */
-.status-senthtml { background: #14b8a6; } /* Sent · HTML */
-.status-finalart { background: #f472b6; } /* Final art */
+.status-senthtml { background: #a855f7; } /* Sent · HTML — same family as Sent · Art */
+.status-finalart { background: #5b4cdb; } /* legacy Final art → to DEV */
 .status-closed { background: #16a34a; font-weight: 600; } /* Closed */
 .status-paused { background: #8b88ac; } /* On Pause — do not retune */
 .status-cancelled { background: #171717; font-weight: 600; } /* Cancelled — do not retune */
@@ -2788,10 +2796,10 @@ a.pack-work:hover { background: #e2e4ec; }
 .xl-table td.xl-st.st-done { background: #00c875; color: #fff; }
 .xl-table td.xl-st.st-appr { background: #3b82f6; color: #fff; }
 .xl-table td.xl-st.st-sentart { background: #a855f7; color: #fff; }
-.xl-table td.xl-st.st-senthtml { background: #14b8a6; color: #fff; }
+.xl-table td.xl-st.st-senthtml { background: #a855f7; color: #fff; }
 .xl-table td.xl-st.st-send { background: #a855f7; color: #fff; }
 .xl-table td.xl-st.st-sent { background: #14b8a6; color: #fff; }
-.xl-table td.xl-st.st-final { background: #f472b6; color: #fff; }
+.xl-table td.xl-st.st-final { background: #5b4cdb; color: #fff; }
 .xl-table td.xl-st.st-artok { background: #5b4cdb; color: #fff; }
 .xl-table td.xl-st.st-closed { background: #16a34a; color: #fff; }
 .xl-table td.xl-st.st-paused { background: #8b88ac; color: #fff; }
@@ -3662,8 +3670,10 @@ html:not(.phone-ui):not(.standalone-app) .push-hint { display: none !important; 
   }
   html:not(.hours-host) .status-pop-grid .status-btn {
     min-height: 44px;
-    flex: 1 1 calc(50% - 6px);
-    font-size: 14px;
+    flex: 0 0 148px;
+    width: 148px;
+    max-width: 148px;
+    font-size: 13px;
   }
   .drawer-x {
     width: 44px;

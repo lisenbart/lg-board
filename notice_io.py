@@ -66,10 +66,10 @@ KINDS = {
         "channels": ["portal"],
     },
     "task.finalart": {
-        "label": "Final art",
+        "label": "to DEV",
         "title": "{name}",
-        "detail": "Final art · finish the board, then Send to LP",
-        "mark": "mine",
+        "detail": "Legacy Final art · treated as to DEV",
+        "mark": "done",
         "audience": {"assignee": True},
         "skip_actor": True,
         "channels": ["portal"],
@@ -144,7 +144,7 @@ STATUS_LABELS = {
     "cancelled": "Cancelled",
     "check": "Check",
     "clientart": "Sent · Art",
-    "finalart": "Final art",
+    "finalart": "to DEV",
     "artready": "to DEV",
 }
 PLAY_STATUS_LABELS = {
@@ -153,7 +153,7 @@ PLAY_STATUS_LABELS = {
     "clientart": "Sent · Art",
     "new": "Ready to Start",
 }
-WIP_REVERT_FROM = {"tlcheck", "done", "approve", "check", "artready", "clientart", "finalart"}
+WIP_REVERT_FROM = {"tlcheck", "done", "approve", "check", "artready", "clientart"}
 
 
 def utc_now() -> str:
@@ -394,7 +394,7 @@ def on_task_change(db: dict, task: dict, before: dict | None, actor_id: str = ""
         import direction_io
         if not direction_io.is_playables(task):
             return None
-        if kind in {"task.revision", "task.wip", "task.finalart", "task.artready"}:
+        if kind in {"task.revision", "task.wip", "task.artready"}:
             return direction_io.playable_work_ids(task) or None
         if kind in {"task.sent", "task.closed"}:
             return direction_io.playable_crew_ids(task) or None
@@ -420,8 +420,6 @@ def on_task_change(db: dict, task: dict, before: dict | None, actor_id: str = ""
                 and not before.get("sequenceReady")
             ):
                 direction_io.mark_playable_sequence_ready(task)
-        elif new_status == "finalart":
-            emit(db, "task.finalart", actor_id=actor_id, task=task, audience_ids=playable_ping_ids("task.finalart"))
         elif new_status == "artready":
             emit(db, "task.artready", actor_id=actor_id, task=task, audience_ids=playable_ping_ids("task.artready"))
         elif new_status == "done":
@@ -446,9 +444,7 @@ def on_task_change(db: dict, task: dict, before: dict | None, actor_id: str = ""
         task["handedBy"] = str(actor_id or "")
         st = direction_io.playable_norm_status(task.get("studioStatus")) if direction_io.is_playables(task) else ""
         if st and st != "check":
-            if st == "finalart":
-                preview = "Art is finished · set to DEV"
-            elif direction_io.playable_in_html(task):
+            if direction_io.playable_in_html(task):
                 preview = "HTML is on the card · set Done"
             else:
                 preview = "Work is on the card"

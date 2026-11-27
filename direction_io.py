@@ -39,7 +39,6 @@ PLAY_STATUS = {
     "check": "Check",
     "revision": "Need Fixing",
     "clientart": "Sent · Art",
-    "finalart": "Final art",
     "artready": "to DEV",
     "done": "Done",
     "approve": "Sent · HTML",
@@ -54,7 +53,6 @@ PLAY_OPS_STATUSES = (
     "check",
     "clientart",
     "revision",
-    "finalart",
     "artready",
     "done",
     "approve",
@@ -192,6 +190,7 @@ _LEGACY_PLAYABLE = {
     "storyboard": "check",
     "htmlready": "done",
     "build": "artready",
+    "finalart": "artready",
     "tlcheck": "check",
 }
 
@@ -227,7 +226,7 @@ def on_playable_seat(task: dict | None, actor_id: str) -> bool:
     return False
 
 
-ART_LOOP = {"new", "clientart", "finalart"}
+ART_LOOP = {"new", "clientart"}
 HTML_HANDOFF = {"artready", "done", "approve"}
 
 
@@ -431,8 +430,6 @@ def playable_turn_role(task: dict | None) -> str:
         if st in {"done", "check"}:
             return "manager"
         return ""
-    if st == "finalart":
-        return "manager" if playable_ad_delivered(task) or not has_ad else "art_director"
     if st in {"new", "wip", "revision"}:
         return "art_director" if has_ad else "manager"
     if st == "check":
@@ -456,7 +453,7 @@ def playable_part_open(task: dict | None, role: str, person_id: str = "") -> boo
             return False
         if playable_in_html(task) or st in {"approve", "clientart", "artready", "done"}:
             return False
-        return st in {"new", "wip", "revision", "check", "finalart"}
+        return st in {"new", "wip", "revision", "check"}
     if role == "designer":
         if playable_motion_id(task) != actor:
             return False
@@ -512,7 +509,7 @@ def playable_in_html(task: dict | None) -> bool:
         handed = str(task.get("handedBy") or "").strip()
         dev = str(task.get("programmerId") or "").strip()
         return bool(handed and dev and handed == dev)
-    if dev_only and st not in {"clientart", "finalart"}:
+    if dev_only and st not in {"clientart"}:
         return True
     if st in ART_LOOP:
         return False
@@ -538,7 +535,7 @@ def touch_playable_html(task: dict | None, prev: str | None = None, force_art: b
     if not task:
         return
     st = playable_norm_status(task.get("studioStatus"))
-    if force_art and st in {"wip", "revision"}:
+    if force_art and st in {"wip", "revision", "check"}:
         board = str(task.get("storyboardUrl") or "").strip()
         if board:
             task["resultUrl"] = board
@@ -769,8 +766,6 @@ def playable_handoff_status(role: str, task: dict | None) -> str:
             return "check"
         if playable_ad_delivered(task):
             return ""
-        if st == "finalart":
-            return HANDOFF_NOTIFY
         return ""
     if role == "designer":
         if playable_md_pending(task) and st in {"new", "wip", "revision"}:
@@ -812,7 +807,7 @@ def playable_can_set(role: str, task: dict | None, nxt: str, *, actor_id: str = 
         return False, "Only the DEV on the card sets HTML status"
     if role == "designer" and actor_id and playable_motion_id(task) != str(actor_id):
         return False, "Only the MD on the card sets sequence status"
-    if nxt in {"done", "revision", "finalart", "artready", "clientart"} and role not in {"manager", "finance"}:
+    if nxt in {"done", "revision", "artready", "clientart"} and role not in {"manager", "finance"}:
         return False, "Only LP sets Done, Need Fixing, and the next step"
     if role == "designer" and nxt == "check" and not playable_sequence_url(task):
         return False, "Paste the sequence link before Send to DEV"

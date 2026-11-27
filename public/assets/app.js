@@ -11,7 +11,7 @@ const STATUS = {
   paused: { label: "On Pause", cls: "status-paused", order: 11 },
   cancelled: { label: "Cancelled", cls: "status-cancelled", order: 12 },
   clientart: { label: "Sent · Art", cls: "status-sentart", order: 8 },
-  finalart: { label: "Final art", cls: "status-finalart", order: 5 },
+  finalart: { label: "to DEV", cls: "status-todev", order: 6 },
   artready: { label: "to DEV", cls: "status-todev", order: 6 },
   storyboard: { label: "Check", cls: "status-check", order: 4 },
   build: { label: "to DEV", cls: "status-todev", order: 6 },
@@ -65,7 +65,6 @@ const PLAY_OPS_STATUSES = [
   "check",
   "clientart",
   "revision",
-  "finalart",
   "artready",
   "done",
   "approve",
@@ -1473,6 +1472,7 @@ function statusText(key, t) {
       if (playableMdPending(t)) return "WIP · MD";
       return playableInHtml(t) ? "WIP · HTML" : "WIP · Art";
     }
+    if (playKey === "check") return playableInHtml(t) ? "Check · HTML" : "Check · Art";
     if (playKey === "revision") return playableInHtml(t) ? "Need Fixing · HTML" : "Need Fixing · Art";
     if (playKey === "clientart") return "Sent · Art";
     return STATUS[playKey]?.label || STATUS[key]?.label || key;
@@ -3592,7 +3592,6 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
       }
       return { tone: "do", title: "Check", body: "" };
     }
-    if (st === "finalart") return { tone: "do", title: "Final art", body: "" };
     if (st === "revision") {
       return { tone: "fix", title: "Need Fixing", body: "" };
     }
@@ -3667,7 +3666,7 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
         : "Storyboard is in. Send to client, or tap to DEV so HTML can start.",
     };
   }
-  if (st === "clientart") return { tone: "wait", title: "Sent · Art", body: "Waiting on the client. Need Fixing if they bounce it. Final art when they approve the board." };
+  if (st === "clientart") return { tone: "wait", title: "Sent · Art", body: "Waiting on the client. Need Fixing if they bounce it. to DEV when they approve the board." };
   if (st === "artready") {
     if (!t.programmerId) {
       return { tone: "do", title: "Assign DEV", body: "" };
@@ -3685,10 +3684,6 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
       return { tone: "wait", title: "Waiting for DEV", body: progName };
     }
     return { tone: "wait", title: "In WIP", body: progName };
-  }
-  if (st === "finalart") {
-    if (playableAdDelivered(t)) return { tone: "do", title: "Art is in", body: "" };
-    return { tone: "wait", title: "Final art", body: name };
   }
   if (st === "revision") return { tone: "wait", title: "Need Fixing", body: html ? progName : name };
   const ad = playableAdId(t);
@@ -4892,14 +4887,14 @@ function statusMark(t) {
       },
       revision: { cls: html ? "htmlfix" : "fix", label: isPlayables(t) ? (html ? "Fix · HTML" : "Fix · Art") : "Fix", title },
       tlcheck: { cls: "tlcheck", label: "TL chk", title },
-      check: { cls: "check", label: isPlayables(t) ? (html ? "Check · HTML" : "Check") : "Check", title },
+      check: { cls: "check", label: isPlayables(t) ? (html ? "Check · HTML" : "Check · Art") : "Check", title },
       done: { cls: "done", label: "Done", title },
       approve: { cls: isPlayables(t) ? "senthtml" : "appr", label: isPlayables(t) ? "Sent · HTML" : "Appr.", title },
       closed: { cls: "closed", label: "Closed", title },
       paused: { cls: "paused", label: "On Pause", title },
       cancelled: { cls: "cancelled", label: "Cancelled", title },
       clientart: { cls: "sentart", label: "Sent · Art", title },
-      finalart: { cls: "final", label: "Final", title },
+      finalart: { cls: "artok", label: "to DEV", title },
       artready: { cls: "artok", label: "to DEV", title },
       storyboard: { cls: "check", label: "Check", title },
       build: { cls: "artok", label: "to DEV", title },
@@ -4976,15 +4971,15 @@ function statusChoices(task) {
 
 function playableStatusKey(t) {
   const st = t?.studioStatus || "new";
+  if (st === "finalart" || st === "build") return "artready";
   if (
-    ["new", "wip", "check", "revision", "clientart", "finalart", "artready", "done", "approve", "closed", "paused", "cancelled"].includes(
+    ["new", "wip", "check", "revision", "clientart", "artready", "done", "approve", "closed", "paused", "cancelled"].includes(
       st
     )
   )
     return st;
   if (st === "storyboard" || st === "tlcheck") return "check";
   if (st === "htmlready") return "done";
-  if (st === "build") return "artready";
   return "new";
 }
 function playableStatusFrom(t) {
@@ -5037,13 +5032,13 @@ function playableInHtml(t) {
     const dev = String(t?.programmerId || "").trim();
     return Boolean(handed && dev && handed === dev);
   }
-  if (devOnly && !["clientart", "finalart"].includes(st)) return true;
-  if (["new", "clientart", "finalart"].includes(st)) return false;
+  if (devOnly && st !== "clientart") return true;
+  if (["new", "clientart"].includes(st)) return false;
   if (["artready", "done", "approve"].includes(st)) return true;
   if (st === "wip" || st === "revision") {
     const prev = playableStatusFrom(t);
     if (prev === "check") return Boolean(t?.playableHtml) || Boolean(devOnly);
-    if (["new", "clientart", "finalart", "closed"].includes(prev)) return false;
+    if (["new", "clientart", "closed"].includes(prev)) return false;
     if (t?.playableHtml === false) return false;
     if (["artready", "done", "approve"].includes(prev)) return true;
   }
@@ -5098,7 +5093,6 @@ function playableTurnRole(t) {
     if (st === "done" || st === "check") return "manager";
     return "";
   }
-  if (st === "finalart") return playableAdDelivered(t) || !ad ? "manager" : "art_director";
   if (st === "new" || st === "wip" || st === "revision") return ad ? "art_director" : "manager";
   if (st === "check") return ad && !playableAdDelivered(t) ? "art_director" : "manager";
   return "";
@@ -5112,7 +5106,7 @@ function playablePartOpen(t, role, personId) {
   if (role === "art_director") {
     if (playableAdId(t) !== actor) return false;
     if (playableInHtml(t) || ["approve", "clientart", "artready", "done"].includes(st)) return false;
-    return ["new", "wip", "revision", "check", "finalart"].includes(st);
+    return ["new", "wip", "revision", "check"].includes(st);
   }
   if (role === "designer") {
     if (String(t.motionId || "") !== actor) return false;
@@ -5160,7 +5154,6 @@ function playableHandoffStatus(role, t) {
     if (html) return "";
     if (["new", "wip", "revision"].includes(st)) return "check";
     if (playableAdDelivered(t)) return "";
-    if (st === "finalart") return "notify";
     return "";
   }
   if (role === "designer") {
@@ -5212,14 +5205,20 @@ function playableLpChoices(t) {
   return PLAY_OPS_STATUSES.slice();
 }
 function playableLpPopLayout() {
-  // Pairs fill the 2-col pop left→right so related chips stay side by side.
+  // Pipeline order, Art|HTML pairs side by side. Fixed-size chips — no stretch.
   return [
-    [{ key: "new", label: "Ready to Start" }, { key: "check", label: "Check" }],
     [
+      { key: "new", label: "Ready to Start" },
       { key: "wip", label: "WIP · Art", artBounce: true },
-      { key: "wip", label: "WIP · MD", mdWip: true },
     ],
-    [{ key: "wip", label: "WIP · HTML", htmlWip: true, wide: true }],
+    [
+      { key: "wip", label: "WIP · MD", mdWip: true },
+      { key: "wip", label: "WIP · HTML", htmlWip: true },
+    ],
+    [
+      { key: "check", label: "Check · Art", artBounce: true },
+      { key: "check", label: "Check · HTML", htmlWip: true },
+    ],
     [
       { key: "clientart", label: "Sent · Art" },
       { key: "approve", label: "Sent · HTML" },
@@ -5228,9 +5227,15 @@ function playableLpPopLayout() {
       { key: "revision", label: "Need Fixing · Art", artBounce: true },
       { key: "revision", label: "Need Fixing · HTML" },
     ],
-    [{ key: "finalart", label: "Final art" }, { key: "artready", label: "to DEV" }],
-    [{ key: "done", label: "Done" }, { key: "closed", label: "Closed" }],
-    [{ key: "paused", label: "On Pause" }, { key: "cancelled", label: "Cancelled" }],
+    [
+      { key: "artready", label: "to DEV" },
+      { key: "done", label: "Done" },
+    ],
+    [
+      { key: "closed", label: "Closed" },
+      { key: "paused", label: "On Pause" },
+    ],
+    [{ key: "cancelled", label: "Cancelled" }],
   ];
 }
 function playableStatusActions(task) {
@@ -5527,8 +5532,19 @@ async function pickStatusFromPop(t, key, opts) {
   if (artBounce) patch.artBounce = true;
   if (mdWip) patch.mdWip = true;
   if (htmlWip) patch.htmlWip = true;
-  const label =
-    mdWip ? "WIP · MD" : htmlWip ? "WIP · HTML" : artBounce && key === "wip" ? "WIP · Art" : statusText(key, t);
+  const label = mdWip
+    ? "WIP · MD"
+    : htmlWip && key === "wip"
+      ? "WIP · HTML"
+      : htmlWip && key === "check"
+        ? "Check · HTML"
+        : artBounce && key === "wip"
+          ? "WIP · Art"
+          : artBounce && key === "check"
+            ? "Check · Art"
+            : artBounce && key === "revision"
+              ? "Need Fixing · Art"
+              : statusText(key, t);
   await updateTask(
     t.id,
     { ...patch, note: `${me().name} set ${label}` },
@@ -5541,8 +5557,11 @@ function openStatusPop(t) {
   const bg = $("statusPopBg");
   const grid = $("statusPopGrid");
   const now = $("statusPopNow");
-  if (!bg || !grid || !now) return;
-  now.textContent = "Now · " + statusText(t.studioStatus || "new", t);
+  if (!bg || !grid) return;
+  if (now) {
+    now.hidden = true;
+    now.textContent = "";
+  }
   const keys = statusPopChoices(t);
   grid.replaceChildren();
   const paint = (key, label, flags = {}) => {
@@ -5551,13 +5570,13 @@ function openStatusPop(t) {
       ...t,
       studioStatus: key === "notify" ? "check" : key,
       playableHtml: opts.artBounce ? false : opts.mdWip || opts.htmlWip ? true : t.playableHtml,
-      sequenceReady: opts.mdWip ? false : opts.htmlWip ? true : t.sequenceReady,
+      sequenceReady: opts.mdWip ? false : opts.htmlWip && key === "wip" ? true : t.sequenceReady,
       motionId: opts.mdWip ? t.motionId || "__md__" : t.motionId,
     };
     const mark = statusMark(probe);
     const btn = document.createElement("button");
     btn.type = "button";
-    btn.className = `status-btn st-${mark.cls} is-on${opts.wide ? " is-wide" : ""}`;
+    btn.className = `status-btn st-${mark.cls} is-on`;
     btn.textContent = label;
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -5574,7 +5593,6 @@ function openStatusPop(t) {
           artBounce: Boolean(cell.artBounce),
           mdWip: Boolean(cell.mdWip),
           htmlWip: Boolean(cell.htmlWip),
-          wide: Boolean(cell.wide),
         });
       });
     });
@@ -8848,10 +8866,16 @@ function openTask(id) {
           ? `${me().name} put this project On Pause`
         : opts.mdWip
           ? `${me().name} set WIP · MD`
-        : opts.htmlWip
+        : opts.htmlWip && studioStatus === "wip"
           ? `${me().name} set WIP · HTML`
+        : opts.htmlWip && studioStatus === "check"
+          ? `${me().name} set Check · HTML`
         : opts.artBounce && studioStatus === "wip"
           ? `${me().name} set WIP · Art`
+        : opts.artBounce && studioStatus === "check"
+          ? `${me().name} set Check · Art`
+        : opts.artBounce && studioStatus === "revision"
+          ? `${me().name} set Need Fixing · Art`
         : patch.urgent !== undefined && Boolean(patch.urgent) !== Boolean(t.urgent)
           ? patch.urgent
             ? `${me().name} marked URGENT`

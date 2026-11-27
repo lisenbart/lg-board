@@ -2051,7 +2051,7 @@ def test_playable_card_pipeline() -> None:
     direction_io.touch_playable_html(cancelled)
     check("Cancelled clears HTML loop flag", cancelled.get("playableHtml") is False)
     lp_from_ready = {"studioStatus": "new", "assigneeId": "artdir1", "department": "Playables"}
-    for key in ("wip", "check", "revision", "finalart", "artready", "done", "closed"):
+    for key in ("wip", "check", "revision", "artready", "done", "closed"):
         ok, err = direction_io.playable_can_set("manager", lp_from_ready, key)
         check(f"LP can set Playables {key}", ok, err)
         ok_dl, err_dl = direction_io.playable_can_set("finance", lp_from_ready, key)
@@ -2059,13 +2059,17 @@ def test_playable_card_pipeline() -> None:
     check(
         "LP Playables chips include the work pipeline",
         set(direction_io.playable_next_statuses("manager", lp_from_ready))
-        >= {"new", "wip", "check", "revision", "finalart", "artready", "done", "closed"},
+        >= {"new", "wip", "check", "revision", "artready", "done", "closed"},
+    )
+    check(
+        "legacy Final art norms to to DEV",
+        direction_io.playable_norm_status("finalart") == "artready",
     )
 
     bounced = {"studioStatus": "clientart", "assigneeId": "artdir1"}
     check(
         "LP Sent bounce or approve board",
-        set(direction_io.playable_next_statuses("manager", bounced)) >= {"revision", "finalart"},
+        set(direction_io.playable_next_statuses("manager", bounced)) >= {"revision", "artready"},
     )
     bounced["studioStatus"] = "revision"
     check("AD Need Fixing offers WIP", direction_io.playable_next_statuses("art_director", bounced) == ["wip"])
@@ -2103,11 +2107,9 @@ def test_playable_card_pipeline() -> None:
     check("after MD handoff DEV owns turn", direction_io.playable_turn_role(md_wip) == "programmer")
     check("after MD handoff MD not pending", direction_io.playable_md_pending(md_wip) is False)
 
-    ad["studioStatus"] = "finalart"
+    ad["studioStatus"] = "check"
     ad["handedToLp"] = False
     ad["handedBy"] = ""
-    check("AD Final art has no Art ready chip", direction_io.playable_next_statuses("art_director", ad) == [])
-    check("AD Final art hands to LP", direction_io.playable_handoff_status("art_director", ad) == "notify")
     helper_ok, helper_err = direction_io.playable_can_set("art_director", ad, "artready", actor_id="artdir2")
     check("helper AD cannot set status", not helper_ok, helper_err)
     check(
@@ -2330,13 +2332,33 @@ def test_playable_card_pipeline() -> None:
         and 'revision: { label: "Need Fixing", cls: "status-revision", order: 1 }' in js,
     )
     check(
-        "Sent Art and Sent HTML are distinct",
+        "Sent Art and Sent HTML share one Sent color",
         'if (playKey === "clientart") return "Sent · Art"' in js
         and 'if (playKey === "approve") return "Sent · HTML"' in js
         and 'clientart: { cls: "sentart", label: "Sent · Art"' in js
         and 'label: isPlayables(t) ? "Sent · HTML"' in js
         and ".status-sentart { background: #a855f7; }" in css
-        and ".status-senthtml { background: #14b8a6; }" in css,
+        and ".status-senthtml { background: #a855f7; }" in css,
+    )
+    check(
+        "LP status pop splits Check · Art and Check · HTML",
+        'label: "Check · Art"' in js.split("function playableLpPopLayout")[1].split("function playableStatusActions")[0]
+        and 'label: "Check · HTML"' in js.split("function playableLpPopLayout")[1].split("function playableStatusActions")[0]
+        and 'if (playKey === "check") return playableInHtml(t) ? "Check · HTML" : "Check · Art"' in js,
+    )
+    check(
+        "status pop has no Now line and fixed chip size",
+        'now.hidden = true' in js.split("function openStatusPop")[1].split("function bindStatusPop")[0]
+        and ".status-pop-now {\n  display: none;" in css
+        and ".status-pop-grid .status-btn {\n  flex: 0 0 148px;" in css
+        and "is-wide" not in js.split("function playableLpPopLayout")[1].split("function playableStatusActions")[0],
+    )
+    check(
+        "Final art removed from LP pop and ops",
+        '"finalart"' not in js.split("const PLAY_OPS_STATUSES")[1].split("const PLAY_STATUS_BY_ROLE")[0]
+        and 'label: "Final art"' not in js.split("function playableLpPopLayout")[1].split("function playableStatusActions")[0]
+        and 'label: "to DEV"' in js.split("function playableLpPopLayout")[1].split("function playableStatusActions")[0]
+        and '"finalart": "artready"' in Path("direction_io.py").read_text(encoding="utf-8"),
     )
     check(
         "Ready to Start uses Monday orange",
@@ -2420,8 +2442,6 @@ def test_playable_card_pipeline() -> None:
     check(
         "LP Check can pass to Art ready",
         '"artready"' in js.split("const PLAY_OPS_STATUSES")[1].split("const PLAY_STATUS_BY_ROLE")[0]
-        and '"finalart"' in js.split("const PLAY_OPS_STATUSES")[1].split("const PLAY_STATUS_BY_ROLE")[0]
-        and 'label: "Final art"' in js.split("function playableLpPopLayout")[1].split("function playableStatusActions")[0]
         and 'label: "to DEV"' in js.split("function playableLpPopLayout")[1].split("function playableStatusActions")[0],
     )
     check(
@@ -2432,7 +2452,7 @@ def test_playable_card_pipeline() -> None:
     )
     check(
         "AD Check stays active after Send to LP",
-        '["new", "wip", "revision", "check", "finalart"].includes(st)' in js,
+        '["new", "wip", "revision", "check"].includes(st)' in js,
     )
     check(
         "DEV HTML stays active after Send to LP",
@@ -2459,7 +2479,7 @@ def test_playable_card_pipeline() -> None:
     notices_js = (ROOT / "public" / "assets" / "notices.js").read_text(encoding="utf-8")
     check(
         "card Art ready pings DEV",
-        "paste HTML on the card" in notices_js and "task.finalart" in notices_js,
+        "paste HTML on the card" in notices_js and "task.artready" in notices_js,
     )
     check("storyboard row has Copy and Open", 'class="link-row"' in js and "link-copy" in js and "link-open" in js)
     check("Copy/Open sit on the paste row", "link-row-actions" in js and "function bindLinkRows" in js)
@@ -2698,7 +2718,7 @@ def test_playable_card_pipeline() -> None:
     )
     check(
         "AD storyboard unlocks after Closed → WIP",
-        '["new", "clientart", "finalart", "closed"].includes(prev)' in js_html,
+        '["new", "clientart", "closed"].includes(prev)' in js_html,
     )
 
 
@@ -2796,13 +2816,6 @@ def test_playable_team_scenarios() -> None:
     apply(board, t, lp, status="clientart")
     check("Sent waits on the client", turn(t) == "")
     check("Anna cannot status Sent", direction_io.playable_next_statuses("art_director", t) == [])
-    apply(board, t, lp, status="finalart")
-    check("Final art is Anna", turn(t) == "art_director")
-    check("Final art pings Anna not Bohdan", audience(board, "task.finalart") == [anna], str(audience(board, "task.finalart")))
-    check("Anna Hands Final art without changing status", direction_io.playable_handoff_status("art_director", t) == "notify")
-    apply(board, t, anna, handed=True)
-    check("after Final Hand, LP's turn", turn(t) == "manager" and t.get("handedToLp") is True)
-    check("Hand ping goes to LP", lp in audience(board, "task.handed"))
     apply(board, t, lp, status="artready")
     check("Art ready is Bohdan", turn(t) == "programmer")
     check(
@@ -2877,14 +2890,14 @@ def test_playable_team_scenarios() -> None:
     check("Need Fixing · Art drops HTML draft", t.get("htmlUrl") == "")
     check("Need Fixing · Art pings Anna", audience(board, "task.revision") == [anna], str(audience(board, "task.revision")))
 
-    # --- Skip Final art: client approved the board as-is
+    # --- Client approved the board: Sent · Art → to DEV
     board = db()
     t = card(studioStatus="clientart", resultUrl="https://miro.com/app/board/zeus", programmerId=bohdan)
     direction_io.touch_playable_html(t)
-    check("LP can skip Final art", can("manager", t, "artready", lp))
+    check("LP can go Sent · Art → to DEV", can("manager", t, "artready", lp))
     apply(board, t, lp, status="artready")
-    check("skip Final art still hands HTML to Bohdan", turn(t) == "programmer")
-    check("skip Final art pings Bohdan", audience(board, "task.artready") == [bohdan])
+    check("to DEV hands HTML to Bohdan", turn(t) == "programmer")
+    check("to DEV pings Bohdan", audience(board, "task.artready") == [bohdan])
 
     # --- Code-only: LP seats only Bohdan
     board = db()
@@ -2948,8 +2961,6 @@ def test_playable_team_scenarios() -> None:
     check("Bohdan still cannot Hand during art", direction_io.playable_handoff_status("programmer", t) == "")
     apply(board, t, anna, status="check", result_url="https://miro.com/app/board/zeus")
     apply(board, t, lp, status="clientart")
-    apply(board, t, lp, status="finalart")
-    apply(board, t, anna, handed=True)
     apply(board, t, lp, status="artready")
     check("early draft is on the HTML field", t.get("resultUrl") == "https://play.example/early")
     check("early draft is not LP's until Hand", turn(t) == "programmer" and not t.get("handedToLp"))
@@ -2989,8 +3000,11 @@ def test_playable_team_scenarios() -> None:
     )
     sent = card(studioStatus="clientart", assigneeId=anna, programmerId=bohdan)
     check("Sent: AD and DEV wait, LP stays", not part(sent, "art_director", anna) and not part(sent, "programmer", bohdan) and part(sent, "manager"))
-    final = card(studioStatus="finalart", assigneeId=anna, programmerId=bohdan)
-    check("Final art: Anna again, Bohdan waits", part(final, "art_director", anna) and not part(final, "programmer", bohdan))
+    legacy_final = card(studioStatus="finalart", assigneeId=anna, programmerId=bohdan)
+    check(
+        "legacy Final art reads as to DEV for Bohdan",
+        direction_io.playable_norm_status(legacy_final.get("studioStatus")) == "artready",
+    )
     artok = card(studioStatus="artready", assigneeId=anna, programmerId=bohdan, playableHtml=True)
     check("Art ready: Bohdan's HTML is open", part(artok, "programmer", bohdan) and not part(artok, "art_director", anna) and part(artok, "manager"))
     html = card(studioStatus="wip", assigneeId=anna, programmerId=bohdan, playableHtml=True)
