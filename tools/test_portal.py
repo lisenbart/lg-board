@@ -2230,14 +2230,14 @@ def test_playable_card_pipeline() -> None:
         and 'if (playKey === "approve") return "Sent · HTML"' in js
         and 'clientart: { cls: "sentart", label: "Sent · Art"' in js
         and 'label: isPlayables(t) ? "Sent · HTML"' in js
-        and ".status-sentart { background: #8550d1; }" in css
-        and ".status-senthtml { background: #3d9b9b; }" in css,
+        and ".status-sentart { background: #a855f7; }" in css
+        and ".status-senthtml { background: #14b8a6; }" in css,
     )
     check(
         "Ready to start uses Monday orange",
         'if (playKey === "new") return "Ready to start"' in js
         and 'new: { label: "Ready to start", cls: "status-new"' in js
-        and ".status-new { background: #d2723b; }" in css
+        and ".status-new { background: #ff793d; }" in css
         and 'label: "Ready to start"' in js.split("function statusMark")[1].split("function excelStatus")[0],
     )
     check(
@@ -2248,6 +2248,12 @@ def test_playable_card_pipeline() -> None:
         and ".status-cancelled { background: #171717;" in css
         and 'add("paused")' in js.split("function playableLpChoices")[1].split("function playableStatusActions")[0]
         and 'add("cancelled")' in js.split("function playableLpChoices")[1].split("function playableStatusActions")[0],
+    )
+    check(
+        "Need Fixing Art and HTML use different colors",
+        ".status-revision { background: #e53935; }" in css
+        and ".status-htmlfix { background: #d81b60; }" in css
+        and ".status-revision { background: #e53935; }" != ".status-htmlfix { background: #d81b60; }",
     )
     check("rows mark your turn vs waiting", "function isActiveForMe" in js and "is-turn" in js and "is-wait" in js)
     check(
@@ -2342,7 +2348,7 @@ def test_playable_card_pipeline() -> None:
     )
     css_link = (ROOT / "public" / "assets" / "board.css").read_text(encoding="utf-8")
     check("Copy/Open stay on the link row", ".link-row {" in css_link and ".link-row-actions" in css_link)
-    check("to DEV chip is navy handoff not Done green", ".status-todev { background: #331784; }" in css_link)
+    check("to DEV chip is indigo handoff not Done green", ".status-todev { background: #5b4cdb; }" in css_link)
     check(
         "Check chip is sky with diagonal stripes",
         ".status-check {" in css_link
