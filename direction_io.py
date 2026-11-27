@@ -34,7 +34,7 @@ PERFORMERS = {"designer", "teamlead", "art_director", "programmer"}
 PLAY_CREW = {"art_director", "programmer", "designer"}
 
 PLAY_STATUS = {
-    "new": "Ready",
+    "new": "Ready to start",
     "wip": "WIP",
     "check": "Check",
     "revision": "Need Fixing",
@@ -608,7 +608,7 @@ def undo_client_note_bounce(task: dict | None) -> bool:
     if _open_client_notes(task):
         return False
     mgx_status = {
-        "new": "Ready to Start",
+        "new": "Ready to start",
         "wip": "WIP",
         "revision": "Need Fixing",
         "tlcheck": "TL Check",

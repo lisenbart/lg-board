@@ -1,6 +1,6 @@
 const STATUS = {
   quote: { label: "Quote", cls: "status-new", order: 3 },
-  new: { label: "Ready to Start", cls: "status-new", order: 3 },
+  new: { label: "Ready to start", cls: "status-new", order: 3 },
   wip: { label: "WIP", cls: "status-wip", order: 2 },
   revision: { label: "Need Fixing", cls: "status-revision", order: 1 },
   tlcheck: { label: "TL Check", cls: "status-tlcheck", order: 4 },
@@ -9,7 +9,7 @@ const STATUS = {
   approve: { label: "Senior Approval", cls: "status-approve", order: 9 },
   closed: { label: "Closed", cls: "status-closed", order: 10 },
   clientart: { label: "Sent · Art", cls: "status-sentart", order: 8 },
-  finalart: { label: "Final art", cls: "status-revision", order: 5 },
+  finalart: { label: "Final art", cls: "status-finalart", order: 5 },
   artready: { label: "to DEV", cls: "status-todev", order: 6 },
   storyboard: { label: "Check", cls: "status-check", order: 4 },
   build: { label: "to DEV", cls: "status-todev", order: 6 },
@@ -1452,13 +1452,14 @@ function canAssignPlayable() {
 function statusText(key, t) {
   if (t && isPlayables(t)) {
     const playKey = playableStatusKey({ studioStatus: key, department: t.department, direction: t.direction });
-    if (playKey === "new") return "Ready";
+    if (playKey === "new") return "Ready to start";
     if (playKey === "approve") return "Sent · HTML";
     if (playKey === "wip") return playableInHtml(t) ? "WIP · HTML" : "WIP · Art";
     if (playKey === "revision") return playableInHtml(t) ? "Need Fixing · HTML" : "Need Fixing · Art";
     if (playKey === "clientart") return "Sent · Art";
     return STATUS[playKey]?.label || STATUS[key]?.label || key;
   }
+  if (key === "new" || key === "quote") return "Ready to start";
   return STATUS[key]?.label || key;
 }
 function isExecView() {
@@ -4408,7 +4409,7 @@ function renderGuide() {
         <h3>Статуси</h3>
         <p class="guide-lead">Один наступний крок на картці. WIP / Check / Done — ті самі слова, що в MGX.</p>
         <div class="guide-status-grid">
-          ${statusCard("ready", "Ready", "Ready", "Хто: LP створила, назначила AD / DEV", "Картка в роботі. AD вставляє сторіборд і Send to LP — без своїх чіпів. DEV уже може сидіти, HTML починає після to DEV.")}
+          ${statusCard("ready", "Ready to start", "Ready to start", "Хто: LP створила, назначила AD / DEV", "Картка в роботі. AD вставляє сторіборд і Send to LP — без своїх чіпів. DEV уже може сидіти, HTML починає після to DEV.")}
           ${statusCard("wip", "WIP", "WIP · Art / WIP · HTML", "Хто: чий хід по чіпу", "WIP · Art — Юля малює. WIP · HTML — Богдан збирає. Один чіп, різні лейбли як у Monday.")}
           ${statusCard("check", "Check", "Check", "Хто: AD здав борд, далі LP", "Сторіборд готовий, лінк у картці. Тільки LP шле клієнту — це стає Sent.")}
           ${statusCard("fix", "Fix", "Need Fixing", "Хто: відбій клієнта", "Сторіборд — AD править, знову Check. HTML — DEV править, знову Done.")}
@@ -4422,10 +4423,10 @@ function renderGuide() {
       </div>
       <div class="guide-block">
         <h3>Пайплайн</h3>
-        <p class="guide-lead">Ready → WIP → Send to LP → Check → Sent · Art → Final art → to DEV → Send to LP → Done → Sent · HTML → Closed. Кожен тапає чіп статусу і бачить лише свій крок. Done, Need Fixing і to DEV — жест LP по чіпу.</p>
+        <p class="guide-lead">Ready to start → WIP → Send to LP → Check → Sent · Art → Final art → to DEV → Send to LP → Done → Sent · HTML → Closed. Кожен тапає чіп статусу і бачить лише свій крок. Done, Need Fixing і to DEV — жест LP по чіпу.</p>
         <ol class="guide-pipe">
-          ${pipeStep("1", "LP", "Line Producer", "Картка заходить", `${ui("Create task")} після апруву годин. Ставить AD і DEV одразу, години — на людей.`, "ready", "Ready")}
-          ${pipeStep("2", "AD", "Art Director", "Сторіборд", `Тап ${ui("Ready")} → ${ui("WIP")}. Лінк на борд → ${ui("Send to LP")} у футері або в чіпі. Статус стає ${ui("Check")}.`, "check", "Check")}
+          ${pipeStep("1", "LP", "Line Producer", "Картка заходить", `${ui("Create task")} після апруву годин. Ставить AD і DEV одразу, години — на людей.`, "ready", "Ready to start")}
+          ${pipeStep("2", "AD", "Art Director", "Сторіборд", `Тап ${ui("Ready to start")} → ${ui("WIP")}. Лінк на борд → ${ui("Send to LP")} у футері або в чіпі. Статус стає ${ui("Check")}.`, "check", "Check")}
           ${pipeStep("3", "LP", "Line Producer", "Шле борд", `${ui("Send to client")} з ${ui("Check")}. Статус стає ${ui("Sent · Art")}. Відбій → ${ui("Need Fixing")}. Апрув → ${ui("Final art")}.`, "sentart", "Sent · Art")}
           ${pipeStep("4", "AD", "Art Director", "Фінальний арт", `Доробляє арт → ${ui("Send to LP")}. Лише LP ставить ${ui("to DEV")} з чіпа.`, "artok", "to DEV")}
           ${pipeStep("5", "DEV", "Programmer", "Бере HTML", `Після ${ui("to DEV")} тап → ${ui("WIP · HTML")}, вставляє лінк. Поки арт іде — лінк уже можна зберегти.`, "wip", "WIP")}
@@ -4471,7 +4472,7 @@ function renderGuide() {
         <h3>Статуси</h3>
         <p class="guide-lead">Один чіп на проєкт. Читай зверху вниз: що означає і хто з ним працює.</p>
         <div class="guide-status-grid">
-          ${statusCard("ready", "Ready", "Ready to Start", "Хто: LP створює, TL назначає", "Таск щойно створили. Після призначення людини статус лишається Ready — WIP ставить сам MD.")}
+          ${statusCard("ready", "Ready to start", "Ready to start", "Хто: LP створює, TL назначає", "Таск щойно створили. Після призначення людини статус лишається Ready to start — WIP ставить сам MD.")}
           ${statusCard("wip", "WIP", "WIP", "Хто: MD", "Виконавець почав роботу. Файл ще не зданий.")}
           ${statusCard("fix", "Fix", "Need Fixing", "Хто: MD править", "TL, LP або клієнт відбили. Не TL Check — треба правка, потім знову здати.")}
           ${statusCard("tlcheck", "TL chk", "TL Check", "Хто: MD здав, далі TL", "Лінк результату в картці. MD не ставить Done. TL перевіряє: Need Fixing або Done.")}
@@ -4484,8 +4485,8 @@ function renderGuide() {
         <h3>Пайплайн</h3>
         <p class="guide-lead">П’ять кроків підряд. Кожен крок змінює чіп справа.</p>
         <ol class="guide-pipe">
-          ${pipeStep("1", "LP", "Line Producer", "Таск заходить", `${ui("Create task")} або ${ui("Shift email")}. Статус одразу ${ui("Ready to Start")}.`, "ready", "Ready")}
-          ${pipeStep("2", "TL", "Team Lead", "Ставить виконавця", `${ui("Who works this")} пише одразу. Статус лишається Ready.`, "ready", "Ready")}
+          ${pipeStep("1", "LP", "Line Producer", "Таск заходить", `${ui("Create task")} або ${ui("Shift email")}. Статус одразу ${ui("Ready to start")}.`, "ready", "Ready to start")}
+          ${pipeStep("2", "TL", "Team Lead", "Ставить виконавця", `${ui("Who works this")} пише одразу. Статус лишається Ready to start.`, "ready", "Ready to start")}
           ${pipeStep("3", "MD", "Motion design", "Починає і здає", `${ui("WIP")} пише одразу. Потім лінк і ${ui("TL Check")} — теж одразу, без ${ui("Save")}. Не ${ui("Done")}. Після здачі WIP зникає.`, "tlcheck", "TL chk")}
           ${pipeStep("4", "TL", "Team Lead", "Перевіряє", `Після ${ui("TL Check")} TL ставить ${ui("Done")} або ${ui("Need Fixing")}. Відбій одразу пише MD.`, "done", "Done")}
           ${pipeStep("5", "LP", "Line Producer", "Відправляє клієнту", `${ui("Send to client")} лише з ${ui("Done")} + лінк. Це ${ui("Appr.")}.`, "appr", "Appr.")}
@@ -4773,7 +4774,7 @@ function statusMark(t) {
   return (
     {
       quote: { cls: "quote", label: "Quote", title },
-      new: { cls: "ready", label: "Ready", title },
+      new: { cls: "ready", label: "Ready to start", title },
       wip: { cls: html ? "htmlwip" : "wip", label: isPlayables(t) ? (html ? "WIP · HTML" : "WIP · Art") : "WIP", title },
       revision: { cls: html ? "htmlfix" : "fix", label: isPlayables(t) ? (html ? "Fix · HTML" : "Fix · Art") : "Fix", title },
       tlcheck: { cls: "tlcheck", label: "TL chk", title },
@@ -4787,7 +4788,7 @@ function statusMark(t) {
       storyboard: { cls: "check", label: "Check", title },
       build: { cls: "artok", label: "to DEV", title },
       htmlready: { cls: "done", label: "Done", title },
-    }[key] || { cls: "ready", label: "Ready", title: STATUS.new.label }
+    }[key] || { cls: "ready", label: "Ready to start", title: STATUS.new.label }
   );
 }
 function excelStatus(t) {

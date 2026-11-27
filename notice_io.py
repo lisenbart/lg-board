@@ -133,7 +133,7 @@ KINDS = {
 KEEP = 400
 STATUS_LOG_KEEP = 12
 STATUS_LABELS = {
-    "new": "Ready to Start",
+    "new": "Ready to start",
     "wip": "WIP",
     "revision": "Need Fixing",
     "tlcheck": "TL Check",
@@ -149,7 +149,7 @@ PLAY_STATUS_LABELS = {
     **STATUS_LABELS,
     "approve": "Sent · HTML",
     "clientart": "Sent · Art",
-    "new": "Ready",
+    "new": "Ready to start",
 }
 WIP_REVERT_FROM = {"tlcheck", "done", "approve", "check", "artready", "clientart", "finalart"}
 

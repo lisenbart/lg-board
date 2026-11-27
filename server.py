@@ -33,7 +33,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-11-27c"
+BUILD = "2026-11-27d"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -3004,7 +3004,7 @@ class Handler(SimpleHTTPRequestHandler):
                     "urgent": False,
                     "month": ym,
                     "studioStatus": "new",
-                    "mondayStatus": "Ready" if direction == direction_io.PLAYABLES else "Ready to Start",
+                    "mondayStatus": "Ready to start",
                     "assigneeId": "",
                     "assigneeHours": 0,
                     "programmerId": "",
@@ -3219,7 +3219,7 @@ class Handler(SimpleHTTPRequestHandler):
                         "urgent": False,
                         "month": ym,
                         "studioStatus": "new",
-                        "mondayStatus": "Ready" if dept == direction_io.PLAYABLES else "Ready to Start",
+                        "mondayStatus": "Ready to start",
                         "assigneeId": "",
                         "assigneeHours": 0,
                         "programmerId": "",
@@ -3666,7 +3666,7 @@ class Handler(SimpleHTTPRequestHandler):
                 elif nxt == "done":
                     task["mondayStatus"] = "Done"
                 elif nxt == "new":
-                    task["mondayStatus"] = "Ready to Start"
+                    task["mondayStatus"] = "Ready to start"
                 direction_io.touch_link_stamps(
                     task,
                     before,

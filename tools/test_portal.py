@@ -2219,8 +2219,15 @@ def test_playable_card_pipeline() -> None:
         and 'if (playKey === "approve") return "Sent · HTML"' in js
         and 'clientart: { cls: "sentart", label: "Sent · Art"' in js
         and 'label: isPlayables(t) ? "Sent · HTML"' in js
-        and ".status-sentart { background: #a78bfa; }" in css
-        and ".status-senthtml { background: #66ccff; }" in css,
+        and ".status-sentart { background: #8550d1; }" in css
+        and ".status-senthtml { background: #3d9b9b; }" in css,
+    )
+    check(
+        "Ready to start uses Monday orange",
+        'if (playKey === "new") return "Ready to start"' in js
+        and 'new: { label: "Ready to start", cls: "status-new"' in js
+        and ".status-new { background: #d2723b; }" in css
+        and 'label: "Ready to start"' in js.split("function statusMark")[1].split("function excelStatus")[0],
     )
     check("rows mark your turn vs waiting", "function isActiveForMe" in js and "is-turn" in js and "is-wait" in js)
     check(
