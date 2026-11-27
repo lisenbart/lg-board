@@ -2354,6 +2354,78 @@ def test_playable_card_pipeline() -> None:
         "resultUrl": "https://play.example/v1",
     }
     check("HTML Check with playable is sendable", server.is_sendable(html_check) and direction_io.playable_in_html(html_check))
+    # Send to client from HTML Check must land on Sent · HTML, not Sent · Art.
+    html_send = {
+        "direction": "playables",
+        "studioStatus": "check",
+        "playableHtml": True,
+        "storyboardUrl": "https://miro.com/app/board/zeus",
+        "htmlUrl": "https://play.example/zeus",
+        "resultUrl": "https://play.example/zeus",
+        "programmerId": "programmer1",
+    }
+    direction_io.touch_playable_html(html_send)
+    check("HTML Check Send is sendable", server.is_sendable(html_send))
+    # Simulate /api/export-monday branch
+    if direction_io.playable_norm_status(html_send.get("studioStatus")) == "check" and not direction_io.playable_in_html(html_send):
+        html_send["studioStatus"] = "clientart"
+    else:
+        html_send["studioStatus"] = "approve"
+        html_send["mondayStatus"] = direction_io.PLAY_STATUS["approve"]
+        html_send["playableHtml"] = True
+    check(
+        "HTML Check Send becomes Sent · HTML",
+        html_send["studioStatus"] == "approve" and html_send["mondayStatus"] == "Sent · HTML",
+        str(html_send.get("studioStatus")),
+    )
+    art_send = {
+        "direction": "playables",
+        "studioStatus": "check",
+        "storyboardUrl": "https://miro.com/app/board/zeus",
+        "resultUrl": "https://miro.com/app/board/zeus",
+        "assigneeId": "artdir1",
+    }
+    direction_io.touch_playable_html(art_send)
+    if direction_io.playable_norm_status(art_send.get("studioStatus")) == "check" and not direction_io.playable_in_html(art_send):
+        art_send["studioStatus"] = "clientart"
+        art_send["mondayStatus"] = direction_io.PLAY_STATUS["clientart"]
+    else:
+        art_send["studioStatus"] = "approve"
+    check(
+        "Art Check Send stays Sent · Art",
+        art_send["studioStatus"] == "clientart" and art_send["mondayStatus"] == "Sent · Art",
+        str(art_send.get("studioStatus")),
+    )
+    stuck = {
+        "direction": "playables",
+        "studioStatus": "clientart",
+        "mondayStatus": "Client art",
+        "storyboardUrl": "https://miro.com/app/board/zeus",
+        "htmlUrl": "https://play.example/zeus",
+        "assigneeId": "artdir1",
+        "programmerId": "programmer1",
+    }
+    healed = {"people": [], "tasks": [stuck], "meta": {}}
+    direction_io.ensure_crew(healed)
+    check(
+        "clientart with HTML heals to Sent · HTML",
+        stuck["studioStatus"] == "approve" and stuck["mondayStatus"] == "Sent · HTML" and stuck.get("playableHtml") is True,
+        str({k: stuck.get(k) for k in ("studioStatus", "mondayStatus", "playableHtml")}),
+    )
+    art_only = {
+        "direction": "playables",
+        "studioStatus": "clientart",
+        "mondayStatus": "Client art",
+        "storyboardUrl": "https://miro.com/app/board/art-only",
+        "resultUrl": "https://miro.com/app/board/art-only",
+        "assigneeId": "artdir1",
+    }
+    direction_io.ensure_crew({"people": [], "tasks": [art_only], "meta": {}})
+    check(
+        "clientart without HTML stays Sent · Art",
+        art_only["studioStatus"] == "clientart" and art_only["mondayStatus"] == "Sent · Art",
+        str({k: art_only.get(k) for k in ("studioStatus", "mondayStatus")}),
+    )
     art = {"studioStatus": "artready", "assigneeId": "artdir1", "programmerId": "programmer1", "resultUrl": "https://board.example/story"}
     direction_io.touch_playable_html(art)
     check("Art ready locks the HTML loop", art.get("playableHtml") is True)

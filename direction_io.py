@@ -928,4 +928,23 @@ def ensure_crew(db: dict) -> bool:
         touch_playable_html(task)
         if bool(task.get("playableHtml")) != before_html:
             dirty = True
+        # Heal: HTML already on the card but stuck on Sent · Art (Send from HTML Check).
+        if nxt == "clientart" and playable_html_url(task):
+            task["studioStatus"] = "approve"
+            task["mondayStatus"] = PLAY_STATUS["approve"]
+            task["playableHtml"] = True
+            dirty = True
+        elif nxt == "approve":
+            wanted_html = PLAY_STATUS["approve"]
+            if str(task.get("mondayStatus") or "") in {"Send", "Client art", "Sent", "Sent · Art"}:
+                task["mondayStatus"] = wanted_html
+                dirty = True
+            if not task.get("playableHtml"):
+                task["playableHtml"] = True
+                dirty = True
+        elif nxt == "clientart":
+            wanted_art = PLAY_STATUS["clientart"]
+            if str(task.get("mondayStatus") or "") in {"Client art", "Sent", "Send"}:
+                task["mondayStatus"] = wanted_art
+                dirty = True
     return dirty
