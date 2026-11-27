@@ -5188,7 +5188,7 @@ function playableNextStatuses(role, t) {
   }
   if (role === "designer") {
     if (!playableMdPending(t)) return [];
-    if (st === "revision") return ["wip"];
+    if (st === "revision" || st === "new") return ["wip"];
     return [];
   }
   if (role === "programmer") {
@@ -5497,6 +5497,29 @@ async function pickStatusFromPop(t, key, opts) {
   }
   const hand = handoffStatus(t);
   const isHand = key === "notify" || (Boolean(hand) && key === hand);
+  const toDev = isHand && handoffLabel(t) === "Send to DEV";
+  if (toDev) {
+    const seq = hrefOf($("stSequence")?.value || t.sequenceUrl || "");
+    if (!seq) {
+      toast("Paste the sequence link, then Send to DEV");
+      return;
+    }
+    if (state.openId === t.id && typeof state.commitCard === "function") {
+      state.commitCard({ fromChip: true, status: key, handed: false, sequenceUrl: seq });
+      return;
+    }
+    await updateTask(
+      t.id,
+      {
+        studioStatus: key,
+        sequenceUrl: seq,
+        role: me().role,
+        note: `${me().name} sent the sequence to DEV`,
+      },
+      { toast: "Sent to DEV" },
+    );
+    return;
+  }
   if (isHand && !popHasLink(t)) {
     toast(handoffLabel(t) === "Send to TL" ? "Paste the link, then Send to TL" : "Paste the link, then Send to LP");
     return;

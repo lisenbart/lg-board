@@ -55,6 +55,15 @@
       skipActor: true,
       channels: ["portal"],
     },
+    "task.sequence": {
+      label: "Sequence in",
+      title: "{name}",
+      detail: "Sequence ready · insert into HTML",
+      mark: "done",
+      audience: { roles: ["manager"] },
+      skipActor: true,
+      channels: ["portal"],
+    },
     "task.finalart": {
       label: "to DEV",
       title: "{name}",
@@ -156,6 +165,7 @@
     if (rule.assignee && task) {
       add(task.assigneeId);
       add(task.programmerId);
+      add(task.motionId);
     }
     for (const pid of rule.person_ids || []) add(pid);
     return spec.skipActor ? ids.filter((id) => id !== actorId) : ids;
@@ -264,10 +274,30 @@
     if (newP && newP !== oldP) {
       emit(db, "task.assigned", { actorId, task, payload: { from: oldP, to: newP } });
     }
+    const oldM = prev.motionId || "";
+    const newM = task.motionId || "";
+    if (newM && newM !== oldM) {
+      emit(db, "task.assigned", { actorId, task, payload: { from: oldM, to: newM } });
+    }
     if (newS && newS !== oldS) {
       if (newS === "revision") emit(db, "task.revision", { actorId, task });
       if (newS === "tlcheck") emit(db, "task.tlcheck", { actorId, task });
-      if (newS === "check") emit(db, "task.check", { actorId, task });
+      if (newS === "check") {
+        const mdHand =
+          task.motionId &&
+          task.motionId === actorId &&
+          task.playableHtml &&
+          !prev.sequenceReady;
+        if (mdHand) {
+          emit(db, "task.sequence", {
+            actorId,
+            task,
+            audienceIds: task.programmerId ? [task.programmerId] : undefined,
+          });
+        } else {
+          emit(db, "task.check", { actorId, task });
+        }
+      }
       if (newS === "artready") emit(db, "task.artready", { actorId, task, audienceIds: [task.programmerId] });
       if (newS === "done") {
         emit(db, "task.ready", { actorId, task });

@@ -1863,6 +1863,22 @@ def test_playables_desk() -> None:
             and 'if ($("stSequence") && canPasteSequence(t))' in js
             and "sequenceUpdatedAt" in Path("direction_io.py").read_text(encoding="utf-8"),
         )
+        check(
+            "MD Send to DEV from status pop does not mark handed to LP",
+            'const toDev = isHand && handoffLabel(t) === "Send to DEV"' in js
+            and "handed: false, sequenceUrl: seq" in js.split("function pickStatusFromPop")[1].split("function openStatusPop")[0],
+        )
+        check(
+            "MD seat and sequence notices are wired",
+            '"task.sequence"' in Path("notice_io.py").read_text(encoding="utf-8")
+            and "new_motion = task.get(\"motionId\")" in Path("notice_io.py").read_text(encoding="utf-8")
+            and "playable_md_pending(task)" in Path("direction_io.py").read_text(encoding="utf-8").split("def playable_work_ids")[1].split("def playable_crew_ids")[0],
+        )
+        check(
+            "card status pills are not forced full width",
+            ".status-cancelled {\n  justify-content: center;" in css
+            and ".status-cancelled {\n  width: 100%;" not in css,
+        )
         with tempfile.TemporaryDirectory() as raw:
             path = Path(raw) / "pl.xlsx"
             shutil.copy(playables_io.XLSX_PATH, path)
@@ -2102,6 +2118,11 @@ def test_playable_card_pipeline() -> None:
     check("DEV waits while MD pending", not direction_io.playable_part_open(md_fix, "programmer", "programmer1"))
     check("MD can WIP from HTML fix", direction_io.playable_next_statuses("designer", md_fix) == ["wip"])
     check("DEV has no WIP while MD pending", direction_io.playable_next_statuses("programmer", md_fix) == [])
+    check(
+        "MD pending work ping is the MD not DEV",
+        direction_io.playable_work_ids(md_fix) == ["designer1"],
+        str(direction_io.playable_work_ids(md_fix)),
+    )
     md_wip = {**md_fix, "studioStatus": "wip"}
     ok_md, err_md = direction_io.playable_can_set("designer", md_wip, "check", actor_id="designer1")
     check("MD Send to DEV needs sequence link", not ok_md and "sequence" in err_md.lower(), err_md)
@@ -2113,6 +2134,11 @@ def test_playable_card_pipeline() -> None:
     md_wip["studioStatus"] = "check"
     check("after MD handoff DEV owns turn", direction_io.playable_turn_role(md_wip) == "programmer")
     check("after MD handoff MD not pending", direction_io.playable_md_pending(md_wip) is False)
+    check(
+        "crew includes MD when seated",
+        "designer1" in direction_io.playable_crew_ids(md_wip),
+        str(direction_io.playable_crew_ids(md_wip)),
+    )
 
     ad["studioStatus"] = "check"
     ad["handedToLp"] = False
@@ -2864,7 +2890,7 @@ def test_playable_team_scenarios() -> None:
     apply(board, t, anna, status="check", handed=True)
     check("fixed board is back at LP Check", turn(t) == "manager" and server.is_sendable(t))
 
-    # --- Client bounces the HTML
+    # --- Client bounces the HTML (no MD)
     board = db()
     t = card(
         studioStatus="approve",
@@ -2882,6 +2908,40 @@ def test_playable_team_scenarios() -> None:
     check("fixed HTML is LP again", turn(t) == "manager")
     apply(board, t, lp, status="done")
     check("LP can Send the fixed HTML", server.is_sendable(t))
+
+    # --- HTML bounce with MD seated: MD owns the fix and Send to DEV
+    serg = "designer1"
+    board = db()
+    board["people"].append({"id": serg, "role": "designer", "name": "Сергій", "directions": ["playables"]})
+    t = card(
+        studioStatus="approve",
+        playableHtml=True,
+        storyboardUrl="https://miro.com/app/board/zeus",
+        resultUrl="https://play.example/zeus-v1",
+        motionId=serg,
+        motionHours=2.5,
+        sequenceReady=True,
+        sequenceUrl="https://seq.example/old",
+    )
+    before_seat = {
+        "studioStatus": t["studioStatus"],
+        "assigneeId": t["assigneeId"],
+        "programmerId": t["programmerId"],
+        "playableHtml": t["playableHtml"],
+        "motionId": "",
+    }
+    notice_io.on_task_change(board, t, before_seat, lp, handed=False)
+    check("seating MD pings MD", serg in audience(board, "task.assigned"), str(audience(board, "task.assigned")))
+    apply(board, t, lp, status="revision")
+    check("HTML+MD bounce is Сергій", turn(t) == "designer" and direction_io.playable_md_pending(t))
+    check("HTML+MD bounce pings Сергій not Bohdan", audience(board, "task.revision") == [serg], str(audience(board, "task.revision")))
+    check("HTML+MD bounce cleared sequence", t.get("sequenceUrl") == "" and t.get("sequenceReady") is False)
+    apply(board, t, serg, status="wip")
+    t["sequenceUrl"] = "https://drive.google.com/open?id=seq-new"
+    apply(board, t, serg, status="check")
+    check("MD Send to DEV unlocks Bohdan", turn(t) == "programmer" and t.get("sequenceReady") is True)
+    check("MD Send to DEV pings Bohdan", audience(board, "task.sequence") == [bohdan], str(audience(board, "task.sequence")))
+    check("MD Send to DEV keeps sequence link", t.get("sequenceUrl") == "https://drive.google.com/open?id=seq-new")
 
     # --- Client bounces HTML back to art
     board = db()

@@ -65,6 +65,15 @@ KINDS = {
         "skip_actor": True,
         "channels": ["portal"],
     },
+    "task.sequence": {
+        "label": "Sequence in",
+        "title": "{name}",
+        "detail": "Sequence ready · insert into HTML",
+        "mark": "done",
+        "audience": {"roles": ["manager"]},
+        "skip_actor": True,
+        "channels": ["portal"],
+    },
     "task.finalart": {
         "label": "to DEV",
         "title": "{name}",
@@ -194,6 +203,7 @@ def resolve_audience(db: dict, spec: dict, task: dict | None, actor_id: str) -> 
     if audience_spec.get("assignee") and task:
         add(task.get("assigneeId"))
         add(task.get("programmerId"))
+        add(task.get("motionId"))
     for pid in audience_spec.get("person_ids") or []:
         add(pid)
     if spec.get("skip_actor"):
@@ -384,6 +394,16 @@ def on_task_change(db: dict, task: dict, before: dict | None, actor_id: str = ""
             task=task,
             payload={"from": old_prog, "to": new_prog},
         )
+    old_motion = before.get("motionId") or ""
+    new_motion = task.get("motionId") or ""
+    if new_motion and new_motion != old_motion:
+        emit(
+            db,
+            "task.assigned",
+            actor_id=actor_id,
+            task=task,
+            payload={"from": old_motion, "to": new_motion},
+        )
     bounced_art = (
         new_status == "revision"
         and task.get("playableHtml") is False
@@ -405,21 +425,32 @@ def on_task_change(db: dict, task: dict, before: dict | None, actor_id: str = ""
 
         stamp_status(db, task, old_status, new_status, actor_id)
         if new_status == "revision":
-            emit(db, "task.revision", actor_id=actor_id, task=task, audience_ids=playable_ping_ids("task.revision"))
+            # Clear sequence first so playable_work_ids routes the ping to MD when seated.
             if direction_io.is_playables(task) and direction_io.playable_in_html(task):
                 direction_io.clear_playable_sequence_ready(task)
                 task["sequenceUrl"] = ""
+            emit(db, "task.revision", actor_id=actor_id, task=task, audience_ids=playable_ping_ids("task.revision"))
         elif new_status == "tlcheck":
             emit(db, "task.tlcheck", actor_id=actor_id, task=task)
         elif new_status == "check":
-            emit(db, "task.check", actor_id=actor_id, task=task)
-            if (
+            md_hand = (
                 direction_io.is_playables(task)
                 and direction_io.playable_in_html(task)
                 and direction_io.playable_motion_id(task) == str(actor_id or "")
                 and not before.get("sequenceReady")
-            ):
+            )
+            if md_hand:
                 direction_io.mark_playable_sequence_ready(task)
+                dev = str(task.get("programmerId") or "").strip()
+                emit(
+                    db,
+                    "task.sequence",
+                    actor_id=actor_id,
+                    task=task,
+                    audience_ids=[dev] if dev else None,
+                )
+            else:
+                emit(db, "task.check", actor_id=actor_id, task=task)
         elif new_status == "artready":
             emit(db, "task.artready", actor_id=actor_id, task=task, audience_ids=playable_ping_ids("task.artready"))
         elif new_status == "done":

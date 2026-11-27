@@ -355,8 +355,11 @@ def _status_before(task: dict, st: str) -> str:
 
 
 def playable_work_ids(task: dict | None) -> list[str]:
-    """Who works this loop: AD on art, DEV on HTML."""
+    """Who works this loop: MD while sequence pending, else AD on art / DEV on HTML."""
     task = task or {}
+    if playable_md_pending(task):
+        mid = playable_motion_id(task)
+        return [mid] if mid else []
     if playable_in_html(task):
         pid = str(task.get("programmerId") or "").strip()
         return [pid] if pid else []
@@ -368,7 +371,7 @@ def playable_work_ids(task: dict | None) -> list[str]:
 
 
 def playable_crew_ids(task: dict | None) -> list[str]:
-    """AD and DEV seated on the card."""
+    """AD, DEV, and MD seated on the card."""
     task = task or {}
     ids: list[str] = []
     if playable_has_ad(task):
@@ -378,6 +381,9 @@ def playable_crew_ids(task: dict | None) -> list[str]:
     pid = str(task.get("programmerId") or "").strip()
     if pid and pid not in ids:
         ids.append(pid)
+    mid = playable_motion_id(task)
+    if mid and mid not in ids:
+        ids.append(mid)
     return ids
 
 
@@ -742,7 +748,7 @@ def playable_next_statuses(role: str, task: dict | None) -> list[str]:
     if role == "designer":
         if not playable_md_pending(task):
             return []
-        if st == "revision":
+        if st in {"revision", "new"}:
             return ["wip"]
         return []
     if role == "programmer":
