@@ -1469,7 +1469,10 @@ function statusText(key, t) {
     const playKey = playableStatusKey({ studioStatus: key, department: t.department, direction: t.direction });
     if (playKey === "new") return "Ready to Start";
     if (playKey === "approve") return "Sent · HTML";
-    if (playKey === "wip") return playableInHtml(t) ? "WIP · HTML" : "WIP · Art";
+    if (playKey === "wip") {
+      if (playableMdPending(t)) return "WIP · MD";
+      return playableInHtml(t) ? "WIP · HTML" : "WIP · Art";
+    }
     if (playKey === "revision") return playableInHtml(t) ? "Need Fixing · HTML" : "Need Fixing · Art";
     if (playKey === "clientart") return "Sent · Art";
     return STATUS[playKey]?.label || STATUS[key]?.label || key;
@@ -4506,7 +4509,7 @@ function renderGuide() {
         <p class="guide-lead">Один наступний крок на картці. WIP / Check / Done — ті самі слова, що в MGX.</p>
         <div class="guide-status-grid">
           ${statusCard("ready", "Ready to Start", "Ready to Start", "Хто: LP створила, назначила AD / DEV", "Картка в роботі. AD вставляє сторіборд і Send to LP — без своїх чіпів. DEV уже може сидіти, HTML починає після to DEV.")}
-          ${statusCard("wip", "WIP", "WIP · Art / WIP · HTML", "Хто: чий хід по чіпу", "WIP · Art — Юля малює. WIP · HTML — Богдан збирає. Один чіп, різні лейбли як у Monday.")}
+          ${statusCard("wip", "WIP", "WIP · Art / WIP · MD / WIP · HTML", "Хто: чий хід по чіпу", "WIP · Art — AD. WIP · MD — Сергій робить сіквенцію. WIP · HTML — Богдан збирає. Один статус wip, різні лейбли.")}
           ${statusCard("check", "Check", "Check", "Хто: AD здав борд, далі LP", "Сторіборд готовий, лінк у картці. Тільки LP шле клієнту — це стає Sent.")}
           ${statusCard("fix", "Fix", "Need Fixing", "Хто: відбій клієнта", "Сторіборд — AD править, знову Check. HTML — DEV править, знову Done.")}
           ${statusCard("sentart", "Sent · Art", "Sent · Art", "Хто: чекаємо клієнта по борду", "LP відправила сторіборд. Відбили → Need Fixing. Прийняли → LP ставить Final art.")}
@@ -4876,7 +4879,17 @@ function statusMark(t) {
     {
       quote: { cls: "quote", label: "Quote", title },
       new: { cls: "ready", label: "Ready to Start", title },
-      wip: { cls: html ? "htmlwip" : "wip", label: isPlayables(t) ? (html ? "WIP · HTML" : "WIP · Art") : "WIP", title },
+      wip: {
+        cls: isPlayables(t) && playableMdPending(t) ? "mdwip" : html ? "htmlwip" : "wip",
+        label: isPlayables(t)
+          ? playableMdPending(t)
+            ? "WIP · MD"
+            : html
+              ? "WIP · HTML"
+              : "WIP · Art"
+          : "WIP",
+        title,
+      },
       revision: { cls: html ? "htmlfix" : "fix", label: isPlayables(t) ? (html ? "Fix · HTML" : "Fix · Art") : "Fix", title },
       tlcheck: { cls: "tlcheck", label: "TL chk", title },
       check: { cls: "check", label: isPlayables(t) ? (html ? "Check · HTML" : "Check") : "Check", title },
@@ -4905,6 +4918,7 @@ function statusPillClass(t) {
   const key = isPlayables(t) ? playableStatusKey(t) : t.studioStatus || "new";
   if (isPlayables(t) && key === "approve") return "status-senthtml";
   if (isPlayables(t) && key === "clientart") return "status-sentart";
+  if (isPlayables(t) && key === "wip" && playableMdPending(t)) return "status-mdwip";
   if (isPlayables(t) && playableInHtml(t) && key === "wip") return "status-htmlwip";
   if (isPlayables(t) && playableInHtml(t) && key === "revision") return "status-htmlfix";
   return (STATUS[key] || STATUS.new).cls;

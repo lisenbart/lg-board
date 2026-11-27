@@ -2289,6 +2289,13 @@ def test_playable_card_pipeline() -> None:
     )
     check("Monday chips name Art vs HTML WIP", "WIP · Art" in js and "WIP · HTML" in js)
     check(
+        "MD WIP is labeled WIP · MD",
+        'return "WIP · MD"' in js
+        and "status-mdwip" in js
+        and ".status-mdwip { background: #65a30d; }" in css
+        and "playableMdPending(t)" in js.split("function statusText")[1].split("function isExecView")[0],
+    )
+    check(
         "board sort puts Sent after Check and Closed last",
         'clientart: { label: "Sent · Art", cls: "status-sentart", order: 8 }' in js
         and 'closed: { label: "Closed", cls: "status-closed", order: 10 }' in js

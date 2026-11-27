@@ -621,6 +621,7 @@ button.notice-chip.status-pop-btn:hover {
 .notice-ready { background: #ff793d; color: #fff; }
 .notice-wip { background: #4c8bf5; color: #fff; }
 .notice-htmlwip { background: #7b6cf0; color: #fff; }
+.notice-mdwip { background: #65a30d; color: #fff; }
 .notice-htmlfix { background: #d81b60; color: #fff; }
 .notice-mine { background: #00c875; color: #fff; }
 .notice-fix { background: #e53935; color: #fff; }
@@ -1326,6 +1327,7 @@ body.col-resizing * { cursor: col-resize !important; }
 .drawer .meta .status-new,
 .drawer .meta .status-wip,
 .drawer .meta .status-htmlwip,
+.drawer .meta .status-mdwip,
 .drawer .meta .status-htmlfix,
 .drawer .meta .status-revision,
 .drawer .meta .status-tlcheck,
@@ -2208,6 +2210,7 @@ body.col-resizing * { cursor: col-resize !important; }
 .status-btn.is-on.st-ready { background: #ff793d; color: #fff; border-color: #e5672f; }
 .status-btn.is-on.st-wip { background: #4c8bf5; color: #fff; border-color: #3b74d9; }
 .status-btn.is-on.st-htmlwip { background: #7b6cf0; color: #fff; border-color: #6557d4; }
+.status-btn.is-on.st-mdwip { background: #65a30d; color: #fff; border-color: #4d7c0f; }
 .status-btn.is-on.st-fix { background: #e53935; color: #fff; border-color: #c62828; }
 .status-btn.is-on.st-htmlfix { background: #d81b60; color: #fff; border-color: #ad1457; }
 .status-btn.is-on.st-tlcheck { background: #b39ddb; color: #fff; border-color: #9575cd; }
@@ -2567,6 +2570,7 @@ a.pack-work:hover { background: #e2e4ec; }
 .status-new,
 .status-wip,
 .status-htmlwip,
+.status-mdwip,
 .status-revision,
 .status-htmlfix,
 .status-tlcheck,
@@ -2592,6 +2596,7 @@ a.pack-work:hover { background: #e2e4ec; }
 .status-new { background: #ff793d; } /* Ready to Start */
 .status-wip { background: #4c8bf5; } /* WIP · Art */
 .status-htmlwip { background: #7b6cf0; } /* WIP · HTML */
+.status-mdwip { background: #65a30d; } /* WIP · MD */
 .status-revision { background: #e53935; } /* Need Fixing · Art */
 .status-htmlfix { background: #d81b60; } /* Need Fixing · HTML */
 .status-tlcheck { background: #b39ddb; } /* TL Check */
@@ -2764,6 +2769,7 @@ a.pack-work:hover { background: #e2e4ec; }
 .xl-table td.xl-st.st-ready { background: #ff793d; color: #fff; }
 .xl-table td.xl-st.st-wip { background: #4c8bf5; color: #fff; }
 .xl-table td.xl-st.st-htmlwip { background: #7b6cf0; color: #fff; }
+.xl-table td.xl-st.st-mdwip { background: #65a30d; color: #fff; }
 .xl-table td.xl-st.st-fix { background: #e53935; color: #fff; }
 .xl-table td.xl-st.st-htmlfix { background: #d81b60; color: #fff; }
 .xl-table td.xl-st.st-tlcheck { background: #b39ddb; color: #fff; }
@@ -3677,6 +3683,7 @@ html:not(.phone-ui):not(.standalone-app) .push-hint { display: none !important; 
   html:not(.hours-host) .drawer .meta .status-new,
   html:not(.hours-host) .drawer .meta .status-wip,
   html:not(.hours-host) .drawer .meta .status-htmlwip,
+  html:not(.hours-host) .drawer .meta .status-mdwip,
   html:not(.hours-host) .drawer .meta .status-htmlfix,
   html:not(.hours-host) .drawer .meta .status-revision,
   html:not(.hours-host) .drawer .meta .status-tlcheck,
