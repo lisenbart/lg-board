@@ -2322,7 +2322,7 @@ def test_playable_card_pipeline() -> None:
     )
     css_link = (ROOT / "public" / "assets" / "board.css").read_text(encoding="utf-8")
     check("Copy/Open stay on the link row", ".link-row {" in css_link and ".link-row-actions" in css_link)
-    check("to DEV chip is blue not Done green", ".status-todev { background: #3b82f6; }" in css_link)
+    check("to DEV chip is navy handoff not Done green", ".status-todev { background: #331784; }" in css_link)
     check(
         "Check chip is sky with diagonal stripes",
         ".status-check {" in css_link
