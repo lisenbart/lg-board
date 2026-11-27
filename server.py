@@ -33,7 +33,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-11-26y"
+BUILD = "2026-11-27a"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -3296,11 +3296,15 @@ class Handler(SimpleHTTPRequestHandler):
                     before = {"studioStatus": task.get("studioStatus"), "assigneeId": task.get("assigneeId")}
                     if direction_io.is_playables(task) and direction_io.playable_norm_status(task.get("studioStatus")) == "check":
                         task["studioStatus"] = "clientart"
-                        task["mondayStatus"] = "Client art"
-                        sent_as = "Client art"
+                        task["mondayStatus"] = direction_io.PLAY_STATUS["clientart"]
+                        sent_as = task["mondayStatus"]
                     else:
                         task["studioStatus"] = "approve"
-                        task["mondayStatus"] = "Send" if direction_io.is_playables(task) else "Senior Approval"
+                        task["mondayStatus"] = (
+                            direction_io.PLAY_STATUS["approve"]
+                            if direction_io.is_playables(task)
+                            else "Senior Approval"
+                        )
                         sent_as = task["mondayStatus"]
                     task.setdefault("activity", []).append(
                         {

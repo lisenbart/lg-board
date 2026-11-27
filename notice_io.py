@@ -141,9 +141,15 @@ STATUS_LABELS = {
     "approve": "Senior Approval",
     "closed": "Closed",
     "check": "Check",
-    "clientart": "Sent",
+    "clientart": "Sent · Art",
     "finalart": "Final art",
     "artready": "to DEV",
+}
+PLAY_STATUS_LABELS = {
+    **STATUS_LABELS,
+    "approve": "Sent · HTML",
+    "clientart": "Sent · Art",
+    "new": "Ready",
 }
 WIP_REVERT_FROM = {"tlcheck", "done", "approve", "check", "artready", "clientart", "finalart"}
 
@@ -331,13 +337,16 @@ def on_landed(db: dict, task: dict, actor_id: str = "", at: str | None = None, p
 
 def stamp_status(db: dict, task: dict, prev: str, nxt: str, actor_id: str = "", at: str | None = None) -> dict:
     """Who set which status, and when. Last write is the receipt on the card."""
+    import direction_io
+
+    labels = PLAY_STATUS_LABELS if direction_io.is_playables(task) else STATUS_LABELS
     row = {
         "at": at or utc_now(),
         "actorId": actor_id or "",
         "actorName": person_name(db, actor_id) or "Board",
         "from": str(prev or ""),
         "to": str(nxt or ""),
-        "label": STATUS_LABELS.get(str(nxt or ""), str(nxt or "")),
+        "label": labels.get(str(nxt or ""), str(nxt or "")),
     }
     task["statusAt"] = row["at"]
     task["statusBy"] = row["actorId"]

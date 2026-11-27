@@ -38,11 +38,11 @@ PLAY_STATUS = {
     "wip": "WIP",
     "check": "Check",
     "revision": "Need Fixing",
-    "clientart": "Client art",
+    "clientart": "Sent · Art",
     "finalart": "Final art",
     "artready": "to DEV",
     "done": "Done",
-    "approve": "Send",
+    "approve": "Sent · HTML",
     "closed": "Closed",
 }
 

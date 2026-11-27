@@ -2163,6 +2163,7 @@ def test_playable_card_pipeline() -> None:
     }
     check("DEV split is on the playable seat", direction_io.on_playable_seat(split, "programmer2"))
     js = (ROOT / "public" / "assets" / "app.js").read_text(encoding="utf-8")
+    css = (ROOT / "public" / "assets" / "board.css").read_text(encoding="utf-8")
     check("card uses next-step Playables statuses", "function playableNextStatuses" in js and "function playableStatusActions" in js)
     check("Playables assign is LP/DL", "function canAssignPlayable" in js and "play ? canAssignPlayable() : canAssign()" in js)
     check("LP seats DEV from Ready", "function canAssignPlayable" in js and "playable_may_assign_dev" in (ROOT / "direction_io.py").read_text(encoding="utf-8"))
@@ -2207,10 +2208,21 @@ def test_playable_card_pipeline() -> None:
     check("Monday chips name Art vs HTML WIP", "WIP · Art" in js and "WIP · HTML" in js)
     check(
         "board sort puts Sent after Check and Closed last",
-        'clientart: { label: "Sent", cls: "status-approve", order: 8 }' in js
+        'clientart: { label: "Sent · Art", cls: "status-sentart", order: 8 }' in js
         and 'closed: { label: "Closed", cls: "status-closed", order: 10 }' in js
         and 'check: { label: "Check", cls: "status-check", order: 4 }' in js
         and 'revision: { label: "Need Fixing", cls: "status-revision", order: 1 }' in js,
+    )
+    check(
+        "Sent Art and Sent HTML are distinct",
+        'if (playKey === "clientart") return "Sent · Art"' in js
+        and 'if (playKey === "approve") return "Sent · HTML"' in js
+        and 'clientart: { cls: "sentart", label: "Sent · Art"' in js
+        and 'label: isPlayables(t) ? "Sent · HTML"' in js
+        and "status-sentart" in css
+        and "status-senthtml" in css
+        and "background: #a78bfa" in css.split(".status-sentart")[1].split("}")[0]
+        and "background: #66ccff" in css.split(".status-senthtml")[1].split("}")[0],
     )
     check("rows mark your turn vs waiting", "function isActiveForMe" in js and "is-turn" in js and "is-wait" in js)
     check(

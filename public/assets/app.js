@@ -8,7 +8,7 @@ const STATUS = {
   done: { label: "Done", cls: "status-done", order: 7 },
   approve: { label: "Senior Approval", cls: "status-approve", order: 9 },
   closed: { label: "Closed", cls: "status-closed", order: 10 },
-  clientart: { label: "Sent", cls: "status-approve", order: 8 },
+  clientart: { label: "Sent · Art", cls: "status-sentart", order: 8 },
   finalart: { label: "Final art", cls: "status-revision", order: 5 },
   artready: { label: "to DEV", cls: "status-todev", order: 6 },
   storyboard: { label: "Check", cls: "status-check", order: 4 },
@@ -1456,7 +1456,7 @@ function statusText(key, t) {
     if (playKey === "approve") return "Sent · HTML";
     if (playKey === "wip") return playableInHtml(t) ? "WIP · HTML" : "WIP · Art";
     if (playKey === "revision") return playableInHtml(t) ? "Need Fixing · HTML" : "Need Fixing · Art";
-    if (playKey === "clientart") return "Sent";
+    if (playKey === "clientart") return "Sent · Art";
     return STATUS[playKey]?.label || STATUS[key]?.label || key;
   }
   return STATUS[key]?.label || key;
@@ -3515,7 +3515,7 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
     if (st === "artready") return { tone: "wait", title: "to DEV", body: "" };
     if (st === "done") return { tone: "wait", title: "Waiting for LP", body: "" };
     if (html) return { tone: "wait", title: "Waiting for DEV / LP", body: "" };
-    if (st === "clientart") return { tone: "wait", title: "Sent", body: "" };
+    if (st === "clientart") return { tone: "wait", title: "Sent · Art", body: "" };
     if (st === "check") {
       if (!playableAdDelivered(t)) {
         return { tone: "do", title: "Your job", body: "" };
@@ -3565,7 +3565,7 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
         : "Storyboard is in. Send to client, or tap to DEV so HTML can start.",
     };
   }
-  if (st === "clientart") return { tone: "wait", title: "Sent", body: "Waiting on the client. Need Fixing if they bounce it. Final art when they approve the board." };
+  if (st === "clientart") return { tone: "wait", title: "Sent · Art", body: "Waiting on the client. Need Fixing if they bounce it. Final art when they approve the board." };
   if (st === "artready") {
     if (!t.programmerId) {
       return { tone: "do", title: "Assign DEV", body: "" };
@@ -4410,25 +4410,25 @@ function renderGuide() {
           ${statusCard("wip", "WIP", "WIP · Art / WIP · HTML", "Хто: чий хід по чіпу", "WIP · Art — Юля малює. WIP · HTML — Богдан збирає. Один чіп, різні лейбли як у Monday.")}
           ${statusCard("check", "Check", "Check", "Хто: AD здав борд, далі LP", "Сторіборд готовий, лінк у картці. Тільки LP шле клієнту — це стає Sent.")}
           ${statusCard("fix", "Fix", "Need Fixing", "Хто: відбій клієнта", "Сторіборд — AD править, знову Check. HTML — DEV править, знову Done.")}
-          ${statusCard("sent", "Sent", "Sent", "Хто: чекаємо клієнта по борду", "LP відправила сторіборд. Відбили → Need Fixing. Прийняли → LP ставить Final art.")}
+          ${statusCard("sentart", "Sent · Art", "Sent · Art", "Хто: чекаємо клієнта по борду", "LP відправила сторіборд. Відбили → Need Fixing. Прийняли → LP ставить Final art.")}
           ${statusCard("final", "Final", "Final art", "Хто: AD робить, LP ставить чіп", "Клієнт прийняв борд. AD фіналізує арт і Send to LP. Лише LP ставить to DEV.")}
           ${statusCard("artok", "to DEV", "to DEV", "Хто: LP після здачі арту, далі DEV", "LP поставила to DEV. DEV вставляє HTML і Send to LP.")}
           ${statusCard("done", "Done", "Done", "Хто: лише LP", "DEV здав HTML через Send to LP. Лише LP ставить Done, Need Fixing або шле клієнту.")}
-          ${statusCard("send", "Send", "Send", "Хто: чекаємо клієнта по HTML", "LP натиснула Send to client. Відбили → Need Fixing. Прийняли → Closed.")}
+          ${statusCard("senthtml", "Sent · HTML", "Sent · HTML", "Хто: чекаємо клієнта по HTML", "LP натиснула Send to client. Відбили → Need Fixing. Прийняли → Closed.")}
           ${statusCard("closed", "Closed", "Closed", "Хто: LP", "Клієнт прийняв. Години лишаються.")}
         </div>
       </div>
       <div class="guide-block">
         <h3>Пайплайн</h3>
-        <p class="guide-lead">Ready → WIP → Send to LP → Check → Sent → Final art → to DEV → Send to LP → Done → Send → Closed. Кожен тапає чіп статусу і бачить лише свій крок. Done, Need Fixing і to DEV — жест LP по чіпу.</p>
+        <p class="guide-lead">Ready → WIP → Send to LP → Check → Sent · Art → Final art → to DEV → Send to LP → Done → Sent · HTML → Closed. Кожен тапає чіп статусу і бачить лише свій крок. Done, Need Fixing і to DEV — жест LP по чіпу.</p>
         <ol class="guide-pipe">
           ${pipeStep("1", "LP", "Line Producer", "Картка заходить", `${ui("Create task")} після апруву годин. Ставить AD і DEV одразу, години — на людей.`, "ready", "Ready")}
           ${pipeStep("2", "AD", "Art Director", "Сторіборд", `Тап ${ui("Ready")} → ${ui("WIP")}. Лінк на борд → ${ui("Send to LP")} у футері або в чіпі. Статус стає ${ui("Check")}.`, "check", "Check")}
-          ${pipeStep("3", "LP", "Line Producer", "Шле борд", `${ui("Send to client")} з ${ui("Check")}. Статус стає ${ui("Sent")}. Відбій → ${ui("Need Fixing")}. Апрув → ${ui("Final art")}.`, "sent", "Sent")}
+          ${pipeStep("3", "LP", "Line Producer", "Шле борд", `${ui("Send to client")} з ${ui("Check")}. Статус стає ${ui("Sent · Art")}. Відбій → ${ui("Need Fixing")}. Апрув → ${ui("Final art")}.`, "sentart", "Sent · Art")}
           ${pipeStep("4", "AD", "Art Director", "Фінальний арт", `Доробляє арт → ${ui("Send to LP")}. Лише LP ставить ${ui("to DEV")} з чіпа.`, "artok", "to DEV")}
           ${pipeStep("5", "DEV", "Programmer", "Бере HTML", `Після ${ui("to DEV")} тап → ${ui("WIP · HTML")}, вставляє лінк. Поки арт іде — лінк уже можна зберегти.`, "wip", "WIP")}
           ${pipeStep("6", "DEV", "Programmer", "Здає HTML", `Лінк у ${ui("HTML")}, потім ${ui("Send to LP")}. Done не ставить DEV.`, "done", "Done")}
-          ${pipeStep("7", "LP", "Line Producer", "Продовжує картку", `Тап по чіпу статусу: ${ui("Done")}, ${ui("Need Fixing")}, ${ui("to DEV")}. ${ui("Send to client")} з ${ui("Done")} + лінк, або одразу ${ui("Closed")}.`, "send", "Send")}
+          ${pipeStep("7", "LP", "Line Producer", "Продовжує картку", `Тап по чіпу статусу: ${ui("Done")}, ${ui("Need Fixing")}, ${ui("to DEV")}. ${ui("Send to client")} з ${ui("Done")} + лінк → ${ui("Sent · HTML")}, або одразу ${ui("Closed")}.`, "senthtml", "Sent · HTML")}
         </ol>
       </div>
       <div class="guide-grid">
@@ -4777,9 +4777,9 @@ function statusMark(t) {
       tlcheck: { cls: "tlcheck", label: "TL chk", title },
       check: { cls: "check", label: isPlayables(t) ? (html ? "Check · HTML" : "Check") : "Check", title },
       done: { cls: "done", label: "Done", title },
-      approve: { cls: isPlayables(t) ? "send" : "appr", label: isPlayables(t) ? "Send" : "Appr.", title },
+      approve: { cls: isPlayables(t) ? "senthtml" : "appr", label: isPlayables(t) ? "Sent · HTML" : "Appr.", title },
       closed: { cls: "closed", label: "Closed", title },
-      clientart: { cls: "sent", label: "Sent", title },
+      clientart: { cls: "sentart", label: "Sent · Art", title },
       finalart: { cls: "final", label: "Final", title },
       artready: { cls: "artok", label: "to DEV", title },
       storyboard: { cls: "check", label: "Check", title },
@@ -4797,6 +4797,8 @@ function statusChip(t) {
 }
 function statusPillClass(t) {
   const key = isPlayables(t) ? playableStatusKey(t) : t.studioStatus || "new";
+  if (isPlayables(t) && key === "approve") return "status-senthtml";
+  if (isPlayables(t) && key === "clientart") return "status-sentart";
   if (isPlayables(t) && playableInHtml(t) && key === "wip") return "status-htmlwip";
   if (isPlayables(t) && playableInHtml(t) && key === "revision") return "status-htmlfix";
   return (STATUS[key] || STATUS.new).cls;
