@@ -33,7 +33,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-11-27l"
+BUILD = "2026-11-27m"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -3678,9 +3678,20 @@ class Handler(SimpleHTTPRequestHandler):
                     if st in direction_io.PLAY_STATUS:
                         task["mondayStatus"] = direction_io.PLAY_STATUS[st]
                     art_bounce = bool(data.get("artBounce")) and role in {"manager", "finance"}
+                    md_wip = bool(data.get("mdWip")) and role in {"manager", "finance"}
+                    html_wip = bool(data.get("htmlWip")) and role in {"manager", "finance"}
+                    if md_wip and st == "wip" and not direction_io.playable_motion_id(task):
+                        self._json(400, {"error": "assign MD in Who · hours first"})
+                        return
                     direction_io.touch_playable_html(
                         task, prev=before.get("studioStatus"), force_art=art_bounce
                     )
+                    if md_wip and st == "wip":
+                        task["playableHtml"] = True
+                        direction_io.clear_playable_sequence_ready(task)
+                    elif html_wip and st == "wip":
+                        task["playableHtml"] = True
+                        direction_io.mark_playable_sequence_ready(task)
                 elif task.get("studioStatus") == "closed":
                     task["mondayStatus"] = "Closed"
                 elif task.get("studioStatus") == "paused":

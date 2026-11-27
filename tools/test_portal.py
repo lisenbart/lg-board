@@ -2296,6 +2296,14 @@ def test_playable_card_pipeline() -> None:
         and "playableMdPending(t)" in js.split("function statusText")[1].split("function isExecView")[0],
     )
     check(
+        "LP/DL status pop offers WIP · MD",
+        'paint(key, "WIP · MD", { mdWip: true })' in js
+        and 'paint(key, "WIP · HTML", { htmlWip: true })' in js
+        and 'paint(key, "WIP · Art", { artBounce: true })' in js
+        and 'patch.mdWip = true' in js
+        and "md_wip = bool(data.get(\"mdWip\"))" in Path("server.py").read_text(encoding="utf-8"),
+    )
+    check(
         "board sort puts Sent after Check and Closed last",
         'clientart: { label: "Sent · Art", cls: "status-sentart", order: 8 }' in js
         and 'closed: { label: "Closed", cls: "status-closed", order: 10 }' in js

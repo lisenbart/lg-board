@@ -5458,8 +5458,16 @@ function handoffLeavesStatus(t, key) {
   const cur = isPlayables(t) ? playableStatusKey(t) : t.studioStatus || "new";
   return key === cur;
 }
-async function pickStatusFromPop(t, key, artBounce) {
+async function pickStatusFromPop(t, key, opts) {
   closeStatusPop();
+  const flags = opts && typeof opts === "object" ? opts : { artBounce: Boolean(opts) };
+  const artBounce = Boolean(flags.artBounce);
+  const mdWip = Boolean(flags.mdWip);
+  const htmlWip = Boolean(flags.htmlWip);
+  if (mdWip && !String(t.motionId || "").trim()) {
+    toast("Assign MD in Who · hours first");
+    return;
+  }
   const hand = handoffStatus(t);
   const isHand = key === "notify" || (Boolean(hand) && key === hand);
   if (isHand && !popHasLink(t)) {
@@ -5475,7 +5483,7 @@ async function pickStatusFromPop(t, key, artBounce) {
       state.commitCard({ fromChip: true, status: key, handed: true });
       return;
     }
-    state.commitCard({ fromChip: true, status: key, artBounce: Boolean(artBounce) });
+    state.commitCard({ fromChip: true, status: key, artBounce, mdWip, htmlWip });
     return;
   }
   if (isHand) {
@@ -5496,9 +5504,13 @@ async function pickStatusFromPop(t, key, artBounce) {
   }
   const patch = { studioStatus: key, role: me().role };
   if (artBounce) patch.artBounce = true;
+  if (mdWip) patch.mdWip = true;
+  if (htmlWip) patch.htmlWip = true;
+  const label =
+    mdWip ? "WIP · MD" : htmlWip ? "WIP · HTML" : artBounce && key === "wip" ? "WIP · Art" : statusText(key, t);
   await updateTask(
     t.id,
-    { ...patch, note: `${me().name} set ${statusText(key, t)}` },
+    { ...patch, note: `${me().name} set ${label}` },
     { toast: "" },
   );
 }
@@ -5513,22 +5525,36 @@ function openStatusPop(t) {
   const keys = statusPopChoices(t);
   const htmlLoop = isPlayables(t) && playableInHtml(t) && canOps();
   grid.replaceChildren();
-  const paint = (key, label, artBounce = false) => {
-    const mark = statusMark({ ...t, studioStatus: key === "notify" ? "check" : key });
+  const paint = (key, label, flags = {}) => {
+    const opts = flags && typeof flags === "object" ? flags : { artBounce: Boolean(flags) };
+    const probe = {
+      ...t,
+      studioStatus: key === "notify" ? "check" : key,
+      playableHtml: opts.artBounce ? false : opts.mdWip || opts.htmlWip ? true : t.playableHtml,
+      sequenceReady: opts.mdWip ? false : opts.htmlWip ? true : t.sequenceReady,
+      motionId: opts.mdWip ? t.motionId || "__md__" : t.motionId,
+    };
+    const mark = statusMark(probe);
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = `status-btn st-${mark.cls} is-on`;
     btn.textContent = label;
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
-      pickStatusFromPop(t, key, artBounce);
+      pickStatusFromPop(t, key, opts);
     });
     grid.appendChild(btn);
   };
   keys.forEach((key) => {
-    if (key === "revision" && isPlayables(t) && htmlLoop) {
-      paint(key, "Need Fixing · HTML", false);
-      paint(key, "Need Fixing · Art", true);
+    if (key === "revision" && isPlayables(t) && canOps()) {
+      paint(key, "Need Fixing · HTML", {});
+      paint(key, "Need Fixing · Art", { artBounce: true });
+      return;
+    }
+    if (key === "wip" && isPlayables(t) && canOps()) {
+      paint(key, "WIP · Art", { artBounce: true });
+      paint(key, "WIP · MD", { mdWip: true });
+      paint(key, "WIP · HTML", { htmlWip: true });
       return;
     }
     paint(key, statusPopLabel(t, key));
@@ -8641,6 +8667,15 @@ function openTask(id) {
     let assigneeId = mayAssign && $("stPerson") ? $("stPerson").value : isPlayables(t) ? playableAdId(t) : t.assigneeId;
     const patch = { studioStatus, role: me().role };
     if (opts.artBounce) patch.artBounce = true;
+    if (opts.mdWip) {
+      const motionId = mayAssign && $("stMotion") ? $("stMotion").value : t.motionId;
+      if (!String(motionId || "").trim()) {
+        toast("Assign MD in Who · hours first");
+        return;
+      }
+      patch.mdWip = true;
+    }
+    if (opts.htmlWip) patch.htmlWip = true;
     if (isPlayables(t) && mayAssign && $("stProgrammer")) patch.programmerId = $("stProgrammer").value;
     if (isPlayables(t) && mayAssign && $("stMotion")) patch.motionId = $("stMotion").value;
     if (isPlayables(t) && isFinance() && $("stStudioBuffer")) {
@@ -8789,6 +8824,12 @@ function openTask(id) {
           ? `${me().name} cancelled this project`
         : studioStatus === "paused" && t.studioStatus !== "paused"
           ? `${me().name} put this project On Pause`
+        : opts.mdWip
+          ? `${me().name} set WIP · MD`
+        : opts.htmlWip
+          ? `${me().name} set WIP · HTML`
+        : opts.artBounce && studioStatus === "wip"
+          ? `${me().name} set WIP · Art`
         : patch.urgent !== undefined && Boolean(patch.urgent) !== Boolean(t.urgent)
           ? patch.urgent
             ? `${me().name} marked URGENT`
