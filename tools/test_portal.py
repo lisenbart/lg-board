@@ -2000,13 +2000,13 @@ def test_playable_card_pipeline() -> None:
     check("AD waits on Check for LP", direction_io.playable_next_statuses("art_director", ad) == [])
     check("LP does not chip-set Send", not direction_io.playable_can_set("manager", ad, "approve")[0])
     check("LP can Mark Closed from Check", direction_io.playable_can_set("manager", ad, "closed")[0])
-    check("LP can set On pause", direction_io.playable_can_set("manager", ad, "paused")[0])
+    check("LP can set On Pause", direction_io.playable_can_set("manager", ad, "paused")[0])
     check("LP can set Cancelled", direction_io.playable_can_set("manager", ad, "cancelled")[0])
-    check("AD cannot set On pause", not direction_io.playable_can_set("art_director", ad, "paused")[0])
+    check("AD cannot set On Pause", not direction_io.playable_can_set("art_director", ad, "paused")[0])
     check("AD cannot set Cancelled", not direction_io.playable_can_set("art_director", ad, "cancelled")[0])
     paused = {**ad, "studioStatus": "paused", "playableHtml": True}
-    check("On pause has no turn", direction_io.playable_turn_role(paused) == "")
-    check("On pause keeps HTML flag", direction_io.playable_in_html(paused) is True)
+    check("On Pause has no turn", direction_io.playable_turn_role(paused) == "")
+    check("On Pause keeps HTML flag", direction_io.playable_in_html(paused) is True)
     cancelled = {**ad, "studioStatus": "cancelled", "playableHtml": True}
     check("Cancelled has no turn", direction_io.playable_turn_role(cancelled) == "")
     direction_io.touch_playable_html(cancelled)
@@ -2241,8 +2241,8 @@ def test_playable_card_pipeline() -> None:
         and 'label: "Ready to start"' in js.split("function statusMark")[1].split("function excelStatus")[0],
     )
     check(
-        "On pause and Cancelled are LP/DL statuses",
-        'paused: { label: "On pause", cls: "status-paused"' in js
+        "On Pause and Cancelled are LP/DL statuses",
+        'paused: { label: "On Pause", cls: "status-paused"' in js
         and 'cancelled: { label: "Cancelled", cls: "status-cancelled"' in js
         and ".status-paused { background: #8b88ac; }" in css
         and ".status-cancelled { background: #171717;" in css

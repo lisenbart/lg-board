@@ -33,7 +33,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-11-27f"
+BUILD = "2026-11-27g"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -3658,7 +3658,7 @@ class Handler(SimpleHTTPRequestHandler):
                 elif task.get("studioStatus") == "closed":
                     task["mondayStatus"] = "Closed"
                 elif task.get("studioStatus") == "paused":
-                    task["mondayStatus"] = "On pause"
+                    task["mondayStatus"] = "On Pause"
                 elif task.get("studioStatus") == "cancelled":
                     task["mondayStatus"] = "Cancelled"
                 elif nxt == "revision":

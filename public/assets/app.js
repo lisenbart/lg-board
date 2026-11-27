@@ -8,7 +8,7 @@ const STATUS = {
   done: { label: "Done", cls: "status-done", order: 7 },
   approve: { label: "Senior Approval", cls: "status-approve", order: 9 },
   closed: { label: "Closed", cls: "status-closed", order: 10 },
-  paused: { label: "On pause", cls: "status-paused", order: 11 },
+  paused: { label: "On Pause", cls: "status-paused", order: 11 },
   cancelled: { label: "Cancelled", cls: "status-cancelled", order: 12 },
   clientart: { label: "Sent · Art", cls: "status-sentart", order: 8 },
   finalart: { label: "Final art", cls: "status-finalart", order: 5 },
@@ -3529,7 +3529,7 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
     }
     if (st === "closed") return { tone: "ok", title: "Closed", body: "Client accepted. This playable is finished." };
     if (st === "cancelled") return { tone: "ok", title: "Cancelled", body: "LP / DL stopped this playable. Hours stay if logged." };
-    if (st === "paused") return { tone: "wait", title: "On pause", body: "Waiting. LP / DL resumes when the project is back." };
+    if (st === "paused") return { tone: "wait", title: "On Pause", body: "Waiting. LP / DL resumes when the project is back." };
     if (st === "approve") return { tone: "ok", title: "Sent to client", body: "LP already sent the HTML. Nothing else on this card." };
     if (st === "artready") return { tone: "wait", title: "to DEV", body: "" };
     if (st === "done") return { tone: "wait", title: "Waiting for LP", body: "" };
@@ -3574,7 +3574,7 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
   }
   if (st === "closed") return { tone: "ok", title: "Closed", body: "Client accepted. Hours stay on this month." };
   if (st === "cancelled") return { tone: "ok", title: "Cancelled", body: "Project stopped. Reopen with Ready to start if it comes back." };
-  if (st === "paused") return { tone: "wait", title: "On pause", body: "Parked for now. Resume with Ready to start or WIP when it moves again." };
+  if (st === "paused") return { tone: "wait", title: "On Pause", body: "Parked for now. Resume with Ready to start or WIP when it moves again." };
   if (st === "approve") return { tone: "ok", title: "Already sent", body: "HTML is with the client. Mark Closed when they accept. Need Fixing if they bounce it." };
   if (st === "done" && hasResult) return { tone: "do", title: "Your job", body: "HTML is in. Send to client, or Mark Closed if they already accepted." };
   if (st === "check") {
@@ -4437,13 +4437,13 @@ function renderGuide() {
           ${statusCard("done", "Done", "Done", "Хто: лише LP", "DEV здав HTML через Send to LP. Лише LP ставить Done, Need Fixing або шле клієнту.")}
           ${statusCard("senthtml", "Sent · HTML", "Sent · HTML", "Хто: чекаємо клієнта по HTML", "LP натиснула Send to client. Відбили → Need Fixing. Прийняли → Closed.")}
           ${statusCard("closed", "Closed", "Closed", "Хто: LP", "Клієнт прийняв. Години лишаються.")}
-          ${statusCard("paused", "On pause", "On pause", "Хто: лише LP / DL", "Паркуємо проєкт. Resume → Ready to start або WIP.")}
+          ${statusCard("paused", "On Pause", "On Pause", "Хто: лише LP / DL", "Паркуємо проєкт. Resume → Ready to start або WIP.")}
           ${statusCard("cancelled", "Cancelled", "Cancelled", "Хто: лише LP / DL", "Стоп на півдорозі. Години лишаються. Reopen → Ready to start.")}
         </div>
       </div>
       <div class="guide-block">
         <h3>Пайплайн</h3>
-        <p class="guide-lead">Ready to start → WIP → Send to LP → Check → Sent · Art → Final art → to DEV → Send to LP → Done → Sent · HTML → Closed. On pause / Cancelled — лише LP / DL. Кожен тапає чіп статусу і бачить лише свій крок. Done, Need Fixing і to DEV — жест LP по чіпу.</p>
+        <p class="guide-lead">Ready to start → WIP → Send to LP → Check → Sent · Art → Final art → to DEV → Send to LP → Done → Sent · HTML → Closed. On Pause / Cancelled — лише LP / DL. Кожен тапає чіп статусу і бачить лише свій крок. Done, Need Fixing і to DEV — жест LP по чіпу.</p>
         <ol class="guide-pipe">
           ${pipeStep("1", "LP", "Line Producer", "Картка заходить", `${ui("Create task")} після апруву годин. Ставить AD і DEV одразу, години — на людей.`, "ready", "Ready to start")}
           ${pipeStep("2", "AD", "Art Director", "Сторіборд", `Тап ${ui("Ready to start")} → ${ui("WIP")}. Лінк на борд → ${ui("Send to LP")} у футері або в чіпі. Статус стає ${ui("Check")}.`, "check", "Check")}
@@ -4499,7 +4499,7 @@ function renderGuide() {
           ${statusCard("done", "Done", "Done", "Хто: TL перевірив, далі LP", "Team Lead прийняв роботу. LP може Send to client або одразу Closed.")}
           ${statusCard("appr", "Appr.", "Senior Approval", "Хто: чекаємо клієнта", "LP натиснув Send to client. Текст для Monday скопійовано. Ще не Closed.")}
           ${statusCard("closed", "Closed", "Closed", "Хто: LP після відповіді клієнта", "Клієнт прийняв. Години лишаються, роботи більше немає.")}
-          ${statusCard("paused", "On pause", "On pause", "Хто: лише LP / DL", "Паркуємо MGX. Resume → Ready to start або WIP.")}
+          ${statusCard("paused", "On Pause", "On Pause", "Хто: лише LP / DL", "Паркуємо MGX. Resume → Ready to start або WIP.")}
           ${statusCard("cancelled", "Cancelled", "Cancelled", "Хто: лише LP / DL", "Стоп. Reopen → Ready to start.")}
         </div>
       </div>
@@ -4804,7 +4804,7 @@ function statusMark(t) {
       done: { cls: "done", label: "Done", title },
       approve: { cls: isPlayables(t) ? "senthtml" : "appr", label: isPlayables(t) ? "Sent · HTML" : "Appr.", title },
       closed: { cls: "closed", label: "Closed", title },
-      paused: { cls: "paused", label: "On pause", title },
+      paused: { cls: "paused", label: "On Pause", title },
       cancelled: { cls: "cancelled", label: "Cancelled", title },
       clientart: { cls: "sentart", label: "Sent · Art", title },
       finalart: { cls: "final", label: "Final", title },
@@ -8637,7 +8637,7 @@ function openTask(id) {
         : studioStatus === "cancelled" && t.studioStatus !== "cancelled"
           ? `${me().name} cancelled this project`
         : studioStatus === "paused" && t.studioStatus !== "paused"
-          ? `${me().name} put this project On pause`
+          ? `${me().name} put this project On Pause`
         : patch.urgent !== undefined && Boolean(patch.urgent) !== Boolean(t.urgent)
           ? patch.urgent
             ? `${me().name} marked URGENT`

@@ -44,7 +44,7 @@ PLAY_STATUS = {
     "done": "Done",
     "approve": "Sent · HTML",
     "closed": "Closed",
-    "paused": "On pause",
+    "paused": "On Pause",
     "cancelled": "Cancelled",
 }
 
@@ -623,7 +623,7 @@ def undo_client_note_bounce(task: dict | None) -> bool:
         "done": "Done",
         "approve": "Senior Approval",
         "closed": "Closed",
-        "paused": "On pause",
+        "paused": "On Pause",
         "cancelled": "Cancelled",
     }
     if is_playables(task):
@@ -740,7 +740,7 @@ def playable_can_set(role: str, task: dict | None, nxt: str, *, actor_id: str = 
     if nxt in {"closed", "paused", "cancelled"}:
         if role in {"manager", "finance"}:
             return True, ""
-        return False, "Only LP / DL can set Closed, On pause, or Cancelled"
+        return False, "Only LP / DL can set Closed, On Pause, or Cancelled"
     if role in {"manager", "finance"}:
         if nxt in PLAY_OPS_STATUSES:
             return True, ""

@@ -2606,7 +2606,7 @@ a.pack-work:hover { background: #e2e4ec; }
 .status-senthtml { background: #14b8a6; } /* Sent · HTML */
 .status-finalart { background: #f472b6; } /* Final art */
 .status-closed { background: #16a34a; font-weight: 600; } /* Closed */
-.status-paused { background: #8b88ac; } /* On pause — do not retune */
+.status-paused { background: #8b88ac; } /* On Pause — do not retune */
 .status-cancelled { background: #171717; font-weight: 600; } /* Cancelled — do not retune */
 .row.status-gap { box-shadow: inset 0 10px 0 var(--bg); }
 /* Line marks are direction, not status. Avoid Done green, WIP blue, Need Fixing burgundy. */
