@@ -1856,6 +1856,13 @@ def test_playables_desk() -> None:
             and "playable_md_pending" in Path("direction_io.py").read_text(encoding="utf-8")
             and "sequenceUrl" in Path("server.py").read_text(encoding="utf-8"),
         )
+        check(
+            "MD sequence paste enables Send to DEV and autosaves",
+            'rowId === "stResult" || rowId === "stHtml" || rowId === "stSequence"' in js
+            and 'handLabel === "Send to DEV"' in js
+            and 'if ($("stSequence") && canPasteSequence(t))' in js
+            and "sequenceUpdatedAt" in Path("direction_io.py").read_text(encoding="utf-8"),
+        )
         with tempfile.TemporaryDirectory() as raw:
             path = Path(raw) / "pl.xlsx"
             shutil.copy(playables_io.XLSX_PATH, path)

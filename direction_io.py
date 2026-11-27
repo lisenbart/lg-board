@@ -322,7 +322,7 @@ def touch_link_stamps(task: dict | None, before: dict | None = None, *, handed: 
             task["resultUpdatedAt"] = now
         return
     was = dict(task)
-    for key in ("resultUrl", "htmlUrl", "storyboardUrl", "studioStatus", "playableHtml"):
+    for key in ("resultUrl", "htmlUrl", "storyboardUrl", "sequenceUrl", "studioStatus", "playableHtml"):
         if key in before:
             was[key] = before[key]
     html_now = playable_html_url(task)
@@ -337,6 +337,12 @@ def touch_link_stamps(task: dict | None, before: dict | None = None, *, handed: 
         task.pop("storyboardUpdatedAt", None)
     elif art_now != art_was or (handed and not playable_in_html(task)):
         task["storyboardUpdatedAt"] = now
+    seq_now = playable_sequence_url(task)
+    seq_was = playable_sequence_url(was)
+    if not seq_now:
+        task.pop("sequenceUpdatedAt", None)
+    elif seq_now != seq_was:
+        task["sequenceUpdatedAt"] = now
 
 
 def _status_before(task: dict, st: str) -> str:

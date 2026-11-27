@@ -777,7 +777,8 @@ function bindLinkRows(root, onMainInput) {
     const copy = row.querySelector(".link-copy");
     const open = row.querySelector(".link-open");
     const rowId = row.getAttribute("data-link-row") || "";
-    const isMain = rowId === "stResult" || rowId === "stHtml";
+    // Sequence also gates Send to DEV — must refresh the handoff button on paste.
+    const isMain = rowId === "stResult" || rowId === "stHtml" || rowId === "stSequence";
     const onChange = () => {
       syncLinkRow(row);
       if (isMain && onMainInput) onMainInput();
@@ -7747,8 +7748,17 @@ function openTask(id) {
   ]
     .filter(Boolean)
     .join("");
-  const endActions = handoffLabel(t)
-    ? `<button type="button" class="btn green card-save" id="handOff" ${hrefOf(isPlayables(t) && playableInHtml(t) ? playableHtmlUrl(t) : t.resultUrl || t.htmlUrl || "") ? "" : "disabled"}>${escapeHtml(handoffLabel(t))}</button>`
+  const handLabel = handoffLabel(t);
+  const handReady =
+    handLabel === "Send to DEV"
+      ? Boolean(hrefOf(t.sequenceUrl || ""))
+      : Boolean(
+          hrefOf(
+            isPlayables(t) && playableInHtml(t) ? playableHtmlUrl(t) : t.resultUrl || t.htmlUrl || "",
+          ),
+        );
+  const endActions = handLabel
+    ? `<button type="button" class="btn green card-save" id="handOff" ${handReady ? "" : "disabled"}>${escapeHtml(handLabel)}</button>`
     : hidePerformerSave(t)
       ? ""
       : canEdit || canOps()
@@ -7855,7 +7865,11 @@ function openTask(id) {
         patch.htmlUrl = "";
       }
     }
-    if (!("htmlUrl" in patch) && !("resultUrl" in patch)) return Promise.resolve();
+    if ($("stSequence") && canPasteSequence(t)) {
+      const url = String($("stSequence").value || "").trim();
+      if (url !== String(t.sequenceUrl || "").trim()) patch.sequenceUrl = url;
+    }
+    if (!("htmlUrl" in patch) && !("resultUrl" in patch) && !("sequenceUrl" in patch)) return Promise.resolve();
     return updateTask(t.id, patch, {
       quiet: true,
       stay: true,
@@ -7864,6 +7878,7 @@ function openTask(id) {
       if (ok === false) return false;
       if (patch.htmlUrl != null) t.htmlUrl = patch.htmlUrl;
       if (patch.resultUrl != null) t.resultUrl = patch.resultUrl;
+      if (patch.sequenceUrl != null) t.sequenceUrl = patch.sequenceUrl;
       cardBaseline = cardFingerprint();
       refreshCardSave();
       return true;
@@ -7874,7 +7889,7 @@ function openTask(id) {
     refreshSendNote();
     refreshSendBrief();
     refreshCardSave();
-    if (!hidePerformerSave(t) || (!$("stHtml") && !$("stResult"))) return;
+    if (!hidePerformerSave(t) || (!$("stHtml") && !$("stResult") && !$("stSequence"))) return;
     clearTimeout(linkTimer);
     linkTimer = setTimeout(savePerformerLink, 400);
     state.linkSaveTimer = linkTimer;
