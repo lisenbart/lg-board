@@ -1340,7 +1340,12 @@ body.col-resizing * { cursor: col-resize !important; }
 .drawer .meta .status-finalart,
 .drawer .meta .status-closed,
 .drawer .meta .status-paused,
-.drawer .meta .status-cancelled { width: auto; flex: 1; min-width: 120px; }
+.drawer .meta .status-cancelled {
+  width: auto;
+  flex: 0 0 auto;
+  min-width: 0;
+  max-width: 100%;
+}
 .drawer-actions {
   display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
   margin-top: auto; padding-top: 14px; border-top: 1px solid #eceef5;
@@ -2601,6 +2606,27 @@ a.pack-work:hover { background: #e2e4ec; }
   padding: 4px 8px;
   color: #fff;
   font-size: 12px;
+}
+/* Board Status column: one equal width for every pill. Drawer meta stays content-sized above. */
+.row .cell > .pill.status-new,
+.row .cell > .pill.status-wip,
+.row .cell > .pill.status-htmlwip,
+.row .cell > .pill.status-mdwip,
+.row .cell > .pill.status-revision,
+.row .cell > .pill.status-htmlfix,
+.row .cell > .pill.status-tlcheck,
+.row .cell > .pill.status-check,
+.row .cell > .pill.status-done,
+.row .cell > .pill.status-todev,
+.row .cell > .pill.status-approve,
+.row .cell > .pill.status-sentart,
+.row .cell > .pill.status-senthtml,
+.row .cell > .pill.status-finalart,
+.row .cell > .pill.status-closed,
+.row .cell > .pill.status-paused,
+.row .cell > .pill.status-cancelled {
+  width: 100%;
+  box-sizing: border-box;
 }
 /* Cleaner/brighter pills; Check stripes stay ours. Pause/Cancel locked. */
 .status-new { background: #ff793d; } /* Ready to Start */

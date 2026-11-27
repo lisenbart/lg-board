@@ -1875,9 +1875,10 @@ def test_playables_desk() -> None:
             and "playable_md_pending(task)" in Path("direction_io.py").read_text(encoding="utf-8").split("def playable_work_ids")[1].split("def playable_crew_ids")[0],
         )
         check(
-            "card status pills are not forced full width",
-            ".status-cancelled {\n  justify-content: center;" in css
-            and ".status-cancelled {\n  width: 100%;" not in css,
+            "board Status column pills share equal width",
+            ".row .cell > .pill.status-senthtml" in css
+            and "width: 100%;\n  box-sizing: border-box;" in css.split(".row .cell > .pill.status-new")[1].split(".status-new { background")[0]
+            and "flex: 0 0 auto;" in css.split(".drawer .meta .status-new")[1].split(".drawer-actions")[0],
         )
         with tempfile.TemporaryDirectory() as raw:
             path = Path(raw) / "pl.xlsx"
