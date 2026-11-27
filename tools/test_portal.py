@@ -2234,11 +2234,11 @@ def test_playable_card_pipeline() -> None:
         and ".status-senthtml { background: #14b8a6; }" in css,
     )
     check(
-        "Ready to start uses Monday orange",
-        'if (playKey === "new") return "Ready to start"' in js
-        and 'new: { label: "Ready to start", cls: "status-new"' in js
+        "Ready to Start uses Monday orange",
+        'if (playKey === "new") return "Ready to Start"' in js
+        and 'new: { label: "Ready to Start", cls: "status-new"' in js
         and ".status-new { background: #ff793d; }" in css
-        and 'label: "Ready to start"' in js.split("function statusMark")[1].split("function excelStatus")[0],
+        and 'label: "Ready to Start"' in js.split("function statusMark")[1].split("function excelStatus")[0],
     )
     check(
         "On Pause and Cancelled are LP/DL statuses",

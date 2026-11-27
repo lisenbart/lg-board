@@ -2585,7 +2585,7 @@ a.pack-work:hover { background: #e2e4ec; }
   font-size: 12px;
 }
 /* Cleaner/brighter pills; Check stripes stay ours. Pause/Cancel locked. */
-.status-new { background: #ff793d; } /* Ready to start */
+.status-new { background: #ff793d; } /* Ready to Start */
 .status-wip { background: #4c8bf5; } /* WIP · Art */
 .status-htmlwip { background: #7b6cf0; } /* WIP · HTML */
 .status-revision { background: #e53935; } /* Need Fixing · Art */

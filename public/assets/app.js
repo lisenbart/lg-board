@@ -1,6 +1,6 @@
 const STATUS = {
   quote: { label: "Quote", cls: "status-new", order: 3 },
-  new: { label: "Ready to start", cls: "status-new", order: 3 },
+  new: { label: "Ready to Start", cls: "status-new", order: 3 },
   wip: { label: "WIP", cls: "status-wip", order: 2 },
   revision: { label: "Need Fixing", cls: "status-revision", order: 1 },
   tlcheck: { label: "TL Check", cls: "status-tlcheck", order: 4 },
@@ -1466,14 +1466,14 @@ function canAssignPlayable() {
 function statusText(key, t) {
   if (t && isPlayables(t)) {
     const playKey = playableStatusKey({ studioStatus: key, department: t.department, direction: t.direction });
-    if (playKey === "new") return "Ready to start";
+    if (playKey === "new") return "Ready to Start";
     if (playKey === "approve") return "Sent · HTML";
     if (playKey === "wip") return playableInHtml(t) ? "WIP · HTML" : "WIP · Art";
     if (playKey === "revision") return playableInHtml(t) ? "Need Fixing · HTML" : "Need Fixing · Art";
     if (playKey === "clientart") return "Sent · Art";
     return STATUS[playKey]?.label || STATUS[key]?.label || key;
   }
-  if (key === "new" || key === "quote") return "Ready to start";
+  if (key === "new" || key === "quote") return "Ready to Start";
   return STATUS[key]?.label || key;
 }
 function isExecView() {
@@ -3573,8 +3573,8 @@ function playableCardJob(t, { role, mine, hasResult, name }) {
     return { tone: "wait", title: "Playables seats are LP", body: "Read the card. LP assigns AD / DEV. You do not set Playables status." };
   }
   if (st === "closed") return { tone: "ok", title: "Closed", body: "Client accepted. Hours stay on this month." };
-  if (st === "cancelled") return { tone: "ok", title: "Cancelled", body: "Project stopped. Reopen with Ready to start if it comes back." };
-  if (st === "paused") return { tone: "wait", title: "On Pause", body: "Parked for now. Resume with Ready to start or WIP when it moves again." };
+  if (st === "cancelled") return { tone: "ok", title: "Cancelled", body: "Project stopped. Reopen with Ready to Start if it comes back." };
+  if (st === "paused") return { tone: "wait", title: "On Pause", body: "Parked for now. Resume with Ready to Start or WIP when it moves again." };
   if (st === "approve") return { tone: "ok", title: "Already sent", body: "HTML is with the client. Mark Closed when they accept. Need Fixing if they bounce it." };
   if (st === "done" && hasResult) return { tone: "do", title: "Your job", body: "HTML is in. Send to client, or Mark Closed if they already accepted." };
   if (st === "check") {
@@ -4427,7 +4427,7 @@ function renderGuide() {
         <h3>Статуси</h3>
         <p class="guide-lead">Один наступний крок на картці. WIP / Check / Done — ті самі слова, що в MGX.</p>
         <div class="guide-status-grid">
-          ${statusCard("ready", "Ready to start", "Ready to start", "Хто: LP створила, назначила AD / DEV", "Картка в роботі. AD вставляє сторіборд і Send to LP — без своїх чіпів. DEV уже може сидіти, HTML починає після to DEV.")}
+          ${statusCard("ready", "Ready to Start", "Ready to Start", "Хто: LP створила, назначила AD / DEV", "Картка в роботі. AD вставляє сторіборд і Send to LP — без своїх чіпів. DEV уже може сидіти, HTML починає після to DEV.")}
           ${statusCard("wip", "WIP", "WIP · Art / WIP · HTML", "Хто: чий хід по чіпу", "WIP · Art — Юля малює. WIP · HTML — Богдан збирає. Один чіп, різні лейбли як у Monday.")}
           ${statusCard("check", "Check", "Check", "Хто: AD здав борд, далі LP", "Сторіборд готовий, лінк у картці. Тільки LP шле клієнту — це стає Sent.")}
           ${statusCard("fix", "Fix", "Need Fixing", "Хто: відбій клієнта", "Сторіборд — AD править, знову Check. HTML — DEV править, знову Done.")}
@@ -4437,16 +4437,16 @@ function renderGuide() {
           ${statusCard("done", "Done", "Done", "Хто: лише LP", "DEV здав HTML через Send to LP. Лише LP ставить Done, Need Fixing або шле клієнту.")}
           ${statusCard("senthtml", "Sent · HTML", "Sent · HTML", "Хто: чекаємо клієнта по HTML", "LP натиснула Send to client. Відбили → Need Fixing. Прийняли → Closed.")}
           ${statusCard("closed", "Closed", "Closed", "Хто: LP", "Клієнт прийняв. Години лишаються.")}
-          ${statusCard("paused", "On Pause", "On Pause", "Хто: лише LP / DL", "Паркуємо проєкт. Resume → Ready to start або WIP.")}
-          ${statusCard("cancelled", "Cancelled", "Cancelled", "Хто: лише LP / DL", "Стоп на півдорозі. Години лишаються. Reopen → Ready to start.")}
+          ${statusCard("paused", "On Pause", "On Pause", "Хто: лише LP / DL", "Паркуємо проєкт. Resume → Ready to Start або WIP.")}
+          ${statusCard("cancelled", "Cancelled", "Cancelled", "Хто: лише LP / DL", "Стоп на півдорозі. Години лишаються. Reopen → Ready to Start.")}
         </div>
       </div>
       <div class="guide-block">
         <h3>Пайплайн</h3>
-        <p class="guide-lead">Ready to start → WIP → Send to LP → Check → Sent · Art → Final art → to DEV → Send to LP → Done → Sent · HTML → Closed. On Pause / Cancelled — лише LP / DL. Кожен тапає чіп статусу і бачить лише свій крок. Done, Need Fixing і to DEV — жест LP по чіпу.</p>
+        <p class="guide-lead">Ready to Start → WIP → Send to LP → Check → Sent · Art → Final art → to DEV → Send to LP → Done → Sent · HTML → Closed. On Pause / Cancelled — лише LP / DL. Кожен тапає чіп статусу і бачить лише свій крок. Done, Need Fixing і to DEV — жест LP по чіпу.</p>
         <ol class="guide-pipe">
-          ${pipeStep("1", "LP", "Line Producer", "Картка заходить", `${ui("Create task")} після апруву годин. Ставить AD і DEV одразу, години — на людей.`, "ready", "Ready to start")}
-          ${pipeStep("2", "AD", "Art Director", "Сторіборд", `Тап ${ui("Ready to start")} → ${ui("WIP")}. Лінк на борд → ${ui("Send to LP")} у футері або в чіпі. Статус стає ${ui("Check")}.`, "check", "Check")}
+          ${pipeStep("1", "LP", "Line Producer", "Картка заходить", `${ui("Create task")} після апруву годин. Ставить AD і DEV одразу, години — на людей.`, "ready", "Ready to Start")}
+          ${pipeStep("2", "AD", "Art Director", "Сторіборд", `Тап ${ui("Ready to Start")} → ${ui("WIP")}. Лінк на борд → ${ui("Send to LP")} у футері або в чіпі. Статус стає ${ui("Check")}.`, "check", "Check")}
           ${pipeStep("3", "LP", "Line Producer", "Шле борд", `${ui("Send to client")} з ${ui("Check")}. Статус стає ${ui("Sent · Art")}. Відбій → ${ui("Need Fixing")}. Апрув → ${ui("Final art")}.`, "sentart", "Sent · Art")}
           ${pipeStep("4", "AD", "Art Director", "Фінальний арт", `Доробляє арт → ${ui("Send to LP")}. Лише LP ставить ${ui("to DEV")} з чіпа.`, "artok", "to DEV")}
           ${pipeStep("5", "DEV", "Programmer", "Бере HTML", `Після ${ui("to DEV")} тап → ${ui("WIP · HTML")}, вставляє лінк. Поки арт іде — лінк уже можна зберегти.`, "wip", "WIP")}
@@ -4492,23 +4492,23 @@ function renderGuide() {
         <h3>Статуси</h3>
         <p class="guide-lead">Один чіп на проєкт. Читай зверху вниз: що означає і хто з ним працює.</p>
         <div class="guide-status-grid">
-          ${statusCard("ready", "Ready to start", "Ready to start", "Хто: LP створює, TL назначає", "Таск щойно створили. Після призначення людини статус лишається Ready to start — WIP ставить сам MD.")}
+          ${statusCard("ready", "Ready to Start", "Ready to Start", "Хто: LP створює, TL назначає", "Таск щойно створили. Після призначення людини статус лишається Ready to Start — WIP ставить сам MD.")}
           ${statusCard("wip", "WIP", "WIP", "Хто: MD", "Виконавець почав роботу. Файл ще не зданий.")}
           ${statusCard("fix", "Fix", "Need Fixing", "Хто: MD править", "TL, LP або клієнт відбили. Не TL Check — треба правка, потім знову здати.")}
           ${statusCard("tlcheck", "TL chk", "TL Check", "Хто: MD здав, далі TL", "Лінк результату в картці. MD не ставить Done. TL перевіряє: Need Fixing або Done.")}
           ${statusCard("done", "Done", "Done", "Хто: TL перевірив, далі LP", "Team Lead прийняв роботу. LP може Send to client або одразу Closed.")}
           ${statusCard("appr", "Appr.", "Senior Approval", "Хто: чекаємо клієнта", "LP натиснув Send to client. Текст для Monday скопійовано. Ще не Closed.")}
           ${statusCard("closed", "Closed", "Closed", "Хто: LP після відповіді клієнта", "Клієнт прийняв. Години лишаються, роботи більше немає.")}
-          ${statusCard("paused", "On Pause", "On Pause", "Хто: лише LP / DL", "Паркуємо MGX. Resume → Ready to start або WIP.")}
-          ${statusCard("cancelled", "Cancelled", "Cancelled", "Хто: лише LP / DL", "Стоп. Reopen → Ready to start.")}
+          ${statusCard("paused", "On Pause", "On Pause", "Хто: лише LP / DL", "Паркуємо MGX. Resume → Ready to Start або WIP.")}
+          ${statusCard("cancelled", "Cancelled", "Cancelled", "Хто: лише LP / DL", "Стоп. Reopen → Ready to Start.")}
         </div>
       </div>
       <div class="guide-block">
         <h3>Пайплайн</h3>
         <p class="guide-lead">П’ять кроків підряд. Кожен крок змінює чіп справа.</p>
         <ol class="guide-pipe">
-          ${pipeStep("1", "LP", "Line Producer", "Таск заходить", `${ui("Create task")} або ${ui("Shift email")}. Статус одразу ${ui("Ready to start")}.`, "ready", "Ready to start")}
-          ${pipeStep("2", "TL", "Team Lead", "Ставить виконавця", `${ui("Who works this")} пише одразу. Статус лишається Ready to start.`, "ready", "Ready to start")}
+          ${pipeStep("1", "LP", "Line Producer", "Таск заходить", `${ui("Create task")} або ${ui("Shift email")}. Статус одразу ${ui("Ready to Start")}.`, "ready", "Ready to Start")}
+          ${pipeStep("2", "TL", "Team Lead", "Ставить виконавця", `${ui("Who works this")} пише одразу. Статус лишається Ready to Start.`, "ready", "Ready to Start")}
           ${pipeStep("3", "MD", "Motion design", "Починає і здає", `${ui("WIP")} пише одразу. Потім лінк і ${ui("TL Check")} — теж одразу, без ${ui("Save")}. Не ${ui("Done")}. Після здачі WIP зникає.`, "tlcheck", "TL chk")}
           ${pipeStep("4", "TL", "Team Lead", "Перевіряє", `Після ${ui("TL Check")} TL ставить ${ui("Done")} або ${ui("Need Fixing")}. Відбій одразу пише MD.`, "done", "Done")}
           ${pipeStep("5", "LP", "Line Producer", "Відправляє клієнту", `${ui("Send to client")} лише з ${ui("Done")} + лінк. Це ${ui("Appr.")}.`, "appr", "Appr.")}
@@ -4796,7 +4796,7 @@ function statusMark(t) {
   return (
     {
       quote: { cls: "quote", label: "Quote", title },
-      new: { cls: "ready", label: "Ready to start", title },
+      new: { cls: "ready", label: "Ready to Start", title },
       wip: { cls: html ? "htmlwip" : "wip", label: isPlayables(t) ? (html ? "WIP · HTML" : "WIP · Art") : "WIP", title },
       revision: { cls: html ? "htmlfix" : "fix", label: isPlayables(t) ? (html ? "Fix · HTML" : "Fix · Art") : "Fix", title },
       tlcheck: { cls: "tlcheck", label: "TL chk", title },
@@ -4812,7 +4812,7 @@ function statusMark(t) {
       storyboard: { cls: "check", label: "Check", title },
       build: { cls: "artok", label: "to DEV", title },
       htmlready: { cls: "done", label: "Done", title },
-    }[key] || { cls: "ready", label: "Ready to start", title: STATUS.new.label }
+    }[key] || { cls: "ready", label: "Ready to Start", title: STATUS.new.label }
   );
 }
 function excelStatus(t) {

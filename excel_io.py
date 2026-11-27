@@ -1278,7 +1278,7 @@ def client_hours_filename(ym: str, client_id: str = "", projects_only: bool = Fa
 
 
 CLIENT_STATUS_LABEL = {
-    "new": "Ready to start",
+    "new": "Ready to Start",
     "wip": "WIP",
     "revision": "Need Fixing",
     "tlcheck": "TL Check",
@@ -1291,7 +1291,7 @@ CLIENT_STATUS_LABEL = {
     "clientart": "Sent · Art",
     "finalart": "Final art",
     "artready": "to DEV",
-    "quote": "Ready to start",
+    "quote": "Ready to Start",
     "storyboard": "Check",
     "htmlready": "Done",
     "build": "to DEV",

@@ -4,7 +4,7 @@
     "task.landed": {
       label: "New project",
       title: "{name}",
-      detail: "Ready to start · needs a person",
+      detail: "Ready to Start · needs a person",
       mark: "new",
       audience: { roles: ["teamlead", "manager"] },
       skipActor: true,

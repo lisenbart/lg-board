@@ -14,7 +14,7 @@ KINDS = {
     "task.landed": {
         "label": "New project",
         "title": "{name}",
-        "detail": "Ready to start · needs a person",
+        "detail": "Ready to Start · needs a person",
         "mark": "new",
         "audience": {"roles": ["teamlead", "manager"]},
         "skip_actor": True,
@@ -133,7 +133,7 @@ KINDS = {
 KEEP = 400
 STATUS_LOG_KEEP = 12
 STATUS_LABELS = {
-    "new": "Ready to start",
+    "new": "Ready to Start",
     "wip": "WIP",
     "revision": "Need Fixing",
     "tlcheck": "TL Check",
@@ -151,7 +151,7 @@ PLAY_STATUS_LABELS = {
     **STATUS_LABELS,
     "approve": "Sent · HTML",
     "clientart": "Sent · Art",
-    "new": "Ready to start",
+    "new": "Ready to Start",
 }
 WIP_REVERT_FROM = {"tlcheck", "done", "approve", "check", "artready", "clientart", "finalart"}
 
