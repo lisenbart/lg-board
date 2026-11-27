@@ -68,6 +68,7 @@ const PLAY_OPS_STATUSES = [
   "finalart",
   "artready",
   "done",
+  "approve",
   "closed",
   "paused",
   "cancelled",
@@ -5193,53 +5194,9 @@ function playableNextStatuses(role, t) {
   return [];
 }
 function playableLpChoices(t) {
+  // LP / DL ops override: any Playables status, including Sent · Art / Sent · HTML.
   const st = playableStatusKey(t);
-  const html = playableInHtml(t);
-  const keys = [];
-  const add = (key) => {
-    if (!key || keys.includes(key)) return;
-    keys.push(key);
-  };
-  if (st === "cancelled") {
-    add("new");
-    return keys;
-  }
-  if (st === "paused") {
-    add("new");
-    add("wip");
-    add("cancelled");
-    return keys;
-  }
-  if (st === "closed") {
-    add("new");
-    return keys;
-  }
-  if (!html && (st === "new" || st === "wip" || st === "revision")) add("check");
-  if (st === "check") {
-    add("revision");
-    if (html) {
-      add("done");
-      add("artready");
-    } else {
-      add("finalart");
-      add("artready");
-    }
-  }
-  if (st === "clientart") {
-    add("revision");
-    add("finalart");
-    add("artready");
-  }
-  if (st === "finalart") add("artready");
-  if (html && (st === "artready" || st === "wip" || st === "revision" || st === "check" || st === "done" || st === "approve")) {
-    add("artready");
-    add("done");
-    add("revision");
-  }
-  add("closed");
-  add("paused");
-  add("cancelled");
-  return keys.filter((key) => key !== st || (html && key === "revision"));
+  return PLAY_OPS_STATUSES.filter((key) => key !== st || key === "revision");
 }
 function playableStatusActions(task) {
   return [];
@@ -8545,7 +8502,7 @@ function openTask(id) {
     btn.addEventListener("click", () => {
       const key = btn.dataset.status;
       if (!key || btn.disabled) return;
-      if (key === "approve") {
+      if (key === "approve" && !(isPlayables(t) && canOps())) {
         toast(isPlayables(t) ? "Send is set only when you Send to client" : "Senior Approval is set only when you Send to client");
         return;
       }
@@ -8558,11 +8515,11 @@ function openTask(id) {
           toast("Paste the sequence link before Send to DEV");
           return;
         }
-      } else if (isPlayables(t) && key === "check" && !($("stResult")?.value || t.resultUrl || "").trim()) {
+      } else if (isPlayables(t) && key === "check" && !canOps() && !($("stResult")?.value || t.resultUrl || "").trim()) {
         toast("Paste the storyboard link before Check");
         return;
       }
-      if (isPlayables(t) && key === "done" && !($("stResult")?.value || t.resultUrl || "").trim()) {
+      if (isPlayables(t) && key === "done" && !canOps() && !($("stResult")?.value || t.resultUrl || "").trim()) {
         toast("Paste the HTML link before Done");
         return;
       }
@@ -8638,7 +8595,7 @@ function openTask(id) {
       toast("This role cannot set " + (STATUS[studioStatus]?.label || studioStatus));
       return;
     }
-    if (studioStatus === "approve") {
+    if (studioStatus === "approve" && !(isPlayables(t) && canOps())) {
       toast(isPlayables(t) ? "Send is set only when you Send to client" : "Senior Approval is set only when you Send to client");
       return;
     }
@@ -8646,11 +8603,11 @@ function openTask(id) {
       toast("Only LP can mark Closed");
       return;
     }
-    if (isPlayables(t) && studioStatus === "check" && !resultUrl) {
+    if (isPlayables(t) && studioStatus === "check" && !resultUrl && !canOps()) {
       toast("Paste the storyboard link before Check");
       return;
     }
-    if (isPlayables(t) && studioStatus === "done" && !resultUrl) {
+    if (isPlayables(t) && studioStatus === "done" && !resultUrl && !canOps()) {
       toast("Paste the HTML link before Done");
       return;
     }

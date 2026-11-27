@@ -2037,7 +2037,7 @@ def test_playable_card_pipeline() -> None:
     ad["handedToLp"] = True
     ad["handedBy"] = "artdir1"
     check("AD waits on Check for LP", direction_io.playable_next_statuses("art_director", ad) == [])
-    check("LP does not chip-set Send", not direction_io.playable_can_set("manager", ad, "approve")[0])
+    check("LP can chip-set Sent HTML", direction_io.playable_can_set("manager", ad, "approve")[0])
     check("LP can Mark Closed from Check", direction_io.playable_can_set("manager", ad, "closed")[0])
     check("LP can set On Pause", direction_io.playable_can_set("manager", ad, "paused")[0])
     check("LP can set Cancelled", direction_io.playable_can_set("manager", ad, "cancelled")[0])
@@ -2317,8 +2317,32 @@ def test_playable_card_pipeline() -> None:
         and 'cancelled: { label: "Cancelled", cls: "status-cancelled"' in js
         and ".status-paused { background: #8b88ac; }" in css
         and ".status-cancelled { background: #171717;" in css
-        and 'add("paused")' in js.split("function playableLpChoices")[1].split("function playableStatusActions")[0]
-        and 'add("cancelled")' in js.split("function playableLpChoices")[1].split("function playableStatusActions")[0],
+        and '"paused"' in js.split("const PLAY_OPS_STATUSES")[1].split("const PLAY_STATUS_BY_ROLE")[0]
+        and '"cancelled"' in js.split("const PLAY_OPS_STATUSES")[1].split("const PLAY_STATUS_BY_ROLE")[0]
+        and "PLAY_OPS_STATUSES.filter" in js.split("function playableLpChoices")[1].split("function playableStatusActions")[0],
+    )
+    check(
+        "LP/DL can set any Playables status including Sent",
+        "PLAY_OPS_STATUSES.filter" in js.split("function playableLpChoices")[1].split("function playableStatusActions")[0]
+        and '"approve"' in js.split("const PLAY_OPS_STATUSES")[1].split("const PLAY_STATUS_BY_ROLE")[0]
+        and '"clientart"' in js.split("const PLAY_OPS_STATUSES")[1].split("const PLAY_STATUS_BY_ROLE")[0]
+        and 'if (studioStatus === "approve" && !(isPlayables(t) && canOps()))' in js
+        and direction_io.playable_can_set(
+            "manager",
+            {"department": "Playables", "studioStatus": "wip", "assigneeId": "artdir1"},
+            "approve",
+        )[0]
+        and direction_io.playable_can_set(
+            "manager",
+            {"department": "Playables", "studioStatus": "wip", "assigneeId": "artdir1"},
+            "clientart",
+        )[0]
+        and not direction_io.playable_can_set(
+            "art_director",
+            {"department": "Playables", "studioStatus": "wip", "assigneeId": "artdir1"},
+            "approve",
+            actor_id="artdir1",
+        )[0],
     )
     check(
         "Need Fixing Art and HTML use different colors",
@@ -2355,20 +2379,14 @@ def test_playable_card_pipeline() -> None:
     )
     check(
         "LP can return to Art ready from HTML Need Fixing",
-        'add("artready")' in js.split("function playableLpChoices")[1].split("function playableStatusActions")[0],
+        '"artready"' in js.split("const PLAY_OPS_STATUSES")[1].split("const PLAY_STATUS_BY_ROLE")[0]
+        and "PLAY_OPS_STATUSES.filter" in js.split("function playableLpChoices")[1].split("function playableStatusActions")[0],
     )
     check(
         "LP Check can pass to Art ready",
-        'add("artready")'
-        in js.split("function playableLpChoices")[1]
-        .split("function playableStatusActions")[0]
-        .split('st === "check"')[1]
-        .split('st === "clientart"')[0]
-        and 'add("finalart")'
-        in js.split("function playableLpChoices")[1]
-        .split("function playableStatusActions")[0]
-        .split('st === "check"')[1]
-        .split('st === "clientart"')[0],
+        '"artready"' in js.split("const PLAY_OPS_STATUSES")[1].split("const PLAY_STATUS_BY_ROLE")[0]
+        and '"finalart"' in js.split("const PLAY_OPS_STATUSES")[1].split("const PLAY_STATUS_BY_ROLE")[0]
+        and "PLAY_OPS_STATUSES.filter" in js.split("function playableLpChoices")[1].split("function playableStatusActions")[0],
     )
     check(
         "LP rows stay active until Closed",

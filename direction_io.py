@@ -57,6 +57,7 @@ PLAY_OPS_STATUSES = (
     "finalart",
     "artready",
     "done",
+    "approve",
     "closed",
     "paused",
     "cancelled",
@@ -795,7 +796,7 @@ def playable_can_set(role: str, task: dict | None, nxt: str, *, actor_id: str = 
     nxt = playable_norm_status(raw)
     if nxt == cur:
         return True, ""
-    if nxt == "approve":
+    if nxt == "approve" and role not in {"manager", "finance"}:
         return False, "Send is set only when you Send to client"
     if nxt in {"closed", "paused", "cancelled"}:
         if role in {"manager", "finance"}:

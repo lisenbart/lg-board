@@ -33,7 +33,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-11-27j"
+BUILD = "2026-11-27k"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -3459,10 +3459,16 @@ class Handler(SimpleHTTPRequestHandler):
                 elif md_send and not str(sequence_after or "").strip():
                     self._json(400, {"error": "paste the sequence link before Send to DEV"})
                     return
-                elif playable and status_after == "check" and not md_send and not str(result_after or "").strip():
+                elif (
+                    playable
+                    and status_after == "check"
+                    and not md_send
+                    and role not in OPS_ROLES
+                    and not str(result_after or "").strip()
+                ):
                     self._json(400, {"error": "paste the storyboard link before Check"})
                     return
-                elif playable and status_after == "done" and not str(result_after or "").strip():
+                elif playable and status_after == "done" and role not in OPS_ROLES and not str(result_after or "").strip():
                     self._json(400, {"error": "paste the HTML link before Done"})
                     return
                 if "hours" in data and playable:
