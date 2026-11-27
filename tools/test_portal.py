@@ -2297,11 +2297,30 @@ def test_playable_card_pipeline() -> None:
     )
     check(
         "LP/DL status pop offers WIP · MD",
-        'paint(key, "WIP · MD", { mdWip: true })' in js
-        and 'paint(key, "WIP · HTML", { htmlWip: true })' in js
-        and 'paint(key, "WIP · Art", { artBounce: true })' in js
+        "function playableLpPopLayout" in js
+        and 'label: "WIP · MD"' in js
+        and 'label: "WIP · HTML"' in js
+        and 'label: "WIP · Art"' in js
+        and 'label: "Sent · Art"' in js
+        and 'label: "Sent · HTML"' in js
         and 'patch.mdWip = true' in js
         and "md_wip = bool(data.get(\"mdWip\"))" in Path("server.py").read_text(encoding="utf-8"),
+    )
+    check(
+        "LP status pop groups Sent and Fix pairs",
+        'label: "Sent · Art"' in js.split("function playableLpPopLayout")[1].split("function playableStatusActions")[0]
+        and js.split("function playableLpPopLayout")[1]
+        .split("function playableStatusActions")[0]
+        .index('label: "Sent · Art"')
+        < js.split("function playableLpPopLayout")[1]
+        .split("function playableStatusActions")[0]
+        .index('label: "Sent · HTML"')
+        and js.split("function playableLpPopLayout")[1]
+        .split("function playableStatusActions")[0]
+        .index('label: "Need Fixing · Art"')
+        < js.split("function playableLpPopLayout")[1]
+        .split("function playableStatusActions")[0]
+        .index('label: "Need Fixing · HTML"'),
     )
     check(
         "board sort puts Sent after Check and Closed last",
@@ -2334,11 +2353,12 @@ def test_playable_card_pipeline() -> None:
         and ".status-cancelled { background: #171717;" in css
         and '"paused"' in js.split("const PLAY_OPS_STATUSES")[1].split("const PLAY_STATUS_BY_ROLE")[0]
         and '"cancelled"' in js.split("const PLAY_OPS_STATUSES")[1].split("const PLAY_STATUS_BY_ROLE")[0]
-        and "PLAY_OPS_STATUSES.filter" in js.split("function playableLpChoices")[1].split("function playableStatusActions")[0],
+        and "PLAY_OPS_STATUSES.slice()" in js.split("function playableLpChoices")[1].split("function playableLpPopLayout")[0],
     )
     check(
         "LP/DL can set any Playables status including Sent",
-        "PLAY_OPS_STATUSES.filter" in js.split("function playableLpChoices")[1].split("function playableStatusActions")[0]
+        "PLAY_OPS_STATUSES.slice()" in js.split("function playableLpChoices")[1].split("function playableLpPopLayout")[0]
+        and "function playableLpPopLayout" in js
         and '"approve"' in js.split("const PLAY_OPS_STATUSES")[1].split("const PLAY_STATUS_BY_ROLE")[0]
         and '"clientart"' in js.split("const PLAY_OPS_STATUSES")[1].split("const PLAY_STATUS_BY_ROLE")[0]
         and 'if (studioStatus === "approve" && !(isPlayables(t) && canOps()))' in js
@@ -2395,13 +2415,14 @@ def test_playable_card_pipeline() -> None:
     check(
         "LP can return to Art ready from HTML Need Fixing",
         '"artready"' in js.split("const PLAY_OPS_STATUSES")[1].split("const PLAY_STATUS_BY_ROLE")[0]
-        and "PLAY_OPS_STATUSES.filter" in js.split("function playableLpChoices")[1].split("function playableStatusActions")[0],
+        and 'label: "to DEV"' in js.split("function playableLpPopLayout")[1].split("function playableStatusActions")[0],
     )
     check(
         "LP Check can pass to Art ready",
         '"artready"' in js.split("const PLAY_OPS_STATUSES")[1].split("const PLAY_STATUS_BY_ROLE")[0]
         and '"finalart"' in js.split("const PLAY_OPS_STATUSES")[1].split("const PLAY_STATUS_BY_ROLE")[0]
-        and "PLAY_OPS_STATUSES.filter" in js.split("function playableLpChoices")[1].split("function playableStatusActions")[0],
+        and 'label: "Final art"' in js.split("function playableLpPopLayout")[1].split("function playableStatusActions")[0]
+        and 'label: "to DEV"' in js.split("function playableLpPopLayout")[1].split("function playableStatusActions")[0],
     )
     check(
         "LP rows stay active until Closed",

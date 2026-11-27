@@ -5208,9 +5208,30 @@ function playableNextStatuses(role, t) {
   return [];
 }
 function playableLpChoices(t) {
-  // LP / DL ops override: any Playables status, including Sent · Art / Sent · HTML.
-  const st = playableStatusKey(t);
-  return PLAY_OPS_STATUSES.filter((key) => key !== st || key === "revision");
+  // LP / DL ops override: full Playables grid (order is fixed in openStatusPop).
+  return PLAY_OPS_STATUSES.slice();
+}
+function playableLpPopLayout() {
+  // Pairs fill the 2-col pop left→right so related chips stay side by side.
+  return [
+    [{ key: "new", label: "Ready to Start" }, { key: "check", label: "Check" }],
+    [
+      { key: "wip", label: "WIP · Art", artBounce: true },
+      { key: "wip", label: "WIP · MD", mdWip: true },
+    ],
+    [{ key: "wip", label: "WIP · HTML", htmlWip: true, wide: true }],
+    [
+      { key: "clientart", label: "Sent · Art" },
+      { key: "approve", label: "Sent · HTML" },
+    ],
+    [
+      { key: "revision", label: "Need Fixing · Art", artBounce: true },
+      { key: "revision", label: "Need Fixing · HTML" },
+    ],
+    [{ key: "finalart", label: "Final art" }, { key: "artready", label: "to DEV" }],
+    [{ key: "done", label: "Done" }, { key: "closed", label: "Closed" }],
+    [{ key: "paused", label: "On Pause" }, { key: "cancelled", label: "Cancelled" }],
+  ];
 }
 function playableStatusActions(task) {
   return [];
@@ -5523,7 +5544,6 @@ function openStatusPop(t) {
   if (!bg || !grid || !now) return;
   now.textContent = "Now · " + statusText(t.studioStatus || "new", t);
   const keys = statusPopChoices(t);
-  const htmlLoop = isPlayables(t) && playableInHtml(t) && canOps();
   grid.replaceChildren();
   const paint = (key, label, flags = {}) => {
     const opts = flags && typeof flags === "object" ? flags : { artBounce: Boolean(flags) };
@@ -5537,7 +5557,7 @@ function openStatusPop(t) {
     const mark = statusMark(probe);
     const btn = document.createElement("button");
     btn.type = "button";
-    btn.className = `status-btn st-${mark.cls} is-on`;
+    btn.className = `status-btn st-${mark.cls} is-on${opts.wide ? " is-wide" : ""}`;
     btn.textContent = label;
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -5545,20 +5565,22 @@ function openStatusPop(t) {
     });
     grid.appendChild(btn);
   };
-  keys.forEach((key) => {
-    if (key === "revision" && isPlayables(t) && canOps()) {
-      paint(key, "Need Fixing · HTML", {});
-      paint(key, "Need Fixing · Art", { artBounce: true });
-      return;
-    }
-    if (key === "wip" && isPlayables(t) && canOps()) {
-      paint(key, "WIP · Art", { artBounce: true });
-      paint(key, "WIP · MD", { mdWip: true });
-      paint(key, "WIP · HTML", { htmlWip: true });
-      return;
-    }
-    paint(key, statusPopLabel(t, key));
-  });
+  if (isPlayables(t) && canOps()) {
+    const allowed = new Set(keys);
+    playableLpPopLayout().forEach((row) => {
+      row.forEach((cell) => {
+        if (!allowed.has(cell.key)) return;
+        paint(cell.key, cell.label, {
+          artBounce: Boolean(cell.artBounce),
+          mdWip: Boolean(cell.mdWip),
+          htmlWip: Boolean(cell.htmlWip),
+          wide: Boolean(cell.wide),
+        });
+      });
+    });
+  } else {
+    keys.forEach((key) => paint(key, statusPopLabel(t, key)));
+  }
   if (!grid.children.length) {
     toast("No next step from this status");
     return;
