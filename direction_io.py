@@ -247,6 +247,9 @@ def playable_html_url(task: dict | None) -> str:
         return result
     if draft and not _same_playable_link(draft, board):
         return draft
+    # Shared pack folder: art and HTML point at the same URL — still expose HTML.
+    if result or draft:
+        return result or draft
     return ""
 
 
@@ -255,8 +258,12 @@ def playable_art_url(task: dict | None) -> str:
     board = playable_storyboard_url(task)
     if board:
         return board
+    result = str(task.get("resultUrl") or "").strip()
     if not playable_in_html(task):
-        return str(task.get("resultUrl") or "").strip()
+        return result
+    html = str(task.get("htmlUrl") or "").strip()
+    if result and not _same_playable_link(result, html):
+        return result
     return ""
 
 
@@ -521,6 +528,18 @@ def touch_playable_html(task: dict | None, prev: str | None = None, force_art: b
         return
     if st in {"done", "approve"}:
         task["playableHtml"] = True
+        # Lock art into storyboardUrl when HTML takes over resultUrl.
+        # Code-only cards have no art — do not invent storyboard from the HTML link
+        # (that would make Done look unsendable: result == storyboard).
+        result = str(task.get("resultUrl") or "").strip()
+        story = str(task.get("storyboardUrl") or "").strip()
+        html = str(task.get("htmlUrl") or "").strip()
+        if not story and result and html and not _same_playable_link(result, html):
+            task["storyboardUrl"] = result
+            story = result
+            task["resultUrl"] = html
+        elif not story and result and html and _same_playable_link(result, html) and st == "approve":
+            task["storyboardUrl"] = result
         return
     if st in {"wip", "revision"}:
         prev_st = playable_norm_status(prev) if prev else _status_before(task, st)
@@ -930,17 +949,33 @@ def ensure_crew(db: dict) -> bool:
             dirty = True
         # Heal: HTML already on the card but stuck on Sent · Art (Send from HTML Check).
         if nxt == "clientart" and playable_html_url(task):
+            story = playable_storyboard_url(task)
+            result = str(task.get("resultUrl") or "").strip()
+            if result and not story:
+                task["storyboardUrl"] = result
             task["studioStatus"] = "approve"
             task["mondayStatus"] = PLAY_STATUS["approve"]
             task["playableHtml"] = True
+            touch_playable_html(task)
             dirty = True
-        elif nxt == "approve":
+            nxt = "approve"
+        if nxt == "approve":
             wanted_html = PLAY_STATUS["approve"]
             if str(task.get("mondayStatus") or "") in {"Send", "Client art", "Sent", "Sent · Art"}:
                 task["mondayStatus"] = wanted_html
                 dirty = True
             if not task.get("playableHtml"):
                 task["playableHtml"] = True
+                dirty = True
+            # Backfill storyboard if art only lived in resultUrl before HTML mode.
+            story = playable_storyboard_url(task)
+            result = str(task.get("resultUrl") or "").strip()
+            html = str(task.get("htmlUrl") or "").strip()
+            if not story and result:
+                task["storyboardUrl"] = result
+                dirty = True
+            elif not story and html:
+                task["storyboardUrl"] = html
                 dirty = True
         elif nxt == "clientart":
             wanted_art = PLAY_STATUS["clientart"]

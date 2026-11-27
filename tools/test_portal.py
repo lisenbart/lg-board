@@ -2412,6 +2412,27 @@ def test_playable_card_pipeline() -> None:
         stuck["studioStatus"] == "approve" and stuck["mondayStatus"] == "Sent · HTML" and stuck.get("playableHtml") is True,
         str({k: stuck.get(k) for k in ("studioStatus", "mondayStatus", "playableHtml")}),
     )
+    lost_art = {
+        "direction": "playables",
+        "studioStatus": "approve",
+        "mondayStatus": "Sent · HTML",
+        "playableHtml": True,
+        "resultUrl": "https://drive.google.com/drive/folders/pack",
+        "htmlUrl": "https://drive.google.com/drive/folders/pack",
+        "assigneeId": "artdir1",
+        "programmerId": "programmer1",
+    }
+    direction_io.ensure_crew({"people": [], "tasks": [lost_art], "meta": {}})
+    check(
+        "Sent · HTML backfills storyboard from resultUrl",
+        lost_art.get("storyboardUrl") == "https://drive.google.com/drive/folders/pack",
+        str(lost_art.get("storyboardUrl")),
+    )
+    check(
+        "Sent · HTML still shows HTML when it shares the pack folder",
+        direction_io.playable_html_url(lost_art) == "https://drive.google.com/drive/folders/pack",
+        direction_io.playable_html_url(lost_art),
+    )
     art_only = {
         "direction": "playables",
         "studioStatus": "clientart",

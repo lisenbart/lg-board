@@ -33,7 +33,7 @@ DATA = ROOT / "data"
 DB_PATH = DATA / "db.json"
 SEED_PATH = DATA / "seed.json"
 PORT = 43141
-BUILD = "2026-11-27b"
+BUILD = "2026-11-27c"
 LOCK = threading.Lock()
 _FILES_LOCK = threading.Lock()
 _INGEST_LOCK = threading.Lock()
@@ -3304,6 +3304,7 @@ class Handler(SimpleHTTPRequestHandler):
                             task["studioStatus"] = "approve"
                             task["mondayStatus"] = direction_io.PLAY_STATUS["approve"]
                             task["playableHtml"] = True
+                        direction_io.touch_playable_html(task, prev=st)
                         sent_as = task["mondayStatus"]
                     else:
                         task["studioStatus"] = "approve"

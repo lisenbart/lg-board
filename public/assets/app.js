@@ -3360,7 +3360,9 @@ function resultHtml(t, performer, canPaste) {
   }
   const title = !play ? "Result" : html ? "HTML" : "Storyboard";
   const placeholder = "Paste link";
-  const waiting = `Waiting for ${escapeHtml(person(html ? t.programmerId : t.assigneeId)?.name || "designer")}`;
+  const waitingDev = `Waiting for ${escapeHtml(person(t.programmerId)?.name || "designer")}`;
+  const waitingAd = `Waiting for ${escapeHtml(person(playableAdId(t) || t.assigneeId)?.name || "designer")}`;
+  const waiting = html ? waitingDev : waitingAd;
   const body = linkRowHtml({
     id: "stResult",
     value: html ? playableHtmlUrl(t) : t.resultUrl || "",
@@ -3369,7 +3371,7 @@ function resultHtml(t, performer, canPaste) {
     emptyText: waiting,
     updatedAt: play ? (html ? t.htmlUpdatedAt : t.storyboardUpdatedAt) : t.resultUpdatedAt,
   });
-  const board = play ? String(t.storyboardUrl || "").trim() : "";
+  const board = play ? playableArtUrl(t) : "";
   const htmlDraft = play && !html ? String(t.htmlUrl || "").trim() : "";
   if (html) {
     return `<section class="io io-result${performer ? " is-focus" : ""}">
@@ -3379,7 +3381,7 @@ function resultHtml(t, performer, canPaste) {
         value: board,
         placeholder: "",
         canPaste: false,
-        emptyText: waiting,
+        emptyText: waitingAd,
         updatedAt: t.storyboardUpdatedAt,
       })}
       <div class="link-sub">
@@ -4882,6 +4884,15 @@ function samePlayableLink(a, b) {
   const two = String(b || "").trim().replace(/\/+$/, "");
   return Boolean(one) && one === two;
 }
+function playableArtUrl(t) {
+  const board = playableStoryboardUrl(t);
+  if (board) return board;
+  if (!playableInHtml(t)) return String(t?.resultUrl || "").trim();
+  const result = String(t?.resultUrl || "").trim();
+  const html = String(t?.htmlUrl || "").trim();
+  if (result && !samePlayableLink(result, html)) return result;
+  return "";
+}
 function playableHtmlUrl(t) {
   const board = playableStoryboardUrl(t);
   const draft = String(t?.htmlUrl || "").trim();
@@ -4889,6 +4900,8 @@ function playableHtmlUrl(t) {
   const result = String(t?.resultUrl || "").trim();
   if (result && !samePlayableLink(result, board)) return result;
   if (draft && !samePlayableLink(draft, board)) return draft;
+  // Shared pack folder: art and HTML are the same URL — still show it under HTML.
+  if (result || draft) return result || draft;
   return "";
 }
 function playableInHtml(t) {
